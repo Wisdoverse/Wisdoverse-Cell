@@ -1,0 +1,221 @@
+# =============================================================================
+# Acceptance Framework Configuration
+# =============================================================================
+# Tiered verification for AI-generated and human-written code.
+# L0 GATE: hard-block merge  |  L1 CHECK: notify human  |  L2 REPORT: info only
+
+framework_version: "1.0"
+
+# ---------------------------------------------------------------------------
+# Agent classification for differentiated thresholds
+# ---------------------------------------------------------------------------
+agent_types:
+  logic_intensive:
+    description: "High testable logic, minimal LLM calls"
+    agents: [sync_agent, analysis_agent, channel_gateway]
+    coverage_threshold: 70
+
+  llm_intensive:
+    description: "Core logic is LLM interaction, hard to mock"
+    agents: [chat_agent, requirement_manager]
+    coverage_threshold: 45
+
+  mixed:
+    description: "Both testable logic and LLM paths"
+    agents: [pjm_agent, evolution_agent]
+    coverage_threshold: 60
+
+  default:
+    description: "New agents before classification"
+    coverage_threshold: 60
+
+# ---------------------------------------------------------------------------
+# L0 GATE — hard-block (pipeline fails)
+# ---------------------------------------------------------------------------
+l0_gate:
+  security:
+    hardcoded_secrets:
+      enabled: true
+      patterns:
+        - '(?i)(api[_-]?key|secret[_-]?key|password|token)\s*[:=]\s*["\x27][A-Za-z0-9+/=_-]{16,}'
+        - '(?i)sk-[a-zA-Z0-9]{20,}'
+        - '(?i)ghp_[a-zA-Z0-9]{36}'
+        - '(?i)glpat-[a-zA-Z0-9\-_]{20,}'
+      exclude_files:
+        - "*.md"
+        - "*.yaml"
+        - "*.yml"
+        - "tests/conftest.py"
+        - ".acceptance/*"
+
+    sql_injection:
+      enabled: true
+      patterns:
+        - 'f["\x27].*SELECT.*{.*}'
+        - 'f["\x27].*INSERT.*{.*}'
+        - 'f["\x27].*UPDATE.*{.*}'
+        - 'f["\x27].*DELETE.*{.*}'
+        - '\.execute\(f["\x27]'
+      exclude_files:
+        - "migrations/*"
+        - "shared/infra/dsar.py"  # table_name from code-defined TableSpec, not user input
+
+    pii_in_logs:
+      enabled: true
+      # Match logger calls that pass sensitive VARIABLES as arguments,
+      # not string literals that merely contain the word "token"
+      patterns:
+        - 'logger\.\w+\([^)]*(?:password|secret|token|api_key|credit_card|ssn)\s*='
+      # Exclude patterns where the value is safely wrapped
+      safe_patterns:
+        - 'bool\('
+        - 'len\('
+        - 'type\('
+        - 'has_\w+=bool\('
+        - '_no_token'
+        - '_missing_'
+      exclude_files:
+        - "tests/*"
+
+  architecture:
+    base_agent_required:
+      enabled: true
+      description: "New agents must inherit BaseAgent"
+      check_path: "agents/*/service/agent.py"
+      required_parent: "BaseAgent"
+
+    create_agent_app_required:
+      enabled: true
+      description: "Must use create_agent_app factory"
+      check_path: "agents/*/app/main.py"
+      required_import: "from shared.app import create_agent_app"
+
+    deprecated_imports:
+      enabled: true
+      blocked_patterns:
+        - "from shared.services.feishu"
+        - "from shared.services.openclaw"
+        - "from shared.services.wecom"
+        - "from shared.services.circuit_breaker"
+        - "from shared.services.agent_client"
+      description: "Use shared.integrations.* or shared.infra.* instead"
+
+    event_format:
+      enabled: true
+      description: "Events must use EventTypes constants, not raw strings"
+      blocked_patterns:
+        - 'event_type\s*=\s*["\x27][a-z]+\.[a-z]'
+      allowed_files:
+        - "shared/schemas/event.py"
+
+  quality:
+    ruff_check:
+      enabled: true
+      command: "ruff check {target} --select E,F --no-fix"
+      description: "Zero errors from ruff (E=pycodestyle errors, F=pyflakes)"
+
+    hallucinated_imports:
+      enabled: true
+      description: "All imports must resolve to existing modules"
+
+    type_annotations:
+      enabled: true
+      description: "Public functions must have type annotations"
+      check_path: "agents/*/service/*.py"
+      exclude_patterns:
+        - "^_"
+        - "^test_"
+
+    test_exists:
+      enabled: true
+      description: "Changed agent code must have corresponding tests"
+
+  compliance:
+    dsar_required:
+      enabled: true
+      description: "Agents handling user data must implement DSAR interface"
+      check_agents: [chat_agent, requirement_manager, pjm_agent, sync_agent]
+
+# ---------------------------------------------------------------------------
+# L1 CHECK — notify human (MR comment, no block)
+# ---------------------------------------------------------------------------
+l1_check:
+  spec_drift:
+    enabled: true
+    description: "Compare implementation against spec in docs/specs/"
+    # LLM provider: auto-detect from env, or set explicitly
+    # International: anthropic, openai, gemini, openrouter
+    # China: zhipu, minimax, deepseek, qwen, baichuan, moonshot, yi, stepfun
+    # Local: ollama
+    # Auto-detect scans all providers by env var presence
+    llm_provider: null  # null = auto-detect
+    llm_model: null     # null = provider default
+    threshold: 0.7
+
+  test_quality:
+    enabled: true
+    assertion_density_min: 2.0
+    exception_path_required: true
+    description: "Tests must have sufficient assertions and cover error paths"
+
+  self_grading_detection:
+    enabled: true
+    description: "Flag when test + impl likely from same AI session (happy-path-only tests)"
+    happy_path_ratio_max: 0.8
+
+  over_engineering:
+    enabled: true
+    description: "Flag new abstractions, dependencies, or config not in spec"
+
+  dead_events:
+    enabled: true
+    description: "EventTypes registered but not subscribed by any agent"
+
+  performance:
+    agent_startup_max_seconds: 5
+    handle_event_avg_max_seconds: 2
+
+# ---------------------------------------------------------------------------
+# L2 REPORT — info only (CI artifact)
+# ---------------------------------------------------------------------------
+l2_report:
+  complexity:
+    enabled: true
+    cyclomatic_max: 10
+    function_length_max: 50
+
+  ai_patterns:
+    enabled: true
+    comment_code_ratio_max: 0.4
+    description: "Flag excessive commenting typical of AI-generated code"
+
+  dependencies:
+    enabled: true
+    description: "Report new cross-agent imports"
+
+  documentation:
+    enabled: true
+    description: "Docstring coverage for public modules"
+
+# ---------------------------------------------------------------------------
+# New agent onboarding checklist (in addition to L0-L2)
+# ---------------------------------------------------------------------------
+new_agent_checklist:
+  - "Inherits BaseAgent with handle_event(), startup(), shutdown()"
+  - "Uses create_agent_app() in app/main.py"
+  - "Has Dockerfile + docker-compose service entry"
+  - "Database isolation: own PostgreSQL DB + Redis namespace"
+  - "Prometheus metrics endpoint /metrics"
+  - "Health check endpoint /health"
+  - "At least 1 integration test for EventBus send/receive"
+  - "Spec document in docs/specs/"
+  - "Registered in CLAUDE.md architecture section"
+
+# ---------------------------------------------------------------------------
+# Output
+# ---------------------------------------------------------------------------
+output:
+  format: json
+  report_dir: ".acceptance/reports/output"
+  gitlab_mr_comment: true
+  notify_on_l1: true

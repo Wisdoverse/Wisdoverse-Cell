@@ -1,0 +1,243 @@
+# =============================================================================
+# Cloud-Native Application Layer
+# =============================================================================
+# Gateway (Go) + AI Core (Python) with Traefik service discovery labels
+# =============================================================================
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+# CN mirror build args — activated via .env or docs/examples/cn-build-mirrors.env.example
+x-python-mirror-args: &python-mirror-args
+  PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+  PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
+  APT_MIRROR: ${APT_MIRROR:-}
+
+services:
+  # ===========================================================================
+  # AI Core — Python FastAPI (Requirement Manager)
+  # ===========================================================================
+  ai-core:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile.agents
+      target: ai-core
+      args:
+        <<: *python-mirror-args
+        VERSION: ${VERSION:-dev}
+    image: ${REGISTRY:-}projectcell/ai-core:${VERSION:-latest}
+    hostname: ai-core
+    environment:
+      # Database — via PgBouncer
+      POSTGRES_HOST: pgbouncer
+      POSTGRES_PORT: "6432"
+      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_USER: ${POSTGRES_USER:-projectcell}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_URL: redis://redis:6379/0
+      # NATS / Event Bus
+      NATS_URL: nats://nats-1:4222,nats://nats-2:4222,nats://nats-3:4222
+      EVENT_BUS_BACKEND: ${EVENT_BUS_BACKEND:-redis}
+      # Database Read Replica (optional, for read/write split)
+      DB_READ_HOST: ${DB_READ_HOST:-}
+      DB_READ_PORT: ${DB_READ_PORT:-5432}
+      # Vector DB
+      MILVUS_URI: http://milvus:19530
+      # gRPC
+      GRPC_PORT: "50051"
+      # HTTP API
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+      # LLM
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Application
+      APP_ENV: ${APP_ENV:-development}
+      DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      # Tracing
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-http://tempo:4317}
+      OTEL_SERVICE_NAME: ai-core
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      replicas: ${AI_CORE_REPLICAS:-3}
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    logging: *default-logging
+    stop_grace_period: 45s
+    restart: unless-stopped
+    labels:
+      # Traefik HTTP routing
+      - "traefik.enable=true"
+      - "traefik.http.routers.ai-core.rule=PathPrefix(`/api`) || PathPrefix(`/health`) || PathPrefix(`/docs`) || PathPrefix(`/openapi.json`) || PathPrefix(`/metrics`)"
+      - "traefik.http.routers.ai-core.entrypoints=web"
+      - "traefik.http.routers.ai-core.service=ai-core"
+      - "traefik.http.services.ai-core.loadbalancer.server.port=8000"
+      - "traefik.http.services.ai-core.loadbalancer.healthCheck.path=/health"
+      - "traefik.http.services.ai-core.loadbalancer.healthCheck.interval=10s"
+      # Traefik gRPC routing
+      - "traefik.http.routers.ai-core-grpc.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.ai-core-grpc.entrypoints=grpc"
+      - "traefik.http.routers.ai-core-grpc.service=ai-core-grpc"
+      - "traefik.http.services.ai-core-grpc.loadbalancer.server.port=50051"
+      - "traefik.http.services.ai-core-grpc.loadbalancer.server.scheme=h2c"
+
+  # ===========================================================================
+  # Gateway — Go HTTP Gateway (Feishu/WeChat)
+  # ===========================================================================
+  gateway:
+    build:
+      context: ../../gateway
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
+        ALPINE_MIRROR: ${ALPINE_MIRROR:-}
+    image: ${REGISTRY:-}projectcell/gateway:${VERSION:-latest}
+    hostname: gateway
+    environment:
+      GATEWAY_SERVER_PORT: "8080"
+      GATEWAY_SERVER_MODE: ${GATEWAY_MODE:-release}
+      GATEWAY_SERVER_READ_TIMEOUT: 30s
+      GATEWAY_SERVER_WRITE_TIMEOUT: 30s
+      # gRPC to AI Core
+      GATEWAY_GRPC_AI_SERVICE_ADDR: ai-core:50051
+      GATEWAY_GRPC_TIMEOUT: 30s
+      GATEWAY_GRPC_MAX_RETRIES: 3
+      # Redis
+      GATEWAY_REDIS_ADDR: redis:6379
+      # Rate Limit
+      GATEWAY_RATELIMIT_ENABLED: ${RATELIMIT_ENABLED:-true}
+      GATEWAY_RATELIMIT_RPS: ${RATELIMIT_RPS:-100}
+      GATEWAY_RATELIMIT_BURST_SIZE: ${RATELIMIT_BURST:-200}
+      # Feishu
+      GATEWAY_FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      GATEWAY_FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      GATEWAY_FEISHU_VERIFICATION_TOKEN: ${FEISHU_VERIFICATION_TOKEN:-}
+      GATEWAY_FEISHU_ENCRYPT_KEY: ${FEISHU_ENCRYPT_KEY:-}
+      GATEWAY_FEISHU_VERIFY_SIGNATURE: "true"
+      # WeCom
+      GATEWAY_WECOM_CORP_ID: ${WECOM_CORP_ID:-}
+      GATEWAY_WECOM_AGENT_ID: ${WECOM_AGENT_ID:-}
+      GATEWAY_WECOM_SECRET: ${WECOM_SECRET:-}
+      GATEWAY_WECOM_TOKEN: ${WECOM_TOKEN:-}
+      GATEWAY_WECOM_ENCODING_AES_KEY: ${WECOM_ENCODING_AES_KEY:-}
+      # Logging
+      GATEWAY_LOG_LEVEL: ${LOG_LEVEL:-info}
+      GATEWAY_LOG_FORMAT: ${LOG_FORMAT:-json}
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      replicas: ${GATEWAY_REPLICAS:-3}
+      resources:
+        limits:
+          cpus: "1"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 64M
+    logging: *default-logging
+    stop_grace_period: 15s
+    restart: unless-stopped
+    labels:
+      # Traefik HTTP routing
+      - "traefik.enable=true"
+      - "traefik.http.routers.gateway.rule=PathPrefix(`/webhook`)"
+      - "traefik.http.routers.gateway.entrypoints=web"
+      - "traefik.http.routers.gateway.service=gateway"
+      - "traefik.http.routers.gateway.middlewares=ratelimit@file,circuit-breaker@file"
+      - "traefik.http.services.gateway.loadbalancer.server.port=8080"
+      - "traefik.http.services.gateway.loadbalancer.healthCheck.path=/health"
+      - "traefik.http.services.gateway.loadbalancer.healthCheck.interval=10s"
+
+  # ===========================================================================
+  # Web — Next.js Frontend
+  # ===========================================================================
+  web:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+        ALPINE_MIRROR: ${ALPINE_MIRROR:-}
+    image: ${REGISTRY:-}projectcell/web:${VERSION:-latest}
+    hostname: web
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NEXT_PUBLIC_API_BASE_URL: /api/v1
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      ENABLE_DEV_AUTH: ${ENABLE_DEV_AUTH:-false}
+    networks:
+      - frontend
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r=>{if(!r.ok)throw r.status}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      replicas: ${WEB_REPLICAS:-2}
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    logging: *default-logging
+    stop_grace_period: 15s
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.web.entrypoints=web"
+      - "traefik.http.routers.web.priority=1"
+      - "traefik.http.routers.web.service=web"
+      - "traefik.http.routers.web.middlewares=compress@file,security-headers@file"
+      - "traefik.http.services.web.loadbalancer.server.port=3000"
+      - "traefik.http.services.web.loadbalancer.healthCheck.path=/"
+      - "traefik.http.services.web.loadbalancer.healthCheck.interval=10s"
+
+
+networks:
+  frontend:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_frontend
+    driver: bridge
+  backend:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_backend
+    external: true

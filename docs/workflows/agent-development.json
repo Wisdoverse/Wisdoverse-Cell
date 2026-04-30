@@ -1,0 +1,84 @@
+{
+  "name": "agent-development",
+  "description": "Standard workflow for AI-assisted agent development. Codex plans, Claude Code and Gemini implement in parallel, Codex reviews, and humans approve. Validated during QA Agent development.",
+  "nodes": [
+    {
+      "name": "plan",
+      "type": "agent_task",
+      "dependsOn": [],
+      "config": {
+        "cliTool": "codex",
+        "prompt": "Read docs/specs/${AGENT_NAME}.md and the reference files below, then write a detailed implementation plan to var/agent-workflows/${AGENT_NAME}-implementation-plan.md:\n\nReference files:\n- agents/pjm_agent/ (existing agent architecture reference)\n- shared/app/factory.py (create_agent_app)\n- shared/schemas/agent.py (BaseAgent)\n- shared/schemas/event.py (EventTypes)\n- .acceptance/runner.py (acceptance framework)\n- CLAUDE.md (coding standards)\n\nRequirements:\n1. Break work into 5-8 independent parallelizable tasks\n2. Assign each task to the recommended AI tool (Claude Code or Gemini CLI)\n3. Define interface signatures, database tables, and event payloads\n4. List technical risks and the recommended execution order"
+      }
+    },
+    {
+      "name": "impl-contracts",
+      "type": "agent_task",
+      "dependsOn": ["plan"],
+      "config": {
+        "cliTool": "claude",
+        "prompt": "Follow Task 1 in var/agent-workflows/${AGENT_NAME}-implementation-plan.md (contracts, configuration, documentation baseline) and complete:\n\n1. Register new event payload contracts in shared/schemas/event_payloads.py\n2. Register new event constants in EventTypes in shared/schemas/event.py\n3. Add required configuration fields for the new agent in shared/config.py\n4. Register the new agent in the CLAUDE.md architecture diagram\n5. Create any required shared/integrations/ adapters\n\nConstraints: follow CLAUDE.md coding standards and use EventTypes constants instead of bare strings."
+      }
+    },
+    {
+      "name": "impl-core",
+      "type": "agent_task",
+      "dependsOn": ["impl-contracts"],
+      "config": {
+        "cliTool": "claude",
+        "prompt": "Follow var/agent-workflows/${AGENT_NAME}-implementation-plan.md and implement the core modules assigned to Claude Code.\n\nInclude, as needed:\n- service/agent.py (inherits BaseAgent and implements handle_event/handle_request)\n- core/ business logic\n- app/main.py (create_agent_app entrypoint)\n- app/metrics.py (Prometheus metrics)\n- unit tests under tests/unit/\n\nConstraints:\n- Must inherit BaseAgent and use create_agent_app()\n- Use asyncio for async operations and do not block the event loop\n- Use EventTypes constants for events\n- handle_event() performs side effects and returns []"
+      }
+    },
+    {
+      "name": "impl-parallel",
+      "type": "agent_task",
+      "dependsOn": ["impl-contracts"],
+      "config": {
+        "cliTool": "gemini",
+        "prompt": "Follow var/agent-workflows/${AGENT_NAME}-implementation-plan.md and implement the independent modules assigned to Gemini CLI.\n\nUsually includes:\n- models/ layer (ORM tables and Pydantic DTOs)\n- db/ layer (DatabaseManager and Repository)\n- api/ layer (REST endpoints and HTTP schemas)\n- tests/conftest.py fixtures\n- integration tests under tests/integration/\n\nConstraints:\n- Use async SQLAlchemy + asyncpg\n- Use ULID as the primary key\n- Prefix table names with the agent name\n- Protect API endpoints with Depends(verify_internal_key)\n- Follow CLAUDE.md coding standards"
+      }
+    },
+    {
+      "name": "review",
+      "type": "agent_task",
+      "dependsOn": ["impl-core", "impl-parallel"],
+      "config": {
+        "cliTool": "codex",
+        "prompt": "Review the complete code under agents/${AGENT_NAME}/. It was developed in parallel by Claude Code and Gemini CLI.\n\nReview criteria:\n1. Architecture compliance: BaseAgent inheritance, create_agent_app usage, CLAUDE.md rules\n2. Event contracts: EventTypes constants and payload consistency with event_payloads.py\n3. Security: hardcoded secrets, SQL injection, PII leakage\n4. Async safety: blocking calls on the event loop\n5. Failure isolation: notification channels remain isolated\n6. Test coverage: exception paths are tested\n7. Code consistency across outputs from different tools\n8. Deviations from the implementation plan\n\nWrite a structured review report to var/agent-workflows/${AGENT_NAME}-review.md with:\n- Overall score (1-10)\n- Must-fix issue list\n- Recommended improvement list"
+      }
+    },
+    {
+      "name": "acceptance",
+      "type": "agent_task",
+      "dependsOn": ["impl-core", "impl-parallel"],
+      "config": {
+        "cliTool": "claude",
+        "prompt": "Run the acceptance framework for the new agent:\n\npython .acceptance/runner.py --target agents/${AGENT_NAME} --level all --format markdown\n\nIf L0 GATE fails, fix all L0 issues based on the report (ruff format plus manual fixes), then rerun acceptance until L0 passes.\n\nAfter fixes, run:\nruff check agents/${AGENT_NAME} --select E,F\nConfirm zero errors."
+      }
+    },
+    {
+      "name": "fix",
+      "type": "agent_task",
+      "dependsOn": ["review", "acceptance"],
+      "config": {
+        "cliTool": "claude",
+        "prompt": "Fix every must-fix issue from the Codex review report at var/agent-workflows/${AGENT_NAME}-review.md.\n\nAfter fixes:\n1. Run ruff check agents/${AGENT_NAME} --select E,F and confirm zero errors\n2. Run python .acceptance/runner.py --target agents/${AGENT_NAME} --level l0 and confirm L0 PASS\n3. If Dockerfile or docker-compose integration is missing, complete every file from Task 7"
+      }
+    },
+    {
+      "name": "packaging",
+      "type": "agent_task",
+      "dependsOn": ["fix"],
+      "config": {
+        "cliTool": "claude",
+        "prompt": "Complete packaging and infrastructure integration for the new agent:\n\n1. agents/${AGENT_NAME}/Dockerfile (use agents/pjm_agent/Dockerfile as reference)\n2. agents/${AGENT_NAME}/requirements.txt\n3. agents/${AGENT_NAME}/README.md\n4. Add builder and runtime targets to docker/Dockerfile.agents\n5. Add the service to docker-compose.yml\n6. Add the scrape job to docker/prometheus/prometheus.yml\n7. Add roles and permissions to docker/init-scripts/02-agent-users.sql\n\nFinally run .acceptance/runner.py --target agents/${AGENT_NAME} --level all and confirm final acceptance passes."
+      }
+    },
+    {
+      "name": "human-review",
+      "type": "human_review",
+      "dependsOn": ["packaging"],
+      "config": {}
+    }
+  ]
+}

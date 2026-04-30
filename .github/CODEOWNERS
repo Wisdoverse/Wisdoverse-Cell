@@ -1,0 +1,27 @@
+# CODEOWNERS is evaluated by GitHub on pull requests.
+# Create the referenced teams in the Wisdoverse organization before enabling
+# required code-owner review in branch protection.
+
+* @Wisdoverse/maintainers
+
+/.github/ @Wisdoverse/platform
+/Makefile @Wisdoverse/platform
+/pyproject.toml @Wisdoverse/platform
+/requirements*.txt @Wisdoverse/platform
+/renovate.json @Wisdoverse/platform
+
+/LICENSE @Wisdoverse/legal
+/SECURITY.md @Wisdoverse/security
+/SUPPORT.md @Wisdoverse/security
+
+/agents/ @Wisdoverse/ai-runtime
+/agents/requirement_manager/ @Wisdoverse/ai-runtime
+/shared/ @Wisdoverse/platform
+/shared/integrations/ @Wisdoverse/integrations
+/gateway/ @Wisdoverse/gateway
+/frontend/ @Wisdoverse/frontend
+
+/docker/ @Wisdoverse/platform
+/infra/ @Wisdoverse/platform
+/migrations/ @Wisdoverse/platform
+/docs/ @Wisdoverse/docs

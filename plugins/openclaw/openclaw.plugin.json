@@ -1,0 +1,35 @@
+{
+  "name": "projectcell",
+  "version": "1.0.0",
+  "description": "Wisdoverse Cell AI agent channel plugin for OpenClaw",
+  "author": "Wisdoverse Cell Team",
+  "main": "index.ts",
+  "capabilities": [
+    "channel",
+    "tools"
+  ],
+  "channel": {
+    "id": "projectcell",
+    "name": "Wisdoverse Cell",
+    "description": "Route messages through Wisdoverse Cell AI agents",
+    "supports": [
+      "text",
+      "card",
+      "card_update",
+      "file",
+      "image"
+    ]
+  },
+  "config": {
+    "PROJECTCELL_WS_URL": {
+      "type": "string",
+      "default": "ws://127.0.0.1:18789",
+      "description": "WebSocket URL for Wisdoverse Cell adapter connection"
+    },
+    "PROJECTCELL_AUTH_TOKEN": {
+      "type": "string",
+      "default": "",
+      "description": "Authentication token for Wisdoverse Cell handshake"
+    }
+  }
+}

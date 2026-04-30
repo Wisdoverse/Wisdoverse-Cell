@@ -1,0 +1,53 @@
+# =============================================================================
+# New Agent Onboarding Checklist
+# =============================================================================
+# Run: python .acceptance/runner.py --target agents/<name> --level all
+# This checklist is evaluated IN ADDITION to L0/L1/L2 checks.
+
+agent_name: ""  # Fill in agent name
+agent_type: ""  # logic_intensive | llm_intensive | mixed
+spec_document: ""  # e.g. docs/specs/my-agent.md
+
+structure:
+  - check: "agents/{name}/service/agent.py exists and inherits BaseAgent"
+    required: true
+  - check: "agents/{name}/app/main.py exists and uses create_agent_app()"
+    required: true
+  - check: "agents/{name}/Dockerfile exists"
+    required: true
+  - check: "agents/{name}/requirements.txt exists"
+    required: true
+  - check: "agents/{name}/tests/ directory with at least 1 test file"
+    required: true
+
+integration:
+  - check: "Docker Compose service defined in docker-compose.yml or docker/compose/"
+    required: true
+  - check: "Database isolation: own PostgreSQL DB in docker/init-scripts/"
+    required: true
+  - check: "Redis namespace configured (not sharing keys with other agents)"
+    required: true
+
+endpoints:
+  - check: "GET /health returns {status: alive, agent: <name>}"
+    required: true
+  - check: "GET /health/ready returns readiness checks"
+    required: true
+  - check: "GET /metrics returns Prometheus metrics"
+    required: true
+
+events:
+  - check: "subscribed_events use EventTypes constants from shared/schemas/event.py"
+    required: true
+  - check: "published_events use EventTypes constants from shared/schemas/event.py"
+    required: true
+  - check: "At least 1 integration test verifying EventBus send/receive"
+    required: true
+
+documentation:
+  - check: "Spec document exists in docs/specs/"
+    required: true
+  - check: "Agent registered in CLAUDE.md architecture section"
+    required: true
+  - check: "README.md in agent directory"
+    required: false

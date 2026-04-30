@@ -1,0 +1,3 @@
+; This file is a template. Actual passwords are set via environment variables.
+; Format: "username" "password"
+; The password will be injected at container startup via entrypoint script.

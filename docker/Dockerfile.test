@@ -1,0 +1,51 @@
+# syntax=docker/dockerfile:1
+# Pre-built test image with all Python dependencies
+# Reduces CI pip install from ~120s to ~2s
+#
+# Build: docker build -f docker/Dockerfile.test -t wisdoverse-cell-test:latest .
+# Used by: GitHub Actions or local CI environments that want a warm Python image
+#
+# Layer cache strategy:
+#   Two-layer pip install: heavy ML packages (torch ~2GB, rarely change)
+#   are installed first as a stable Docker layer.  App/test deps install
+#   on top.  Combined with --cache-from in CI, editing requirements.txt
+#   only rebuilds the light layer (~30s) instead of re-downloading torch.
+
+ARG PYTHON_VERSION=3.13
+FROM python:${PYTHON_VERSION}-slim
+
+LABEL org.opencontainers.image.title="project-cell-test" \
+      org.opencontainers.image.description="Pre-built CI test image with all Python dependencies" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell"
+
+ARG PIP_INDEX_URL=""
+ARG PIP_TRUSTED_HOST=""
+ARG APT_MIRROR=""
+
+# System dependencies (matches .python:base before_script)
+RUN if [ -n "$APT_MIRROR" ]; then \
+      sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+    fi && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends gcc libpq-dev git curl postgresql-client && \
+    rm -rf /var/lib/apt/lists/*
+
+# Pip config for CN mirrors
+RUN if [ -n "$PIP_INDEX_URL" ]; then \
+      pip config set global.index-url "$PIP_INDEX_URL"; \
+      pip config set global.trusted-host "$PIP_TRUSTED_HOST"; \
+    fi
+
+# Layer 1: Heavy ML packages (~2GB, change rarely)
+# Isolated so that edits to requirements.txt don't trigger re-download.
+COPY requirements-heavy.txt /tmp/requirements-heavy.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-heavy.txt && \
+    rm /tmp/requirements-heavy.txt
+
+# Layer 2: App + test dependencies (change frequently, fast to install)
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
+
+# Smoke test: verify critical packages are importable
+RUN python -c "import fastapi, sqlalchemy, anthropic, pytest, torch; print('image OK')"

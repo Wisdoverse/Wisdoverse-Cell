@@ -1,0 +1,64 @@
+# =============================================================================
+# Local Development Overrides
+# =============================================================================
+# Exposes debug ports, reduces replicas, adds convenience settings
+# =============================================================================
+
+services:
+  # Expose infrastructure ports for local development tools
+  postgres:
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+  pgbouncer:
+    ports:
+      - "6432:6432"
+
+  redis-master:
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+
+  milvus:
+    ports:
+      - "${MILVUS_PORT:-19530}:19530"
+      - "${MILVUS_HEALTH_PORT:-9091}:9091"
+
+  # NATS monitoring port
+  nats-1:
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+
+  # Reduce replicas for local dev
+  ai-core:
+    deploy:
+      replicas: 1
+    environment:
+      DEBUG: "true"
+      LOG_LEVEL: DEBUG
+
+  gateway:
+    deploy:
+      replicas: 1
+    environment:
+      GATEWAY_SERVER_MODE: debug
+      GATEWAY_LOG_LEVEL: debug
+
+  # HA components disabled in dev (use profiles: [ha] to enable)
+  pg-replica:
+    profiles: ["ha"]
+
+  redis-replica-1:
+    profiles: ["ha"]
+
+  redis-replica-2:
+    profiles: ["ha"]
+
+  redis-sentinel-1:
+    profiles: ["ha"]
+
+  redis-sentinel-2:
+    profiles: ["ha"]
+
+  redis-sentinel-3:
+    profiles: ["ha"]
