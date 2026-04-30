@@ -16,7 +16,16 @@ async def test_api_info_returns_correct_name():
 
 
 @pytest.mark.asyncio
-async def test_api_v1_redirect():
+@pytest.mark.parametrize(
+    ("request_path", "expected_path"),
+    [
+        ("/api", "/api/v1"),
+        ("/api/", "/api/v1"),
+        ("/api/requirements", "/api/v1/requirements"),
+        ("/api/v1/requirements", "/api/v1/requirements"),
+    ],
+)
+async def test_api_v1_redirect(request_path: str, expected_path: str):
     from agents.requirement_manager.app.routes import api_v1_redirect_router
 
     app = FastAPI()
@@ -24,6 +33,6 @@ async def test_api_v1_redirect():
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test", follow_redirects=False
     ) as c:
-        r = await c.get("/api/requirements")
+        r = await c.get(request_path)
     assert r.status_code == 307
-    assert "/api/v1/requirements" in r.headers["location"]
+    assert r.headers["location"] == f"http://test{expected_path}"
