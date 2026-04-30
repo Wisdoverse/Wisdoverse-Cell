@@ -1,0 +1,416 @@
+# =============================================================================
+# Cloud-Native Base Infrastructure
+# =============================================================================
+# PostgreSQL + PgBouncer + Redis + NATS JetStream + Milvus
+#
+# Usage (standalone): docker compose -f docker/compose/docker-compose.base.yml up -d
+# =============================================================================
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+    labels: "service,environment"
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 15s
+  timeout: 10s
+  retries: 3
+  start_period: 30s
+
+services:
+  # ===========================================================================
+  # PostgreSQL 18
+  # ===========================================================================
+  postgres:
+    image: postgres:18-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-postgres
+    hostname: postgres
+    command: postgres -c config_file=/etc/postgresql/primary.conf
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_USER: ${POSTGRES_USER:-projectcell}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_REPLICATION_PASSWORD: ${POSTGRES_REPLICATION_PASSWORD:-replicator}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../init-scripts:/docker-entrypoint-initdb.d:ro
+      - ../postgres/primary.conf:/etc/postgresql/primary.conf:ro
+      - ../postgres/init-replication.sh:/docker-entrypoint-initdb.d/02-init-replication.sh:ro
+    networks:
+      - backend
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-projectcell} -d ${POSTGRES_DB:-projectcell}"]
+      interval: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    logging: *default-logging
+    restart: unless-stopped
+
+  # ===========================================================================
+  # PostgreSQL Read Replica (Streaming Replication)
+  # ===========================================================================
+  pg-replica:
+    image: postgres:18-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-pg-replica
+    hostname: pg-replica
+    environment:
+      PGUSER: ${POSTGRES_USER:-projectcell}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - pg_replica_data:/var/lib/postgresql/data
+      - ../postgres/replica.conf:/etc/postgresql/replica.conf:ro
+    command:
+      - bash
+      - -c
+      - |
+        if [ ! -s /var/lib/postgresql/data/PG_VERSION ]; then
+          echo 'Initializing replica from primary via pg_basebackup...'
+          until pg_isready -h postgres -p 5432 -U $${PGUSER}; do
+            echo 'Waiting for primary...'; sleep 2
+          done
+          PGPASSWORD='${POSTGRES_REPLICATION_PASSWORD:-replicator}' pg_basebackup \
+            -h postgres -p 5432 -U replicator -D /var/lib/postgresql/data \
+            -Fp -Xs -P -R
+        fi
+        exec postgres -c config_file=/etc/postgresql/replica.conf
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-projectcell}"]
+      interval: 10s
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+    logging: *default-logging
+    restart: unless-stopped
+
+  # ===========================================================================
+  # PgBouncer — Connection Pool
+  # ===========================================================================
+  pgbouncer:
+    image: edoburu/pgbouncer:1.22.0
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-pgbouncer
+    hostname: pgbouncer
+    environment:
+      DB_USER: ${POSTGRES_USER:-projectcell}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      AUTH_TYPE: md5
+    volumes:
+      - ../pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "6432"]
+      interval: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+    logging: *default-logging
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Redis 7 — Master + 2 Replicas + 3 Sentinels
+  # ===========================================================================
+  redis-master:
+    image: redis:8-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-redis-master
+    hostname: redis-master
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - redis_master_data:/data
+      - ../redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      backend:
+        aliases:
+          - redis
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+        reservations:
+          memory: 128M
+    logging: *default-logging
+    restart: unless-stopped
+
+  redis-replica-1:
+    image: redis:8-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-redis-replica-1
+    hostname: redis-replica-1
+    command: redis-server /usr/local/etc/redis/redis.conf --replicaof redis-master 6379
+    volumes:
+      - redis_replica1_data:/data
+      - ../redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - backend
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+        reservations:
+          memory: 128M
+    logging: *default-logging
+    restart: unless-stopped
+
+  redis-replica-2:
+    image: redis:8-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-redis-replica-2
+    hostname: redis-replica-2
+    command: redis-server /usr/local/etc/redis/redis.conf --replicaof redis-master 6379
+    volumes:
+      - redis_replica2_data:/data
+      - ../redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - backend
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+        reservations:
+          memory: 128M
+    logging: *default-logging
+    restart: unless-stopped
+
+  redis-sentinel-1:
+    image: redis:8-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-sentinel-1
+    hostname: redis-sentinel-1
+    command: >
+      sh -c "cp /etc/redis/sentinel-template.conf /data/sentinel.conf && redis-sentinel /data/sentinel.conf"
+    volumes:
+      - ../redis/sentinel.conf:/etc/redis/sentinel-template.conf:ro
+      - sentinel_1_data:/data
+    networks:
+      - backend
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    logging: *default-logging
+    restart: unless-stopped
+
+  redis-sentinel-2:
+    image: redis:8-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-sentinel-2
+    hostname: redis-sentinel-2
+    command: >
+      sh -c "cp /etc/redis/sentinel-template.conf /data/sentinel.conf && redis-sentinel /data/sentinel.conf"
+    volumes:
+      - ../redis/sentinel.conf:/etc/redis/sentinel-template.conf:ro
+      - sentinel_2_data:/data
+    networks:
+      - backend
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    logging: *default-logging
+    restart: unless-stopped
+
+  redis-sentinel-3:
+    image: redis:8-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-sentinel-3
+    hostname: redis-sentinel-3
+    command: >
+      sh -c "cp /etc/redis/sentinel-template.conf /data/sentinel.conf && redis-sentinel /data/sentinel.conf"
+    volumes:
+      - ../redis/sentinel.conf:/etc/redis/sentinel-template.conf:ro
+      - sentinel_3_data:/data
+    networks:
+      - backend
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    logging: *default-logging
+    restart: unless-stopped
+
+  # ===========================================================================
+  # NATS JetStream — 3-node Cluster
+  # ===========================================================================
+  nats-1:
+    image: nats:2.10-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-nats-1
+    hostname: nats-1
+    command: >
+      -c /etc/nats/nats-server.conf
+      --name nats-1
+    volumes:
+      - ../nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - nats_1_data:/data/jetstream
+    networks:
+      - backend
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    logging: *default-logging
+    restart: unless-stopped
+
+  nats-2:
+    image: nats:2.10-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-nats-2
+    hostname: nats-2
+    command: >
+      -c /etc/nats/nats-server.conf
+      --name nats-2
+    volumes:
+      - ../nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - nats_2_data:/data/jetstream
+    networks:
+      - backend
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    logging: *default-logging
+    restart: unless-stopped
+
+  nats-3:
+    image: nats:2.10-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-nats-3
+    hostname: nats-3
+    command: >
+      -c /etc/nats/nats-server.conf
+      --name nats-3
+    volumes:
+      - ../nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - nats_3_data:/data/jetstream
+    networks:
+      - backend
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    logging: *default-logging
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Milvus — Vector Database (standalone mode with embedded etcd)
+  # ===========================================================================
+  milvus:
+    image: milvusdb/milvus:v2.6.10
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-milvus
+    hostname: milvus
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_USE_EMBED: "true"
+      ETCD_DATA_DIR: /var/lib/milvus/etcd
+      COMMON_STORAGETYPE: local
+    volumes:
+      - milvus_data:/var/lib/milvus
+    networks:
+      - backend
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 15s
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    logging: *default-logging
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_postgres_data
+  pg_replica_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_pg_replica_data
+  redis_master_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_redis_master_data
+  redis_replica1_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_redis_replica1_data
+  redis_replica2_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_redis_replica2_data
+  sentinel_1_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_sentinel_1_data
+  sentinel_2_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_sentinel_2_data
+  sentinel_3_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_sentinel_3_data
+  milvus_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_milvus_data
+  nats_1_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_nats_1_data
+  nats_2_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_nats_2_data
+  nats_3_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_nats_3_data
+
+networks:
+  backend:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_backend
+    driver: bridge

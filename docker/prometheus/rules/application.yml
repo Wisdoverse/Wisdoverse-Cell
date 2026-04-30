@@ -1,0 +1,304 @@
+# =============================================================================
+# Application Alert Rules — Wisdoverse Cell SRE Standards
+# =============================================================================
+# Severity tiers:
+#   critical  — immediate action, 1m for duration
+#   warning   — investigation needed, 5m for duration
+#   info      — awareness, 15m for duration
+# =============================================================================
+
+groups:
+  # ---------------------------------------------------------------------------
+  # Recording Rules — Pre-aggregation for high-cardinality metrics
+  # ---------------------------------------------------------------------------
+  - name: application_recording
+    interval: 30s
+    rules:
+      - record: job:http_request_duration_seconds:p99_5m
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))
+
+      - record: job:http_request_duration_seconds:p95_5m
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+
+      - record: job:http_request_duration_seconds:p50_5m
+        expr: histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))
+
+      - record: job:http_error_rate:ratio_5m
+        expr: >
+          sum by (job) (rate(http_requests_total{status=~"5.."}[5m]))
+          /
+          sum by (job) (rate(http_requests_total[5m]))
+
+      - record: job:llm_error_rate:ratio_5m
+        expr: >
+          sum by (job) (rate(projectcell_llm_requests_total{success="false"}[5m]))
+          /
+          sum by (job) (rate(projectcell_llm_requests_total[5m]))
+
+  # ---------------------------------------------------------------------------
+  # SLO Alerts — Latency & Error Budget
+  # ---------------------------------------------------------------------------
+  - name: application_slo
+    rules:
+      # -- P99 Latency SLO (target: < 2s) ------------------------------------
+      - alert: HighP99Latency
+        expr: job:http_request_duration_seconds:p99_5m > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: application
+        annotations:
+          summary: "{{ $labels.job }} P99 latency exceeds 2s SLO"
+          description: >-
+            Service {{ $labels.job }} P99 latency is {{ $value | humanizeDuration }}
+            over the last 5 minutes, exceeding the 2s SLO target.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/high-p99-latency"
+
+      # -- P99 Latency Critical (> 5s) ---------------------------------------
+      - alert: CriticalP99Latency
+        expr: job:http_request_duration_seconds:p99_5m > 5
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          domain: application
+        annotations:
+          summary: "{{ $labels.job }} P99 latency exceeds 5s (critical)"
+          description: >-
+            Service {{ $labels.job }} P99 latency is {{ $value | humanizeDuration }},
+            significantly degrading user experience. Immediate investigation required.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/critical-p99-latency"
+
+      # -- Error Rate SLO (target: < 1%) -------------------------------------
+      - alert: HighErrorRate
+        expr: job:http_error_rate:ratio_5m > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: application
+        annotations:
+          summary: "{{ $labels.job }} error rate exceeds 1% SLO"
+          description: >-
+            Service {{ $labels.job }} 5xx error rate is {{ $value | humanizePercentage }}
+            over the last 5 minutes, exceeding the 1% SLO target.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/high-error-rate"
+
+      # -- Error Rate Critical (> 5%) ----------------------------------------
+      - alert: CriticalErrorRate
+        expr: job:http_error_rate:ratio_5m > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          domain: application
+        annotations:
+          summary: "{{ $labels.job }} error rate exceeds 5% (critical)"
+          description: >-
+            Service {{ $labels.job }} 5xx error rate is {{ $value | humanizePercentage }}.
+            Major service degradation. Immediate investigation required.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/critical-error-rate"
+
+  # ---------------------------------------------------------------------------
+  # Agent Health Alerts
+  # ---------------------------------------------------------------------------
+  - name: application_agent_health
+    rules:
+      # -- Agent Process Down -------------------------------------------------
+      - alert: AgentDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          domain: application
+        annotations:
+          summary: "{{ $labels.job }} is DOWN"
+          description: >-
+            Target {{ $labels.instance }} (job={{ $labels.job }}) has been
+            unreachable for more than 1 minute. The agent process may have
+            crashed or the container is unhealthy.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/agent-down"
+
+      # -- Agent High Restart Rate --------------------------------------------
+      - alert: AgentHighRestartRate
+        expr: changes(process_start_time_seconds[30m]) > 3
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: application
+        annotations:
+          summary: "{{ $labels.job }} restarting frequently"
+          description: >-
+            Agent {{ $labels.job }} has restarted {{ $value }} times in the last
+            30 minutes. This indicates a crash loop or OOM condition.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/agent-restart-loop"
+
+  # ---------------------------------------------------------------------------
+  # LLM API Alerts
+  # ---------------------------------------------------------------------------
+  - name: application_llm
+    rules:
+      # -- LLM API High Failure Rate (> 10%) ---------------------------------
+      - alert: LLMAPIHighFailureRate
+        expr: job:llm_error_rate:ratio_5m > 0.1
+        for: 3m
+        labels:
+          severity: critical
+          team: ai
+          domain: llm
+        annotations:
+          summary: "{{ $labels.job }} LLM API failure rate exceeds 10%"
+          description: >-
+            LLM API error rate for {{ $labels.job }} is {{ $value | humanizePercentage }}
+            over the last 5 minutes. Claude API may be degraded or rate-limited.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/llm-api-failure"
+
+      # -- LLM API Warning Failure Rate (> 5%) -------------------------------
+      - alert: LLMAPIElevatedFailureRate
+        expr: job:llm_error_rate:ratio_5m > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: ai
+          domain: llm
+        annotations:
+          summary: "{{ $labels.job }} LLM API failure rate elevated (> 5%)"
+          description: >-
+            LLM API error rate for {{ $labels.job }} is {{ $value | humanizePercentage }}.
+            Monitor for further degradation.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/llm-api-failure"
+
+      # -- LLM Daily Cost Over Budget -----------------------------------------
+      - alert: LLMDailyBudgetExceeded
+        expr: projectcell_llm_daily_cost_dollars > 100
+        for: 1m
+        labels:
+          severity: critical
+          team: ai
+          domain: llm
+        annotations:
+          summary: "LLM daily cost exceeds $100 budget"
+          description: >-
+            Current daily LLM spend is ${{ $value | printf "%.2f" }},
+            exceeding the $100 daily budget. Review usage patterns and
+            consider rate-limiting or disabling non-critical LLM calls.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/llm-budget-exceeded"
+
+      # -- LLM Daily Cost Warning (> 80% budget) -----------------------------
+      - alert: LLMDailyBudgetWarning
+        expr: projectcell_llm_daily_cost_dollars > 80
+        for: 5m
+        labels:
+          severity: warning
+          team: ai
+          domain: llm
+        annotations:
+          summary: "LLM daily cost approaching budget limit ($80/$100)"
+          description: >-
+            Current daily LLM spend is ${{ $value | printf "%.2f" }},
+            at 80% of the $100 daily budget.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/llm-budget-exceeded"
+
+      # -- LLM Response Latency High -----------------------------------------
+      - alert: LLMResponseLatencyHigh
+        expr: histogram_quantile(0.95, rate(projectcell_llm_request_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: ai
+          domain: llm
+        annotations:
+          summary: "{{ $labels.job }} LLM P95 response time exceeds 30s"
+          description: >-
+            LLM P95 latency for {{ $labels.job }} is {{ $value | humanizeDuration }}.
+            Claude API may be experiencing increased load.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/llm-high-latency"
+
+  # ---------------------------------------------------------------------------
+  # Chat & Tool Call Alerts
+  # ---------------------------------------------------------------------------
+  - name: application_chat
+    rules:
+      # -- Tool Call Loop Detection -------------------------------------------
+      - alert: ToolCallLoopDetected
+        expr: rate(projectcell_chat_tool_calls_total[5m]) > 50
+        for: 2m
+        labels:
+          severity: critical
+          team: ai
+          domain: chat
+        annotations:
+          summary: "Tool call loop detected (> 50 calls/s over 2m)"
+          description: >-
+            Tool call rate is {{ $value | printf "%.1f" }}/s, indicating a
+            possible infinite loop in the ChatService tool calling pipeline.
+            The MAX_TOOL_CALLS safeguard may not be triggering.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/tool-call-loop"
+
+      # -- Tool Call Elevated Rate (warning) ----------------------------------
+      - alert: ToolCallRateElevated
+        expr: rate(projectcell_chat_tool_calls_total[5m]) > 20
+        for: 5m
+        labels:
+          severity: warning
+          team: ai
+          domain: chat
+        annotations:
+          summary: "Elevated tool call rate (> 20 calls/s)"
+          description: >-
+            Tool call rate is {{ $value | printf "%.1f" }}/s. This may indicate
+            inefficient tool usage or an approaching loop condition.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/tool-call-loop"
+
+  # ---------------------------------------------------------------------------
+  # Event Bus Alerts
+  # ---------------------------------------------------------------------------
+  - name: application_eventbus
+    rules:
+      # -- Event Queue Backlog Critical ---------------------------------------
+      - alert: EventQueueBacklogCritical
+        expr: projectcell_eventbus_queue_length > 5000
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+          domain: eventbus
+        annotations:
+          summary: "Event queue backlog exceeds 5000 messages"
+          description: >-
+            Event queue length is {{ $value }} messages. Consumers may be
+            stalled or overwhelmed. Risk of message loss if queue hits capacity.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/event-queue-backlog"
+
+      # -- Event Queue Backlog Warning ----------------------------------------
+      - alert: EventQueueBacklogWarning
+        expr: projectcell_eventbus_queue_length > 1000
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+          domain: eventbus
+        annotations:
+          summary: "Event queue backlog exceeds 1000 messages"
+          description: >-
+            Event queue length is {{ $value }} messages. Consumers are falling
+            behind. Investigate consumer health and throughput.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/event-queue-backlog"
+
+      # -- Event Processing Errors --------------------------------------------
+      - alert: EventProcessingErrors
+        expr: increase(projectcell_eventbus_processing_errors_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: eventbus
+        annotations:
+          summary: "Elevated event processing errors ({{ $value }} in 5m)"
+          description: >-
+            {{ $value | printf "%.0f" }} event processing errors in the last
+            5 minutes. Check dead-letter queue and consumer logs.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/event-processing-errors"

@@ -1,0 +1,411 @@
+# ==============================================================================
+# Wisdoverse Cell — Unified Multi-Target Agent Dockerfile
+# ==============================================================================
+#
+# Single Dockerfile for all Python agent images. Docker Compose selects
+# the final target via `target:` in the service build config.
+#
+# Shared stages (builder-base, runtime-base) are built ONCE and reused,
+# cutting cold-build time roughly in half and enabling pip cache sharing.
+#
+# Targets:
+#   ai-core          — Requirement Manager (port 8000 + gRPC 50051)
+#   sync-agent       — OpenProject ↔ Feishu sync   (port 8010)
+#   analysis-agent   — Reports & milestone checks   (port 8011)
+#   pjm-agent         — PJM alerts & workload monitor  (port 8012)
+#   chat-agent       — Feishu webhook + Claude chat  (port 8013)
+#   qa-agent         — Acceptance verification       (port 8014)
+#
+# Build examples:
+#   docker compose build                       # all agents
+#   docker compose build sync-agent            # single agent
+#   docker build --target sync-agent -f docker/Dockerfile.agents .
+#
+# ==============================================================================
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  SHARED BUILDER BASE — built ONCE, reused by all agent builders         ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+FROM python:3.13-slim AS builder-base
+
+ARG PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# CN mirror support — pass via --build-arg or docker compose .env
+# pip reads PIP_INDEX_URL and PIP_TRUSTED_HOST from env automatically
+ARG PIP_INDEX_URL=https://pypi.org/simple
+ARG PIP_TRUSTED_HOST
+ARG APT_MIRROR
+
+WORKDIR /build
+
+# hadolint ignore=SC2086
+RUN if [ -n "$APT_MIRROR" ]; then \
+      sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+    fi && \
+    apt-get update && apt-get install -y --no-install-recommends \
+    gcc libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install shared dependencies (used by all agents via shared/)
+COPY requirements.txt /build/requirements-base.txt
+# BuildKit cache mount — not stored in image layer, speeds up rebuilds
+# hadolint ignore=DL3042
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -i ${PIP_INDEX_URL} -r requirements-base.txt
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  PER-AGENT BUILDER STAGES — pip install with shared cache mount         ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+# --- ai-core (requirement_manager) — uses root requirements.txt -------------
+FROM builder-base AS ai-core-builder
+# Already installed from base, nothing extra needed
+
+# --- sync-agent --------------------------------------------------------------
+FROM builder-base AS sync-builder
+ARG PIP_INDEX_URL=https://pypi.org/simple
+COPY agents/sync_agent/requirements.txt .
+# hadolint ignore=DL3042
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -i ${PIP_INDEX_URL} -r requirements.txt
+
+# --- analysis-agent ----------------------------------------------------------
+FROM builder-base AS analysis-builder
+ARG PIP_INDEX_URL=https://pypi.org/simple
+COPY agents/analysis_agent/requirements.txt .
+# hadolint ignore=DL3042
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -i ${PIP_INDEX_URL} -r requirements.txt
+
+# --- pjm-agent ----------------------------------------------------------------
+FROM builder-base AS pm-builder
+ARG PIP_INDEX_URL=https://pypi.org/simple
+COPY agents/pjm_agent/requirements.txt .
+# hadolint ignore=DL3042
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -i ${PIP_INDEX_URL} -r requirements.txt
+
+# --- qa-agent ----------------------------------------------------------------
+FROM builder-base AS qa-builder
+ARG PIP_INDEX_URL=https://pypi.org/simple
+COPY agents/qa_agent/requirements.txt .
+# hadolint ignore=DL3042
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -i ${PIP_INDEX_URL} -r requirements.txt
+
+# --- chat-agent --------------------------------------------------------------
+FROM builder-base AS chat-builder
+ARG PIP_INDEX_URL=https://pypi.org/simple
+COPY agents/chat_agent/requirements.txt .
+# hadolint ignore=DL3042
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -i ${PIP_INDEX_URL} -r requirements.txt
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  SHARED RUNTIME BASE — built ONCE, reused by all final stages           ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+FROM python:3.13-slim AS runtime-base
+
+ARG APT_MIRROR
+
+RUN groupadd --gid 1000 appgroup \
+    && useradd --uid 1000 --gid appgroup --shell /bin/bash --create-home appuser
+
+# hadolint ignore=SC2086
+RUN if [ -n "$APT_MIRROR" ]; then \
+      sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+    fi && \
+    apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 tini curl \
+    && rm -rf /var/lib/apt/lists/* && apt-get clean
+
+WORKDIR /app
+
+ENV PYTHONPATH=/app \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    APP_ENV=production \
+    DEBUG=false
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  FINAL TARGETS                                                          ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+# =============================================================================
+# ai-core  (requirement_manager)
+# =============================================================================
+FROM runtime-base AS ai-core
+
+ARG VERSION=dev
+ARG BUILD_DATE
+ARG GIT_COMMIT
+
+LABEL org.opencontainers.image.title="AI Core (Requirement Manager)" \
+      org.opencontainers.image.description="AI-powered requirement extraction and management" \
+      org.opencontainers.image.vendor="Wisdoverse Cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${GIT_COMMIT}"
+
+COPY --from=ai-core-builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    API_HOST=0.0.0.0 \
+    API_PORT=8000
+
+COPY --chown=appuser:appgroup shared/ /app/shared/
+COPY --chown=appuser:appgroup skills/ /app/skills/
+COPY --chown=appuser:appgroup agents/requirement_manager/ /app/agents/requirement_manager/
+RUN mkdir -p /app/data && chown appuser:appgroup /app/data
+
+USER appuser
+EXPOSE 8000 50051
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl --fail --silent http://localhost:8000/health/ready || exit 1
+
+CMD ["gunicorn", \
+     "agents.requirement_manager.app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "4", \
+     "--bind", "0.0.0.0:8000", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--keep-alive", "5", \
+     "--access-logfile", "-", \
+     "--access-logformat", "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s %(D)s"]
+
+
+# =============================================================================
+# sync-agent
+# =============================================================================
+FROM runtime-base AS sync-agent
+
+ARG VERSION=dev
+ARG BUILD_DATE
+ARG GIT_COMMIT
+
+LABEL org.opencontainers.image.title="Sync Agent" \
+      org.opencontainers.image.description="OpenProject ↔ Feishu bidirectional sync" \
+      org.opencontainers.image.vendor="Wisdoverse Cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${GIT_COMMIT}"
+
+COPY --from=sync-builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    API_HOST=0.0.0.0 \
+    API_PORT=8010
+
+COPY --chown=appuser:appgroup shared/ /app/shared/
+COPY --chown=appuser:appgroup agents/requirement_manager/ /app/agents/requirement_manager/
+COPY --chown=appuser:appgroup agents/sync_agent/ /app/agents/sync_agent/
+
+USER appuser
+EXPOSE 8010
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl --fail --silent http://localhost:8010/health/ready || exit 1
+
+CMD ["gunicorn", \
+     "agents.sync_agent.app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "1", \
+     "--bind", "0.0.0.0:8010", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--keep-alive", "5", \
+     "--access-logfile", "-", \
+     "--access-logformat", "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s %(D)s"]
+
+
+# =============================================================================
+# analysis-agent
+# =============================================================================
+FROM runtime-base AS analysis-agent
+
+ARG VERSION=dev
+ARG BUILD_DATE
+ARG GIT_COMMIT
+
+LABEL org.opencontainers.image.title="Analysis Agent" \
+      org.opencontainers.image.description="Daily/weekly reports, milestone checks, quality evaluation" \
+      org.opencontainers.image.vendor="Wisdoverse Cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${GIT_COMMIT}"
+
+COPY --from=analysis-builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    API_HOST=0.0.0.0 \
+    API_PORT=8011
+
+COPY --chown=appuser:appgroup shared/ /app/shared/
+COPY --chown=appuser:appgroup agents/requirement_manager/ /app/agents/requirement_manager/
+COPY --chown=appuser:appgroup agents/analysis_agent/ /app/agents/analysis_agent/
+
+USER appuser
+EXPOSE 8011
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl --fail --silent http://localhost:8011/health/ready || exit 1
+
+CMD ["gunicorn", \
+     "agents.analysis_agent.app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "1", \
+     "--bind", "0.0.0.0:8011", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--keep-alive", "5", \
+     "--access-logfile", "-", \
+     "--access-logformat", "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s %(D)s"]
+
+
+# =============================================================================
+# pjm-agent
+# =============================================================================
+FROM runtime-base AS pjm-agent
+
+ARG VERSION=dev
+ARG BUILD_DATE
+ARG GIT_COMMIT
+
+LABEL org.opencontainers.image.title="PM Agent" \
+      org.opencontainers.image.description="PJM alerts, config management, workload monitoring" \
+      org.opencontainers.image.vendor="Wisdoverse Cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${GIT_COMMIT}"
+
+COPY --from=pm-builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    API_HOST=0.0.0.0 \
+    API_PORT=8012
+
+COPY --chown=appuser:appgroup shared/ /app/shared/
+COPY --chown=appuser:appgroup agents/requirement_manager/ /app/agents/requirement_manager/
+COPY --chown=appuser:appgroup agents/pjm_agent/ /app/agents/pjm_agent/
+
+USER appuser
+EXPOSE 8012
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl --fail --silent http://localhost:8012/health/ready || exit 1
+
+CMD ["gunicorn", \
+     "agents.pjm_agent.app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "1", \
+     "--bind", "0.0.0.0:8012", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--keep-alive", "5", \
+     "--access-logfile", "-", \
+     "--access-logformat", "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s %(D)s"]
+
+
+# =============================================================================
+# qa-agent
+# =============================================================================
+FROM runtime-base AS qa-agent
+
+ARG VERSION=dev
+ARG BUILD_DATE
+ARG GIT_COMMIT
+
+LABEL org.opencontainers.image.title="QA Agent" \
+      org.opencontainers.image.description="Automated acceptance verification for AI-generated code" \
+      org.opencontainers.image.vendor="Wisdoverse Cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${GIT_COMMIT}"
+
+COPY --from=qa-builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    API_HOST=0.0.0.0 \
+    API_PORT=8014
+
+COPY --chown=appuser:appgroup shared/ /app/shared/
+COPY --chown=appuser:appgroup agents/qa_agent/ /app/agents/qa_agent/
+COPY --chown=appuser:appgroup .acceptance/ /app/.acceptance/
+
+USER appuser
+EXPOSE 8014
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl --fail --silent http://localhost:8014/health/ready || exit 1
+
+CMD ["gunicorn", \
+     "agents.qa_agent.app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "1", \
+     "--bind", "0.0.0.0:8014", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--keep-alive", "5", \
+     "--access-logfile", "-", \
+     "--access-logformat", "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s %(D)s"]
+
+
+# =============================================================================
+# chat-agent
+# =============================================================================
+FROM runtime-base AS chat-agent
+
+ARG VERSION=dev
+ARG BUILD_DATE
+ARG GIT_COMMIT
+
+LABEL org.opencontainers.image.title="Chat Agent" \
+      org.opencontainers.image.description="Feishu webhook + Claude Tool Calling AI chat" \
+      org.opencontainers.image.vendor="Wisdoverse Cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${GIT_COMMIT}"
+
+COPY --from=chat-builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    API_HOST=0.0.0.0 \
+    API_PORT=8013
+
+COPY --chown=appuser:appgroup shared/ /app/shared/
+COPY --chown=appuser:appgroup agents/requirement_manager/ /app/agents/requirement_manager/
+COPY --chown=appuser:appgroup agents/chat_agent/ /app/agents/chat_agent/
+
+USER appuser
+EXPOSE 8013
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl --fail --silent http://localhost:8013/health/ready || exit 1
+
+CMD ["gunicorn", \
+     "agents.chat_agent.app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "1", \
+     "--bind", "0.0.0.0:8013", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--keep-alive", "5", \
+     "--access-logfile", "-", \
+     "--access-logformat", "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s %(D)s"]

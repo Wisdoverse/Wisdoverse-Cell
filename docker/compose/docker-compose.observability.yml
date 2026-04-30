@@ -1,0 +1,301 @@
+# =============================================================================
+# Cloud-Native Observability Stack
+# =============================================================================
+# Prometheus + Grafana + Loki + Tempo + Promtail + Exporters
+#
+# Usage: docker compose -f docker/compose/docker-compose.base.yml \
+#                       -f docker/compose/docker-compose.observability.yml up -d
+# =============================================================================
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "25m"
+    max-file: "3"
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 15s
+  timeout: 10s
+  retries: 3
+  start_period: 30s
+
+services:
+  # ===========================================================================
+  # Prometheus — Metrics Collection
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-prometheus
+    hostname: prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    networks:
+      - backend
+      - frontend
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+    logging: *default-logging
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Alertmanager — Alert Routing & Notification
+  # ===========================================================================
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-alertmanager
+    hostname: alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --cluster.listen-address=
+    environment:
+      ALERTMANAGER_FEISHU_WEBHOOK_URL: ${ALERTMANAGER_FEISHU_WEBHOOK_URL:-http://localhost:9093/api/v1/alerts}
+    volumes:
+      - ../prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    networks:
+      - backend
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9093/-/healthy"]
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 32M
+    logging: *default-logging
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Grafana — Dashboards & Visualization
+  # ===========================================================================
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-grafana
+    hostname: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-projectcell}
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:%(http_port)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)"
+      - "traefik.http.routers.grafana.entrypoints=web"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    logging: *default-logging
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Loki — Log Aggregation
+  # ===========================================================================
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-loki
+    hostname: loki
+    command: -config.file=/etc/loki/config.yml
+    volumes:
+      - ../loki/loki-config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    networks:
+      - backend
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    logging: *default-logging
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Tempo — Distributed Tracing
+  # ===========================================================================
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-tempo
+    hostname: tempo
+    command: -config.file=/etc/tempo/config.yml
+    volumes:
+      - ../tempo/tempo-config.yml:/etc/tempo/config.yml:ro
+      - tempo_data:/var/tempo
+    networks:
+      - backend
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3200/ready"]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    logging: *default-logging
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Promtail — Log Shipper
+  # ===========================================================================
+  promtail:
+    image: grafana/promtail:3.3.2
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-promtail
+    hostname: promtail
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ../promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - backend
+    depends_on:
+      loki:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging: *default-logging
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Postgres Exporter — PostgreSQL Metrics
+  # ===========================================================================
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-postgres-exporter
+    hostname: postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-projectcell}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-projectcell}?sslmode=disable"
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    logging: *default-logging
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Redis Exporter — Redis Metrics
+  # ===========================================================================
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.66.0
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-redis-exporter
+    hostname: redis-exporter
+    environment:
+      REDIS_ADDR: "redis://redis-master:6379"
+    networks:
+      - backend
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    logging: *default-logging
+    restart: unless-stopped
+
+  # ===========================================================================
+  # PgBouncer Exporter — Connection Pool Metrics
+  # ===========================================================================
+  pgbouncer-exporter:
+    image: prometheuscommunity/pgbouncer-exporter:v0.8.0
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-pgbouncer-exporter
+    hostname: pgbouncer-exporter
+    environment:
+      PGBOUNCER_EXPORTER_HOST: pgbouncer
+      PGBOUNCER_EXPORTER_PORT: "6432"
+      PGBOUNCER_EXPORTER_USER: ${POSTGRES_USER:-projectcell}
+      PGBOUNCER_EXPORTER_PASS: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    networks:
+      - backend
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    logging: *default-logging
+    restart: unless-stopped
+
+  # ===========================================================================
+  # NATS Exporter — NATS Metrics
+  # ===========================================================================
+  nats-exporter:
+    image: natsio/prometheus-nats-exporter:0.15.0
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-nats-exporter
+    hostname: nats-exporter
+    command: -varz -connz -jsz=all http://nats-1:8222
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    logging: *default-logging
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_prometheus_data
+  alertmanager_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_alertmanager_data
+  grafana_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_grafana_data
+  loki_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_loki_data
+  tempo_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_tempo_data
+
+networks:
+  backend:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_backend
+    external: true
+  frontend:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_frontend
+    external: true

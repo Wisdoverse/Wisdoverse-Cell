@@ -1,0 +1,10 @@
+# Heavy ML dependencies — isolated as a separate Docker layer.
+# This file exists purely for Docker build caching: these packages
+# are ~2GB and rarely change, so they get their own layer that
+# survives edits to requirements.txt.
+#
+# Keep versions in sync with requirements.txt.
+# When you bump a version here, also bump it in requirements.txt.
+
+sentence-transformers>=3.0.0
+pymilvus>=2.5.0

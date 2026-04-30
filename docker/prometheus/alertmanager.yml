@@ -1,0 +1,97 @@
+# =============================================================================
+# Alertmanager Configuration — Wisdoverse Cell
+# =============================================================================
+# Routes alerts to Feishu webhook for team notification.
+#
+# Required env var: ALERTMANAGER_FEISHU_WEBHOOK_URL
+#
+# Severity routing:
+#   critical  — repeat every 1h, immediate group dispatch
+#   warning   — repeat every 4h, 30s group wait
+#   info      — repeat every 12h, 5m group wait
+# =============================================================================
+
+global:
+  resolve_timeout: 5m
+
+# ---------------------------------------------------------------------------
+# Inhibition Rules — Suppress lower-severity duplicates
+# ---------------------------------------------------------------------------
+inhibit_rules:
+  # If a critical alert fires, suppress the corresponding warning
+  - source_matchers:
+      - severity = "critical"
+    target_matchers:
+      - severity = "warning"
+    equal: ["alertname", "instance"]
+
+  # If a service is down, suppress all other alerts for that service
+  - source_matchers:
+      - alertname = "AgentDown"
+    target_matchers:
+      - severity =~ "warning|info"
+    equal: ["job"]
+
+# ---------------------------------------------------------------------------
+# Routing Tree
+# ---------------------------------------------------------------------------
+route:
+  receiver: "feishu-webhook"
+  group_by: ["alertname", "severity", "domain"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # Critical alerts — aggressive notification
+    - matchers:
+        - severity = "critical"
+      receiver: "feishu-webhook-critical"
+      group_wait: 10s
+      group_interval: 2m
+      repeat_interval: 1h
+      continue: false
+
+    # Warning alerts — standard notification
+    - matchers:
+        - severity = "warning"
+      receiver: "feishu-webhook"
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      continue: false
+
+    # Info alerts — relaxed notification
+    - matchers:
+        - severity = "info"
+      receiver: "feishu-webhook"
+      group_wait: 5m
+      group_interval: 15m
+      repeat_interval: 12h
+      continue: false
+
+# ---------------------------------------------------------------------------
+# Receivers
+# ---------------------------------------------------------------------------
+receivers:
+  # Default receiver
+  - name: "feishu-webhook"
+    webhook_configs:
+      - url: "${ALERTMANAGER_FEISHU_WEBHOOK_URL}"
+        send_resolved: true
+        http_config:
+          follow_redirects: true
+
+  # Critical receiver (same endpoint, but distinct for routing clarity)
+  - name: "feishu-webhook-critical"
+    webhook_configs:
+      - url: "${ALERTMANAGER_FEISHU_WEBHOOK_URL}"
+        send_resolved: true
+        http_config:
+          follow_redirects: true
+
+# ---------------------------------------------------------------------------
+# Templates (optional, uncomment if custom templates are needed)
+# ---------------------------------------------------------------------------
+# templates:
+#   - '/etc/alertmanager/templates/*.tmpl'

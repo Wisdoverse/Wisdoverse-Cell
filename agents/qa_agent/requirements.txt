@@ -1,0 +1,14 @@
+# NOTE: Pin exact versions (pip freeze) before production deployment
+fastapi>=0.115.0
+uvicorn>=0.34.0
+gunicorn>=23.0.0
+sqlalchemy[asyncio]>=2.0.40
+asyncpg>=0.30.0
+redis>=5.2.0
+httpx>=0.28.0
+pydantic-settings>=2.7.0
+structlog>=25.1.0
+prometheus-client>=0.21.0
+prometheus-fastapi-instrumentator>=7.0.0
+python-ulid>=3.0.0
+pyyaml>=6.0

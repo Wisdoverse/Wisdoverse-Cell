@@ -1,0 +1,178 @@
+# ==============================================================================
+# Wisdoverse Cell - Docker Compose Configuration
+# ==============================================================================
+#
+# Usage:
+#   docker compose up -d                    # Start all services
+#   docker compose logs -f                  # View logs
+#   docker compose down                     # Stop all services
+#   docker compose build --no-cache         # Rebuild images
+#
+# Environment Files:
+#   - .env                                  # Main configuration (required)
+#   - .env.local                            # Local overrides (optional)
+#
+# Architecture:
+#   PostgreSQL & Redis run on host machine (not containerized)
+#   Milvus and Agent services run in containers
+#
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Common Configuration (YAML anchors for DRY)
+# ------------------------------------------------------------------------------
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+    tag: "{{.Name}}/{{.ID}}"
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 10s
+
+x-common-env: &common-env
+  TZ: Asia/Shanghai
+
+# ------------------------------------------------------------------------------
+# Services
+# ------------------------------------------------------------------------------
+services:
+
+  # ============================================================================
+  # Milvus - Vector Database (standalone mode with embedded etcd)
+  # ============================================================================
+  milvus:
+    image: milvusdb/milvus:v2.6.10
+    container_name: projectcell-milvus
+    command: ["milvus", "run", "standalone"]
+    ports:
+      - "${MILVUS_PORT:-19530}:19530"
+    volumes:
+      - milvus_data:/var/lib/milvus
+    environment:
+      <<: *common-env
+      ETCD_USE_EMBED: "true"
+      ETCD_DATA_DIR: /var/lib/milvus/etcd
+      COMMON_STORAGETYPE: local
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 15s
+      start_period: 90s
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    networks:
+      - projectcell-internal
+
+  # ============================================================================
+  # Requirement Manager Agent
+  # ============================================================================
+  requirement-manager:
+    build:
+      context: ..
+      dockerfile: agents/requirement_manager/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        BUILD_DATE: ${BUILD_DATE:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    image: projectcell/requirement-manager:${VERSION:-latest}
+    container_name: projectcell-requirement-manager
+    ports:
+      - "${REQUIREMENT_MANAGER_PORT:-8001}:8000"
+    env_file:
+      - ../.env
+    environment:
+      <<: *common-env
+      # Override for container networking
+      MILVUS_URI: http://milvus:19530
+      # PostgreSQL via host
+      POSTGRES_HOST: host.docker.internal
+      # Redis via host
+      REDIS_HOST: host.docker.internal
+    depends_on:
+      milvus:
+        condition: service_healthy
+    volumes:
+      # Data persistence
+      - app_data:/app/data
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+    networks:
+      - projectcell-internal
+    # Connect to host services (PostgreSQL, Redis)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Graceful shutdown
+    stop_grace_period: 30s
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # ============================================================================
+  # Future Agents (Templates)
+  # ============================================================================
+
+  # dev-assistant:
+  #   build:
+  #     context: ..
+  #     dockerfile: agents/dev_assistant/Dockerfile
+  #   image: projectcell/dev-assistant:${VERSION:-latest}
+  #   container_name: projectcell-dev-assistant
+  #   ports:
+  #     - "${DEV_ASSISTANT_PORT:-8002}:8000"
+  #   env_file:
+  #     - ../.env
+  #   environment:
+  #     <<: *common-env
+  #     MILVUS_URI: http://milvus:19530
+  #   depends_on:
+  #     milvus:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   logging: *default-logging
+  #   networks:
+  #     - projectcell-internal
+
+# ------------------------------------------------------------------------------
+# Volumes
+# ------------------------------------------------------------------------------
+volumes:
+  milvus_data:
+    driver: local
+    name: projectcell-milvus-data
+  app_data:
+    driver: local
+    name: projectcell-app-data
+
+# ------------------------------------------------------------------------------
+# Networks
+# ------------------------------------------------------------------------------
+networks:
+  projectcell-internal:
+    name: projectcell-network
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16

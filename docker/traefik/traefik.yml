@@ -1,0 +1,43 @@
+api:
+  dashboard: true
+  insecure: true
+
+entryPoints:
+  web:
+    address: ":80"
+  grpc:
+    address: ":50051"
+    http2:
+      maxConcurrentStreams: 250
+  traefik:
+    address: ":8081"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: projectcell_frontend
+    watch: true
+  file:
+    directory: "/etc/traefik/dynamic"
+    watch: true
+
+metrics:
+  prometheus:
+    entryPoint: traefik
+    addEntryPointsLabels: true
+    addServicesLabels: true
+    addRoutersLabels: true
+
+accessLog:
+  format: json
+  filters:
+    statusCodes:
+      - "400-599"
+
+log:
+  level: INFO
+  format: json
+
+ping:
+  entryPoint: traefik

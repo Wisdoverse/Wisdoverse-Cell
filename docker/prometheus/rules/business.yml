@@ -1,0 +1,237 @@
+# =============================================================================
+# Business Metrics Alert Rules — Wisdoverse Cell SRE Standards
+# =============================================================================
+# Covers: Feishu integration, Sync pipeline, Card callbacks, Daily reports
+# These alerts focus on business-critical workflows, not infrastructure.
+# =============================================================================
+
+groups:
+  # ---------------------------------------------------------------------------
+  # Recording Rules — Business Metrics Pre-aggregation
+  # ---------------------------------------------------------------------------
+  - name: business_recording
+    interval: 60s
+    rules:
+      - record: job:feishu_webhook_rate:rate_30m
+        expr: sum(rate(feishu_webhook_total[30m]))
+
+      - record: job:card_callback_duration:p95_5m
+        expr: histogram_quantile(0.95, rate(card_callback_duration_seconds_bucket[5m]))
+
+  # ---------------------------------------------------------------------------
+  # Feishu Integration Alerts
+  # ---------------------------------------------------------------------------
+  - name: business_feishu
+    rules:
+      # -- No Feishu Messages During Business Hours ---------------------------
+      # Business hours: 9:00-18:00 UTC+8 (1:00-10:00 UTC)
+      - alert: NoFeishuMessages
+        expr: >
+          job:feishu_webhook_rate:rate_30m == 0
+          and ON() (hour() >= 1 and hour() < 10)
+          and ON() (day_of_week() >= 1 and day_of_week() <= 5)
+        for: 30m
+        labels:
+          severity: warning
+          team: platform
+          domain: feishu
+        annotations:
+          summary: "No Feishu webhook messages received in 30 minutes (business hours)"
+          description: >-
+            No Feishu webhook events have been received in the last 30 minutes
+            during business hours (UTC+8 09:00-18:00). The webhook endpoint
+            may be misconfigured or Feishu may have stopped sending events.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/no-feishu-messages"
+
+      # -- Feishu Webhook Error Rate ------------------------------------------
+      - alert: FeishuWebhookErrorRate
+        expr: >
+          rate(feishu_webhook_errors_total[5m])
+          /
+          rate(feishu_webhook_total[5m])
+          > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: feishu
+        annotations:
+          summary: "Feishu webhook error rate exceeds 10%"
+          description: >-
+            {{ $value | humanizePercentage }} of Feishu webhook requests are
+            failing. Check signature verification, payload parsing, and
+            downstream service health.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/feishu-webhook-errors"
+
+      # -- Feishu API Rate Limited --------------------------------------------
+      - alert: FeishuAPIRateLimited
+        expr: increase(feishu_api_rate_limited_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: feishu
+        annotations:
+          summary: "Feishu API rate limiting detected"
+          description: >-
+            {{ $value | printf "%.0f" }} Feishu API requests were rate-limited
+            in the last 5 minutes. Implement backoff or reduce API call frequency.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/feishu-rate-limited"
+
+  # ---------------------------------------------------------------------------
+  # Sync Pipeline Alerts
+  # ---------------------------------------------------------------------------
+  - name: business_sync
+    rules:
+      # -- Sync Failure -------------------------------------------------------
+      - alert: SyncFailure
+        expr: increase(sync_failures_total[1h]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          team: platform
+          domain: sync
+        annotations:
+          summary: "Sync pipeline failure detected"
+          description: >-
+            {{ $value | printf "%.0f" }} sync failures occurred in the last hour.
+            Data between OpenProject and Feishu Bitable may be out of sync.
+            Check sync-agent logs for details.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/sync-failure"
+
+      # -- Sync Failure Critical (multiple in short window) -------------------
+      - alert: SyncFailureCritical
+        expr: increase(sync_failures_total[15m]) > 3
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          domain: sync
+        annotations:
+          summary: "Multiple sync failures ({{ $value }} in 15 min)"
+          description: >-
+            {{ $value | printf "%.0f" }} sync failures in 15 minutes indicates
+            a systemic issue. Sync pipeline may need manual intervention.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/sync-failure"
+
+      # -- Sync Duration Excessive --------------------------------------------
+      - alert: SyncDurationExcessive
+        expr: histogram_quantile(0.95, rate(sync_duration_seconds_bucket[15m])) > 300
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+          domain: sync
+        annotations:
+          summary: "Sync P95 duration exceeds 5 minutes"
+          description: >-
+            Sync operations are taking {{ $value | humanizeDuration }} at P95.
+            This may indicate API throttling or large data volumes.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/sync-slow"
+
+  # ---------------------------------------------------------------------------
+  # Card Callback Alerts
+  # ---------------------------------------------------------------------------
+  - name: business_card_callback
+    rules:
+      # -- Card Callback Slow (P95 > 12s threshold) --------------------------
+      - alert: CardCallbackSlow
+        expr: job:card_callback_duration:p95_5m > 12
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: feishu
+        annotations:
+          summary: "Card callback P95 latency exceeds 12s timeout threshold"
+          description: >-
+            Card callback P95 latency is {{ $value | humanizeDuration }}.
+            Feishu enforces a ~15s timeout on card callbacks; responses above
+            12s risk timing out and showing errors to users.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/card-callback-slow"
+
+      # -- Card Callback Critical (P95 > 14s, near Feishu timeout) -----------
+      - alert: CardCallbackCritical
+        expr: job:card_callback_duration:p95_5m > 14
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          domain: feishu
+        annotations:
+          summary: "Card callback P95 latency near Feishu timeout ({{ $value }}s)"
+          description: >-
+            Card callback P95 latency is {{ $value | humanizeDuration }},
+            extremely close to the ~15s Feishu timeout. Users are likely
+            seeing callback failures.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/card-callback-slow"
+
+      # -- Card Callback Errors -----------------------------------------------
+      - alert: CardCallbackErrors
+        expr: increase(card_callback_errors_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: feishu
+        annotations:
+          summary: "Card callback errors detected ({{ $value }} in 5m)"
+          description: >-
+            {{ $value | printf "%.0f" }} card callback errors in the last 5 minutes.
+            Users may see broken interactive cards.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/card-callback-errors"
+
+  # ---------------------------------------------------------------------------
+  # Daily Report & Scheduled Task Alerts
+  # ---------------------------------------------------------------------------
+  - name: business_reports
+    rules:
+      # -- Daily Report Push Failure ------------------------------------------
+      - alert: DailyReportPushFailure
+        expr: increase(daily_report_push_failures_total[1h]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          team: platform
+          domain: reports
+        annotations:
+          summary: "Daily report push failed"
+          description: >-
+            {{ $value | printf "%.0f" }} daily report push failures in the last hour.
+            Team members may not receive their daily status update.
+            Check analysis-agent logs and Feishu API connectivity.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/daily-report-failure"
+
+      # -- Daily Report Push Not Executed (business day) ----------------------
+      - alert: DailyReportNotSent
+        expr: >
+          increase(daily_report_push_total[24h]) == 0
+          and ON() (hour() >= 12 and hour() < 13)
+          and ON() (day_of_week() >= 1 and day_of_week() <= 5)
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+          domain: reports
+        annotations:
+          summary: "Daily report has not been sent today"
+          description: >-
+            No daily report push has been recorded in the last 24 hours.
+            The scheduled task may have failed silently or the cron trigger
+            is misconfigured.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/daily-report-not-sent"
+
+      # -- Task Decomposition Failure -----------------------------------------
+      - alert: TaskDecompositionFailure
+        expr: increase(task_decomposition_failures_total[1h]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          team: ai
+          domain: pm
+        annotations:
+          summary: "Task decomposition failure detected"
+          description: >-
+            {{ $value | printf "%.0f" }} task decomposition failures in the last
+            hour. PM-agent may be unable to break down requirements into tasks.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/task-decomposition-failure"

@@ -1,0 +1,145 @@
+# =============================================================================
+# Prometheus Configuration — Multi-Service Scraping (Phase 2)
+# =============================================================================
+# NOTE: Enable remote write receiver via command flag:
+#   --web.enable-remote-write-receiver
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    project: 'projectcell'
+
+# Alerting — routes firing alerts to AlertManager
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+# Rule files — alert and recording rules
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  # ---------------------------------------------------------------------------
+  # Self-monitoring
+  # ---------------------------------------------------------------------------
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: /metrics
+
+  # ---------------------------------------------------------------------------
+  # Application services (10s interval, DNS SD for multi-replica)
+  # ---------------------------------------------------------------------------
+  - job_name: 'ai-core'
+    scrape_interval: 10s
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names:
+          - 'ai-core'
+        type: 'A'
+        port: 8000
+
+  - job_name: 'gateway'
+    scrape_interval: 10s
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names:
+          - 'gateway'
+        type: 'A'
+        port: 8080
+
+  # ---------------------------------------------------------------------------
+  # Infrastructure (15s interval)
+  # ---------------------------------------------------------------------------
+  - job_name: 'traefik'
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['traefik:8081']
+
+  - job_name: 'nats-exporter'
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['nats-exporter:7777']
+
+  # ---------------------------------------------------------------------------
+  # Database exporters (30s interval)
+  # ---------------------------------------------------------------------------
+  - job_name: 'postgres-exporter'
+    scrape_interval: 30s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  - job_name: 'redis-exporter'
+    scrape_interval: 30s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  - job_name: 'pgbouncer-exporter'
+    scrape_interval: 30s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['pgbouncer-exporter:9127']
+
+  # ---------------------------------------------------------------------------
+  # Python agents (10s interval)
+  # ---------------------------------------------------------------------------
+  - job_name: 'chat-agent'
+    scrape_interval: 10s
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names:
+          - 'chat-agent'
+        type: 'A'
+        port: 8013
+
+  - job_name: 'pjm-agent'
+    scrape_interval: 10s
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names:
+          - 'pjm-agent'
+        type: 'A'
+        port: 8012
+
+  - job_name: 'analysis-agent'
+    scrape_interval: 10s
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names:
+          - 'analysis-agent'
+        type: 'A'
+        port: 8011
+
+  - job_name: 'sync-agent'
+    scrape_interval: 10s
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names:
+          - 'sync-agent'
+        type: 'A'
+        port: 8010
+
+  - job_name: 'qa-agent'
+    scrape_interval: 10s
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names:
+          - 'qa-agent'
+        type: 'A'
+        port: 8014
+
+  - job_name: 'dev-agent'
+    scrape_interval: 10s
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names:
+          - 'dev-agent'
+        type: 'A'
+        port: 8015

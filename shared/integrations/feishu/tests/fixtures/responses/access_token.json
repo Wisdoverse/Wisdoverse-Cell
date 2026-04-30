@@ -1,0 +1,6 @@
+{
+  "code": 0,
+  "msg": "success",
+  "tenant_access_token": "t-test_token_12345",
+  "expire": 7200
+}

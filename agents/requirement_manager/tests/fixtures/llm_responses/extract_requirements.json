@@ -1,0 +1,35 @@
+{
+  "requirements": [
+    {
+      "title": "离线录音功能",
+      "description": "设备在无网络环境下能本地存储录音，联网后自动上传",
+      "category": "功能",
+      "priority": "HIGH",
+      "source_quote": "必须支持离线录音功能，设备在无网络时也能工作"
+    },
+    {
+      "title": "多音频格式支持",
+      "description": "录音文件需要支持 MP3 和 WAV 两种格式",
+      "category": "功能",
+      "priority": "MEDIUM",
+      "source_quote": "录音文件需要支持 MP3 和 WAV 格式"
+    },
+    {
+      "title": "说话人识别",
+      "description": "自动识别录音中的不同说话人",
+      "category": "功能",
+      "priority": "MEDIUM",
+      "source_quote": "希望能自动识别说话人"
+    }
+  ],
+  "open_questions": [
+    {
+      "question": "离线存储的容量上限是多少？",
+      "context": "客户未明确说明存储限制，需要确认设备存储容量要求"
+    },
+    {
+      "question": "是否需要支持其他音频格式？",
+      "context": "目前只提到 MP3 和 WAV，可能还需要其他格式"
+    }
+  ]
+}

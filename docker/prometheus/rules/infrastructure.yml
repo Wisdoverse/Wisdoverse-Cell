@@ -1,0 +1,411 @@
+# =============================================================================
+# Infrastructure Alert Rules — Wisdoverse Cell SRE Standards
+# =============================================================================
+# Covers: PostgreSQL, Redis, Container/System resources
+# Exporters: postgres-exporter, redis-exporter, cAdvisor/node-exporter
+# =============================================================================
+
+groups:
+  # ---------------------------------------------------------------------------
+  # Recording Rules — Infrastructure Pre-aggregation
+  # ---------------------------------------------------------------------------
+  - name: infrastructure_recording
+    interval: 30s
+    rules:
+      - record: instance:node_cpu_utilisation:ratio_5m
+        expr: >
+          1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))
+
+      - record: instance:node_memory_utilisation:ratio
+        expr: >
+          1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+
+      - record: instance:node_filesystem_utilisation:ratio
+        expr: >
+          1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Alerts
+  # ---------------------------------------------------------------------------
+  - name: infrastructure_postgres
+    rules:
+      # -- PostgreSQL Down ----------------------------------------------------
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          domain: database
+        annotations:
+          summary: "PostgreSQL is DOWN"
+          description: >-
+            PostgreSQL instance {{ $labels.instance }} is unreachable.
+            All database-dependent services will be affected.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-down"
+
+      # -- PostgreSQL High Connection Usage (> 80% max_connections) -----------
+      - alert: PostgresHighConnections
+        expr: >
+          sum by (instance) (pg_stat_activity_count)
+          /
+          pg_settings_max_connections
+          > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: database
+        annotations:
+          summary: "PostgreSQL connections at {{ $value | humanizePercentage }} of max"
+          description: >-
+            PostgreSQL {{ $labels.instance }} is using
+            {{ $value | humanizePercentage }} of max_connections.
+            New connections may be refused if this continues to climb.
+            Check for connection leaks or increase max_connections.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-high-connections"
+
+      # -- PostgreSQL Connections Critical (> 90%) ----------------------------
+      - alert: PostgresConnectionsCritical
+        expr: >
+          sum by (instance) (pg_stat_activity_count)
+          /
+          pg_settings_max_connections
+          > 0.9
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          domain: database
+        annotations:
+          summary: "PostgreSQL connections at {{ $value | humanizePercentage }} of max (critical)"
+          description: >-
+            PostgreSQL {{ $labels.instance }} is using
+            {{ $value | humanizePercentage }} of max_connections.
+            Imminent connection exhaustion. Terminate idle connections immediately.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-high-connections"
+
+      # -- PostgreSQL Slow Queries (avg > 100ms) ------------------------------
+      - alert: PostgresSlowQueries
+        expr: >
+          rate(pg_stat_activity_max_tx_duration{state="active"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: database
+        annotations:
+          summary: "PostgreSQL slow queries detected (avg > 100ms)"
+          description: >-
+            PostgreSQL {{ $labels.instance }} has active transactions with
+            duration exceeding 100ms. Review slow query log and check for
+            missing indexes or lock contention.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-slow-queries"
+
+      # -- PostgreSQL Long-Running Transactions (> 5min) ----------------------
+      - alert: PostgresLongRunningTransactions
+        expr: pg_stat_activity_max_tx_duration{state="active"} > 300
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+          domain: database
+        annotations:
+          summary: "PostgreSQL long-running transaction (> 5 min)"
+          description: >-
+            A transaction on {{ $labels.instance }} has been running for
+            {{ $value | humanizeDuration }}. This may cause lock contention
+            and bloat. Investigate and terminate if safe.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-long-tx"
+
+      # -- PostgreSQL Replication Lag -----------------------------------------
+      - alert: PostgresReplicationLag
+        expr: pg_replication_lag > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: database
+        annotations:
+          summary: "PostgreSQL replication lag > 30s"
+          description: >-
+            Replication lag on {{ $labels.instance }} is {{ $value | humanizeDuration }}.
+            Replica may be falling behind. Check WAL shipping and replica health.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-replication-lag"
+
+      # -- PostgreSQL Replication Lag Critical ---------------------------------
+      - alert: PostgresReplicationLagCritical
+        expr: pg_replication_lag > 120
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          domain: database
+        annotations:
+          summary: "PostgreSQL replication lag > 2 min (critical)"
+          description: >-
+            Replication lag on {{ $labels.instance }} is {{ $value | humanizeDuration }}.
+            Replica is significantly behind. Failover may produce data loss.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-replication-lag"
+
+      # -- PostgreSQL Disk Usage High (> 80%) ---------------------------------
+      - alert: PostgresDiskUsageHigh
+        expr: >
+          pg_database_size_bytes
+          /
+          (node_filesystem_size_bytes{mountpoint="/var/lib/postgresql"} > 0
+           or node_filesystem_size_bytes{mountpoint="/"})
+          > 0.8
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+          domain: database
+        annotations:
+          summary: "PostgreSQL disk usage exceeds 80%"
+          description: >-
+            Database storage is at {{ $value | humanizePercentage }}.
+            Consider running VACUUM FULL, archiving old data, or expanding disk.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-disk-usage"
+
+      # -- PostgreSQL Dead Tuples High ----------------------------------------
+      - alert: PostgresDeadTuplesHigh
+        expr: pg_stat_user_tables_n_dead_tup > 100000
+        for: 15m
+        labels:
+          severity: info
+          team: platform
+          domain: database
+        annotations:
+          summary: "PostgreSQL table {{ $labels.relname }} has > 100k dead tuples"
+          description: >-
+            Table {{ $labels.relname }} on {{ $labels.instance }} has
+            {{ $value | humanize }} dead tuples. Autovacuum may be falling behind.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-dead-tuples"
+
+  # ---------------------------------------------------------------------------
+  # Redis Alerts
+  # ---------------------------------------------------------------------------
+  - name: infrastructure_redis
+    rules:
+      # -- Redis Down ---------------------------------------------------------
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          domain: cache
+        annotations:
+          summary: "Redis is DOWN"
+          description: >-
+            Redis instance {{ $labels.instance }} is unreachable.
+            EventBus, rate limiting, and caching will be impacted.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/redis-down"
+
+      # -- Redis Memory High (> 80% maxmemory) --------------------------------
+      - alert: RedisMemoryHigh
+        expr: >
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: cache
+        annotations:
+          summary: "Redis memory usage at {{ $value | humanizePercentage }} of maxmemory"
+          description: >-
+            Redis {{ $labels.instance }} memory is at
+            {{ $value | humanizePercentage }} of maxmemory (256MB).
+            With noeviction policy, new writes will be rejected when full.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/redis-memory-high"
+
+      # -- Redis Memory Critical (> 95% maxmemory) ----------------------------
+      - alert: RedisMemoryCritical
+        expr: >
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          domain: cache
+        annotations:
+          summary: "Redis memory at {{ $value | humanizePercentage }} — OOM imminent"
+          description: >-
+            Redis {{ $labels.instance }} memory is at
+            {{ $value | humanizePercentage }}. With noeviction policy,
+            write operations will start failing imminently.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/redis-memory-high"
+
+      # -- Redis Rejected Connections -----------------------------------------
+      - alert: RedisRejectedConnections
+        expr: increase(redis_rejected_connections_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: cache
+        annotations:
+          summary: "Redis rejecting connections"
+          description: >-
+            Redis {{ $labels.instance }} has rejected
+            {{ $value | printf "%.0f" }} connections in the last 5 minutes.
+            Check maxclients setting and connection pool configuration.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/redis-rejected-connections"
+
+      # -- Redis Key Evictions (should be 0 with noeviction) ------------------
+      - alert: RedisKeyEvictions
+        expr: increase(redis_evicted_keys_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          domain: cache
+        annotations:
+          summary: "Redis key evictions detected (noeviction policy expected)"
+          description: >-
+            Redis {{ $labels.instance }} evicted {{ $value | printf "%.0f" }} keys.
+            This should not happen with noeviction policy. Check Redis configuration.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/redis-key-evictions"
+
+      # -- Redis Connected Clients High ---------------------------------------
+      - alert: RedisConnectedClientsHigh
+        expr: redis_connected_clients > 200
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: cache
+        annotations:
+          summary: "Redis connected clients high ({{ $value }})"
+          description: >-
+            Redis {{ $labels.instance }} has {{ $value | printf "%.0f" }}
+            connected clients. Check for connection pool leaks.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/redis-high-clients"
+
+  # ---------------------------------------------------------------------------
+  # Container & System Resource Alerts
+  # ---------------------------------------------------------------------------
+  - name: infrastructure_system
+    rules:
+      # -- High CPU Usage (> 80% for 10m) -------------------------------------
+      - alert: HighCPUUsage
+        expr: instance:node_cpu_utilisation:ratio_5m > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+          domain: system
+        annotations:
+          summary: "CPU usage at {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+          description: >-
+            CPU utilization on {{ $labels.instance }} has been above 80% for
+            10 minutes. Check for runaway processes or consider scaling.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/high-cpu-usage"
+
+      # -- Critical CPU Usage (> 95% for 5m) ----------------------------------
+      - alert: CriticalCPUUsage
+        expr: instance:node_cpu_utilisation:ratio_5m > 0.95
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+          domain: system
+        annotations:
+          summary: "CPU usage critical ({{ $value | humanizePercentage }}) on {{ $labels.instance }}"
+          description: >-
+            CPU utilization on {{ $labels.instance }} has been above 95% for
+            5 minutes. System may become unresponsive.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/high-cpu-usage"
+
+      # -- High Memory Usage (> 85%) ------------------------------------------
+      - alert: HighMemoryUsage
+        expr: instance:node_memory_utilisation:ratio > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+          domain: system
+        annotations:
+          summary: "Memory usage at {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+          description: >-
+            Memory utilization on {{ $labels.instance }} is
+            {{ $value | humanizePercentage }}. OOM killer may activate.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/high-memory-usage"
+
+      # -- Critical Memory Usage (> 95%) --------------------------------------
+      - alert: CriticalMemoryUsage
+        expr: instance:node_memory_utilisation:ratio > 0.95
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+          domain: system
+        annotations:
+          summary: "Memory usage critical ({{ $value | humanizePercentage }}) on {{ $labels.instance }}"
+          description: >-
+            Memory utilization on {{ $labels.instance }} is
+            {{ $value | humanizePercentage }}. OOM kills are imminent.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/high-memory-usage"
+
+      # -- Disk Space Running Low (< 15%) -------------------------------------
+      - alert: DiskSpaceRunningLow
+        expr: instance:node_filesystem_utilisation:ratio > 0.85
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+          domain: system
+        annotations:
+          summary: "Disk space below 15% free on {{ $labels.instance }}"
+          description: >-
+            Filesystem on {{ $labels.instance }} ({{ $labels.mountpoint }}) is
+            at {{ $value | humanizePercentage }} utilization. Clean up logs,
+            old backups, or expand disk.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/disk-space-low"
+
+      # -- Disk Space Critical (< 5%) -----------------------------------------
+      - alert: DiskSpaceCritical
+        expr: instance:node_filesystem_utilisation:ratio > 0.95
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+          domain: system
+        annotations:
+          summary: "Disk space critical (< 5% free) on {{ $labels.instance }}"
+          description: >-
+            Filesystem on {{ $labels.instance }} ({{ $labels.mountpoint }}) is
+            at {{ $value | humanizePercentage }} utilization. Immediate action needed.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/disk-space-low"
+
+      # -- Container Restarting (> 3 in 10m) ----------------------------------
+      - alert: ContainerRestarting
+        expr: increase(kube_pod_container_status_restarts_total[10m]) > 3
+        for: 1m
+        labels:
+          severity: warning
+          team: platform
+          domain: system
+        annotations:
+          summary: "Container {{ $labels.container }} restarting frequently"
+          description: >-
+            Container {{ $labels.container }} in pod {{ $labels.pod }} has
+            restarted {{ $value | printf "%.0f" }} times in the last 10 minutes.
+            Check container logs for crash reasons.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/container-restarting"
+
+      # -- Container OOMKilled ------------------------------------------------
+      - alert: ContainerOOMKilled
+        expr: increase(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[10m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          domain: system
+        annotations:
+          summary: "Container {{ $labels.container }} was OOM killed"
+          description: >-
+            Container {{ $labels.container }} was terminated due to OOM.
+            Increase memory limits or investigate memory leaks.
+          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/container-oomkilled"

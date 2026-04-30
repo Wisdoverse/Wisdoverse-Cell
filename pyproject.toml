@@ -1,0 +1,53 @@
+[project]
+name = "project_cell"
+version = "1.0.0"
+description = "AI Native OS - Wisdoverse Cell"
+license = { text = "LicenseRef-Wisdoverse-Cell-BSL-1.1" }
+requires-python = ">=3.11"
+dependencies = [
+    "lark-oapi>=1.5.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["agents", "shared", "tests", "skills"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+norecursedirs = [
+    ".git",
+    ".venv",
+    ".pytest_cache",
+    ".ruff_cache",
+    "frontend/node_modules",
+    "frontend/.next",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+markers = [
+    "public: stable tests that must pass in the public GitHub CI gate without external infrastructure",
+    "unit: tests that should run without external infrastructure",
+    "integration: tests that may require PostgreSQL, Redis, NATS, Milvus, service processes, or API-compatible mocks",
+    "e2e: End-to-end tests requiring full infrastructure",
+    "e2e_full: Full E2E tests with real LLM",
+    "requires_infra: tests that require local or CI-provisioned infrastructure",
+    "resilience: Infrastructure failure scenario tests",
+    "concurrency: Concurrent operation tests",
+    "benchmark: Performance benchmark tests",
+    "timeout(seconds): per-test timeout override for slow smoke or E2E checks",
+    "slow: Slow running tests (>10s)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**/*.py" = ["E402"]
+"**/test_*.py" = ["E402"]
+"**/conftest.py" = ["E402"]
+"**/*_pb2.py" = ["E712", "F821", "E501"]  # protobuf auto-generated

@@ -1,0 +1,64 @@
+# =============================================================================
+# Docker Compose Override — CN Region Mirrors
+# =============================================================================
+#
+# 中国大陆开发者加速构建：
+#   cp docker-compose.override.cn.yml docker-compose.override.yml
+#
+# 注意：此文件会覆盖已有的 docker-compose.override.yml。
+# 如需保留开发配置（如 volume mounts），请手动合并
+# docker-compose.override.yml 中的内容到此文件。
+#
+# Base image 加速需额外配置 Docker daemon：
+#   /etc/docker/daemon.json (Linux)
+#   ~/.docker/daemon.json (Docker Desktop)
+#
+#   {
+#     "registry-mirrors": [
+#       "https://mirror.ccs.tencentyun.com",
+#       "https://docker.mirrors.ustc.edu.cn"
+#     ]
+#   }
+#
+# 配置后重启 Docker: sudo systemctl restart docker
+# =============================================================================
+
+services:
+  ai-core:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agents
+      target: ai-core
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        APT_MIRROR: mirrors.aliyun.com
+
+  sync-agent:
+    build:
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        APT_MIRROR: mirrors.aliyun.com
+
+  analysis-agent:
+    build:
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        APT_MIRROR: mirrors.aliyun.com
+
+  pjm-agent:
+    build:
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        APT_MIRROR: mirrors.aliyun.com
+
+  chat-agent:
+    build:
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        APT_MIRROR: mirrors.aliyun.com
+
+  gateway:
+    build:
+      args:
+        GOPROXY: https://goproxy.cn,direct
+        APK_MIRROR: mirrors.aliyun.com

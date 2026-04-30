@@ -1,0 +1,43 @@
+# Gateway Configuration Example
+# Copy to config.yaml and modify as needed
+
+server:
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  mode: release  # debug, release, test
+
+grpc:
+  ai_service_addr: "localhost:50051"
+  timeout: 30s
+  max_retries: 3
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+feishu:
+  app_id: ""
+  app_secret: ""
+  verification_token: ""
+  encrypt_key: ""
+  verify_signature: true
+  monitored_chat_ids: []
+  session_timeout: 300  # seconds
+
+wecom:
+  corp_id: ""
+  agent_id: 0
+  secret: ""
+  token: ""
+  encoding_aes_key: ""
+
+ratelimit:
+  enabled: true
+  rps: 100
+  burst_size: 200
+
+log:
+  level: info  # debug, info, warn, error
+  format: json  # json, console

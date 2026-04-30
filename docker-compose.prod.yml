@@ -1,0 +1,98 @@
+# =============================================================================
+# Docker Compose Override - Production Settings
+# =============================================================================
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Production best practices:
+#   - Use pre-built images from registry
+#   - No source code mounts
+#   - Stricter resource limits
+#   - No debug ports exposed
+#   - Health check optimizations
+#
+# =============================================================================
+
+services:
+  ai-core:
+    image: ${REGISTRY}projectcell/ai-core:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+      APP_ENV: production
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "1"
+          memory: 1G
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  gateway:
+    image: ${REGISTRY}projectcell/gateway:${VERSION}
+    build: !reset null
+    environment:
+      GATEWAY_SERVER_MODE: release
+      GATEWAY_LOG_LEVEL: info
+      GATEWAY_LOG_FORMAT: json
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "1"
+          memory: 256M
+        reservations:
+          cpus: "0.5"
+          memory: 128M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  postgres:
+    ports: !reset []  # Don't expose in production
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "1"
+          memory: 1G
+
+  redis:
+    ports: !reset []  # Don't expose in production
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 60
+      --timeout 0
+      --requirepass ${REDIS_PASSWORD:-}
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 256M
+
+  milvus:
+    ports: !reset []  # Don't expose in production

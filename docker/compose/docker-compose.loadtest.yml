@@ -1,0 +1,25 @@
+# =============================================================================
+# Load Testing Layer — k6
+# =============================================================================
+# Usage: make load-smoke | make load-test | make load-stress | make load-spike
+# =============================================================================
+
+services:
+  k6:
+    image: grafana/k6:latest
+    volumes:
+      - ../../tests/load:/scripts
+    environment:
+      BASE_URL: http://traefik:80
+    networks:
+      - frontend
+    profiles:
+      - loadtest
+    entrypoint: ["k6", "run", "/scripts/${K6_SCRIPT:-k6_smoke.js}"]
+    depends_on:
+      - traefik
+
+networks:
+  frontend:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_frontend
+    external: true

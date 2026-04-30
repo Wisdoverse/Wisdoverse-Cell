@@ -1,0 +1,100 @@
+# Docker Compose for CI Integration Tests
+#
+# Usage:
+#   docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: projectcell_test
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d projectcell_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:8-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # AI Core (Python)
+  ai-core:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agents
+      target: ai-core
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: projectcell_test
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      GRPC_PORT: "50051"
+      API_PORT: "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Go Gateway
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    environment:
+      AI_CORE_GRPC_ADDR: ai-core:50051
+      REDIS_ADDR: redis:6379
+      HTTP_PORT: "8080"
+    depends_on:
+      ai-core:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Test Runner
+  test-runner:
+    image: python:3.13-slim
+    working_dir: /app
+    volumes:
+      - .:/app:ro
+    environment:
+      GATEWAY_URL: http://gateway:8080
+      AI_CORE_URL: http://ai-core:8000
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: projectcell_test
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+    depends_on:
+      gateway:
+        condition: service_healthy
+      ai-core:
+        condition: service_healthy
+    command: >
+      sh -c "
+        pip install -q pytest requests httpx &&
+        python -m pytest tests/integration/test_docker_integration.py -v --tb=short
+      "
