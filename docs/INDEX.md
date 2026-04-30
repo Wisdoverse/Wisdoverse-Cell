@@ -10,6 +10,7 @@
 
 | Document | Purpose |
 |----------|---------|
+| [SPEC](../SPEC.md) | Root service specification and implementation contract |
 | [README](./README.md) | Documentation landing page, architecture, quick start, agent matrix |
 | [CONTRIBUTING](./CONTRIBUTING.md) | Branching, commits, PR workflow, AI collaboration rules |
 | [CHANGELOG](./CHANGELOG.md) | Version history |
