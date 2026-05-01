@@ -17,7 +17,7 @@ Agents communicate asynchronously through this bus.
     # 发布事件
     await bus.publish(event)
 
-    # 订阅事件（通常在Agent启動時, group=agent_id で fan-out）
+    # 订阅事件（通常在Agent启动时, group=agent_id，进行 fan-out）
     async for event in bus.subscribe(
         ["requirement.confirmed", "requirement.changed"],
         group="my-agent",
