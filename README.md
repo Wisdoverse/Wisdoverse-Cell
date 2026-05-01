@@ -14,6 +14,36 @@ decomposition, Feishu/OpenProject sync, QA checks, and self-evolution loops.
 > evaluation environments. Review [SECURITY.md](./SECURITY.md) before
 > production-like deployment.
 
+## Agent Handoff
+
+New implementation agents should read the root contracts before entering module
+code:
+
+| Read first | Use for |
+|------------|---------|
+| [SPEC.md](./SPEC.md) | Root service contract, domain model, and implementation requirements |
+| [AGENTS.md](./AGENTS.md) | Repository workflow, coding rules, architecture boundaries, and agent behavior |
+| [docs/INDEX.md](./docs/INDEX.md) | Documentation map for product, architecture, specs, guides, and ADRs |
+| [docs/guides/agent-development.md](./docs/guides/agent-development.md) | New-agent service pattern, tests, and deployment checklist |
+
+Concise continuation prompt:
+
+> Continue Wisdoverse Cell from the current repository state. Read `SPEC.md`,
+> `AGENTS.md`, and `docs/INDEX.md` first. Preserve the `SPEC.md` contract,
+> keep runtime identifiers such as `projectcell`, `project-cell`, and
+> `project_cell` stable unless a migration is explicitly planned, and verify
+> changes with the narrowest relevant tests.
+
+### Frontend Console Direction
+
+The frontend is an operator console, not a marketing site. Prefer a compact,
+high-signal workbench where goals, work items, agent runs, approvals, budgets,
+audit evidence, and integration health are visible in one scannable flow. Useful
+patterns include split-pane inspection, status rails, timeline and replay
+views, inline approvals, and proof-of-work panels. Avoid decorative hero
+surfaces, low-information cards, and views that hide operational evidence behind
+chat alone.
+
 ## Running Wisdoverse Cell
 
 ### Requirements
@@ -69,8 +99,8 @@ make frontend-dev
 
 ## Documentation
 
-- [Service specification](./SPEC.md)
-- [Documentation index](./docs/INDEX.md)
+- [SPEC.md](./SPEC.md)
+- [docs/INDEX.md](./docs/INDEX.md)
 - [Product model](./docs/overview/product-model.md)
 - [Architecture overview](./docs/overview/architecture.md)
 - [Agent development guide](./docs/guides/agent-development.md)
