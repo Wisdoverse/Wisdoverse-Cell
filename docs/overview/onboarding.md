@@ -24,11 +24,13 @@ Goal: get the project running on your machine and verify all health endpoints re
 
 ```bash
 # Clone the repository
-git clone https://github.com/Wisdoverse/project-cell.git
-cd project-cell
+git clone https://github.com/Wisdoverse/Wisdoverse-Cell.git
+cd Wisdoverse-Cell
 
-# Install Python dependencies (requires Python 3.13+)
-make setup
+# Create virtual environment and install dependencies
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
 # Copy environment template and fill in required values
 cp .env.example .env

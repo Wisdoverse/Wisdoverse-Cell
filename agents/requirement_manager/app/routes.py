@@ -25,10 +25,21 @@ async def api_info():
     }
 
 
+@api_v1_redirect_router.api_route("/api", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+@api_v1_redirect_router.api_route("/api/", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 @api_v1_redirect_router.api_route(
     "/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"]
 )
-async def api_v1_redirect(request: Request, path: str):
+async def api_v1_redirect(request: Request, path: str = ""):
     """Redirect unversioned /api/* to /api/v1/* for backward compatibility."""
-    new_url = request.url.replace(path=f"/api/v1/{path}")
+    normalized_path = (path or "").lstrip("/")
+
+    if normalized_path in {"", "/"}:
+        target_path = "/api/v1"
+    elif normalized_path == "v1" or normalized_path.startswith("v1/"):
+        target_path = f"/api/{normalized_path}"
+    else:
+        target_path = f"/api/v1/{normalized_path}"
+
+    new_url = request.url.replace(path=target_path)
     return RedirectResponse(url=str(new_url), status_code=307)
