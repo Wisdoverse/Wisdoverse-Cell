@@ -98,6 +98,11 @@ user-facing product copy while an i18n path is being migrated.
 
 **Agents**: Inherit `BaseAgent`, implement `handle_event()`, `startup()`, `shutdown()`. Use `create_agent_app()` for FastAPI entry (see `shared/app/`). Scheduler jobs must call `runtime.agent` not `_raw_agent`.
 
+**Agent Layout**: Keep `agents/` grouped by real runtime boundary:
+`gateways/`, `orchestration/`, and `capabilities/`. Do not add top-level
+compatibility packages such as `chat_agent/`, `pjm_agent/`, or
+`requirement_manager/`; use the canonical package paths shown in Part 3.
+
 **Human-in-the-Loop**: Finance | Legal | Customer | Technical (must approve)
 
 **Python**: Async I/O | `model_dump_json()` | Repository pattern | Never log secrets
