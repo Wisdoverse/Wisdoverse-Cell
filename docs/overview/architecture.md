@@ -111,6 +111,17 @@ adapter targeting a deployed `create_agent_app()` service and authenticated
 `CONTROL_PLANE_LOCAL_ADAPTER_ENABLED=true` and the exact adapter key is present
 in `CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST`.
 
+Agent fleet modeling is split into two layers:
+
+| Layer | Meaning |
+|-------|---------|
+| Organization role agents | CEO/CTO/CPO/COO/PM-style `AgentRole` records that own intent, tradeoffs, user interaction policy, and business decisions |
+| Capability modules | Existing services such as sync, QA, requirement extraction, analysis, development execution, and evolution analysis |
+
+Capability modules SHOULD be invoked by role agents, gateways, schedulers, or
+work items. They SHOULD NOT be presented as organization roles unless they have
+a direct role-level interaction contract.
+
 ---
 
 ## 3. Communication Model
@@ -152,8 +163,8 @@ Current control-plane slices:
 | Slice | Responsibility |
 |-------|----------------|
 | `entities/control-plane` | Goals, work items, runs, decisions, artifacts, approvals, budgets, audit timeline |
-| `entities/agent` | Agent role types, registry, control-plane agent API hooks |
-| `features/agent-create` | Operator-created agent role dialog |
+| `entities/agent` | Agent kind, interaction mode, context source, registry, and control-plane agent API hooks |
+| `features/agent-create` | Operator-created role/module dialog with organization-role vs capability-module separation |
 | `features/agent-wakeup` | Manual agent wakeup action |
 | `widgets/control-plane-workbench` | `/[locale]/workflows` operator console |
 | `widgets/agent-fleet` and `widgets/agent-detail` | Agent fleet and detail surfaces |

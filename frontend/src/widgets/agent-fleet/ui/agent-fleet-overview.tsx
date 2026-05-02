@@ -23,6 +23,13 @@ interface AgentFleetOverviewProps {
   filters: AgentFleetFiltersState;
 }
 
+const kindOrder: Record<string, number> = {
+  organization_role: 0,
+  integration_gateway: 1,
+  capability_module: 2,
+  system_worker: 3,
+};
+
 export function AgentFleetOverview({
   agents,
   runtimes,
@@ -47,6 +54,8 @@ export function AgentFleetOverview({
       agent.description,
       agent.role,
       agent.title,
+      agent.agentKind,
+      agent.interactionMode,
       agent.adapterType,
     ]
       .filter(Boolean)
@@ -57,7 +66,11 @@ export function AgentFleetOverview({
     <div className="space-y-4">
       {DOMAIN_LIST.map((domain) => {
         const allAgents = agents.filter((agent) => agent.domain === domain.id);
-        const filteredAgents = allAgents.filter(matchesFilters);
+        const filteredAgents = allAgents.filter(matchesFilters).sort((a, b) => {
+          const aOrder = kindOrder[a.agentKind ?? "capability_module"] ?? 9;
+          const bOrder = kindOrder[b.agentKind ?? "capability_module"] ?? 9;
+          return aOrder - bOrder || a.name.localeCompare(b.name);
+        });
         const runningCount = allAgents.filter(
           (agent) => runtimes[agent.id]?.status === "running",
         ).length;

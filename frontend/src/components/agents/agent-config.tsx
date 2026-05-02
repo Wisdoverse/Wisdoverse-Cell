@@ -29,6 +29,30 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
       label: t("domain"),
       value: <DomainBadge domain={agentMeta.domain} />,
     },
+    ...(agentMeta.agentKind
+      ? [
+          {
+            label: t("agentKind"),
+            value: (
+              <Badge variant="outline" className="rounded-md">
+                {agentMeta.agentKind}
+              </Badge>
+            ),
+          },
+        ]
+      : []),
+    ...(agentMeta.interactionMode
+      ? [
+          {
+            label: t("interactionMode"),
+            value: (
+              <Badge variant="outline" className="rounded-md">
+                {agentMeta.interactionMode}
+              </Badge>
+            ),
+          },
+        ]
+      : []),
     ...(agentMeta.role
       ? [
           {
@@ -66,6 +90,22 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
                 {agentMeta.capabilities.map((capability) => (
                   <Badge key={capability} variant="secondary">
                     {capability}
+                  </Badge>
+                ))}
+              </div>
+            ),
+          },
+        ]
+      : []),
+    ...(agentMeta.contextSources && agentMeta.contextSources.length > 0
+      ? [
+          {
+            label: t("contextSources"),
+            value: (
+              <div className="flex flex-wrap gap-1">
+                {agentMeta.contextSources.map((source) => (
+                  <Badge key={source} variant="secondary">
+                    {source}
                   </Badge>
                 ))}
               </div>

@@ -57,6 +57,8 @@ async def test_agent_role_can_store_frontend_created_definition(db_session: Asyn
             company_id=company.company_id,
             agent_id="growth-researcher",
             display_name="Growth Researcher",
+            agent_kind="organization_role",
+            interaction_mode="direct",
             role="researcher",
             title="Market Research Agent",
             domain="business",
@@ -66,6 +68,7 @@ async def test_agent_role_can_store_frontend_created_definition(db_session: Asyn
                 "model": "gpt-5.4",
                 "cwd": "/workspaces/growth",
             },
+            context_sources=["control_plane", "feishu"],
             capabilities=["market analysis", "competitor monitoring"],
             responsibilities=["Find market signals"],
             permissions=["work_items:create"],
@@ -79,14 +82,18 @@ async def test_agent_role_can_store_frontend_created_definition(db_session: Asyn
     )
     rows = await repo.list_agent_roles(
         company_id=company.company_id,
+        agent_kind="organization_role",
         adapter_type="codex_local",
         search="growth",
     )
 
     assert fetched is not None
     assert fetched.role_id == role.role_id
+    assert fetched.agent_kind == "organization_role"
+    assert fetched.interaction_mode == "direct"
     assert fetched.reports_to_agent_id == "ceo"
     assert fetched.adapter_config["cwd"] == "/workspaces/growth"
+    assert fetched.context_sources == ["control_plane", "feishu"]
     assert fetched.capabilities == ["market analysis", "competitor monitoring"]
     assert rows[0].agent_id == "growth-researcher"
 

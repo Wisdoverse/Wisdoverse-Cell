@@ -1,5 +1,13 @@
 export type AgentStatus = "running" | "idle" | "warning" | "error" | "stopped";
 
+export type AgentKind =
+  | "organization_role"
+  | "capability_module"
+  | "integration_gateway"
+  | "system_worker";
+
+export type AgentInteractionMode = "direct" | "routed" | "internal" | "none";
+
 export type AgentDomain =
   | "product"
   | "engineering"
@@ -29,8 +37,11 @@ export interface AgentMeta {
   tabs: AgentTabId[];
   role?: string;
   title?: string;
+  agentKind?: AgentKind;
+  interactionMode?: AgentInteractionMode;
   adapterType?: string;
   reportsTo?: string;
+  contextSources?: string[];
   capabilities?: string[];
   source?: "builtin" | "control-plane";
   customWidgets?: string[];
@@ -60,12 +71,15 @@ export interface ControlPlaneAgentDefinition {
   company_id: string;
   agent_id: string;
   display_name: string;
+  agent_kind: AgentKind;
+  interaction_mode: AgentInteractionMode;
   role: string;
   title: string;
   domain: string;
   reports_to_agent_id: string | null;
   adapter_type: string;
   adapter_config: Record<string, unknown>;
+  context_sources: string[];
   capabilities: string[];
   responsibilities: string[];
   permissions: string[];
@@ -86,12 +100,15 @@ export interface ControlPlaneAgentListResponse {
 export interface CreateControlPlaneAgentRequest {
   agent_id: string;
   display_name: string;
+  agent_kind?: AgentKind;
+  interaction_mode?: AgentInteractionMode;
   role: string;
   title?: string;
   domain: AgentDomain;
   reports_to_agent_id?: string | null;
   adapter_type: string;
   adapter_config?: Record<string, unknown>;
+  context_sources?: string[];
   capabilities?: string[];
   responsibilities?: string[];
   permissions?: string[];

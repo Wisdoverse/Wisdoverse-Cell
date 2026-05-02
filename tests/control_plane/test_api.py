@@ -367,6 +367,8 @@ async def test_control_plane_api_creates_frontend_agent_definition(
                 "company_id": "cmp_agents",
                 "agent_id": "growth-researcher",
                 "display_name": "Growth Researcher",
+                "agent_kind": "organization_role",
+                "interaction_mode": "direct",
                 "role": "researcher",
                 "title": "Market Research Agent",
                 "domain": "business",
@@ -376,6 +378,7 @@ async def test_control_plane_api_creates_frontend_agent_definition(
                     "model": "gpt-5.4",
                     "cwd": "/workspaces/growth",
                 },
+                "context_sources": ["control_plane", "feishu"],
                 "capabilities": ["market analysis"],
                 "responsibilities": ["Find market signals"],
                 "permissions": ["work_items:create"],
@@ -402,13 +405,85 @@ async def test_control_plane_api_creates_frontend_agent_definition(
 
     assert created.status_code == 201
     assert created.json()["agent_id"] == "growth-researcher"
+    assert created.json()["agent_kind"] == "organization_role"
+    assert created.json()["interaction_mode"] == "direct"
     assert created.json()["adapter_type"] == "codex_local"
+    assert created.json()["context_sources"] == ["control_plane", "feishu"]
     assert duplicate.status_code == 409
     assert listed.status_code == 200
     assert listed.json()["total"] == 1
     assert listed.json()["agents"][0]["reports_to_agent_id"] == "ceo"
     assert status.status_code == 200
     assert status.json()["status"] == "paused"
+
+
+@pytest.mark.asyncio
+async def test_control_plane_api_separates_role_agents_from_capability_modules(
+    db_session: AsyncSession,
+):
+    repo = ControlPlaneRepository(db_session)
+    await repo.create_company(CompanyContext(company_id="cmp_agent_kinds", name="Kinds"))
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        role_agent = await client.post(
+            "/api/v1/control-plane/agents",
+            json={
+                "company_id": "cmp_agent_kinds",
+                "agent_id": "cto",
+                "display_name": "CTO",
+                "agent_kind": "organization_role",
+                "interaction_mode": "direct",
+                "role": "cto",
+                "title": "Chief Technology Officer",
+                "domain": "engineering",
+                "context_sources": ["control_plane", "gitlab"],
+            },
+        )
+        module_agent = await client.post(
+            "/api/v1/control-plane/agents",
+            json={
+                "company_id": "cmp_agent_kinds",
+                "agent_id": "sync-agent",
+                "display_name": "Sync Agent",
+                "agent_kind": "capability_module",
+                "interaction_mode": "internal",
+                "role": "sync-capability",
+                "title": "Context Sync Module",
+                "domain": "operations",
+                "context_sources": ["openproject", "feishu"],
+            },
+        )
+        invalid_module = await client.post(
+            "/api/v1/control-plane/agents",
+            json={
+                "company_id": "cmp_agent_kinds",
+                "agent_id": "qa-direct",
+                "display_name": "QA Direct",
+                "agent_kind": "capability_module",
+                "interaction_mode": "direct",
+            },
+        )
+        listed_roles = await client.get(
+            "/api/v1/control-plane/agents",
+            params={"company_id": "cmp_agent_kinds", "agent_kind": "organization_role"},
+        )
+        listed_modules = await client.get(
+            "/api/v1/control-plane/agents",
+            params={"company_id": "cmp_agent_kinds", "interaction_mode": "internal"},
+        )
+
+    assert role_agent.status_code == 201
+    assert module_agent.status_code == 201
+    assert invalid_module.status_code == 422
+    assert listed_roles.json()["total"] == 1
+    assert listed_roles.json()["agents"][0]["agent_id"] == "cto"
+    assert listed_modules.json()["total"] == 1
+    assert listed_modules.json()["agents"][0]["agent_kind"] == "capability_module"
 
 
 @pytest.mark.asyncio

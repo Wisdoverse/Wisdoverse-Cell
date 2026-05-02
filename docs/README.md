@@ -100,18 +100,22 @@ explicit allowlist has been reviewed.
 
 ## Agent Matrix
 
-| Agent | Description | Default Boundary | Status |
-|-------|-------------|------------------|--------|
-| `requirement_manager` | Requirement extraction, confirmation, and PRD generation | HTTP `:8000` | Active |
-| `sync_agent` | Bidirectional sync between OpenProject and Feishu | HTTP `:8010` | Active |
-| `analysis_agent` | Risk detection and data analysis | HTTP `:8011` | Active |
-| `pjm_agent` | Task breakdown, approval, alerts, and reports | HTTP `:8012` | Active |
-| `chat_agent` | User-facing operations assistant that escalates complex work to Coordinator | HTTP `:8013` | Active |
-| `qa_agent` | Automated code quality and acceptance checks | HTTP `:8014` | Active |
-| `dev_agent` | AgentForge-backed software delivery workflow orchestration | HTTP `:8015` | Active |
-| `coordinator` | Cross-agent planning and routing engine | `create_agent_app()` service boundary | Active |
-| `evolution_agent` | Self-evolution engine for global analysis and recommendations | Standalone `create_agent_app()` service boundary | Active |
-| `channel_gateway` | Multi-channel inbound/outbound messaging adapter layer | EventBus and adapter boundary | Active |
+This table lists deployed service modules and gateways. CEO/CTO/CPO/COO-style
+company roles are persisted `AgentRole` records in the control plane, not the
+same thing as these service modules.
+
+| Service | Kind | Description | Default Boundary | Status |
+|---------|------|-------------|------------------|--------|
+| `requirement_manager` | Capability module | Requirement extraction, confirmation, and PRD generation | HTTP `:8000` | Active |
+| `sync_agent` | Capability module | Bidirectional context sync between OpenProject and Feishu | HTTP `:8010` | Active |
+| `analysis_agent` | Capability module | Risk detection and data analysis | HTTP `:8011` | Active |
+| `pjm_agent` | Capability module | Task breakdown, approval preparation, alerts, and reports | HTTP `:8012` | Active |
+| `chat_agent` | Integration gateway | User-facing reception and routing surface | HTTP `:8013` | Active |
+| `qa_agent` | Capability module | Automated code quality and acceptance checks | HTTP `:8014` | Active |
+| `dev_agent` | Capability module | AgentForge-backed software delivery workflow execution | HTTP `:8015` | Active |
+| `coordinator` | System worker | Cross-agent event routing and decision synthesis | `create_agent_app()` service boundary | Active |
+| `evolution_agent` | Capability module | Self-evolution analysis and recommendations | Standalone `create_agent_app()` service boundary | Active |
+| `channel_gateway` | Integration gateway | Multi-channel inbound/outbound messaging adapter layer | EventBus and adapter boundary | Active |
 
 ---
 

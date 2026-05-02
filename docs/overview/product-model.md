@@ -40,7 +40,7 @@ Cell applies that model to its own stack and company-operating thesis.
 | Company | Top-level operating context | Wisdoverse Cell deployment and tenant boundary |
 | Mission | Long-term operating direction | README vision and PRD goals |
 | Goal | Measurable business objective | `ControlPlaneRepository` goal ledger and `/api/v1/control-plane/goals` |
-| Agent Role | Job description, scope, policy, adapter, and budget | `AgentRole` records, frontend-created agents, adapter registry |
+| Agent Role | Organization role, interaction mode, context sources, scope, policy, adapter, and budget | `AgentRole` records with `agent_kind`, `interaction_mode`, `context_sources`, frontend-created agents, adapter registry |
 | Work Item | Durable unit of work | Control-plane work-item ledger, OpenProject work package, Feishu task/card, PRD item |
 | Agent Run | One execution attempt with state, tools, logs, and cost | `ControlPlanePlugin`, `AgentRun`, wakeup runner, EventBus traces, QA checks |
 | Approval | Human decision gate | Control-plane approval API, approval gates in high-risk flows, Feishu callbacks |
@@ -72,7 +72,7 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 | Capability | Implemented Foundation | Public Product Direction |
 |------------|------------------------|--------------------------|
 | Goal alignment | Requirement extraction, PRD generation, PJM decomposition, durable goals | Goal tree with richer metrics and progress rollups |
-| Org chart | Named agent services plus persisted `AgentRole` definitions with reporting lines | Scoped permissions and reusable policy templates |
+| Org chart | Persisted `AgentRole` definitions separate CEO/CTO-style organization roles from sync/QA/dev capability modules | Scoped permissions and reusable policy templates |
 | Task system | OpenProject and Feishu sync plus native work-item ledger | Deeper dependency, blocker, label, comment, and artifact workflow |
 | Heartbeats | Runtime hooks, manual control-plane wakeup, authenticated `/agent/request`, scheduler tick endpoint | Production scheduler ownership and run retry policies |
 | Governance | Human approval callbacks, internal service auth, control-plane approval ledger | First-class pause, resume, terminate, and rollback controls |
@@ -88,7 +88,7 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 | Surface | Current State | Primary Docs |
 |---------|---------------|--------------|
 | Workbench | `/[locale]/workflows` uses Feature-Sliced Design slices for goals, agents, approvals, budgets, runs, and timeline evidence | [API Reference](../guides/api-reference.md#control-plane-api), [Operations](../guides/operations.md#9-control-plane-operations) |
-| Agent creation | Operators can create `AgentRole` records with role, reporting line, adapter type/config, capabilities, responsibilities, permissions, and status | [API Reference](../guides/api-reference.md#post-apiv1control-planeagents) |
+| Agent creation | Operators can create `AgentRole` records with kind, interaction mode, context sources, reporting line, adapter type/config, capabilities, responsibilities, permissions, and status | [API Reference](../guides/api-reference.md#post-apiv1control-planeagents) |
 | Agent execution | Manual wakeup and heartbeat ticks create normal `AgentRun` records through the adapter registry | [Operations](../guides/operations.md#9-control-plane-operations) |
 | Governance | Approval and budget gates append durable evidence before or during sensitive execution | [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
 | Audit | Timeline combines run, budget, approval, artifact, and audit events by trace or run | [API Reference](../guides/api-reference.md#control-plane-api) |

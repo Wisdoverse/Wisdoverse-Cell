@@ -9,6 +9,8 @@ import {
   createControlPlaneAgent,
   DOMAIN_LIST,
   type AgentDomain,
+  type AgentInteractionMode,
+  type AgentKind,
   type AgentMeta,
 } from "@/entities/agent";
 import { Button } from "@/components/ui/button";
@@ -47,6 +49,10 @@ const ADAPTER_TYPES = [
 const ROLE_OPTIONS = [
   "ceo",
   "cto",
+  "cpo",
+  "coo",
+  "cfo",
+  "cmo",
   "manager",
   "engineer",
   "researcher",
@@ -54,6 +60,31 @@ const ROLE_OPTIONS = [
   "qa",
   "worker",
 ] as const;
+
+const AGENT_KIND_OPTIONS = [
+  "organization_role",
+  "capability_module",
+  "integration_gateway",
+  "system_worker",
+] as const;
+
+const INTERACTION_MODE_OPTIONS = ["direct", "routed", "internal", "none"] as const;
+
+const CONTEXT_SOURCE_OPTIONS = [
+  "control_plane",
+  "feishu",
+  "openproject",
+  "gitlab",
+  "agentforge",
+  "event_bus",
+  "scratchpad",
+] as const;
+
+function defaultInteractionMode(agentKind: AgentKind): AgentInteractionMode {
+  if (agentKind === "organization_role") return "routed";
+  if (agentKind === "integration_gateway") return "direct";
+  return "internal";
+}
 
 function slugify(value: string): string {
   return value
@@ -83,6 +114,8 @@ export function AgentCreateDialog({
   const [form, setForm] = useState({
     agentId: "",
     displayName: "",
+    agentKind: "organization_role" as AgentKind,
+    interactionMode: "routed" as AgentInteractionMode,
     role: "engineer",
     title: "",
     domain: "engineering" as AgentDomain,
@@ -94,6 +127,7 @@ export function AgentCreateDialog({
     model: "",
     cwd: "",
     promptTemplate: "",
+    contextSources: "control_plane",
     capabilities: "",
     responsibilities: "",
   });
@@ -107,6 +141,8 @@ export function AgentCreateDialog({
     setForm({
       agentId: "",
       displayName: "",
+      agentKind: "organization_role",
+      interactionMode: "routed",
       role: "engineer",
       title: "",
       domain: "engineering",
@@ -118,6 +154,7 @@ export function AgentCreateDialog({
       model: "",
       cwd: "",
       promptTemplate: "",
+      contextSources: "control_plane",
       capabilities: "",
       responsibilities: "",
     });
@@ -142,6 +179,8 @@ export function AgentCreateDialog({
       await createControlPlaneAgent({
         agent_id: form.agentId,
         display_name: form.displayName,
+        agent_kind: form.agentKind,
+        interaction_mode: form.interactionMode,
         role: form.role,
         title: form.title,
         domain: form.domain,
@@ -149,6 +188,7 @@ export function AgentCreateDialog({
           form.reportsTo === "none" ? null : form.reportsTo,
         adapter_type: form.adapterType,
         adapter_config: adapterConfig,
+        context_sources: parseLines(form.contextSources),
         capabilities: parseLines(form.capabilities),
         responsibilities: parseLines(form.responsibilities),
         created_by: "frontend",
@@ -212,6 +252,54 @@ export function AgentCreateDialog({
                 }}
                 required
               />
+            </div>
+            <div className="space-y-2">
+              <Label>{t("agentKind")}</Label>
+              <Select
+                value={form.agentKind}
+                onValueChange={(agentKind) => {
+                  const nextKind = agentKind as AgentKind;
+                  setForm((current) => ({
+                    ...current,
+                    agentKind: nextKind,
+                    interactionMode: defaultInteractionMode(nextKind),
+                  }));
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {AGENT_KIND_OPTIONS.map((agentKind) => (
+                    <SelectItem key={agentKind} value={agentKind}>
+                      {t(`agentKinds.${agentKind}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{t("interactionMode")}</Label>
+              <Select
+                value={form.interactionMode}
+                onValueChange={(interactionMode) =>
+                  setForm((current) => ({
+                    ...current,
+                    interactionMode: interactionMode as AgentInteractionMode,
+                  }))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {INTERACTION_MODE_OPTIONS.map((interactionMode) => (
+                    <SelectItem key={interactionMode} value={interactionMode}>
+                      {t(`interactionModes.${interactionMode}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>{t("role")}</Label>
@@ -370,6 +458,23 @@ export function AgentCreateDialog({
                     command: event.target.value,
                   }))
                 }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="agent-context-sources">
+                {t("contextSources")}
+              </Label>
+              <Textarea
+                id="agent-context-sources"
+                rows={4}
+                value={form.contextSources}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    contextSources: event.target.value,
+                  }))
+                }
+                placeholder={CONTEXT_SOURCE_OPTIONS.join("\n")}
               />
             </div>
             <div className="space-y-2">

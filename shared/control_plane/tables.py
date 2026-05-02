@@ -78,12 +78,19 @@ class AgentRoleTable(ControlPlaneBase):
     )
     agent_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     display_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    agent_kind: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="organization_role", index=True
+    )
+    interaction_mode: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="routed", index=True
+    )
     role: Mapped[str] = mapped_column(String(64), nullable=False, default="worker", index=True)
     title: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     domain: Mapped[str] = mapped_column(String(64), nullable=False, default="", index=True)
     reports_to_agent_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     adapter_type: Mapped[str] = mapped_column(String(64), nullable=False, default="builtin", index=True)
     adapter_config: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    context_sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     capabilities: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     responsibilities: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     permissions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)

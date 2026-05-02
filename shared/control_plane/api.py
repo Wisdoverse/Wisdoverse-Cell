@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.config import settings
@@ -19,6 +19,8 @@ from .agent_runner import AgentWakeupError, ControlPlaneAgentRunner
 from .approval_gate import ApprovalGate, ApprovalRequiredError
 from .database import control_plane_db_manager
 from .models import (
+    AgentInteractionMode,
+    AgentKind,
     AgentRole,
     Artifact,
     ArtifactType,
@@ -215,12 +217,15 @@ class AgentDefinitionCreateRequest(BaseModel):
         pattern=r"^[a-z0-9][a-z0-9._-]*$",
     )
     display_name: str = Field(min_length=1, max_length=128)
+    agent_kind: AgentKind = AgentKind.ORGANIZATION_ROLE
+    interaction_mode: AgentInteractionMode = AgentInteractionMode.ROUTED
     role: str = Field(default="worker", min_length=1, max_length=64)
     title: str = Field(default="", max_length=128)
     domain: str = Field(default="operations", max_length=64)
     reports_to_agent_id: str | None = Field(default=None, max_length=64)
     adapter_type: str = Field(default="builtin", min_length=1, max_length=64)
     adapter_config: dict[str, Any] = Field(default_factory=dict)
+    context_sources: list[str] = Field(default_factory=list, max_length=50)
     capabilities: list[str] = Field(default_factory=list, max_length=50)
     responsibilities: list[str] = Field(default_factory=list, max_length=50)
     permissions: list[str] = Field(default_factory=list, max_length=50)
@@ -232,6 +237,7 @@ class AgentDefinitionCreateRequest(BaseModel):
 
     @field_validator(
         "capabilities",
+        "context_sources",
         "responsibilities",
         "permissions",
         mode="before",
@@ -258,6 +264,20 @@ class AgentDefinitionCreateRequest(BaseModel):
     @classmethod
     def _clean_string(cls, value: Any) -> str:
         return str(value or "").strip()
+
+    @model_validator(mode="after")
+    def _validate_agent_contract(self) -> "AgentDefinitionCreateRequest":
+        if (
+            self.agent_kind
+            not in {AgentKind.ORGANIZATION_ROLE, AgentKind.INTEGRATION_GATEWAY}
+            and self.interaction_mode == AgentInteractionMode.DIRECT
+        ):
+            raise ValueError(
+                "only organization_role or integration_gateway agents may use direct interaction"
+            )
+        if self.agent_kind == AgentKind.ORGANIZATION_ROLE and not self.context_sources:
+            self.context_sources = ["control_plane"]
+        return self
 
     @field_validator("reports_to_agent_id", mode="before")
     @classmethod
@@ -874,6 +894,8 @@ def create_control_plane_router(
     async def list_agents(
         company_id: str | None = None,
         status: str | None = None,
+        agent_kind: AgentKind | None = None,
+        interaction_mode: AgentInteractionMode | None = None,
         adapter_type: str | None = None,
         search: str | None = None,
         limit: int = Query(default=100, ge=1, le=500),
@@ -883,6 +905,8 @@ def create_control_plane_router(
         rows = await repo.list_agent_roles(
             company_id=resolve_company(company_id),
             status=status,
+            agent_kind=agent_kind.value if agent_kind else None,
+            interaction_mode=interaction_mode.value if interaction_mode else None,
             adapter_type=adapter_type,
             search=search,
             limit=limit,
@@ -914,12 +938,15 @@ def create_control_plane_router(
                 company_id=company_id,
                 agent_id=body.agent_id,
                 display_name=body.display_name,
+                agent_kind=body.agent_kind,
+                interaction_mode=body.interaction_mode,
                 role=body.role,
                 title=body.title,
                 domain=body.domain,
                 reports_to_agent_id=body.reports_to_agent_id,
                 adapter_type=body.adapter_type,
                 adapter_config=body.adapter_config,
+                context_sources=body.context_sources,
                 capabilities=body.capabilities,
                 responsibilities=body.responsibilities,
                 permissions=body.permissions,
@@ -941,6 +968,8 @@ def create_control_plane_router(
                 detail={
                     "agent_id": row.agent_id,
                     "role_id": row.role_id,
+                    "agent_kind": row.agent_kind,
+                    "interaction_mode": row.interaction_mode,
                     "role": row.role,
                     "adapter_type": row.adapter_type,
                     "reports_to_agent_id": row.reports_to_agent_id,

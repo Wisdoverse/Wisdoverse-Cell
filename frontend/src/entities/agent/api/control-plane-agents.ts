@@ -9,6 +9,8 @@ import type {
 
 export function listControlPlaneAgents(filters?: {
   status?: string;
+  agent_kind?: string;
+  interaction_mode?: string;
   adapter_type?: string;
   search?: string;
   limit?: number;
