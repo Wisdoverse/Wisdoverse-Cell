@@ -8,7 +8,7 @@
       "dependsOn": [],
       "config": {
         "cliTool": "codex",
-        "prompt": "Read docs/specs/${AGENT_NAME}.md and the reference files below, then write a detailed implementation plan to var/agent-workflows/${AGENT_NAME}-implementation-plan.md:\n\nReference files:\n- agents/pjm_agent/ (existing agent architecture reference)\n- shared/app/factory.py (create_agent_app)\n- shared/schemas/agent.py (BaseAgent)\n- shared/schemas/event.py (EventTypes)\n- .acceptance/runner.py (acceptance framework)\n- CLAUDE.md (coding standards)\n\nRequirements:\n1. Break work into 5-8 independent parallelizable tasks\n2. Assign each task to the recommended AI tool (Claude Code or Gemini CLI)\n3. Define interface signatures, database tables, and event payloads\n4. List technical risks and the recommended execution order"
+        "prompt": "Read SPEC.md, AGENTS.md, docs/guides/agent-development.md, and the reference files below, then write a detailed implementation plan to var/agent-workflows/${AGENT_NAME}-implementation-plan.md:\n\nReference files:\n- agents/pjm_agent/ (existing agent architecture reference)\n- shared/app/factory.py (create_agent_app)\n- shared/schemas/agent.py (BaseAgent)\n- shared/schemas/event.py (EventTypes)\n- .acceptance/runner.py (acceptance framework)\n- AGENTS.md (coding standards)\n\nRequirements:\n1. Break work into 5-8 independent parallelizable tasks\n2. Assign each task to the recommended AI tool (Claude Code or Gemini CLI)\n3. Define interface signatures, database tables, and event payloads\n4. List technical risks and the recommended execution order"
       }
     },
     {
