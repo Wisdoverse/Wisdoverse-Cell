@@ -7,6 +7,11 @@ Phase 3 adds collaboration pattern proposal and approval handling.
 """
 
 from shared.config import settings
+from shared.control_plane import (
+    ApprovalCategory,
+    ApprovalGateService,
+    ApprovalRequiredError,
+)
 from shared.evolution.collaboration.seeds import COLLABORATION_SEEDS
 from shared.evolution.config import evolution_settings
 from shared.evolution.db.database import EvolutionDatabaseManager
@@ -48,6 +53,7 @@ class EvolutionAgent(BaseAgent):
         self._llm = llm or llm_gateway
         self._analyzer = GlobalAnalyzer(self._llm)
         self._approval_gateway = None
+        self._control_plane_approvals = ApprovalGateService(source_agent_id=self.agent_id)
 
     async def startup(self) -> None:
         logger.info("agent_starting", agent_id=self.agent_id)
@@ -134,6 +140,10 @@ class EvolutionAgent(BaseAgent):
 
         result_events = []
         for proposal in proposals:
+            proposal = await self._attach_proposal_approval(
+                proposal,
+                trace_id=event.metadata.trace_id,
+            )
             result_events.append(
                 self.create_event(
                     EventTypes.EVOLUTION_SKILL_PROPOSED,
@@ -144,24 +154,29 @@ class EvolutionAgent(BaseAgent):
 
         # Phase 3: propose collaboration patterns when collaboration is enabled
         if evolution_settings.collaboration_enabled:
-            pattern_events = self._propose_collaboration_patterns(event)
+            pattern_events = await self._propose_collaboration_patterns(event)
             result_events.extend(pattern_events)
 
         return result_events
 
-    def _propose_collaboration_patterns(self, event: Event) -> list[Event]:
+    async def _propose_collaboration_patterns(self, event: Event) -> list[Event]:
         """Emit pattern-proposed events for seed patterns."""
         events = []
         for seed in COLLABORATION_SEEDS:
+            payload = {
+                "pattern_id": seed.pattern_id,
+                "name": seed.name,
+                "trigger_event": seed.trigger_event,
+                "steps": [s.model_dump() for s in seed.steps],
+            }
+            payload = await self._attach_proposal_approval(
+                payload,
+                trace_id=event.metadata.trace_id,
+            )
             events.append(
                 self.create_event(
                     EventTypes.EVOLUTION_PATTERN_PROPOSED,
-                    payload={
-                        "pattern_id": seed.pattern_id,
-                        "name": seed.name,
-                        "trigger_event": seed.trigger_event,
-                        "steps": [s.model_dump() for s in seed.steps],
-                    },
+                    payload=payload,
                     trace_id=event.metadata.trace_id,
                 )
             )
@@ -170,6 +185,28 @@ class EvolutionAgent(BaseAgent):
     async def _process_feedback(self, event: Event) -> list[Event]:
         """Process human approval/rejection of proposals."""
         logger.info("human_feedback_received", payload=event.payload)
+        approval_id = event.payload.get("control_plane_approval_id") or event.payload.get(
+            "approval_id"
+        )
+        approved = bool(event.payload.get("approved", False))
+        resolved_by = event.payload.get("user_id") or event.payload.get("resolved_by") or "api"
+        try:
+            if approved:
+                await self._control_plane_approvals.approve_for_sensitive_action(
+                    approval_id,
+                    resolved_by=resolved_by,
+                )
+            else:
+                await self._control_plane_approvals.reject_for_sensitive_action(
+                    approval_id,
+                    resolved_by=resolved_by,
+                )
+        except ApprovalRequiredError as exc:
+            logger.warning(
+                "evolution_feedback_control_plane_approval_required",
+                approval_id=approval_id,
+                error=str(exc),
+            )
         return []
 
     async def _process_pattern_approval(self, event: Event) -> list[Event]:
@@ -177,6 +214,29 @@ class EvolutionAgent(BaseAgent):
         pattern_id = event.payload.get("pattern_id", "")
         user_id = event.payload.get("user_id", "")
         approved = event.payload.get("approved", False)
+        approval_id = event.payload.get("control_plane_approval_id") or event.payload.get(
+            "approval_id"
+        )
+
+        try:
+            if approved:
+                await self._control_plane_approvals.approve_for_sensitive_action(
+                    approval_id,
+                    resolved_by=user_id or "api",
+                )
+            else:
+                await self._control_plane_approvals.reject_for_sensitive_action(
+                    approval_id,
+                    resolved_by=user_id or "api",
+                )
+        except ApprovalRequiredError as exc:
+            logger.warning(
+                "pattern_control_plane_approval_required",
+                pattern_id=pattern_id,
+                approval_id=approval_id,
+                error=str(exc),
+            )
+            return []
 
         if not self._approval_gateway:
             logger.warning("no_approval_gateway", pattern_id=pattern_id)
@@ -203,8 +263,48 @@ class EvolutionAgent(BaseAgent):
             proposals = await self._analyzer.analyze(
                 self._db_manager, days,
             )
+            proposals = [
+                await self._attach_proposal_approval(proposal)
+                for proposal in proposals
+            ]
             return {"proposals": proposals}
         return {"status": "ok"}
+
+    async def _attach_proposal_approval(
+        self,
+        proposal: dict,
+        *,
+        trace_id: str | None = None,
+    ) -> dict:
+        payload = dict(proposal)
+        try:
+            approval = await self._control_plane_approvals.request_approval(
+                category=ApprovalCategory.TECHNICAL,
+                proposed_action=(
+                    "Approve evolution proposal "
+                    f"{payload.get('operation') or payload.get('pattern_id') or 'unknown'}"
+                ),
+                reason=payload.get("rationale") or payload.get("description") or "Evolution proposal",
+                risk="Changes agent skill, architecture, or collaboration behavior.",
+                rollback_note="Reject the proposal or roll back the rollout state before promotion.",
+                affected_resources=[
+                    str(payload.get("target_agent") or payload.get("pattern_id") or self.agent_id)
+                ],
+                trace_id=trace_id,
+            )
+        except Exception as exc:
+            logger.error(
+                "evolution_approval_request_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            if self._control_plane_approvals.enforced:
+                raise
+            return payload
+
+        if approval is not None:
+            payload["control_plane_approval_id"] = approval.approval_id
+        return payload
 
 
 agent = EvolutionAgent()

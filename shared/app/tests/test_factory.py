@@ -19,7 +19,7 @@ class FakeAgent(BaseAgent):
         return []
 
     async def handle_request(self, request: dict) -> dict:
-        return {}
+        return {"status": "ok", "request": request}
 
     async def startup(self) -> None:
         pass
@@ -71,6 +71,7 @@ class TestCreateAgentApp:
         paths = [r.path for r in app.routes if hasattr(r, "path")]
         assert "/health/startup" in paths
         assert "/health/ready/detail" in paths
+        assert "/agent/request" in paths
 
 
 class TestFactoryPlugins:
@@ -108,6 +109,44 @@ class TestFactoryStartupProbe:
         ) as client:
             resp = await client.get("/health/startup")
             assert resp.status_code == 503
+
+
+class TestFactoryAgentRequest:
+    @pytest.mark.asyncio
+    async def test_agent_request_calls_runtime_agent(self):
+        app = create_agent_app(FakeAgent(), evolution_enabled=False)
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                "/agent/request",
+                json={"action": "wakeup", "input": {"task": "ping"}},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "status": "ok",
+            "request": {"action": "wakeup", "input": {"task": "ping"}},
+        }
+
+    @pytest.mark.asyncio
+    async def test_agent_request_requires_internal_key_when_configured(self):
+        with patch("shared.middleware.internal_auth.settings") as mock_settings:
+            mock_settings.internal_service_key = "test-secret-key"
+            app = create_agent_app(FakeAgent(), evolution_enabled=False)
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                missing = await client.post("/agent/request", json={"action": "wakeup"})
+                allowed = await client.post(
+                    "/agent/request",
+                    headers={"X-Internal-Key": "test-secret-key"},
+                    json={"action": "wakeup"},
+                )
+
+        assert missing.status_code in (401, 403)
+        assert allowed.status_code == 200
+        assert allowed.json()["request"] == {"action": "wakeup"}
 
 
 class TestFactoryReadinessTwoTier:

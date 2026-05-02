@@ -6,6 +6,11 @@ Extracted from PMAgent to separate decomposition orchestration concerns
 """
 
 from shared.config import settings as app_settings
+from shared.control_plane import (
+    ApprovalCategory,
+    ApprovalGateService,
+    ApprovalRequiredError,
+)
 from shared.integrations.feishu.cards.decomposition import (
     build_decomposition_approval_card,
     build_task_refinement_approval_card,
@@ -36,6 +41,7 @@ class DecompositionOrchestrator:
         push_service: PushService,
         create_event_fn,
         event_bus,
+        approval_gate: ApprovalGateService | None = None,
     ):
         self._db_manager = db_manager
         self._op_writer = op_writer
@@ -43,6 +49,7 @@ class DecompositionOrchestrator:
         self._push = push_service
         self._create_event = create_event_fn
         self._event_bus = event_bus
+        self._approval_gate = approval_gate or ApprovalGateService(source_agent_id="pjm-agent")
 
     async def handle_decompose(self, event: Event) -> list[Event]:
         """Handle a SYNC_TASK_NEEDS_DECOMPOSE event."""
@@ -128,6 +135,15 @@ class DecompositionOrchestrator:
 
         # Save to DB
         result_dict = result.model_dump()
+        approval_id = await self._request_decomposition_approval(
+            wp_id=wp_id,
+            project_id=project_id,
+            subject=subject,
+            result_dict=result_dict,
+            trace_id=trace_id,
+        )
+        if approval_id:
+            result_dict["control_plane_approval_id"] = approval_id
         try:
             async with self._db_manager.session() as session:
                 repo = DecompositionRepository(session)
@@ -228,6 +244,15 @@ class DecompositionOrchestrator:
             "reason": check_result.reason,
             "subtasks": [t.model_dump() for t in check_result.subtasks],
         }
+        approval_id = await self._request_decomposition_approval(
+            wp_id=wp_id,
+            project_id=project_id,
+            subject=subject,
+            result_dict=result_dict,
+            trace_id=trace_id,
+        )
+        if approval_id:
+            result_dict["control_plane_approval_id"] = approval_id
         try:
             async with self._db_manager.session() as session:
                 repo = DecompositionRepository(session)
@@ -288,6 +313,20 @@ class DecompositionOrchestrator:
             record = await repo.get_by_wp_id(wp_id)
             if not record or record.status != "pending":
                 return None
+            approval_id = (record.decompose_result or {}).get("control_plane_approval_id")
+            try:
+                await self._approval_gate.approve_for_sensitive_action(
+                    approval_id,
+                    resolved_by=approved_by,
+                )
+            except ApprovalRequiredError as exc:
+                logger.warning(
+                    "decompose_control_plane_approval_required",
+                    wp_id=wp_id,
+                    approval_id=approval_id,
+                    error=str(exc),
+                )
+                return {"error": str(exc), "wp_id": wp_id}
             # Transition to "writing" before attempting OP write
             await repo.update_status(wp_id, "writing", approved_by=approved_by)
             # Extract data while session is still active
@@ -429,6 +468,50 @@ class DecompositionOrchestrator:
             "task_count": task_count,
         }
 
+    async def _request_decomposition_approval(
+        self,
+        *,
+        wp_id: int,
+        project_id: int,
+        subject: str,
+        result_dict: dict,
+        trace_id: str | None,
+    ) -> str | None:
+        try:
+            approval = await self._approval_gate.request_approval(
+                category=ApprovalCategory.CUSTOMER,
+                proposed_action=f"Write approved decomposition for OP WP#{wp_id}",
+                reason=subject,
+                risk=(
+                    "Creates or refines OpenProject work packages from an AI-generated "
+                    "decomposition."
+                ),
+                rollback_note=(
+                    "Reject the decomposition before OP write; after write, revert created "
+                    "OpenProject work packages manually."
+                ),
+                affected_resources=[
+                    f"openproject:project:{project_id}",
+                    f"openproject:wp:{wp_id}",
+                ],
+                trace_id=trace_id,
+            )
+        except Exception as exc:
+            logger.error(
+                "decompose_approval_request_failed",
+                wp_id=wp_id,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            if self._approval_gate.enforced:
+                raise
+            return None
+
+        if approval is None:
+            return None
+        result_dict["approval_requested_at"] = approval.created_at.isoformat()
+        return approval.approval_id
+
     async def retry_decompose(self, wp_id: int) -> dict:
         """Retry a failed/rejected decomposition by re-fetching WP data from OP."""
         if not wp_id:
@@ -505,6 +588,20 @@ class DecompositionOrchestrator:
             if not record or record.status != "pending":
                 return None
             subject = (record.decompose_result or {}).get("summary", "")
+            approval_id = (record.decompose_result or {}).get("control_plane_approval_id")
+            try:
+                await self._approval_gate.reject_for_sensitive_action(
+                    approval_id,
+                    resolved_by=rejected_by,
+                )
+            except ApprovalRequiredError as exc:
+                logger.warning(
+                    "decompose_control_plane_rejection_required",
+                    wp_id=wp_id,
+                    approval_id=approval_id,
+                    error=str(exc),
+                )
+                return {"error": str(exc), "wp_id": wp_id}
             await repo.update_status(wp_id, "rejected", approved_by=rejected_by)
 
         logger.info("decompose_rejected", wp_id=wp_id, by=rejected_by, reason=reason)

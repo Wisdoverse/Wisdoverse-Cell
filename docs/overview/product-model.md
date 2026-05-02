@@ -39,14 +39,14 @@ Cell applies that model to its own stack and company-operating thesis.
 |--------|---------|------------------|
 | Company | Top-level operating context | Wisdoverse Cell deployment and tenant boundary |
 | Mission | Long-term operating direction | README vision and PRD goals |
-| Goal | Measurable business objective | Requirement Manager and PJM planning inputs |
-| Agent Role | Job description, scope, policy, and budget | `BaseAgent`, agent configs, 26-agent model |
-| Work Item | Durable unit of work | OpenProject work package, Feishu task/card, PRD item |
-| Agent Run | One execution attempt with state, tools, logs, and cost | `AgentRuntime`, EventBus traces, QA checks |
-| Approval | Human decision gate | Feishu card callbacks and human-in-the-loop policy |
-| Budget Policy | Spend and model routing constraint | LLM budget settings and tiered model strategy |
-| Activity Event | Immutable operational record | `Event`, Redis Streams, trace IDs |
-| Artifact | Output produced by an agent | PRD, report, QA result, issue, code change |
+| Goal | Measurable business objective | `ControlPlaneRepository` goal ledger and `/api/v1/control-plane/goals` |
+| Agent Role | Job description, scope, policy, adapter, and budget | `AgentRole` records, frontend-created agents, adapter registry |
+| Work Item | Durable unit of work | Control-plane work-item ledger, OpenProject work package, Feishu task/card, PRD item |
+| Agent Run | One execution attempt with state, tools, logs, and cost | `ControlPlanePlugin`, `AgentRun`, wakeup runner, EventBus traces, QA checks |
+| Approval | Human decision gate | Control-plane approval API, approval gates in high-risk flows, Feishu callbacks |
+| Budget Policy | Spend and model/tool routing constraint | `BudgetGuard`, LLM gateway usage records, tool registry cost estimates |
+| Activity Event | Immutable operational record | Control-plane audit events, `Event`, Redis Streams, trace IDs |
+| Artifact | Output produced by an agent | Control-plane artifacts, PRD, report, QA result, issue, code change |
 | Company Template | Portable operating model | Planned export/import with secret scrubbing |
 
 ---
@@ -71,15 +71,27 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 
 | Capability | Implemented Foundation | Public Product Direction |
 |------------|------------------------|--------------------------|
-| Goal alignment | Requirement extraction, PRD generation, PJM decomposition | Goal tree with task ancestry and metrics |
-| Org chart | Named agent services and 26-agent company model | Role editor, reporting lines, scoped permissions |
-| Task system | OpenProject and Feishu sync | Native work ledger with dependencies, blockers, labels, comments, and artifacts |
-| Heartbeats | Schedulers and runtime hooks exist in agent services | Unified heartbeat queue with resumable agent runs |
-| Governance | Human approval callbacks and internal service auth | Board console for approve, reject, pause, resume, terminate, and rollback |
-| Cost control | Tiered LLM model routing and daily budget settings | Per-company, per-goal, and per-agent budgets with hard stops |
-| Audit log | Immutable events, logs, traces, metrics | Operator-facing timeline with actor, reason, cost, and artifact links |
+| Goal alignment | Requirement extraction, PRD generation, PJM decomposition, durable goals | Goal tree with richer metrics and progress rollups |
+| Org chart | Named agent services plus persisted `AgentRole` definitions with reporting lines | Scoped permissions and reusable policy templates |
+| Task system | OpenProject and Feishu sync plus native work-item ledger | Deeper dependency, blocker, label, comment, and artifact workflow |
+| Heartbeats | Runtime hooks, manual control-plane wakeup, authenticated `/agent/request`, scheduler tick endpoint | Production scheduler ownership and run retry policies |
+| Governance | Human approval callbacks, internal service auth, control-plane approval ledger | First-class pause, resume, terminate, and rollback controls |
+| Cost control | Tiered LLM routing, daily budgets, `BudgetGuard`, LLM/tool usage records | Per-goal forecasts and team-level budget planning |
+| Audit log | Immutable events, logs, traces, metrics, control-plane timeline | SLO dashboards and long-term audit retention policy |
 | Portability | Compose stack and environment templates | Export/import company templates with secret scrubbing |
 | Self-evolution | `shared/evolution/` and `evolution_agent` | Governed improvement proposals with shadow mode and rollout history |
+
+---
+
+## Current Operator Surfaces
+
+| Surface | Current State | Primary Docs |
+|---------|---------------|--------------|
+| Workbench | `/[locale]/workflows` uses Feature-Sliced Design slices for goals, agents, approvals, budgets, runs, and timeline evidence | [API Reference](../guides/api-reference.md#control-plane-api), [Operations](../guides/operations.md#9-control-plane-operations) |
+| Agent creation | Operators can create `AgentRole` records with role, reporting line, adapter type/config, capabilities, responsibilities, permissions, and status | [API Reference](../guides/api-reference.md#post-apiv1control-planeagents) |
+| Agent execution | Manual wakeup and heartbeat ticks create normal `AgentRun` records through the adapter registry | [Operations](../guides/operations.md#9-control-plane-operations) |
+| Governance | Approval and budget gates append durable evidence before or during sensitive execution | [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
+| Audit | Timeline combines run, budget, approval, artifact, and audit events by trace or run | [API Reference](../guides/api-reference.md#control-plane-api) |
 
 ---
 
@@ -95,22 +107,28 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 
 ---
 
-## Near-Term Roadmap
+## Remaining Product Hardening
 
-1. **Make goal lineage visible.**
-   Each PRD, work package, QA result, and report should point back to a goal and owner.
+1. **Deployment-grade scheduler ownership.**
+   Move heartbeat ticks from an operator endpoint to a production-owned scheduler
+   with retry, timeout, and idempotency policy.
 
-2. **Promote agent roles into product data.**
-   Move from documented agent responsibilities toward editable role, permission, policy, and budget records.
+2. **Fine-grained permissions.**
+   Extend role records into enforceable policy checks for agent creation,
+   wakeups, budget changes, and approval resolution.
 
-3. **Unify run history.**
-   Capture agent execution state, tool calls, cost, logs, artifacts, and approval decisions in one operator-facing timeline.
+3. **Operational SLOs.**
+   Add dashboards and alerts for run success rate, queue latency, approval age,
+   budget burn, adapter failures, and event lag.
 
-4. **Add board controls.**
-   Provide first-class approve, reject, pause, resume, terminate, and rollback actions.
+4. **Richer board controls.**
+   Expand approve/reject into pause, resume, terminate, retry, rollback, and
+   policy override flows.
 
-5. **Add budget gates.**
-   Enforce per-agent and per-goal limits before running expensive LLM work.
+5. **Company templates.**
+   Export and import org structure, goals, agent roles, routines, and skills
+   while scrubbing secrets.
 
-6. **Package company templates.**
-   Export/import org structure, goals, agent roles, routines, and skills while scrubbing secrets.
+6. **Long-term audit retention.**
+   Define retention, redaction, and export policy for run logs, artifacts,
+   approvals, and budget records.

@@ -4,6 +4,10 @@ Wisdoverse Cell is an AI-native company control plane: humans focus on high-leve
 
 This documentation is English-first. Chinese text may remain in legacy specifications or domain terminology, but new and public-facing documentation should put English first.
 
+For the current implementation contract, start with [SPEC.md](../SPEC.md).
+For shipped evidence and the remaining verification checklist, use
+[tasks/2026-05-01-spec-goal-implementation-plan.md](tasks/2026-05-01-spec-goal-implementation-plan.md).
+
 ---
 
 ## Product Model
@@ -24,6 +28,7 @@ See [Product Model](overview/product-model.md) for the control-plane vocabulary 
 graph TD
     subgraph Client["Client"]
         FE["Next.js 16 Frontend"]
+        WB["Control Plane Workbench"]
         ExtAPI["External API"]
     end
 
@@ -37,11 +42,14 @@ graph TD
         AA["analysis_agent :8011"]
         PM["pjm_agent :8012"]
         CA["chat_agent :8013"]
-        EA["evolution_agent :8014"]
-        QA["qa_agent :8015"]
+        QA["qa_agent :8014"]
+        DA["dev_agent :8015"]
+        EA["evolution_agent"]
     end
 
     subgraph Shared["Shared Infrastructure"]
+        CP["Control Plane Ledger"]
+        RUN["Agent Runner + Adapter Registry"]
         EB["EventBus (Redis 8)"]
         LLM["LLM Gateway (Claude API)"]
         VS["VectorStore (Milvus)"]
@@ -54,10 +62,14 @@ graph TD
         MV["Milvus"]
     end
 
-    FE --> GW
+    FE --> WB --> GW
     ExtAPI --> GW
-    GW --> RM & SA & AA & PM & CA & EA & QA
-    RM & SA & AA & PM & CA & EA & QA --> EB & LLM & VS
+    GW --> CP
+    GW --> RM & SA & AA & PM & CA & QA & DA & EA
+    CP --> RUN
+    RUN --> RM & SA & AA & PM & CA & QA & DA & EA
+    RM & SA & AA & PM & CA & QA & DA & EA --> CP & EB & LLM & VS
+    CP --> PG
     EB --> RD
     LLM --> PG
     VS --> MV
@@ -74,19 +86,32 @@ make up-infra     # Start PostgreSQL, Redis, NATS, and Milvus
 make dev          # Start the development server
 ```
 
+Enable the control-plane surface only after migrations are applied:
+
+```bash
+CONTROL_PLANE_ENABLED=true
+CONTROL_PLANE_COMPANY_ID=cmp_projectcell
+```
+
+Production deployments should keep local execution adapters disabled unless an
+explicit allowlist has been reviewed.
+
 ---
 
 ## Agent Matrix
 
-| Agent | Description | Port | Status |
-|-------|-------------|------|--------|
-| `requirement_manager` | Requirement extraction, confirmation, and PRD generation | 8000 | Active |
-| `sync_agent` | Bidirectional sync between OpenProject and Feishu | 8010 | Active |
-| `analysis_agent` | Risk detection and data analysis | 8011 | Active |
-| `pjm_agent` | Task breakdown, approval, alerts, and reports | 8012 | Active |
-| `chat_agent` | User-facing Claude tool-calling assistant | 8013 | Active |
-| `evolution_agent` | Self-evolution engine for global analysis and recommendations | 8014 | Active |
-| `qa_agent` | Automated code quality and acceptance checks | 8015 | Active |
+| Agent | Description | Default Boundary | Status |
+|-------|-------------|------------------|--------|
+| `requirement_manager` | Requirement extraction, confirmation, and PRD generation | HTTP `:8000` | Active |
+| `sync_agent` | Bidirectional sync between OpenProject and Feishu | HTTP `:8010` | Active |
+| `analysis_agent` | Risk detection and data analysis | HTTP `:8011` | Active |
+| `pjm_agent` | Task breakdown, approval, alerts, and reports | HTTP `:8012` | Active |
+| `chat_agent` | User-facing operations assistant that escalates complex work to Coordinator | HTTP `:8013` | Active |
+| `qa_agent` | Automated code quality and acceptance checks | HTTP `:8014` | Active |
+| `dev_agent` | AgentForge-backed software delivery workflow orchestration | HTTP `:8015` | Active |
+| `coordinator` | Cross-agent planning and routing engine | `create_agent_app()` service boundary | Active |
+| `evolution_agent` | Self-evolution engine for global analysis and recommendations | Standalone `create_agent_app()` service boundary | Active |
+| `channel_gateway` | Multi-channel inbound/outbound messaging adapter layer | EventBus and adapter boundary | Active |
 
 ---
 

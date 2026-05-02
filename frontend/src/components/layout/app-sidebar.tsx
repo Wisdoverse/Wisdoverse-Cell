@@ -15,6 +15,7 @@ import {
   HeartPulse,
   MessageSquare,
   Settings,
+  Workflow,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -51,6 +52,7 @@ const navGroups: NavGroup[] = [
   {
     labelKey: "workflows",
     items: [
+      { key: "controlPlane", href: "/workflows", icon: Workflow },
       { key: "approvals", href: "/approvals", icon: CircleCheck },
       { key: "requirements", href: "/requirements", icon: ClipboardList },
       { key: "ingest", href: "/ingest", icon: Upload },

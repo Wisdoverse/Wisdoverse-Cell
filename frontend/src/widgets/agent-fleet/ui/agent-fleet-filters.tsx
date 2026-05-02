@@ -1,24 +1,28 @@
 "use client";
 
-import { useTranslations } from "next-intl";
 import { Search } from "lucide-react";
+import { useTranslations } from "next-intl";
+
+import type { AgentStatus } from "@/entities/agent";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { AgentStatus } from "@/lib/api/types";
 
-export interface FleetFiltersState {
+export interface AgentFleetFiltersState {
   status: AgentStatus | "all";
   search: string;
 }
 
-interface FleetFiltersProps {
-  filters: FleetFiltersState;
-  onFiltersChange: (filters: FleetFiltersState) => void;
+interface AgentFleetFiltersProps {
+  filters: AgentFleetFiltersState;
+  onFiltersChange: (filters: AgentFleetFiltersState) => void;
 }
 
-const STATUS_OPTIONS = ["all", "running", "idle", "error"] as const;
+const STATUS_OPTIONS = ["all", "running", "idle", "error", "stopped"] as const;
 
-export function FleetFilters({ filters, onFiltersChange }: FleetFiltersProps) {
+export function AgentFleetFilters({
+  filters,
+  onFiltersChange,
+}: AgentFleetFiltersProps) {
   const t = useTranslations("agents");
 
   return (
@@ -28,8 +32,8 @@ export function FleetFilters({ filters, onFiltersChange }: FleetFiltersProps) {
         <Input
           placeholder={t("searchPlaceholder")}
           value={filters.search}
-          onChange={(e) =>
-            onFiltersChange({ ...filters, search: e.target.value })
+          onChange={(event) =>
+            onFiltersChange({ ...filters, search: event.target.value })
           }
           className="pl-9"
         />
@@ -40,13 +44,16 @@ export function FleetFilters({ filters, onFiltersChange }: FleetFiltersProps) {
           <button
             key={status}
             onClick={() =>
-              onFiltersChange({ ...filters, status: status as AgentStatus | "all" })
+              onFiltersChange({
+                ...filters,
+                status: status as AgentStatus | "all",
+              })
             }
             className={cn(
               "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
               filters.status === status
                 ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             {t(status)}

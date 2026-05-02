@@ -22,4 +22,6 @@ app = create_agent_app(
             check_nats=settings.event_bus_backend == "nats",
         ),
     ],
+    control_plane_enabled=settings.control_plane_enabled,
+    control_plane_company_id=settings.control_plane_company_id,
 )

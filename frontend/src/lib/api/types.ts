@@ -1,3 +1,46 @@
+import type { ApprovalType } from "@/entities/agent/model/types";
+
+export type {
+  ControlPlaneAgentRun,
+  ControlPlaneApproval,
+  ControlPlaneApprovalListResponse,
+  ControlPlaneArtifact,
+  ControlPlaneArtifactListResponse,
+  ControlPlaneAuditEvent,
+  ControlPlaneBudgetUsage,
+  ControlPlaneBudgetUsageListResponse,
+  ControlPlaneDecision,
+  ControlPlaneDecisionListResponse,
+  ControlPlaneGoal,
+  ControlPlaneGoalListResponse,
+  ControlPlaneRunListResponse,
+  ControlPlaneTimelineItem,
+  ControlPlaneTimelineResponse,
+  ControlPlaneTimelineType,
+  ControlPlaneWorkbenchSummary,
+  ControlPlaneWorkItem,
+  ControlPlaneWorkItemListResponse,
+  DecisionStatus,
+  GoalStatus,
+  WorkItemPriority,
+  WorkItemStatus,
+} from "@/entities/control-plane";
+
+export type {
+  AgentDomain,
+  AgentListResponse,
+  AgentMeta,
+  AgentRuntimeStatus,
+  AgentStatus,
+  AgentTabId,
+  ApprovalType,
+  ControlPlaneAgentDefinition,
+  ControlPlaneAgentListResponse,
+  CreateControlPlaneAgentRequest,
+  WakeControlPlaneAgentRequest,
+  WakeControlPlaneAgentResponse,
+} from "@/entities/agent/model/types";
+
 // Enums
 export type RequirementStatus = "pending" | "confirmed" | "changed" | "rejected";
 export type Priority = "high" | "medium" | "low";
@@ -180,54 +223,6 @@ export interface MessageSearchParams {
   page_size?: number;
 }
 
-// === Agent Fleet Types ===
-
-export type AgentStatus = "running" | "idle" | "warning" | "error" | "stopped";
-
-export type AgentDomain =
-  | "product"
-  | "engineering"
-  | "quality"
-  | "operations"
-  | "business"
-  | "market-sales"
-  | "data-ai";
-
-export type ApprovalType = "finance" | "legal" | "technical" | "customer";
-
-export type AgentTabId =
-  | "overview"
-  | "tasks"
-  | "events"
-  | "connections"
-  | "config"
-  | "logs";
-
-export interface AgentMeta {
-  id: string;
-  name: string;
-  shortName: string;
-  domain: AgentDomain;
-  icon: string;
-  description: string;
-  tabs: AgentTabId[];
-  customWidgets?: string[];
-  approvalTypes?: ApprovalType[];
-  upstream: string[];
-  downstream: string[];
-}
-
-export interface AgentRuntimeStatus {
-  agent_id: string;
-  status: AgentStatus;
-  health: number;
-  task_count: number;
-  pending_count: number;
-  error_count: number;
-  uptime_seconds: number;
-  last_active_at: string;
-}
-
 export interface ApprovalRequest {
   id: string;
   source_agent_id: string;
@@ -249,11 +244,6 @@ export interface ActivityEvent {
   description: string;
   payload: Record<string, unknown>;
   timestamp: string;
-}
-
-export interface AgentListResponse {
-  agents: AgentRuntimeStatus[];
-  total: number;
 }
 
 export interface ApprovalListResponse {

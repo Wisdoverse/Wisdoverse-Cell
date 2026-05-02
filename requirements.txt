@@ -8,6 +8,7 @@ gunicorn>=23.0.0
 # Database
 sqlalchemy>=2.0.40
 asyncpg>=0.30.0
+aiosqlite>=0.21.0
 alembic>=1.15.0
 
 # Redis
@@ -63,6 +64,7 @@ pytest-timeout>=2.4.0
 fakeredis>=2.26.0
 
 # Metrics
+prometheus-client>=0.21.0
 prometheus-fastapi-instrumentator>=7.0.0
 
 # Observability (versions must be consistent across otel packages; let pip resolve)

@@ -29,6 +29,50 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
       label: t("domain"),
       value: <DomainBadge domain={agentMeta.domain} />,
     },
+    ...(agentMeta.role
+      ? [
+          {
+            label: t("role"),
+            value: agentMeta.role,
+          },
+        ]
+      : []),
+    ...(agentMeta.title
+      ? [
+          {
+            label: t("titleField"),
+            value: agentMeta.title,
+          },
+        ]
+      : []),
+    ...(agentMeta.adapterType
+      ? [
+          {
+            label: t("adapterType"),
+            value: (
+              <Badge variant="outline" className="rounded-md">
+                {agentMeta.adapterType}
+              </Badge>
+            ),
+          },
+        ]
+      : []),
+    ...(agentMeta.capabilities && agentMeta.capabilities.length > 0
+      ? [
+          {
+            label: t("capabilities"),
+            value: (
+              <div className="flex flex-wrap gap-1">
+                {agentMeta.capabilities.map((capability) => (
+                  <Badge key={capability} variant="secondary">
+                    {capability}
+                  </Badge>
+                ))}
+              </div>
+            ),
+          },
+        ]
+      : []),
     {
       label: t("tabs"),
       value: (

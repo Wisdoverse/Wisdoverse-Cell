@@ -1,0 +1,174 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { ControlPlaneWorkbenchState } from "@/entities/control-plane";
+import { ControlPlaneWorkbenchPage } from "./control-plane-workbench-page";
+
+const useControlPlaneWorkbenchMock = vi.fn<() => ControlPlaneWorkbenchState>();
+
+vi.mock("@/entities/control-plane", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/entities/control-plane")>();
+  return {
+    ...actual,
+    useControlPlaneWorkbench: () => useControlPlaneWorkbenchMock(),
+  };
+});
+
+function buildWorkbenchState(): ControlPlaneWorkbenchState {
+  const goal = {
+    goal_id: "goal_alpha",
+    company_id: "company_1",
+    title: "Goal Alpha",
+    description: "",
+    status: "active" as const,
+    parent_goal_id: null,
+    owner_agent_id: "pjm-agent",
+    owner_user_id: null,
+    success_metric: "accepted outcome",
+    target_value: 1,
+    current_value: 0,
+    due_at: null,
+    tags: [],
+    metadata: {},
+    created_at: "2026-05-01T10:00:00Z",
+    updated_at: "2026-05-01T10:00:00Z",
+  };
+  const workItem = {
+    work_item_id: "work_alpha",
+    company_id: "company_1",
+    title: "Work Alpha",
+    description: "",
+    status: "running" as const,
+    priority: "high" as const,
+    goal_id: "goal_alpha",
+    owner_agent_id: "dev-agent",
+    owner_user_id: null,
+    source: "manual",
+    external_ref: null,
+    dependencies: [],
+    approval_required: false,
+    metadata: {},
+    created_at: "2026-05-01T10:05:00Z",
+    updated_at: "2026-05-01T10:10:00Z",
+  };
+  const run = {
+    run_id: "run_alpha",
+    company_id: "company_1",
+    agent_id: "dev-agent",
+    status: "succeeded" as const,
+    trace_id: "trace_alpha",
+    goal_id: "goal_alpha",
+    work_item_id: "work_alpha",
+    trigger_event_id: null,
+    input_event: null,
+    output_events: [],
+    started_at: "2026-05-01T10:11:00Z",
+    completed_at: "2026-05-01T10:12:00Z",
+    error_category: null,
+    error_message: null,
+    last_successful_step: null,
+    cost_usd: 0.12,
+    input_tokens: 100,
+    output_tokens: 50,
+    metadata: {},
+  };
+
+  return {
+    goals: [goal],
+    workItems: [workItem],
+    runs: [run],
+    decisions: [],
+    artifacts: [],
+    approvals: [
+      {
+        approval_id: "approval_alpha",
+        company_id: "company_1",
+        category: "technical" as const,
+        status: "pending" as const,
+        requested_by: "human:operator",
+        source_agent_id: "dev-agent",
+        proposed_action: "Deploy risky change",
+        reason: "Production path update",
+        risk: "Could interrupt users",
+        rollback_note: "Revert deployment",
+        affected_resources: ["frontend"],
+        artifact_links: [],
+        run_id: "run_alpha",
+        work_item_id: "work_alpha",
+        goal_id: "goal_alpha",
+        trace_id: "trace_alpha",
+        resolved_by: null,
+        resolved_at: null,
+        expires_at: null,
+        metadata: {},
+        created_at: "2026-05-01T10:12:00Z",
+        updated_at: "2026-05-01T10:12:00Z",
+      },
+    ],
+    budgetUsage: [],
+    timeline: [
+      {
+        type: "agent_run",
+        at: "2026-05-01T10:12:00Z",
+        data: {
+          run_id: "run_alpha",
+          status: "succeeded",
+        },
+      },
+    ],
+    selectedGoal: goal,
+    selectedWorkItem: workItem,
+    activeRun: run,
+    activeGoalId: "goal_alpha",
+    activeWorkItemId: "work_alpha",
+    activeRunId: "run_alpha",
+    selectedRunId: undefined,
+    selectGoal: vi.fn(),
+    selectWorkItem: vi.fn(),
+    selectRun: vi.fn(),
+    approveApproval: vi.fn().mockResolvedValue(undefined),
+    rejectApproval: vi.fn().mockResolvedValue(undefined),
+    refresh: vi.fn(),
+    summary: {
+      goalCount: 1,
+      openWorkCount: 1,
+      pendingApprovalCount: 0,
+      costUsd: 0,
+    },
+    isLoading: false,
+    isEvidenceLoading: false,
+    error: undefined,
+    approvalActionId: undefined,
+  };
+}
+
+describe("ControlPlaneWorkbenchPage", () => {
+  beforeEach(() => {
+    useControlPlaneWorkbenchMock.mockReturnValue(buildWorkbenchState());
+  });
+
+  it("renders goal, work, and timeline lineage from the control-plane hook", () => {
+    render(<ControlPlaneWorkbenchPage />);
+
+    expect(screen.getAllByText("Goal Alpha").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Work Alpha").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("run_alpha").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("succeeded").length).toBeGreaterThan(0);
+  });
+
+  it("exposes durable approval actions from the evidence panel", async () => {
+    const user = userEvent.setup();
+    const state = buildWorkbenchState();
+    useControlPlaneWorkbenchMock.mockReturnValue(state);
+
+    render(<ControlPlaneWorkbenchPage />);
+
+    await user.click(screen.getByRole("tab", { name: "approvals" }));
+
+    expect(screen.getByText("Deploy risky change")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "approve" }));
+
+    expect(state.approveApproval).toHaveBeenCalledWith("approval_alpha");
+  });
+});

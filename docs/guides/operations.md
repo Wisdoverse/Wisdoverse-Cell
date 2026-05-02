@@ -2,7 +2,7 @@
 
 > Language note: English is the primary documentation language. This legacy document may still contain Chinese implementation details; when editing it, put the English explanation first.
 
-> **版本**: v2026.03 | **标准**: Google SRE Runbook | **维护**: Platform Team
+> **版本**: v2026.05 | **标准**: Google SRE Runbook | **维护**: Platform Team
 
 ---
 
@@ -16,6 +16,7 @@
 6. [数据库运维](#6-数据库运维)
 7. [故障排查 Checklist](#7-故障排查-checklist)
 8. [常用命令速查](#8-常用命令速查)
+9. [Control Plane Operations](#9-control-plane-operations)
 
 ---
 
@@ -104,6 +105,31 @@ make down-infra
 ```
 
 适用场景：开发者在本地直接运行 Python/Go 进程，只需要数据库和消息队列。
+
+### 1.5 Control Plane Runtime Switches
+
+The control-plane ledger is opt-in until migrations have been applied and the
+operator API is ready for the target environment.
+
+```bash
+CONTROL_PLANE_ENABLED=true
+CONTROL_PLANE_COMPANY_ID=cmp_projectcell
+CONTROL_PLANE_APPROVAL_ENFORCED=true
+CONTROL_PLANE_LLM_BUDGET_ENFORCED=true
+CONTROL_PLANE_TOOL_BUDGET_ENFORCED=true
+CONTROL_PLANE_LOCAL_ADAPTER_ENABLED=false
+CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST=
+```
+
+Keep `CONTROL_PLANE_LOCAL_ADAPTER_ENABLED=false` in production unless a reviewed
+adapter allowlist is in place. The recommended production execution boundary for
+frontend-created agents is the `http` adapter pointing at a deployed
+`create_agent_app()` service and its authenticated `/agent/request` endpoint.
+
+Tool budget enforcement applies to `ToolRegistry` entries that declare
+`estimated_cost_usd`. Successful high-cost tool calls merge that estimate into
+the current `AgentRun`; when `CONTROL_PLANE_TOOL_BUDGET_ENFORCED=true`, the
+same call is checked by `BudgetGuard` before the handler runs.
 
 ---
 
@@ -762,6 +788,105 @@ make proto               # 生成全部 protobuf 代码 (Python + Go)
 make proto-python        # 仅 Python gRPC
 make proto-go            # 仅 Go gRPC (gateway)
 ```
+
+---
+
+## 9. Control Plane Operations
+
+Related contract docs:
+
+- [SPEC](../../SPEC.md) defines the control-plane goal and service boundaries.
+- [API Reference: Control Plane API](./api-reference.md#control-plane-api) documents operator endpoints and request shapes.
+- [Event Catalog: Control Plane Domain](./event-catalog.md#30-control-plane-domain) documents emitted evidence events.
+
+### 9.1 Apply Ledger Migrations
+
+The control-plane API depends on the shared ledger tables. Apply migrations
+before enabling `CONTROL_PLANE_ENABLED=true`.
+
+```bash
+alembic upgrade head
+alembic heads
+```
+
+The expected head includes `20260501_control_plane_ledger`.
+
+### 9.2 Verify Agent Request Boundary
+
+Every deployed agent created with `create_agent_app()` exposes an internal
+request boundary:
+
+```bash
+curl -X POST \
+  -H "X-Internal-Key: $INTERNAL_SERVICE_KEY" \
+  -H "Content-Type: application/json" \
+  http://localhost:8012/agent/request \
+  -d '{"action":"wakeup","input":{"task":"ping"}}'
+```
+
+Use this boundary for control-plane `http` adapter definitions. Do not route
+frontend-created agents through direct imports of another agent service.
+
+### 9.3 Wake A Frontend-Created Agent
+
+```bash
+curl -X POST \
+  -H "X-Internal-Key: $INTERNAL_SERVICE_KEY" \
+  -H "Content-Type: application/json" \
+  http://localhost:8000/api/v1/control-plane/agents/ops-runner/wake \
+  -d '{"actor_id":"human:operator","trace_id":"trace_manual","input":{}}'
+```
+
+Then inspect evidence:
+
+```bash
+curl -H "X-Internal-Key: $INTERNAL_SERVICE_KEY" \
+  "http://localhost:8000/api/v1/control-plane/runs?agent_id=ops-runner"
+
+curl -H "X-Internal-Key: $INTERNAL_SERVICE_KEY" \
+  "http://localhost:8000/api/v1/control-plane/timeline?trace_id=trace_manual"
+```
+
+### 9.4 Run Heartbeat Scheduler Tick
+
+Opt an active agent into scheduler execution through its adapter config:
+
+```json
+{
+  "heartbeat_enabled": true,
+  "heartbeat_interval_seconds": 300
+}
+```
+
+Run one due-heartbeat pass from a trusted production scheduler:
+
+```bash
+curl -X POST \
+  -H "X-Internal-Key: $INTERNAL_SERVICE_KEY" \
+  -H "Content-Type: application/json" \
+  http://localhost:8000/api/v1/control-plane/scheduler/heartbeats/run-once \
+  -d '{"company_id":"cmp_default","limit":500}'
+```
+
+Each due heartbeat creates a normal `AgentRun` with a generated trace, an
+`agent.wakeup-requested` input event, an `agent.wakeup-completed` output event,
+and `agent_run.*` audit records whose trigger is `scheduled_heartbeat`.
+
+### 9.5 Local Adapter Safety
+
+`process`, `codex_local`, and `claude_local` adapters execute an explicit
+operator-configured command. They fail closed unless:
+
+```bash
+CONTROL_PLANE_LOCAL_ADAPTER_ENABLED=true
+CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST=process:ops-runner,codex_local:dev-agent
+```
+
+Production deployments should prefer the `http` adapter. Enable local adapters
+only in controlled environments with reviewed commands, isolated working
+directories, and audited run output. Allowlist entries are exact by default:
+`{adapter_type}:{agent_id}`. An agent may set `adapter_config.allowlist_key`
+when a more specific registry key is required.
 
 ---
 

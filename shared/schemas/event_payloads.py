@@ -91,6 +91,152 @@ class RequirementDeletedPayload(BaseModel):
     deleted_at: str = Field(..., description="删除时间 (ISO format)")
 
 
+# ============ Control-plane ledger events ============
+
+class ControlPlaneReferencePayload(BaseModel):
+    """Shared references for control-plane events."""
+
+    model_config = ConfigDict(strict=True)
+
+    company_id: str
+    trace_id: str | None = None
+    goal_id: str | None = None
+    work_item_id: str | None = None
+    run_id: str | None = None
+
+
+class GoalEventPayload(ControlPlaneReferencePayload):
+    """goal.created / goal.updated event payload."""
+
+    goal_id: str
+    title: str
+    status: Literal["draft", "active", "paused", "completed", "cancelled"]
+    parent_goal_id: str | None = None
+    owner_agent_id: str | None = None
+    owner_user_id: str | None = None
+    current_value: float | None = None
+    target_value: float | None = None
+
+
+class WorkItemEventPayload(ControlPlaneReferencePayload):
+    """work_item.created / work_item.updated event payload."""
+
+    work_item_id: str
+    title: str
+    status: Literal[
+        "queued",
+        "ready",
+        "running",
+        "blocked",
+        "awaiting_approval",
+        "completed",
+        "failed",
+        "cancelled",
+    ]
+    priority: Literal["low", "medium", "high", "critical"] = "medium"
+    owner_agent_id: str | None = None
+    owner_user_id: str | None = None
+    source: str = "manual"
+    external_ref: str | None = None
+
+
+class DecisionEventPayload(ControlPlaneReferencePayload):
+    """decision.created / decision.updated event payload."""
+
+    decision_id: str
+    title: str
+    status: Literal["proposed", "accepted", "rejected", "superseded"]
+    selected_option: str | None = None
+    decided_by: str | None = None
+
+
+class ArtifactEventPayload(ControlPlaneReferencePayload):
+    """artifact.created event payload."""
+
+    artifact_id: str
+    artifact_type: Literal[
+        "prd",
+        "report",
+        "qa_result",
+        "issue",
+        "merge_request",
+        "code_patch",
+        "run_walkthrough",
+        "other",
+    ]
+    title: str
+    uri: str
+    created_by_agent_id: str | None = None
+
+
+class AgentWakeupRequestedPayload(ControlPlaneReferencePayload):
+    """agent.wakeup-requested event payload."""
+
+    agent_id: str
+    actor_id: str
+    input: dict = Field(default_factory=dict)
+
+
+class AgentWakeupCompletedPayload(ControlPlaneReferencePayload):
+    """agent.wakeup-completed event payload."""
+
+    agent_id: str
+    status: Literal["succeeded", "failed"]
+    output: dict = Field(default_factory=dict)
+    error_category: str | None = None
+    error_message: str | None = None
+
+
+class AgentRunLifecyclePayload(ControlPlaneReferencePayload):
+    """agent_run.started/succeeded/failed event payload."""
+
+    agent_id: str
+    status: Literal["running", "succeeded", "failed"]
+    adapter_type: str | None = None
+    error_category: str | None = None
+    error_message: str | None = None
+
+
+class ApprovalEventPayload(ControlPlaneReferencePayload):
+    """approval.requested/granted/rejected event payload."""
+
+    approval_id: str
+    category: Literal["finance", "legal", "customer", "technical"]
+    status: Literal["pending", "approved", "rejected", "expired", "cancelled"]
+    requested_by: str
+    source_agent_id: str
+    proposed_action: str
+    risk: str
+    resolved_by: str | None = None
+
+
+class BudgetUsageRecordedPayload(ControlPlaneReferencePayload):
+    """budget.usage-recorded event payload."""
+
+    usage_id: str
+    budget_id: str
+    scope: Literal["company", "goal", "agent", "work_item"] | None = None
+    scope_id: str | None = None
+    period: Literal["daily", "monthly", "quarterly", "total"] | None = None
+    cost_usd: float = Field(..., ge=0)
+    model: str
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+
+
+class AuditEventRecordedPayload(ControlPlaneReferencePayload):
+    """audit.event-recorded event payload."""
+
+    audit_event_id: str
+    action: str
+    target_type: str
+    target_id: str
+    actor_type: str
+    actor_id: str
+    idempotency_key: str | None = None
+    detail: dict = Field(default_factory=dict)
+
+
 # ============ PM 同步相关事件 ============
 
 class SyncCompletedPayload(BaseModel):
@@ -337,6 +483,23 @@ EVENT_PAYLOAD_MODELS = {
     "requirement.rejected": RequirementRejectedPayload,
     "requirement.changed": RequirementChangedPayload,
     "requirement.deleted": RequirementDeletedPayload,
+    "goal.created": GoalEventPayload,
+    "goal.updated": GoalEventPayload,
+    "work_item.created": WorkItemEventPayload,
+    "work_item.updated": WorkItemEventPayload,
+    "decision.created": DecisionEventPayload,
+    "decision.updated": DecisionEventPayload,
+    "artifact.created": ArtifactEventPayload,
+    "agent.wakeup-requested": AgentWakeupRequestedPayload,
+    "agent.wakeup-completed": AgentWakeupCompletedPayload,
+    "agent_run.started": AgentRunLifecyclePayload,
+    "agent_run.succeeded": AgentRunLifecyclePayload,
+    "agent_run.failed": AgentRunLifecyclePayload,
+    "approval.requested": ApprovalEventPayload,
+    "approval.granted": ApprovalEventPayload,
+    "approval.rejected": ApprovalEventPayload,
+    "budget.usage-recorded": BudgetUsageRecordedPayload,
+    "audit.event-recorded": AuditEventRecordedPayload,
     "sync.completed": SyncCompletedPayload,
     "sync.failed": SyncFailedPayload,
     "report.daily-generated": ReportGeneratedPayload,
