@@ -67,12 +67,15 @@ def upgrade() -> None:
         sa.Column("company_id", sa.String(length=48), nullable=False),
         sa.Column("agent_id", sa.String(length=64), nullable=False),
         sa.Column("display_name", sa.String(length=128), nullable=False),
+        sa.Column("agent_kind", sa.String(length=32), nullable=False),
+        sa.Column("interaction_mode", sa.String(length=32), nullable=False),
         sa.Column("role", sa.String(length=64), nullable=False),
         sa.Column("title", sa.String(length=128), nullable=False),
         sa.Column("domain", sa.String(length=64), nullable=False),
         sa.Column("reports_to_agent_id", sa.String(length=64), nullable=True),
         sa.Column("adapter_type", sa.String(length=64), nullable=False),
         sa.Column("adapter_config", sa.JSON(), nullable=False),
+        sa.Column("context_sources", sa.JSON(), nullable=False),
         sa.Column("capabilities", sa.JSON(), nullable=False),
         sa.Column("responsibilities", sa.JSON(), nullable=False),
         sa.Column("permissions", sa.JSON(), nullable=False),
@@ -88,9 +91,11 @@ def upgrade() -> None:
         sa.UniqueConstraint("company_id", "agent_id", name="uq_control_agent_role_company_agent"),
     )
     op.create_index("ix_control_plane_agent_roles_agent_id", "control_plane_agent_roles", ["agent_id"])
+    op.create_index("ix_control_plane_agent_roles_agent_kind", "control_plane_agent_roles", ["agent_kind"])
     op.create_index("ix_control_plane_agent_roles_adapter_type", "control_plane_agent_roles", ["adapter_type"])
     op.create_index("ix_control_plane_agent_roles_company_id", "control_plane_agent_roles", ["company_id"])
     op.create_index("ix_control_plane_agent_roles_domain", "control_plane_agent_roles", ["domain"])
+    op.create_index("ix_control_plane_agent_roles_interaction_mode", "control_plane_agent_roles", ["interaction_mode"])
     op.create_index("ix_control_plane_agent_roles_reports_to_agent_id", "control_plane_agent_roles", ["reports_to_agent_id"])
     op.create_index("ix_control_plane_agent_roles_role", "control_plane_agent_roles", ["role"])
     op.create_index("ix_control_plane_agent_roles_status", "control_plane_agent_roles", ["status"])
@@ -446,9 +451,11 @@ def downgrade() -> None:
     op.drop_index("ix_control_plane_agent_roles_status", table_name="control_plane_agent_roles")
     op.drop_index("ix_control_plane_agent_roles_role", table_name="control_plane_agent_roles")
     op.drop_index("ix_control_plane_agent_roles_reports_to_agent_id", table_name="control_plane_agent_roles")
+    op.drop_index("ix_control_plane_agent_roles_interaction_mode", table_name="control_plane_agent_roles")
     op.drop_index("ix_control_plane_agent_roles_domain", table_name="control_plane_agent_roles")
     op.drop_index("ix_control_plane_agent_roles_company_id", table_name="control_plane_agent_roles")
     op.drop_index("ix_control_plane_agent_roles_adapter_type", table_name="control_plane_agent_roles")
+    op.drop_index("ix_control_plane_agent_roles_agent_kind", table_name="control_plane_agent_roles")
     op.drop_index("ix_control_plane_agent_roles_agent_id", table_name="control_plane_agent_roles")
     op.drop_table("control_plane_agent_roles")
     op.drop_index("ix_control_goals_company_status_created", table_name="control_plane_goals")

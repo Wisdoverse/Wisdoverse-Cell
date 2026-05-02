@@ -43,6 +43,20 @@ class WorkItemPriority(StrEnum):
     CRITICAL = "critical"
 
 
+class AgentKind(StrEnum):
+    ORGANIZATION_ROLE = "organization_role"
+    CAPABILITY_MODULE = "capability_module"
+    INTEGRATION_GATEWAY = "integration_gateway"
+    SYSTEM_WORKER = "system_worker"
+
+
+class AgentInteractionMode(StrEnum):
+    DIRECT = "direct"
+    ROUTED = "routed"
+    INTERNAL = "internal"
+    NONE = "none"
+
+
 class AgentRunStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
@@ -157,12 +171,15 @@ class AgentRole(ControlPlaneModel):
     company_id: str
     agent_id: str
     display_name: str
+    agent_kind: AgentKind = AgentKind.ORGANIZATION_ROLE
+    interaction_mode: AgentInteractionMode = AgentInteractionMode.ROUTED
     role: str = "worker"
     title: str = ""
     domain: str = ""
     reports_to_agent_id: str | None = None
     adapter_type: str = "builtin"
     adapter_config: dict[str, Any] = Field(default_factory=dict)
+    context_sources: list[str] = Field(default_factory=list)
     capabilities: list[str] = Field(default_factory=list)
     responsibilities: list[str] = Field(default_factory=list)
     permissions: list[str] = Field(default_factory=list)

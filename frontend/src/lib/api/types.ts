@@ -28,6 +28,8 @@ export type {
 
 export type {
   AgentDomain,
+  AgentInteractionMode,
+  AgentKind,
   AgentListResponse,
   AgentMeta,
   AgentRuntimeStatus,

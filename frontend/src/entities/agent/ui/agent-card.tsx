@@ -21,7 +21,20 @@ const statusLabels: Record<string, string> = {
   stopped: "Stopped",
 };
 
+const kindLabels: Record<string, string> = {
+  organization_role: "Role",
+  capability_module: "Module",
+  integration_gateway: "Gateway",
+  system_worker: "System",
+};
+
 export function AgentCard({ meta, runtime, onClick, className }: AgentCardProps) {
+  const kindLabel = meta.agentKind
+    ? (kindLabels[meta.agentKind] ?? meta.agentKind)
+    : meta.source === "control-plane"
+      ? "Role"
+      : "Module";
+
   return (
     <button
       onClick={onClick}
@@ -37,11 +50,9 @@ export function AgentCard({ meta, runtime, onClick, className }: AgentCardProps)
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-sm font-semibold">{meta.name}</span>
-            {meta.source === "control-plane" && (
-              <Badge variant="outline" className="rounded-md">
-                {meta.adapterType}
-              </Badge>
-            )}
+            <Badge variant="outline" className="rounded-md">
+              {kindLabel}
+            </Badge>
           </div>
           <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
             <AgentStatusDot status={runtime.status} size="sm" />
@@ -53,6 +64,19 @@ export function AgentCard({ meta, runtime, onClick, className }: AgentCardProps)
       <p className="line-clamp-2 min-h-10 text-xs text-muted-foreground">
         {meta.description}
       </p>
+
+      <div className="flex flex-wrap gap-1.5">
+        {meta.interactionMode && (
+          <Badge variant="secondary" className="rounded-md text-[11px]">
+            {meta.interactionMode}
+          </Badge>
+        )}
+        {meta.adapterType && (
+          <Badge variant="secondary" className="rounded-md text-[11px]">
+            {meta.adapterType}
+          </Badge>
+        )}
+      </div>
 
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <div>

@@ -166,6 +166,8 @@ class ControlPlaneRepository:
         *,
         company_id: str,
         status: str | None = None,
+        agent_kind: str | None = None,
+        interaction_mode: str | None = None,
         adapter_type: str | None = None,
         search: str | None = None,
         limit: int = 100,
@@ -173,6 +175,10 @@ class ControlPlaneRepository:
         query = select(AgentRoleTable).where(AgentRoleTable.company_id == company_id)
         if status:
             query = query.where(AgentRoleTable.status == status)
+        if agent_kind:
+            query = query.where(AgentRoleTable.agent_kind == agent_kind)
+        if interaction_mode:
+            query = query.where(AgentRoleTable.interaction_mode == interaction_mode)
         if adapter_type:
             query = query.where(AgentRoleTable.adapter_type == adapter_type)
         if search:

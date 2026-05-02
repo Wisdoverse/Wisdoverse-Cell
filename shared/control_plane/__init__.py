@@ -10,6 +10,8 @@ from .context import (
     set_current_run_context,
 )
 from .models import (
+    AgentInteractionMode,
+    AgentKind,
     AgentRole,
     AgentRun,
     AgentRunStatus,
@@ -39,6 +41,8 @@ from .scheduler import AgentHeartbeatResult, ControlPlaneHeartbeatScheduler
 
 __all__ = [
     "AgentRole",
+    "AgentInteractionMode",
+    "AgentKind",
     "AgentRun",
     "AgentRunStatus",
     "ApprovalCategory",

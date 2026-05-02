@@ -253,6 +253,8 @@ goals belong to the same company context.
 {
   "agent_id": "ops-runner",
   "display_name": "Ops Runner",
+  "agent_kind": "organization_role",
+  "interaction_mode": "routed",
   "role": "operator",
   "title": "Operations Agent",
   "domain": "operations",
@@ -264,11 +266,25 @@ goals belong to the same company context.
     "heartbeat_enabled": true,
     "heartbeat_interval_seconds": 300
   },
+  "context_sources": ["control_plane", "feishu"],
   "capabilities": ["incident triage"],
   "responsibilities": ["Run operational checks"],
   "created_by": "frontend"
 }
 ```
+
+`agent_kind` separates role agents from execution modules:
+
+| Value | Meaning |
+|-------|---------|
+| `organization_role` | CEO/CTO/CPO/COO/PM-style operating role that owns intent, tradeoffs, and user-facing decisions |
+| `capability_module` | Internal capability such as sync, QA, requirement extraction, analysis, or development execution |
+| `integration_gateway` | User/channel/system boundary that routes messages into role agents or modules |
+| `system_worker` | Scheduler, maintenance, or internal automation agent |
+
+`interaction_mode` is `direct`, `routed`, `internal`, or `none`. Capability
+modules and system workers cannot use `direct`; they should be invoked by role
+agents, gateways, schedulers, or work items.
 
 ### `POST /api/v1/control-plane/agents/{agent_id}/wake`
 
