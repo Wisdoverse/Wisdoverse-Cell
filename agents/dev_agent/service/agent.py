@@ -5,6 +5,11 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from shared.config import settings
+from shared.control_plane import (
+    ApprovalCategory,
+    ApprovalGateService,
+    ApprovalRequiredError,
+)
 from shared.infra.llm_gateway import LLMGateway
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
@@ -66,6 +71,7 @@ class DevAgent(BaseAgent):
         self._repo: DevTaskRepository | None = None
         self._log_repo: DevWorkflowLogRepository | None = None
         self._result_collector: ResultCollector | None = None
+        self._approval_gate = ApprovalGateService(source_agent_id=self.agent_id)
 
     async def startup(self) -> None:
         logger.info("dev_agent_starting")
@@ -206,12 +212,44 @@ class DevAgent(BaseAgent):
             log_repo = DevWorkflowLogRepository(session)
             wf_log = await log_repo.get_by_task_id(task_id)
             if wf_log and wf_log.workflow_json:
+                approval_id = request.get("approval_id") or wf_log.workflow_json.get(
+                    "control_plane_approval_id"
+                )
+                approved_by = request.get("approved_by") or request.get("operator") or "api"
+                try:
+                    approval_decision = await self._approval_gate.approve_for_sensitive_action(
+                        approval_id,
+                        resolved_by=approved_by,
+                    )
+                except ApprovalRequiredError as exc:
+                    logger.warning(
+                        "approve_workflow_control_plane_required",
+                        task_id=task_id,
+                        approval_id=approval_id,
+                        error=str(exc),
+                    )
+                    return {"error": str(exc), "task_id": task_id}
+
                 from ..models.schemas import WorkflowPlan
                 plan = WorkflowPlan.model_validate(wf_log.workflow_json)
                 exec_events = await self._execute_workflow(plan, task, repo)
                 if exec_events:
-                    return {"success": True, "task_id": task_id, "workflow_started": True}
-                return {"success": True, "task_id": task_id, "workflow_started": False}
+                    return {
+                        "success": True,
+                        "task_id": task_id,
+                        "workflow_started": True,
+                        "control_plane_approval_id": (
+                            approval_decision.approval_id if approval_decision else approval_id
+                        ),
+                    }
+                return {
+                    "success": True,
+                    "task_id": task_id,
+                    "workflow_started": False,
+                    "control_plane_approval_id": (
+                        approval_decision.approval_id if approval_decision else approval_id
+                    ),
+                }
             else:
                 # No stored plan — cannot proceed without a workflow plan
                 logger.error(
@@ -394,10 +432,20 @@ class DevAgent(BaseAgent):
             tool = self._router.route(node)
             node.config["cliTool"] = tool
 
+        plan_json = plan.model_dump()
+        if risk == RiskLevel.HIGH:
+            approval_id = await self._request_workflow_approval(
+                sanitized=sanitized,
+                task_id=task_record.id,
+                plan_json=plan_json,
+            )
+            if approval_id:
+                plan_json["control_plane_approval_id"] = approval_id
+
         # Store workflow plan in workflow_logs for later retrieval (approval flow)
         await log_repo.create_log(
             task_id=task_record.id,
-            workflow_json=plan.model_dump(),
+            workflow_json=plan_json,
         )
 
         if risk == RiskLevel.HIGH:
@@ -410,6 +458,44 @@ class DevAgent(BaseAgent):
             return events
 
         return await self._execute_workflow(plan, task_record, repo)
+
+    async def _request_workflow_approval(
+        self,
+        *,
+        sanitized: SanitizedTask,
+        task_id: str,
+        plan_json: dict,
+    ) -> str | None:
+        try:
+            approval = await self._approval_gate.request_approval(
+                category=ApprovalCategory.TECHNICAL,
+                proposed_action=f"Start high-risk AgentForge workflow for WP#{sanitized.wp_id}",
+                reason=sanitized.title,
+                risk=(
+                    "HIGH risk dev task will create and run an AgentForge workflow "
+                    f"with {len(plan_json.get('nodes', []))} nodes."
+                ),
+                rollback_note=(
+                    "Cancel or mark the dev task failed before external workflow execution."
+                ),
+                affected_resources=[
+                    f"dev_task:{task_id}",
+                    f"openproject:wp:{sanitized.wp_id}",
+                    "agentforge:workflow",
+                ],
+            )
+        except Exception as exc:
+            logger.error(
+                "workflow_approval_request_failed",
+                task_id=task_id,
+                wp_id=sanitized.wp_id,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            if self._approval_gate.enforced:
+                raise
+            return None
+        return approval.approval_id if approval is not None else None
 
     async def _execute_workflow(self, plan, task_record, repo) -> list[Event]:
         """Submit workflow to AgentForge and update status."""

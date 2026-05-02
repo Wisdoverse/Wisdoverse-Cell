@@ -2,7 +2,7 @@
 
 > Language note: English is the primary documentation language. This legacy document may still contain Chinese implementation details; when editing it, put the English explanation first.
 
-> **最后更新**: 2026-03-07
+> **最后更新**: 2026-05-02
 >
 > **版本**: v1.0
 >
@@ -13,6 +13,12 @@
 ## 1. 概述
 
 Wisdoverse Cell 采用**事件驱动架构 (Event-Driven Architecture)**，26 个 Agent 通过 Redis EventBus 进行异步通信。每个事件是不可变的、fire-and-forget 的消息，携带 `trace_id` 用于全链路追踪。
+
+For the durable control-plane contract, start with [SPEC](../../SPEC.md).
+For the operator API that emits and reads control-plane evidence, see
+[API Reference: Control Plane API](./api-reference.md#control-plane-api). For
+runtime switches and operational checks, see
+[Operations: Control Plane Operations](./operations.md#9-control-plane-operations).
 
 核心事件结构：
 
@@ -72,10 +78,217 @@ Event(
 | `channel.reaction.removed` | channel_gateway | — | 移除表情回应 |
 | `channel.read.receipt` | channel_gateway | — | 已读回执 |
 | `channel.adapter.status` | channel_gateway | — | 适配器状态变更 |
+| `goal.created` | control-plane API | operator console | Durable company goal created |
+| `goal.updated` | control-plane API | operator console | Goal status or progress changed |
+| `work_item.created` | control-plane API | operator console | Durable work item created |
+| `work_item.updated` | control-plane API | operator console | Work item status or owner changed |
+| `decision.created` | control-plane API | operator console | Durable decision created |
+| `decision.updated` | control-plane API | operator console | Decision status changed |
+| `agent_role.created` | control-plane API | operator console | Agent role definition created |
+| `agent_role.status-updated` | control-plane API | operator console | Agent role status changed |
+| `agent.wakeup-requested` | control-plane API | agent runtime adapter | Manual wakeup requested for an AgentRole |
+| `agent.wakeup-completed` | control-plane agent runner | operator console | Manual wakeup finished or failed |
+| `agent_run.started` | runtime plugin / agent runner | operator console | AgentRun lifecycle started |
+| `agent_run.succeeded` | runtime plugin / agent runner | operator console | AgentRun completed successfully |
+| `agent_run.failed` | runtime plugin / agent runner | operator console | AgentRun failed with error evidence |
+| `budget.usage-recorded` | budget guard / LLM gateway | operator console | Budget usage appended |
+| `artifact.created` | agents | operator console | Artifact produced by an agent |
+| `audit.event-recorded` | control-plane ledger | operator console | Audit event appended |
 
 ---
 
 ## 3. Payload 详细定义
+
+### 3.0 Control Plane Domain
+
+Control-plane events connect the durable ledger with independently deployed
+agents. They SHOULD include `company_id`, `trace_id`, and the most specific
+available IDs among `goal_id`, `work_item_id`, and `run_id`.
+
+#### `goal.created` / `goal.updated`
+
+```json
+{
+  "company_id": "cmp_projectcell",
+  "goal_id": "goal_...",
+  "title": "Ship SPEC control plane",
+  "status": "active",
+  "parent_goal_id": null,
+  "owner_agent_id": "pjm-agent",
+  "owner_user_id": null,
+  "current_value": 25,
+  "target_value": 100
+}
+```
+
+#### `work_item.created` / `work_item.updated`
+
+```json
+{
+  "company_id": "cmp_projectcell",
+  "goal_id": "goal_...",
+  "work_item_id": "work_...",
+  "title": "Expose goal API",
+  "status": "ready",
+  "priority": "high",
+  "owner_agent_id": "dev-agent",
+  "owner_user_id": null,
+  "source": "manual",
+  "external_ref": "spec-goal-api"
+}
+```
+
+#### `decision.created` / `decision.updated`
+
+```json
+{
+  "company_id": "cmp_projectcell",
+  "goal_id": "goal_...",
+  "work_item_id": "work_...",
+  "run_id": "run_...",
+  "decision_id": "dec_...",
+  "title": "Accept run output",
+  "status": "accepted",
+  "selected_option": "accept",
+  "decided_by": "human:operator"
+}
+```
+
+#### `artifact.created`
+
+```json
+{
+  "company_id": "cmp_projectcell",
+  "goal_id": "goal_...",
+  "work_item_id": "work_...",
+  "run_id": "run_...",
+  "artifact_id": "art_...",
+  "artifact_type": "run_walkthrough",
+  "title": "Run walkthrough",
+  "uri": "artifact://runs/run_...",
+  "created_by_agent_id": "ops-runner"
+}
+```
+
+#### `agent.wakeup-requested`
+
+```json
+{
+  "company_id": "cmp_projectcell",
+  "agent_id": "ops-runner",
+  "run_id": "run_...",
+  "actor_id": "human:operator",
+  "trace_id": "trace_...",
+  "goal_id": "goal_...",
+  "work_item_id": "work_...",
+  "input": {}
+}
+```
+
+#### `agent.wakeup-completed`
+
+```json
+{
+  "company_id": "cmp_projectcell",
+  "agent_id": "ops-runner",
+  "run_id": "run_...",
+  "trace_id": "trace_...",
+  "goal_id": "goal_...",
+  "work_item_id": "work_...",
+  "status": "succeeded",
+  "output": {},
+  "error_category": null,
+  "error_message": null
+}
+```
+
+#### `agent_run.started` / `agent_run.succeeded` / `agent_run.failed`
+
+```json
+{
+  "company_id": "cmp_projectcell",
+  "agent_id": "ops-runner",
+  "run_id": "run_...",
+  "trace_id": "trace_...",
+  "goal_id": "goal_...",
+  "work_item_id": "work_...",
+  "status": "running",
+  "adapter_type": "http",
+  "error_category": null,
+  "error_message": null
+}
+```
+
+#### `approval.requested` / `approval.granted` / `approval.rejected`
+
+```json
+{
+  "company_id": "cmp_projectcell",
+  "approval_id": "apr_...",
+  "category": "technical",
+  "status": "pending",
+  "requested_by": "agent:dev-agent",
+  "source_agent_id": "dev-agent",
+  "proposed_action": "Run workflow",
+  "risk": "External system mutation",
+  "resolved_by": null,
+  "run_id": "run_...",
+  "trace_id": "trace_..."
+}
+```
+
+#### `budget.usage-recorded`
+
+```json
+{
+  "company_id": "cmp_projectcell",
+  "usage_id": "busg_...",
+  "budget_id": "bud_...",
+  "scope": "agent",
+  "scope_id": "dev-agent",
+  "period": "daily",
+  "cost_usd": 0.42,
+  "model": "tool:agentforge_run",
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "run_id": "run_...",
+  "trace_id": "trace_..."
+}
+```
+
+#### `audit.event-recorded`
+
+```json
+{
+  "company_id": "cmp_projectcell",
+  "audit_event_id": "aud_...",
+  "action": "agent_run.started",
+  "target_type": "agent_run",
+  "target_id": "run_...",
+  "actor_type": "agent",
+  "actor_id": "dev-agent",
+  "idempotency_key": "agent_run.started:run_...",
+  "run_id": "run_...",
+  "trace_id": "trace_...",
+  "detail": {}
+}
+```
+
+#### Control-plane producers, consumers, and idempotency keys
+
+| Event | Producer | Consumer | Idempotency key |
+|-------|----------|----------|-----------------|
+| `goal.created` / `goal.updated` | control-plane API | operator console, coordinator | `goal.{action}:{goal_id}:{updated_at}` |
+| `work_item.created` / `work_item.updated` | control-plane API, PJM agent | operator console, assigned agent | `work_item.{action}:{work_item_id}:{updated_at}` |
+| `decision.created` / `decision.updated` | control-plane API, operator console | operator console, governance agents | `decision.{action}:{decision_id}:{updated_at}` |
+| `artifact.created` | agent runtime, control-plane API | operator console, QA agent | `artifact.created:{artifact_id}` |
+| `agent_role.created` / `agent_role.status-updated` | control-plane API | operator console, scheduler | `agent_role.{action}:{company_id}:{agent_id}:{updated_at}` |
+| `agent.wakeup-requested` | control-plane API, heartbeat scheduler | agent runtime adapter | `agent.wakeup-requested:{run_id}` |
+| `agent.wakeup-completed` | control-plane agent runner | operator console | `agent.wakeup-completed:{run_id}` |
+| `agent_run.started` / `agent_run.succeeded` / `agent_run.failed` | runtime plugin, agent runner | operator console, budget/audit views | `agent_run.{state}:{run_id}` |
+| `approval.requested` / `approval.granted` / `approval.rejected` | approval gate, operator console | operator console, blocked workflow owner | `approval.{state}:{approval_id}` |
+| `budget.usage-recorded` | LLM gateway, ToolRegistry budget guard | operator console, finance governance | `budget.usage-recorded:{usage_id}` |
+| `audit.event-recorded` | control-plane repository | operator console, compliance export | `audit.event-recorded:{audit_event_id}` |
 
 ### 3.1 Requirement 域
 

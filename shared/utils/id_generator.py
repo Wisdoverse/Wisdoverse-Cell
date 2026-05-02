@@ -54,3 +54,14 @@ class IDPrefix:
     DOCUMENT = "doc"        # 文档
     SESSION = "ses"         # 会话
     MESSAGE = "msg"         # 消息
+    COMPANY = "cmp"         # 公司上下文
+    GOAL = "goal"           # 目标
+    AGENT_ROLE = "role"     # Agent 角色
+    WORK_ITEM = "work"      # 工作项
+    AGENT_RUN = "run"       # Agent 运行
+    DECISION = "dec"        # 决策
+    ARTIFACT = "art"        # 产物
+    BUDGET = "bud"          # 预算
+    BUDGET_USAGE = "busg"   # 预算使用
+    AUDIT_EVENT = "aud"     # 审计事件
+    EVOLUTION_PROPOSAL = "evp"  # 自进化提案

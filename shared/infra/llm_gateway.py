@@ -21,6 +21,7 @@ import anthropic
 from anthropic import APIStatusError, AsyncAnthropic, RateLimitError
 
 from ..config import settings
+from ..control_plane.context import get_current_run_context
 from ..utils.logger import get_logger
 from .audit_log import AuditAction, audit_log
 from .circuit_breaker import CircuitBreaker, CircuitBreakerError
@@ -64,6 +65,14 @@ class LLMUsageData:
     success: bool
     error_message: Optional[str] = None
     trace_id: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class ControlPlaneBudgetReservation:
+    """A pre-approved durable budget bucket for one LLM call."""
+
+    company_id: str
+    budget_id: str
 
 
 # 持久化回调类型
@@ -182,7 +191,12 @@ class LLMGateway:
         temperature: float = 0,
         system_prompt: Optional[str] = None,
         trace_id: Optional[str] = None,
-        persist_callback: Optional[UsagePersistCallback] = None
+        persist_callback: Optional[UsagePersistCallback] = None,
+        company_id: Optional[str] = None,
+        budget_scope: Optional[str] = None,
+        budget_scope_id: Optional[str] = None,
+        budget_period: Optional[str] = None,
+        run_id: Optional[str] = None,
     ) -> str:
         """
         调用LLM完成任务
@@ -197,6 +211,11 @@ class LLMGateway:
             system_prompt: 系统提示词
             trace_id: 可选的追踪ID（用于关联请求）
             persist_callback: 可选的持久化回调，用于将使用记录写入数据库
+            company_id: Optional control-plane company for durable budget checks.
+            budget_scope: Optional budget scope override (company/goal/agent/work_item).
+            budget_scope_id: Optional budget scope identifier.
+            budget_period: Optional budget period override (daily/monthly/quarterly/total).
+            run_id: Optional control-plane agent run ID for usage linkage.
 
         Returns:
             LLM的响应文本
@@ -207,6 +226,28 @@ class LLMGateway:
         """
         model = model or settings.default_model
         start_time = time.time()
+        run_context = get_current_run_context()
+        resolved_company_id = company_id or (
+            run_context.company_id if run_context is not None else None
+        )
+        resolved_run_id = run_id or (run_context.run_id if run_context is not None else None)
+        estimated_input_tokens = self._estimate_payload_tokens(
+            {
+                "system": system_prompt or "You are a helpful assistant.",
+                "messages": [{"role": "user", "content": prompt}],
+            }
+        )
+        estimated_cost_usd = self.estimate_cost(estimated_input_tokens, max_tokens, model)
+        budget_reservation = await self._check_control_plane_budget(
+            company_id=resolved_company_id,
+            agent_id=agent_id,
+            scope=budget_scope,
+            scope_id=budget_scope_id,
+            period=budget_period,
+            model=model,
+            estimated_cost_usd=estimated_cost_usd,
+            trace_id=trace_id,
+        )
 
         # 检查断路器状态
         if not self._circuit_breaker.can_execute():
@@ -248,6 +289,15 @@ class LLMGateway:
                 model=model,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens
+            )
+            await self._record_control_plane_budget_usage(
+                reservation=budget_reservation,
+                cost_usd=cost_usd,
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                run_id=resolved_run_id,
+                trace_id=trace_id,
             )
 
             # Prometheus instrumentation
@@ -506,6 +556,11 @@ class LLMGateway:
         tools: Optional[list[dict]] = None,
         task_type: str = "chat",
         trace_id: Optional[str] = None,
+        company_id: Optional[str] = None,
+        budget_scope: Optional[str] = None,
+        budget_scope_id: Optional[str] = None,
+        budget_period: Optional[str] = None,
+        run_id: Optional[str] = None,
     ):
         """
         Low-level messages.create wrapper with circuit breaker, retry, and cost tracking.
@@ -524,6 +579,11 @@ class LLMGateway:
             tools: Tool definitions for tool calling.
             task_type: Task category for logging.
             trace_id: Optional trace ID.
+            company_id: Optional control-plane company for durable budget checks.
+            budget_scope: Optional budget scope override (company/goal/agent/work_item).
+            budget_scope_id: Optional budget scope identifier.
+            budget_period: Optional budget period override (daily/monthly/quarterly/total).
+            run_id: Optional control-plane agent run ID for usage linkage.
 
         Returns:
             Raw Anthropic Message response.
@@ -534,18 +594,38 @@ class LLMGateway:
         """
         model = model or settings.chat_model
         start_time = time.time()
+        run_context = get_current_run_context()
+        resolved_company_id = company_id or (
+            run_context.company_id if run_context is not None else None
+        )
+        resolved_run_id = run_id or (run_context.run_id if run_context is not None else None)
 
         # Budget check: downgrade model if over daily budget
         model = await self._maybe_downgrade_model(model)
 
         # Per-request cost cap: estimate cost and reject if too expensive
-        import json as _json
-        estimated_input_tokens = len(_json.dumps(messages, ensure_ascii=False)) // 4
+        estimated_input_tokens = self._estimate_payload_tokens(
+            {
+                "system": system or [],
+                "messages": messages,
+                "tools": tools or [],
+            }
+        )
         self.preflight_cost_check(
             max_tokens=max_tokens,
             model=model,
             estimated_input_tokens=estimated_input_tokens,
             cost_cap_usd=settings.llm_per_request_cost_cap_usd,
+        )
+        budget_reservation = await self._check_control_plane_budget(
+            company_id=resolved_company_id,
+            agent_id=agent_id,
+            scope=budget_scope,
+            scope_id=budget_scope_id,
+            period=budget_period,
+            model=model,
+            estimated_cost_usd=self.estimate_cost(estimated_input_tokens, max_tokens, model),
+            trace_id=trace_id,
         )
 
         # Circuit breaker check
@@ -592,6 +672,15 @@ class LLMGateway:
 
             # Redis-based daily cost tracking
             await self._track_redis_cost(cost_usd)
+            await self._record_control_plane_budget_usage(
+                reservation=budget_reservation,
+                cost_usd=cost_usd,
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                run_id=resolved_run_id,
+                trace_id=trace_id,
+            )
 
             # Prometheus instrumentation
             LLM_REQUEST_DURATION.labels(model=model, agent_id=agent_id).observe(
@@ -633,6 +722,162 @@ class LLMGateway:
     async def _call_messages_with_retry(self, kwargs: dict, _agent_id: str = "unknown"):
         """带重试的 messages.create 调用 — delegates to _call_with_recovery."""
         return await self._call_with_recovery(kwargs, agent_id=_agent_id)
+
+    # ------------------------------------------------------------------ #
+    # Durable control-plane budget enforcement
+    # ------------------------------------------------------------------ #
+
+    def _estimate_payload_tokens(self, payload: Any) -> int:
+        """Cheap, deterministic estimate for preflight budget checks."""
+        import json as _json
+
+        return max(1, len(_json.dumps(payload, ensure_ascii=False, default=str)) // 4)
+
+    def _control_plane_llm_budget_enforced(self) -> bool:
+        return getattr(settings, "control_plane_llm_budget_enforced", False) is True
+
+    async def _check_control_plane_budget(
+        self,
+        *,
+        company_id: str | None,
+        agent_id: str,
+        scope: str | None,
+        scope_id: str | None,
+        period: str | None,
+        model: str,
+        estimated_cost_usd: float,
+        trace_id: str | None = None,
+    ) -> ControlPlaneBudgetReservation | None:
+        """Check the durable control-plane budget before spending on the provider."""
+        if not self._control_plane_llm_budget_enforced():
+            return None
+
+        from shared.control_plane.budget_guard import BudgetExceededError, BudgetGuard
+        from shared.control_plane.database import control_plane_db_manager
+        from shared.control_plane.models import BudgetPeriod, BudgetScope
+        from shared.control_plane.repository import ControlPlaneRepository
+
+        resolved_company_id = (company_id or settings.control_plane_company_id).strip()
+        if not resolved_company_id:
+            raise ValueError("control_plane_company_id_required_for_llm_budget")
+
+        scope_value = scope or settings.control_plane_llm_budget_scope
+        period_value = period or settings.control_plane_llm_budget_period
+        scope_member = BudgetScope(scope_value)
+        period_member = BudgetPeriod(period_value)
+        resolved_scope_id = scope_id
+        if resolved_scope_id is None and scope_member == BudgetScope.AGENT:
+            resolved_scope_id = agent_id
+
+        async with control_plane_db_manager.session() as session:
+            guard = BudgetGuard(ControlPlaneRepository(session))
+            decision = await guard.check(
+                company_id=resolved_company_id,
+                scope=scope_member,
+                period=period_member,
+                scope_id=resolved_scope_id,
+                model=model,
+                estimated_cost_usd=estimated_cost_usd,
+            )
+
+        if not decision.allowed:
+            logger.warning(
+                "llm_control_plane_budget_rejected",
+                agent_id=agent_id,
+                company_id=resolved_company_id,
+                scope=scope_member.value,
+                scope_id=resolved_scope_id,
+                period=period_member.value,
+                model=model,
+                estimated_cost_usd=round(estimated_cost_usd, 6),
+                current_cost_usd=round(decision.current_cost_usd, 6),
+                limit_usd=decision.limit_usd,
+                reason=decision.reason,
+                trace_id=trace_id,
+            )
+            limit_text = (
+                "unlimited" if decision.limit_usd is None else f"${decision.limit_usd:.4f}"
+            )
+            raise BudgetExceededError(
+                f"{decision.reason}: estimated_total=${decision.estimated_total_usd:.4f}, "
+                f"limit={limit_text}"
+            )
+
+        if decision.budget_id is None:
+            return None
+
+        logger.info(
+            "llm_control_plane_budget_allowed",
+            agent_id=agent_id,
+            company_id=resolved_company_id,
+            budget_id=decision.budget_id,
+            scope=scope_member.value,
+            scope_id=resolved_scope_id,
+            period=period_member.value,
+            estimated_cost_usd=round(estimated_cost_usd, 6),
+            trace_id=trace_id,
+        )
+        return ControlPlaneBudgetReservation(
+            company_id=resolved_company_id,
+            budget_id=decision.budget_id,
+        )
+
+    async def _record_control_plane_budget_usage(
+        self,
+        *,
+        reservation: ControlPlaneBudgetReservation | None,
+        cost_usd: float,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        run_id: str | None,
+        trace_id: str | None,
+    ) -> None:
+        if reservation is None and run_id is None:
+            return
+
+        try:
+            from shared.control_plane.budget_guard import BudgetGuard
+            from shared.control_plane.database import control_plane_db_manager
+            from shared.control_plane.repository import ControlPlaneRepository
+
+            async with control_plane_db_manager.session() as session:
+                repo = ControlPlaneRepository(session)
+                if reservation is not None:
+                    guard = BudgetGuard(repo)
+                    await guard.record_usage(
+                        company_id=reservation.company_id,
+                        budget_id=reservation.budget_id,
+                        cost_usd=cost_usd,
+                        model=model,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        run_id=run_id,
+                        trace_id=trace_id,
+                    )
+                if run_id is not None:
+                    run = await repo.add_agent_run_usage(
+                        run_id,
+                        cost_usd=cost_usd,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                    )
+                    if run is None:
+                        logger.warning(
+                            "llm_control_plane_run_missing_for_usage",
+                            run_id=run_id,
+                            trace_id=trace_id,
+                        )
+        except Exception as exc:
+            logger.warning(
+                "llm_control_plane_usage_record_failed",
+                budget_id=reservation.budget_id if reservation is not None else None,
+                run_id=run_id,
+                cost_usd=round(cost_usd, 6),
+                error=str(exc),
+                error_type=type(exc).__name__,
+                trace_id=trace_id,
+            )
 
     # ------------------------------------------------------------------ #
     # Redis-based daily budget metering (COST-C02/C03)

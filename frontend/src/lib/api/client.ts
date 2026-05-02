@@ -87,6 +87,11 @@ export const apiClient = {
       method: "PUT",
       body: body ? JSON.stringify(body) : undefined,
     }),
+  patch: <T>(path: string, body?: unknown) =>
+    request<T>(path, {
+      method: "PATCH",
+      body: body ? JSON.stringify(body) : undefined,
+    }),
   delete: <T>(path: string, body?: unknown) =>
     request<T>(path, {
       method: "DELETE",

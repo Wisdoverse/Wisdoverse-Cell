@@ -77,4 +77,6 @@ app = create_agent_app(
         FeishuGatewayPlugin(),
         SessionTimeoutPlugin(),
     ],
+    control_plane_enabled=settings.control_plane_enabled,
+    control_plane_company_id=settings.control_plane_company_id,
 )

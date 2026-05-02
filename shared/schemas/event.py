@@ -102,6 +102,24 @@ class EventTypes:
     APPROVAL_GRANTED = "approval.granted"
     APPROVAL_REJECTED = "approval.rejected"
 
+    # Control-plane ledger
+    GOAL_CREATED = "goal.created"
+    GOAL_UPDATED = "goal.updated"
+    WORK_ITEM_CREATED = "work_item.created"
+    WORK_ITEM_UPDATED = "work_item.updated"
+    DECISION_CREATED = "decision.created"
+    DECISION_UPDATED = "decision.updated"
+    AGENT_ROLE_CREATED = "agent_role.created"
+    AGENT_ROLE_STATUS_UPDATED = "agent_role.status-updated"
+    AGENT_WAKEUP_REQUESTED = "agent.wakeup-requested"
+    AGENT_WAKEUP_COMPLETED = "agent.wakeup-completed"
+    AGENT_RUN_STARTED = "agent_run.started"
+    AGENT_RUN_SUCCEEDED = "agent_run.succeeded"
+    AGENT_RUN_FAILED = "agent_run.failed"
+    BUDGET_USAGE_RECORDED = "budget.usage-recorded"
+    ARTIFACT_CREATED = "artifact.created"
+    AUDIT_EVENT_RECORDED = "audit.event-recorded"
+
     # PM 同步相关
     SYNC_STARTED = "sync.started"
     SYNC_COMPLETED = "sync.completed"

@@ -161,18 +161,33 @@ Fields:
 
 #### 4.1.3 Agent Role
 
-Job description and execution boundary for an agent.
+Job description, interaction contract, context contract, and execution boundary
+for an agent. Implementations MUST distinguish organization-role agents from
+capability modules. CEO, CTO, CPO, COO, and similar agents are
+`organization_role` records. Existing services such as sync, QA, requirement
+extraction, analysis, and development execution are capability modules unless
+they explicitly expose a role-level user interaction contract.
 
 Fields:
 
 - `agent_id`
 - `agent_name`
+- `agent_kind` (`organization_role`, `capability_module`,
+  `integration_gateway`, or `system_worker`)
+- `interaction_mode` (`direct`, `routed`, `internal`, or `none`)
+- `context_sources`
 - `responsibilities`
 - `subscribed_events`
 - `published_events`
 - `permissions`
 - `budget_policy`
 - `escalation_policy`
+
+Organization-role agents MAY be directly user-facing or routed through a
+gateway. Capability modules SHOULD be internally invoked by role agents,
+schedulers, or control-plane work items. Integration gateways MAY be directly
+user-facing, but they SHOULD route intent to a role agent instead of owning
+business strategy.
 
 #### 4.1.4 Work Item
 
