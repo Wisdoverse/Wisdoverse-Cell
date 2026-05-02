@@ -200,7 +200,7 @@ class BotHandler:
         """Export PRD"""
         try:
             # Import generator here to avoid circular import
-            from agents.requirement_manager.core.generator import generator
+            from agents.capabilities.requirements.core.generator import generator
 
             # Get confirmed requirements
             requirements = await self.agent.get_confirmed_requirements()

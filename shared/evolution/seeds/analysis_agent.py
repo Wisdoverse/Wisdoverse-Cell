@@ -2,10 +2,10 @@
 Seed SkillConfig entries for Analysis Agent.
 
 Source files:
-  - agents/analysis_agent/core/daily_report.py
-  - agents/analysis_agent/core/weekly_report.py
-  - agents/analysis_agent/core/milestone_checker.py
-  - agents/analysis_agent/core/quality_evaluator.py
+  - agents/capabilities/analysis/core/daily_report.py
+  - agents/capabilities/analysis/core/weekly_report.py
+  - agents/capabilities/analysis/core/milestone_checker.py
+  - agents/capabilities/analysis/core/quality_evaluator.py
 
 The Analysis Agent does NOT make direct LLM calls; it generates reports
 from BiTable data using deterministic logic.  The seed list is empty.

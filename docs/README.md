@@ -36,14 +36,14 @@ graph TD
     end
 
     subgraph Agents["Agent Layer"]
-        RM["requirement_manager :8000"]
-        SA["sync_agent :8010"]
-        AA["analysis_agent :8011"]
-        PM["pjm_agent :8012"]
-        CA["chat_agent :8013"]
-        QA["qa_agent :8014"]
-        DA["dev_agent :8015"]
-        EA["evolution_agent"]
+        RM["requirements capability :8000"]
+        SA["sync capability :8010"]
+        AA["analysis capability :8011"]
+        PM["project management capability :8012"]
+        CA["user interaction gateway :8013"]
+        QA["quality capability :8014"]
+        DA["development capability :8015"]
+        EA["evolution capability"]
     end
 
     subgraph Shared["Shared Infrastructure"]
@@ -103,18 +103,18 @@ This table lists deployed service modules and gateways. CEO/CTO/CPO/COO-style
 company roles are persisted `AgentRole` records in the control plane, not the
 same thing as these service modules.
 
-| Service | Kind | Description | Default Boundary | Status |
-|---------|------|-------------|------------------|--------|
-| `requirement_manager` | Capability module | Requirement extraction, confirmation, and PRD generation | HTTP `:8000` | Active |
-| `sync_agent` | Capability module | Bidirectional context sync between OpenProject and Feishu | HTTP `:8010` | Active |
-| `analysis_agent` | Capability module | Risk detection and data analysis | HTTP `:8011` | Active |
-| `pjm_agent` | Capability module | Task breakdown, approval preparation, alerts, and reports | HTTP `:8012` | Active |
-| `chat_agent` | Integration gateway | User-facing reception and routing surface | HTTP `:8013` | Active |
-| `qa_agent` | Capability module | Automated code quality and acceptance checks | HTTP `:8014` | Active |
-| `dev_agent` | Capability module | AgentForge-backed software delivery workflow execution | HTTP `:8015` | Active |
-| `coordinator` | System worker | Cross-agent event routing and decision synthesis | `create_agent_app()` service boundary | Active |
-| `evolution_agent` | Capability module | Self-evolution analysis and recommendations | Standalone `create_agent_app()` service boundary | Active |
-| `channel_gateway` | Integration gateway | Multi-channel inbound/outbound messaging adapter layer | EventBus and adapter boundary | Active |
+| Runtime Package | Kind | Description | Default Boundary | Status |
+|-----------------|------|-------------|------------------|--------|
+| `agents.capabilities.requirements` | Capability module | Requirement extraction, confirmation, and PRD generation | HTTP `:8000` | Active |
+| `agents.capabilities.sync` | Capability module | Bidirectional context sync between OpenProject and Feishu | HTTP `:8010` | Active |
+| `agents.capabilities.analysis` | Capability module | Risk detection and data analysis | HTTP `:8011` | Active |
+| `agents.capabilities.project_management` | Capability module | Task breakdown, approval preparation, alerts, and reports | HTTP `:8012` | Active |
+| `agents.gateways.user_interaction` | Integration gateway | User-facing reception and routing surface | HTTP `:8013` | Active |
+| `agents.capabilities.quality` | Capability module | Automated code quality and acceptance checks | HTTP `:8014` | Active |
+| `agents.capabilities.development` | Capability module | AgentForge-backed software delivery workflow execution | HTTP `:8015` | Active |
+| `agents.orchestration.coordinator` | System worker | Event routing and decision synthesis | `create_agent_app()` service boundary | Active |
+| `agents.capabilities.evolution` | Capability module | Self-evolution analysis and recommendations | Standalone `create_agent_app()` service boundary | Active |
+| `agents.gateways.channel` | Integration gateway | Multi-channel inbound/outbound messaging adapter layer | EventBus and adapter boundary | Active |
 
 ---
 

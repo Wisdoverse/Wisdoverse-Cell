@@ -7,7 +7,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env                              # Fill in secrets
 make up-infra                                     # Start PG/Redis/NATS/Milvus
-make dev                                          # Start requirement_manager
+make dev                                          # Start the requirements capability
 ```
 
 ## Part 1: The Board of Directors
@@ -42,16 +42,19 @@ L3 collaboration optimization. Stronger models should strengthen the system.
 
 ```
 agents/
-  chat_agent/                 # User interaction gateway and receptionist; not CEO
-  coordinator/                # Cross-agent event orchestrator; not a full CEO role
-  pjm_agent/                   # Task decomposition, approval, alert, and reporting module
-  sync_agent/                 # OpenProject <-> Feishu context sync module
-  analysis_agent/             # Risk detection and data analysis module
-  requirement_manager/        # Requirement extraction, confirmation, and PRD module
-  evolution_agent/            # Self-evolution analysis and recommendation module
-  qa_agent/                   # QA acceptance module
-  dev_agent/                  # AgentForge development execution module
-  channel_gateway/            # Multi-channel messaging gateway
+  gateways/
+    user_interaction/         # User-facing chat and Feishu webhook gateway
+    channel/                  # Multi-channel messaging gateway
+  orchestration/
+    coordinator/              # Cross-module event orchestration worker
+  capabilities/
+    requirements/             # Requirement extraction, confirmation, and PRD capability
+    sync/                     # OpenProject <-> Feishu context sync capability
+    analysis/                 # Risk detection and operating analytics capability
+    project_management/       # Task decomposition, approval, alert, and reporting capability
+    quality/                  # QA acceptance capability
+    development/              # AgentForge development execution capability
+    evolution/                # Self-evolution analysis and recommendation capability
 gateway/                      # Go + Gin API Gateway
 frontend/                     # Next.js 16 + React 19
 shared/
@@ -96,7 +99,7 @@ shared/
 
 ```bash
 make test                                          # Python tests
-make dev                                           # uvicorn --reload (requirement_manager)
+make dev                                           # uvicorn --reload (requirements capability)
 make gateway-dev                                   # Go gateway dev
 make frontend-dev                                  # Next.js dev
 make up-dev                                        # Docker Compose all services
@@ -132,8 +135,8 @@ ruff check agents/ shared/                         # Lint
 * **[2026-04 Custom Retry]**: `_call_with_recovery()` in `llm_gateway.py` replaces tenacity. Enables model fallback mid-retry and ReactiveCompact on content_size. Circuit breaker records 1 failure after ALL retries+fallback exhausted.
 * **[2026-04 Context Compression 3-Layer]**: MicroCompact (free, block-count tool_result clearing) -> L1 trim -> L2 summarize -> ReactiveCompact (emergency on prompt-too-long). `micro_compact()` and `reactive_compact()` in `context_compressor.py`.
 * **[2026-04 ConversationEngine]**: `shared/infra/conversation_engine.py` - shared multi-turn tool loop with AsyncGenerator events. Per-request lifetime, not singleton. Caller creates per request with `messages=loaded_history`, extracts `engine.messages` after `run()`.
-* **[2026-04 Chat Agent = Reception]**: Per coordinator-agent-design.md section 2, chat_agent is the receptionist, NOT the CEO. Simple queries handled directly, complex cross-agent workflows escalated to Coordinator. System prompt teaches operations, not strategy.
-* **[2026-05 Agent Org]**: CEO/CTO/CPO/COO are first-class `organization_role` AgentRole records. sync/QA/requirement/dev and similar existing services are `capability_module` records. Do not present capability modules as organization roles.
+* **[2026-04 User Gateway]**: The user interaction gateway handles simple queries directly and escalates complex cross-module workflows to the Coordinator. The prompt teaches operation strategy, not tool lists.
+* **[2026-05 Agent Org]**: CEO/CTO/CPO/COO are first-class `organization_role` AgentRole records. Sync, quality, requirements, development, and similar deployed services are `capability_module` records. Do not present capability modules as organization roles.
 * **[2026-04 Prompt Style]**: Follow Claude Code pattern - tool definitions via API `tools` param, prompt teaches usage STRATEGY not tool list. Sections: System -> Doing Tasks -> Executing Actions -> Output Efficiency. Include anti-patterns ("do not...").
 
 > *v2026.04.03-compact*

@@ -1,8 +1,8 @@
 """
-Seed SkillConfig entries extracted from Chat Agent hardcoded prompts.
+Seed SkillConfig entries extracted from the user interaction gateway prompts.
 
 Source files:
-  - agents/chat_agent/core/chat_service.py  (PM_PERSONA_PROMPT, default system, summarize)
+  - agents/gateways/user_interaction/core/chat_service.py
 
 These seeds represent the v1 baseline for self-evolution tracking.
 The Chat Agent code itself is NOT modified — these are read-only copies.
@@ -11,22 +11,22 @@ The Chat Agent code itself is NOT modified — these are read-only copies.
 from shared.evolution.models import SkillConfig, SkillStatus
 
 # ---------------------------------------------------------------------------
-# Skill 1: PM Persona Chat
+# Skill 1: User Assistant Chat
 # ---------------------------------------------------------------------------
-# Extracted from: agents/chat_agent/core/chat_service.py  PM_PERSONA_PROMPT
+# Extracted from: agents/gateways/user_interaction/core/chat_service.py
 
-CHAT_PM_PERSONA_SKILL = SkillConfig(
-    skill_id="chat-agent:pm-persona",
+CHAT_USER_ASSISTANT_SKILL = SkillConfig(
+    skill_id="chat-agent:user-assistant",
     version=1,
     status=SkillStatus.ACTIVE,
     system_prompt=(
-        "你是 Wisdoverse Cell 的 AI 项目管理助手，具备 CEO 思维和全局视角。\n"
+        "你是 Wisdoverse Cell 的用户助手，直接面对人类用户，用中文交流。\n"
         "\n"
         "## 核心能力\n"
-        "- **闭环思维**：给出解决方案和明确的行动建议，不只是记录问题\n"
-        "- **确定性**：提前预警风险，提供 Plan B，给出确定的判断\n"
-        "- **商业视角**：结合项目目标给出建议，关注商业价值和 ROI\n"
-        "- **信息枢纽**：把技术问题翻译成业务影响\n"
+        "- 直接处理查询、简单更新、每日进展和多维表格确认卡片\n"
+        "- 将跨模块、跨阶段或超出权限的工作升级给 Coordinator\n"
+        "- 不代替用户做决定，不伪装成组织角色 agent\n"
+        "- 用实时工具数据回答任务、同步和协作问题\n"
         "\n"
         "## 回答风格\n"
         "- 简洁有力，直击要点，先结论后分析\n"
@@ -44,7 +44,7 @@ CHAT_PM_PERSONA_SKILL = SkillConfig(
 # ---------------------------------------------------------------------------
 # Skill 2: Default Chat
 # ---------------------------------------------------------------------------
-# Extracted from: agents/chat_agent/core/chat_service.py  default_system
+# Extracted from: agents/gateways/user_interaction/core/chat_service.py
 
 CHAT_DEFAULT_SKILL = SkillConfig(
     skill_id="chat-agent:default-chat",
@@ -65,7 +65,7 @@ CHAT_DEFAULT_SKILL = SkillConfig(
 # ---------------------------------------------------------------------------
 # Skill 3: Conversation Summarization
 # ---------------------------------------------------------------------------
-# Extracted from: agents/chat_agent/core/chat_service.py  _summarize_history()
+# Extracted from: agents/gateways/user_interaction/core/chat_service.py
 
 CHAT_SUMMARIZE_SKILL = SkillConfig(
     skill_id="chat-agent:summarize",
@@ -84,7 +84,7 @@ CHAT_SUMMARIZE_SKILL = SkillConfig(
 # ---------------------------------------------------------------------------
 
 CHAT_AGENT_SEEDS: list[SkillConfig] = [
-    CHAT_PM_PERSONA_SKILL,
+    CHAT_USER_ASSISTANT_SKILL,
     CHAT_DEFAULT_SKILL,
     CHAT_SUMMARIZE_SKILL,
 ]

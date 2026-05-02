@@ -80,7 +80,7 @@ class TestListSkillE2E:
 
         # Execute skill with patched repository
         skill = ListSkill()
-        with patch("agents.requirement_manager.skills.list_requirements.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.list_requirements.RequirementRepository", mock_repo_class):
             result = await skill.execute(context)
 
         # Verify result
@@ -105,7 +105,7 @@ class TestListSkillE2E:
         )
 
         skill = ListSkill()
-        with patch("agents.requirement_manager.skills.list_requirements.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.list_requirements.RequirementRepository", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True
@@ -136,7 +136,7 @@ class TestConfirmSkillE2E:
         )
 
         skill = ConfirmSkill()
-        with patch("agents.requirement_manager.skills.confirm_requirement.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.confirm_requirement.RequirementRepository", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True
@@ -159,7 +159,7 @@ class TestConfirmSkillE2E:
         )
 
         skill = ConfirmSkill()
-        with patch("agents.requirement_manager.skills.confirm_requirement.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.confirm_requirement.RequirementRepository", mock_repo_class):
             with pytest.raises(SkillError) as exc_info:
                 await skill.execute(context)
 
@@ -184,7 +184,7 @@ class TestConfirmSkillE2E:
         )
 
         skill = ConfirmSkill()
-        with patch("agents.requirement_manager.skills.confirm_requirement.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.confirm_requirement.RequirementRepository", mock_repo_class):
             with pytest.raises(SkillError) as exc_info:
                 await skill.execute(context)
 
@@ -217,7 +217,7 @@ class TestRejectSkillE2E:
         )
 
         skill = RejectSkill()
-        with patch("agents.requirement_manager.skills.reject_requirement.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.reject_requirement.RequirementRepository", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True
@@ -246,7 +246,7 @@ class TestRejectSkillE2E:
         )
 
         skill = RejectSkill()
-        with patch("agents.requirement_manager.skills.reject_requirement.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.reject_requirement.RequirementRepository", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True
@@ -278,7 +278,7 @@ class TestSkillChainE2E:
         )
 
         list_skill = ListSkill()
-        with patch("agents.requirement_manager.skills.list_requirements.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.list_requirements.RequirementRepository", mock_repo_class):
             list_result = await list_skill.execute(list_context)
 
         assert list_result.success is True
@@ -296,7 +296,7 @@ class TestSkillChainE2E:
         )
 
         confirm_skill = ConfirmSkill()
-        with patch("agents.requirement_manager.skills.confirm_requirement.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.confirm_requirement.RequirementRepository", mock_repo_class):
             confirm_result = await confirm_skill.execute(confirm_context)
 
         assert confirm_result.success is True
@@ -327,7 +327,7 @@ class TestSkillChainE2E:
         )
 
         skill = ListSkill()
-        with patch("agents.requirement_manager.skills.list_requirements.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.list_requirements.RequirementRepository", mock_repo_class):
             result1 = await skill.execute(context_page1)
 
         assert result1.success is True
@@ -343,7 +343,7 @@ class TestSkillChainE2E:
             db=mock_db,
         )
 
-        with patch("agents.requirement_manager.skills.list_requirements.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.list_requirements.RequirementRepository", mock_repo_class):
             result2 = await skill.execute(context_page2)
 
         assert result2.success is True
@@ -376,7 +376,7 @@ class TestCrossPlatformE2E:
         )
 
         skill = ListSkill()
-        with patch("agents.requirement_manager.skills.list_requirements.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.list_requirements.RequirementRepository", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True
@@ -406,7 +406,7 @@ class TestCrossPlatformE2E:
         )
 
         skill = ListSkill()
-        with patch("agents.requirement_manager.skills.list_requirements.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.list_requirements.RequirementRepository", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True

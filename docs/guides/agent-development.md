@@ -24,7 +24,7 @@ Agent 的核心职责是：**订阅事件 -> 处理业务逻辑 -> 发布新事�
 新建 Agent 时，请严格遵循以下目录结构：
 
 ```
-agents/my_agent/
+agents/capabilities/my_capability/
 ├── __init__.py
 ├── app/
 │   ├── __init__.py
@@ -93,7 +93,7 @@ class BaseAgent(ABC):
 
 ### 3.2 实现示例
 
-以下是基于 `agents/pjm_agent/service/agent.py` 的真实模式：
+以下是基于 `agents/capabilities/project_management/service/agent.py` 的真实模式：
 
 ```python
 """MyAgent - 示例 Agent 实现"""
@@ -283,7 +283,7 @@ class Event(BaseModel):
 ### 5.1 Router 定义
 
 ```python
-# agents/my_agent/api/my_routes.py
+# agents/capabilities/my_capability/api/my_routes.py
 from fastapi import APIRouter, HTTPException
 from shared.utils.logger import get_logger
 from ..service.agent import get_agent
@@ -309,7 +309,7 @@ async def get_status():
 使用 `create_agent_app()` 工厂函数创建标准化的 FastAPI 应用。**不要手写 lifespan、middleware、health endpoints** — 框架全部处理。
 
 ```python
-# agents/my_agent/app/main.py
+# agents/capabilities/my_capability/app/main.py
 from fastapi import Depends
 
 from shared.app import create_agent_app
@@ -341,7 +341,7 @@ app = create_agent_app(
 如果 Agent 有 scheduler（如 PJM Agent 的定时告警），使用 `on_startup` / `on_shutdown` hooks：
 
 ```python
-# agents/my_agent/app/main.py
+# agents/capabilities/my_capability/app/main.py
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -606,7 +606,7 @@ pjm-agent:
 ### 8.3 DatabaseManager 模式
 
 ```python
-# agents/my_agent/db/database.py
+# agents/capabilities/my_capability/db/database.py
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from shared.config import settings
@@ -683,7 +683,7 @@ docker compose build my-agent
 
 ### 10.2 独立 Dockerfile 模板
 
-如果需要独立 Dockerfile（参考 `agents/pjm_agent/Dockerfile`）：
+如果需要独立 Dockerfile（参考 `agents/capabilities/project_management/Dockerfile`）：
 
 ```dockerfile
 # Stage 1: Builder
@@ -714,7 +714,7 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 COPY --chown=appuser:appgroup shared/ /app/shared/
-COPY --chown=appuser:appgroup agents/my_agent/ /app/agents/my_agent/
+COPY --chown=appuser:appgroup agents/capabilities/my_capability/ /app/agents/capabilities/my_capability/
 
 ENV PYTHONPATH=/app \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -730,7 +730,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["gunicorn", \
-     "agents.my_agent.app.main:app", \
+     "agents.capabilities.my_capability.app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--workers", "1", \
      "--bind", "0.0.0.0:8020", \
@@ -790,7 +790,7 @@ my-agent:
 ### 11.1 测试结构
 
 ```
-agents/my_agent/tests/
+agents/capabilities/my_capability/tests/
 ├── conftest.py            # fixtures: mock event_bus, mock db, mock llm
 ├── test_agent.py          # BaseAgent 行为测试
 ├── test_service.py        # 业务逻辑单元测试
@@ -801,7 +801,7 @@ agents/my_agent/tests/
 运行测试：
 
 ```bash
-.venv/bin/python -m pytest agents/my_agent/tests/ -v
+.venv/bin/python -m pytest agents/capabilities/my_capability/tests/ -v
 ```
 
 ### 11.2 必须覆盖的测试场景

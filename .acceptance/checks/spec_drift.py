@@ -24,7 +24,7 @@ SPEC_DIRS = [
 
 def find_spec_for_target(target: str) -> Path | None:
     """Find the most relevant spec document for a target agent/module."""
-    # Extract agent name from target path like "agents/pjm_agent"
+    # Extract agent name from target path like "agents/capabilities/project_management"
     parts = target.strip("/").split("/")
     agent_name = parts[1] if len(parts) > 1 and parts[0] == "agents" else parts[-1]
 

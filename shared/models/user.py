@@ -9,7 +9,7 @@ from typing import Optional
 from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from agents.requirement_manager.models.base import Base
+from agents.capabilities.requirements.models.base import Base
 from shared.utils.id_generator import IDPrefix, generate_id
 
 

@@ -25,6 +25,6 @@ describe("ActivityItem", () => {
 
   it("renders agent name", () => {
     render(<ActivityItem event={mockEvent} />);
-    expect(screen.getByText("Requirement Manager")).toBeDefined();
+    expect(screen.getByText("Requirements Module")).toBeDefined();
   });
 });

@@ -10,7 +10,7 @@ PYTEST_PUBLIC_PATHS = \
 	shared/integrations/feishu/tests \
 	shared/integrations/wecom/tests \
 	shared/tests/test_event_payloads.py \
-	agents/requirement_manager/tests/test_grpc_servicer.py
+	agents/capabilities/requirements/tests/test_grpc_servicer.py
 
 PYTEST_UNIT_PATHS = \
 	tests/unit \
@@ -19,27 +19,27 @@ PYTEST_UNIT_PATHS = \
 	shared/tests/test_event_payloads.py \
 	shared/integrations/feishu/tests \
 	shared/integrations/wecom/tests \
-	agents/requirement_manager/tests/test_grpc_servicer.py
+	agents/capabilities/requirements/tests/test_grpc_servicer.py
 
 PYTEST_UNIT_FULL_ARGS = \
 	tests/unit \
 	shared/tests/unit \
-	agents/*/tests/unit \
+	agents/*/*/tests/unit \
 	skills/tests \
 	shared/integrations/feishu/tests \
 	shared/integrations/wecom/tests \
-	agents/requirement_manager/tests/test_grpc_servicer.py \
+	agents/capabilities/requirements/tests/test_grpc_servicer.py \
 	--ignore=skills/tests/test_skills_integration.py
 
 PYTEST_INTEGRATION_PATHS = \
 	tests/integration \
 	shared/tests/integration \
-	agents/*/tests/integration \
+	agents/*/*/tests/integration \
 	shared/messaging/outbound/tests/integration
 
 PYTEST_E2E_PATHS = \
 	tests/e2e \
-	agents/requirement_manager/tests/e2e
+	agents/capabilities/requirements/tests/e2e
 
 # === Proto Generation ===
 
@@ -70,7 +70,7 @@ setup:
 	.venv/bin/pip install -r requirements.txt
 
 dev:
-	uvicorn agents.requirement_manager.app.main:app --reload --port 8000
+	uvicorn agents.capabilities.requirements.app.main:app --reload --port 8000
 
 grpc-server:
 	python -m shared.grpc.server

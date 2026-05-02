@@ -34,14 +34,14 @@ graph TB
     end
 
     subgraph Agent Layer
-        RM[requirement_manager]
-        SA[sync_agent]
-        AA[analysis_agent]
-        PM[pjm_agent]
-        CA[chat_agent]
-        EA[evolution_agent]
-        QA[qa_agent]
-        DA[dev_agent]
+        RM[requirements capability]
+        SA[sync capability]
+        AA[analysis capability]
+        PM[project management capability]
+        CA[user interaction gateway]
+        EA[evolution capability]
+        QA[quality capability]
+        DA[development capability]
     end
 
     subgraph Shared Infrastructure
@@ -200,7 +200,7 @@ Each agent has its own PostgreSQL user with minimal privileges and a dedicated R
 
 ## 7. Self-Evolution
 
-The self-evolution system has three layers: L1 optimizes skills and prompts, L2 proposes architecture improvements, and L3 optimizes multi-agent collaboration patterns. Implementation lives in `shared/evolution/` and `agents/evolution_agent/`.
+The self-evolution system has three layers: L1 optimizes skills and prompts, L2 proposes architecture improvements, and L3 optimizes multi-agent collaboration patterns. Implementation lives in `shared/evolution/` and `agents/capabilities/evolution/`.
 
 中文摘要：L1 优化 Skill/Prompt，L2 优化架构，L3 优化多 Agent 协作模式。
 
@@ -233,10 +233,10 @@ All services are orchestrated through Docker Compose. Traefik v3 handles routing
 ```
 Traefik :443/:80
   ├── /api/*        -> gateway :8080
-  ├── /agent/rm/*   -> requirement_manager :8000
-  ├── /agent/sync/* -> sync_agent :8010
-  ├── /agent/pm/*   -> pjm_agent :8012
-  ├── /agent/qa/*   -> qa_agent :8014
-  ├── /agent/dev/*  -> dev_agent :8015
+  ├── /agent/rm/*   -> requirements capability :8000
+  ├── /agent/sync/* -> sync capability :8010
+  ├── /agent/pm/*   -> project management capability :8012
+  ├── /agent/qa/*   -> quality capability :8014
+  ├── /agent/dev/*  -> development capability :8015
   └── ...           -> other deployed agents
 ```

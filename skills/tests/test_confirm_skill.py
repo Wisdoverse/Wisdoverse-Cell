@@ -74,7 +74,7 @@ class TestConfirmSkillExecute:
             mock_repo.confirm = AsyncMock(return_value=mock_requirement)
 
             mp.setattr(
-                "agents.requirement_manager.skills.confirm_requirement.RequirementRepository",
+                "agents.capabilities.requirements.skills.confirm_requirement.RequirementRepository",
                 lambda db: mock_repo
             )
 
@@ -108,7 +108,7 @@ class TestConfirmSkillExecute:
             mock_repo.get_by_id = AsyncMock(return_value=None)
 
             mp.setattr(
-                "agents.requirement_manager.skills.confirm_requirement.RequirementRepository",
+                "agents.capabilities.requirements.skills.confirm_requirement.RequirementRepository",
                 lambda db: mock_repo
             )
 
@@ -130,7 +130,7 @@ class TestConfirmSkillExecute:
             mock_repo.get_by_id = AsyncMock(return_value=mock_requirement)
 
             mp.setattr(
-                "agents.requirement_manager.skills.confirm_requirement.RequirementRepository",
+                "agents.capabilities.requirements.skills.confirm_requirement.RequirementRepository",
                 lambda db: mock_repo
             )
 

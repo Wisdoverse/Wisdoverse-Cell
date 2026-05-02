@@ -22,8 +22,8 @@ os.environ.setdefault("POSTGRES_DB", "projectcell_test")
 os.environ.setdefault("POSTGRES_USER", "test")
 os.environ.setdefault("POSTGRES_PASSWORD", "test")
 
-from agents.requirement_manager.db.repository import RequirementRepository
-from agents.requirement_manager.models import Base, Requirement, RequirementStatus
+from agents.capabilities.requirements.db.repository import RequirementRepository
+from agents.capabilities.requirements.models import Base, Requirement, RequirementStatus
 from shared.infra.skill.models import SkillContext
 from shared.messaging.inbound.models import Platform, UnifiedMessage
 from shared.models.user import User
