@@ -7,6 +7,7 @@ from fastapi import Depends
 
 from shared.app import create_agent_app
 from shared.app.plugins.infra_health import InfraHealthPlugin
+from shared.config import settings
 from shared.middleware.internal_auth import verify_internal_key
 from shared.schemas.agent import BaseAgent
 from shared.utils.logger import get_logger
@@ -30,6 +31,8 @@ app = create_agent_app(
         (daily_progress_router, [Depends(verify_internal_key)]),
     ],
     plugins=[InfraHealthPlugin()],
+    control_plane_enabled=settings.control_plane_enabled,
+    control_plane_company_id=settings.control_plane_company_id,
     on_startup=lambda rt: _start_scheduler(rt),
     on_shutdown=lambda rt: _stop_scheduler(rt),
 )

@@ -531,3 +531,71 @@ class TestEventLoop:
         runtime = AgentRuntime(agent)
         runtime.start_event_loop()
         assert runtime._listener_task is None
+
+    @pytest.mark.asyncio
+    async def test_handler_timeout_publishes_to_dlq(self, monkeypatch):
+        class SlowAgent(FakeAgent):
+            async def handle_event(self, event: Event) -> list[Event]:
+                await asyncio.sleep(1)
+                return []
+
+        class OneEventBus:
+            def __init__(self, event: Event):
+                self.event = event
+                self.dlq_calls = []
+                self.dlq_published = asyncio.Event()
+
+            async def subscribe(self, event_types, group=None):
+                yield self.event
+                while True:
+                    await asyncio.sleep(1)
+
+            async def publish(self, event: Event) -> bool:
+                return True
+
+            async def publish_dlq(self, event: Event, error: str, agent_id: str) -> None:
+                self.dlq_calls.append((event, error, agent_id))
+                self.dlq_published.set()
+
+        monkeypatch.setattr(runtime_mod.settings, "event_handler_timeout_seconds", 0.01)
+        event = Event.create(
+            event_type="work.execute",
+            source_agent="test",
+            payload={},
+            trace_id="trace-runtime-timeout",
+        )
+        bus = OneEventBus(event)
+        agent = SlowAgent(subscribed_events=["work.execute"])
+        agent._event_bus = bus
+        runtime = AgentRuntime(agent)
+
+        task = asyncio.create_task(runtime._event_loop())
+        try:
+            await asyncio.wait_for(bus.dlq_published.wait(), timeout=1)
+        finally:
+            task.cancel()
+            await task
+
+        assert len(bus.dlq_calls) == 1
+        dlq_event, error, agent_id = bus.dlq_calls[0]
+        assert dlq_event.event_id == event.event_id
+        assert dlq_event.metadata.trace_id == "trace-runtime-timeout"
+        assert "TimeoutError" in error
+        assert agent_id == "fake-agent"
+
+    @pytest.mark.asyncio
+    async def test_publish_to_dlq_returns_false_without_dlq_backend(self):
+        class NoDlqBus:
+            async def publish(self, event: Event) -> bool:
+                return True
+
+        agent = FakeAgent(subscribed_events=["work.execute"])
+        agent._event_bus = NoDlqBus()
+        runtime = AgentRuntime(agent)
+        event = Event.create(
+            event_type="work.execute",
+            source_agent="test",
+            payload={},
+        )
+
+        assert await runtime._publish_to_dlq(event, "boom") is False

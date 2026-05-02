@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ChevronRight } from "lucide-react";
 import type { AgentMeta, AgentRuntimeStatus } from "@/lib/api/types";
@@ -12,6 +13,7 @@ import { DomainBadge } from "@/components/shared/domain-badge";
 interface AgentDetailLayoutProps {
   agentMeta: AgentMeta;
   runtime: AgentRuntimeStatus;
+  actions?: ReactNode;
 }
 
 function formatUptime(seconds: number): string {
@@ -25,6 +27,7 @@ function formatUptime(seconds: number): string {
 export function AgentDetailLayout({
   agentMeta,
   runtime,
+  actions,
 }: AgentDetailLayoutProps) {
   const t = useTranslations("agentDetail");
   const locale = useLocale();
@@ -65,7 +68,8 @@ export function AgentDetailLayout({
           <p className="text-muted-foreground mt-1">{agentMeta.description}</p>
         </div>
 
-        <div className="flex flex-col items-end gap-1 shrink-0">
+        <div className="flex shrink-0 flex-col items-end gap-3">
+          {actions}
           <div className="flex items-center gap-2">
             <AgentStatusDot status={runtime.status} />
             <span className="text-sm font-medium capitalize">

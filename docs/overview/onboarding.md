@@ -134,11 +134,14 @@ uvicorn agents.pjm_agent.app.main:app --reload --port 8012
 # Chat Agent
 uvicorn agents.chat_agent.app.main:app --reload --port 8013
 
-# Evolution Agent
-uvicorn agents.evolution_agent.app.main:app --reload --port 8014
-
 # QA Agent
-uvicorn agents.qa_agent.app.main:app --reload --port 8015
+uvicorn agents.qa_agent.app.main:app --reload --port 8014
+
+# Dev Agent
+uvicorn agents.dev_agent.app.main:app --reload --port 8015
+
+# Evolution Agent (standalone; choose a free local port)
+uvicorn agents.evolution_agent.app.main:app --reload --port 8016
 ```
 
 For each agent, verify:

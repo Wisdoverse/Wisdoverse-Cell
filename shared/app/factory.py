@@ -43,6 +43,8 @@ def create_agent_app(
     on_shutdown: Callable[..., Coroutine[Any, Any, None]] | None = None,
     evolution_enabled: bool = True,
     evolution_excluded: bool = False,
+    control_plane_enabled: bool = False,
+    control_plane_company_id: str = "cmp_projectcell",
     harden_excluded: bool = False,
     include_api_key_middleware: bool = True,
     plugins: list[RuntimePlugin] | None = None,
@@ -59,6 +61,8 @@ def create_agent_app(
         on_shutdown: Async callback before runtime.shutdown(). Receives runtime.
         evolution_enabled: Wrap agent with EvolvedAgent.
         evolution_excluded: Skip evolution wrapping (for evolution-agent itself).
+        control_plane_enabled: Record agent run/audit evidence in the shared ledger.
+        control_plane_company_id: Default company ID for control-plane records.
         include_api_key_middleware: Include APIKeyMiddleware (False for public APIs).
 
     Returns:
@@ -79,6 +83,11 @@ def create_agent_app(
         from .plugins.harden import HardenPlugin
 
         runtime.use(HardenPlugin())
+
+    if control_plane_enabled:
+        from .plugins.control_plane import ControlPlanePlugin
+
+        runtime.use(ControlPlanePlugin(default_company_id=control_plane_company_id))
 
     # Register user-provided plugins
     for plugin in plugins or []:
@@ -265,6 +274,13 @@ def create_agent_app(
         status = await build_status(runtime, redis, agent_id=runtime.agent_id)
         return JSONResponse(content=status)
 
+    @app.post("/agent/request", tags=["agent"], dependencies=[Depends(verify_internal_key)])
+    async def agent_request(request: Request):
+        """Generic internal request boundary for deployed agent services."""
+        payload = await request.json()
+        result = await runtime.agent.handle_request(payload)
+        return JSONResponse(content=result)
+
     # ── Prometheus (must register before app starts — instrument() adds middleware) ──
     try:
         from prometheus_fastapi_instrumentator import Instrumentator
@@ -282,6 +298,14 @@ def create_agent_app(
         logger.info("prometheus_not_available")
 
     # ── Routers ──
+    if control_plane_enabled:
+        from shared.control_plane.api import create_control_plane_router
+
+        app.include_router(
+            create_control_plane_router(),
+            dependencies=[Depends(verify_internal_key)],
+        )
+
     for item in routers or []:
         if isinstance(item, tuple):
             router, deps = item

@@ -102,6 +102,28 @@ class Settings(BaseSettings):
     llm_monthly_budget_usd: float = 200.0  # 每月预算
     llm_per_request_cost_cap_usd: float = 2.0  # max cost per single LLM call
 
+    # ============ Control Plane 配置 ============
+    control_plane_enabled: bool = False
+    control_plane_company_id: str = "cmp_projectcell"
+    control_plane_approval_enforced: bool = False
+    control_plane_llm_budget_enforced: bool = False
+    control_plane_llm_budget_scope: Literal["company", "goal", "agent", "work_item"] = "agent"
+    control_plane_llm_budget_period: Literal["daily", "monthly", "quarterly", "total"] = "daily"
+    control_plane_tool_budget_enforced: bool = False
+    control_plane_tool_budget_scope: Literal["company", "goal", "agent", "work_item"] = "agent"
+    control_plane_tool_budget_period: Literal["daily", "monthly", "quarterly", "total"] = "daily"
+    control_plane_local_adapter_enabled: bool = False
+    control_plane_local_adapter_allowlist: str = ""
+
+    @property
+    def control_plane_local_adapter_allowlist_entries(self) -> set[str]:
+        """Parse local adapter allowlist entries from comma-separated config."""
+        return {
+            item.strip()
+            for item in self.control_plane_local_adapter_allowlist.split(",")
+            if item.strip()
+        }
+
     # ============ 通知配置 ============
     feishu_webhook_url: Optional[str] = None
     feishu_app_id: Optional[str] = None

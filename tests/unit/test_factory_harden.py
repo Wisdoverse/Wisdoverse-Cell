@@ -1,6 +1,7 @@
 """Tests for HardenPlugin wiring in create_agent_app()."""
 
 
+from shared.app.plugins.control_plane import ControlPlanePlugin
 from shared.app.plugins.harden import HardenPlugin
 from shared.app.runtime import EvolutionPlugin
 from shared.schemas.agent import BaseAgent
@@ -63,3 +64,12 @@ class TestHardenPluginWiring:
         runtime = app.state.runtime
         plugin_types = [type(p) for p in runtime._plugins]
         assert plugin_types == [EvolutionPlugin, HardenPlugin, UserPlugin]
+
+    def test_control_plane_plugin_is_opt_in_after_harden(self):
+        """create_agent_app can explicitly enable durable control-plane evidence."""
+        from shared.app.factory import create_agent_app
+
+        app = create_agent_app(_StubAgent(), control_plane_enabled=True)
+        runtime = app.state.runtime
+        plugin_types = [type(p) for p in runtime._plugins]
+        assert plugin_types == [EvolutionPlugin, HardenPlugin, ControlPlanePlugin]

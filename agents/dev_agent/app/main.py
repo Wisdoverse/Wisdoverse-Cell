@@ -39,6 +39,8 @@ app = create_agent_app(
     routers=[
         (dev_router, [Depends(verify_internal_key)]),
     ],
+    control_plane_enabled=settings.control_plane_enabled,
+    control_plane_company_id=settings.control_plane_company_id,
     on_startup=lambda rt: _on_startup(rt),
     on_shutdown=lambda rt: _on_shutdown(rt),
 )
@@ -368,8 +370,18 @@ async def _start_pending_task(task, repo, log_repo) -> None:
         tool = _raw_agent._router.route(node)
         node.config["cliTool"] = tool
 
+    plan_json = plan.model_dump()
+    if risk == RiskLevel.HIGH:
+        approval_id = await _raw_agent._request_workflow_approval(
+            sanitized=sanitized,
+            task_id=task.id,
+            plan_json=plan_json,
+        )
+        if approval_id:
+            plan_json["control_plane_approval_id"] = approval_id
+
     # Store workflow plan
-    await log_repo.create_log(task_id=task.id, workflow_json=plan.model_dump())
+    await log_repo.create_log(task_id=task.id, workflow_json=plan_json)
 
     if risk == RiskLevel.HIGH:
         await repo.update_status(task.id, "awaiting_approval")
