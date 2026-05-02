@@ -1,5 +1,5 @@
 """
-Shared Database - 共享数据库组件
+Shared Database components.
 """
 from .base_database import BaseDatabaseManager
 from .repository import UserRepository

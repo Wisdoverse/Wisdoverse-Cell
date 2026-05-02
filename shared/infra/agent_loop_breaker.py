@@ -1,15 +1,16 @@
 """
-AgentLoopCircuitBreaker — Agent 循环级断路器
+AgentLoopCircuitBreaker - agent-loop circuit breaker.
 
-检测 agent 长时间运行中的无进展循环和重复错误，自动熔断。
-与 CircuitBreaker（服务调用级）互补，保护 agent 任务循环。
+Detects long-running agent loops with no progress or repeated errors and opens
+automatically. Complements the service-call CircuitBreaker to protect agent task
+loops.
 
-状态机:
-    CLOSED → no_progress >= half_open_threshold → HALF_OPEN
-    CLOSED → no_progress >= no_progress_threshold OR same_error >= same_error_threshold → OPEN
-    HALF_OPEN → progress → CLOSED
-    HALF_OPEN → no_progress >= no_progress_threshold → OPEN
-    OPEN → manual reset only → CLOSED
+State machine:
+    CLOSED -> no_progress >= half_open_threshold -> HALF_OPEN
+    CLOSED -> no_progress >= no_progress_threshold OR same_error >= same_error_threshold -> OPEN
+    HALF_OPEN -> progress -> CLOSED
+    HALF_OPEN -> no_progress >= no_progress_threshold -> OPEN
+    OPEN -> manual reset only -> CLOSED
 """
 import json
 from datetime import UTC, datetime

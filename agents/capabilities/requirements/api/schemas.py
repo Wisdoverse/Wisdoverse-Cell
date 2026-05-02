@@ -1,25 +1,25 @@
 """
-API Schemas - Pydantic模型用于API请求/响应
+API schemas - Pydantic models for API requests and responses.
 """
 from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# ============ 导入相关 ============
+# ============ Import Models ============
 
 class UploadRequest(BaseModel):
-    """手动上传请求"""
-    source: str = Field(default="upload", description="来源: upload/wechat")
-    content: str = Field(..., min_length=10, description="会议内容")
-    title: Optional[str] = Field(None, description="标题")
-    meeting_date: Optional[str] = Field(None, description="会议日期 (ISO格式)")
-    participants: Optional[list[str]] = Field(None, description="参与者列表")
-    context: Optional[str] = Field(None, description="上下文说明")
+    """Manual upload request."""
+    source: str = Field(default="upload", description="Source: upload/wechat")
+    content: str = Field(..., min_length=10, description="Meeting content")
+    title: Optional[str] = Field(None, description="Title")
+    meeting_date: Optional[str] = Field(None, description="Meeting date in ISO format")
+    participants: Optional[list[str]] = Field(None, description="Participant list")
+    context: Optional[str] = Field(None, description="Context notes")
 
 
 class FeishuWebhookRequest(BaseModel):
-    """飞书Webhook回调请求"""
+    """Feishu webhook callback request."""
     event_type: str
     meeting_id: Optional[str] = None
     topic: Optional[str] = None
@@ -29,17 +29,17 @@ class FeishuWebhookRequest(BaseModel):
 
 
 class IngestResponse(BaseModel):
-    """导入响应"""
+    """Ingest response."""
     status: str = "ok"
     meeting_id: str
     requirements_extracted: int
     questions_generated: int
 
 
-# ============ 需求相关 ============
+# ============ Requirement Models ============
 
 class OpenQuestionOut(BaseModel):
-    """待确认问题输出"""
+    """Open clarification question output."""
     model_config = ConfigDict(from_attributes=True)
 
     id: str
@@ -52,7 +52,7 @@ class OpenQuestionOut(BaseModel):
 
 
 class HistoryEntry(BaseModel):
-    """变更历史条目"""
+    """Change history entry."""
     action: str
     detail: str
     by: Optional[str] = None
@@ -60,7 +60,7 @@ class HistoryEntry(BaseModel):
 
 
 class RequirementOut(BaseModel):
-    """需求输出"""
+    """Requirement output."""
     model_config = ConfigDict(from_attributes=True)
 
     id: str
@@ -80,7 +80,7 @@ class RequirementOut(BaseModel):
 
 
 class RequirementListResponse(BaseModel):
-    """需求列表响应"""
+    """Requirement list response."""
     total: int
     page: int
     page_size: int
@@ -88,7 +88,7 @@ class RequirementListResponse(BaseModel):
 
 
 class RequirementUpdateRequest(BaseModel):
-    """需求更新请求"""
+    """Requirement update request."""
     title: Optional[str] = None
     description: Optional[str] = None
     priority: Optional[str] = None
@@ -97,68 +97,68 @@ class RequirementUpdateRequest(BaseModel):
 
 
 class DeleteRequirementRequest(BaseModel):
-    """删除需求请求"""
-    deleted_by: str = Field(..., min_length=1, description="删除操作人")
+    """Delete requirement request."""
+    deleted_by: str = Field(..., min_length=1, description="Deletion actor")
 
 
 class DeleteRequirementResponse(BaseModel):
-    """删除需求响应"""
+    """Delete requirement response."""
     message: str = "Requirement deleted"
     requirement_id: str
     title: str
 
 
-# ============ 反馈相关 ============
+# ============ Feedback Models ============
 
 class ConfirmRequest(BaseModel):
-    """确认需求请求"""
+    """Confirm requirement request."""
     confirmed_by: str = Field(..., min_length=1)
 
 
 class RejectRequest(BaseModel):
-    """拒绝需求请求"""
+    """Reject requirement request."""
     reason: str = Field(..., min_length=1)
     rejected_by: str = Field(default="system")
 
 
 class AnswerQuestionRequest(BaseModel):
-    """回答问题请求"""
+    """Answer open question request."""
     answer: str = Field(..., min_length=1)
     answered_by: str = Field(default="system")
 
 
 class BatchConfirmRequest(BaseModel):
-    """批量确认需求请求"""
-    requirement_ids: list[str] = Field(..., min_length=1, description="需求ID列表")
-    confirmed_by: str = Field(..., min_length=1, description="确认人")
+    """Batch requirement confirmation request."""
+    requirement_ids: list[str] = Field(..., min_length=1, description="Requirement ID list")
+    confirmed_by: str = Field(..., min_length=1, description="Confirmation actor")
 
 
 class BatchRejectRequest(BaseModel):
-    """批量拒绝需求请求"""
-    requirement_ids: list[str] = Field(..., min_length=1, description="需求ID列表")
-    reason: str = Field(..., min_length=1, description="拒绝原因")
-    rejected_by: str = Field(default="system", description="拒绝人")
+    """Batch requirement rejection request."""
+    requirement_ids: list[str] = Field(..., min_length=1, description="Requirement ID list")
+    reason: str = Field(..., min_length=1, description="Rejection reason")
+    rejected_by: str = Field(default="system", description="Rejection actor")
 
 
 class BatchOperationResult(BaseModel):
-    """批量操作单个结果"""
+    """Single result in a batch operation."""
     requirement_id: str
     success: bool
     error: Optional[str] = None
 
 
 class BatchOperationResponse(BaseModel):
-    """批量操作响应"""
-    total: int = Field(..., description="请求处理的需求数")
-    succeeded: int = Field(..., description="成功数")
-    failed: int = Field(..., description="失败数")
+    """Batch operation response."""
+    total: int = Field(..., description="Number of requirements processed")
+    succeeded: int = Field(..., description="Success count")
+    failed: int = Field(..., description="Failure count")
     results: list[BatchOperationResult]
 
 
-# ============ 会议相关 ============
+# ============ Meeting Models ============
 
 class MeetingOut(BaseModel):
-    """会议输出"""
+    """Meeting output."""
     model_config = ConfigDict(from_attributes=True)
 
     id: str
@@ -171,32 +171,32 @@ class MeetingOut(BaseModel):
 
 
 class MeetingListResponse(BaseModel):
-    """会议列表响应"""
+    """Meeting list response."""
     total: int
     page: int
     page_size: int
     items: list[MeetingOut]
 
 
-# ============ 搜索相关 ============
+# ============ Search Models ============
 
 class SearchResultItem(BaseModel):
-    """搜索结果项"""
+    """Search result item."""
     id: str
     title: str
     category: str
-    similarity: float = Field(..., ge=0, le=1, description="相似度分数 (0-1)")
+    similarity: float = Field(..., ge=0, le=1, description="Similarity score (0-1)")
 
 
 class SemanticSearchResponse(BaseModel):
-    """语义搜索响应"""
+    """Semantic search response."""
     query: str
     total: int
     items: list[SearchResultItem]
 
 
 class SimilarRequirementItem(BaseModel):
-    """相似需求项"""
+    """Similar requirement item."""
     id: str
     title: str
     category: str
@@ -204,41 +204,41 @@ class SimilarRequirementItem(BaseModel):
 
 
 class SimilarRequirementsResponse(BaseModel):
-    """相似需求响应"""
+    """Similar requirements response."""
     requirement_id: str
     similar: list[SimilarRequirementItem]
 
 
-# ============ 冲突检测相关 ============
+# ============ Conflict Detection Models ============
 
 class ConflictCheckRequest(BaseModel):
-    """冲突检测请求"""
-    title: str = Field(..., min_length=1, description="需求标题")
-    description: str = Field(..., min_length=1, description="需求描述")
-    category: Optional[str] = Field(None, description="需求分类")
-    exclude_ids: Optional[list[str]] = Field(None, description="排除的需求ID列表")
+    """Conflict check request."""
+    title: str = Field(..., min_length=1, description="Requirement title")
+    description: str = Field(..., min_length=1, description="Requirement description")
+    category: Optional[str] = Field(None, description="Requirement category")
+    exclude_ids: Optional[list[str]] = Field(None, description="Requirement IDs to exclude")
 
 
 class ConflictCheckResponse(BaseModel):
-    """冲突检测响应"""
-    relation: str = Field(..., description="关系类型: new/duplicate/update/conflict")
-    confidence: float = Field(..., ge=0, le=1, description="判断确信度")
+    """Conflict check response."""
+    relation: str = Field(..., description="Relation type: new/duplicate/update/conflict")
+    confidence: float = Field(..., ge=0, le=1, description="Decision confidence")
     explanation: str
     suggested_action: str
     related_requirement_id: Optional[str] = None
     merge_suggestion: Optional[str] = None
 
 
-# ============ 统计相关 ============
+# ============ Statistics Models ============
 
 class DailyTrendItem(BaseModel):
-    """每日趋势项"""
+    """Daily trend item."""
     date: str
     count: int
 
 
 class StatsResponse(BaseModel):
-    """统计响应"""
+    """Statistics response."""
     requirements_by_status: dict[str, int]
     total_meetings: int
     unprocessed_meetings: int
@@ -246,7 +246,7 @@ class StatsResponse(BaseModel):
 
 
 class EnhancedStatsResponse(BaseModel):
-    """增强统计响应 (含趋势)"""
+    """Enhanced statistics response with trends."""
     requirements_by_status: dict[str, int]
     requirements_by_priority: dict[str, int]
     requirements_by_category: dict[str, int]
@@ -257,11 +257,11 @@ class EnhancedStatsResponse(BaseModel):
     today_count: int = 0
 
 
-# ============ 导出相关 ============
+# ============ Export Models ============
 
 class PRDExportResponse(BaseModel):
-    """PRD 导出响应"""
-    content: str = Field(..., description="PRD 文档内容 (Markdown)")
+    """PRD export response."""
+    content: str = Field(..., description="PRD document content (Markdown)")
     format: str = "markdown"
     generated_at: datetime
     requirements_count: int
@@ -269,8 +269,8 @@ class PRDExportResponse(BaseModel):
 
 
 class QuestionsExportResponse(BaseModel):
-    """问题清单导出响应"""
-    content: str = Field(..., description="问题清单内容 (Markdown)")
+    """Question list export response."""
+    content: str = Field(..., description="Question list content (Markdown)")
     format: str = "markdown"
     generated_at: datetime
     questions_count: int

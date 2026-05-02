@@ -1,5 +1,5 @@
 """
-Event Bus - 事件总线
+Event Bus.
 
 Redis Streams-based event bus with native consumer groups.
 
@@ -11,13 +11,13 @@ message persistence, replay, and dead-letter support via pending entries.
 
 Agents communicate asynchronously through this bus.
 
-使用方式:
+Usage:
     bus = EventBus()
 
-    # 发布事件
+    # Publish an event.
     await bus.publish(event)
 
-    # 订阅事件（通常在Agent启动时, group=agent_id，进行 fan-out）
+    # Subscribe to events, usually at agent startup.
     async for event in bus.subscribe(
         ["requirement.confirmed", "requirement.changed"],
         group="my-agent",
@@ -62,7 +62,7 @@ class EventBus:
     """
     Redis Streams-based event bus with native consumer groups.
 
-    使用Redis Streams实现:
+    Implemented with Redis Streams:
     - XADD: publish appends to the stream for the event type
     - XREADGROUP: subscribe reads via consumer group with acknowledgment
 
@@ -96,20 +96,20 @@ class EventBus:
         return self._redis is not None
 
     async def connect(self):
-        """连接到Redis"""
+        """Connect to Redis."""
         if self._redis is None:
             self._redis = redis.from_url(self.redis_url, decode_responses=True)
             logger.info("event_bus_connected", redis_url=self._safe_url(self.redis_url))
 
     async def disconnect(self):
-        """断开Redis连接"""
+        """Disconnect from Redis."""
         if self._redis:
             await self._redis.close()
             self._redis = None
             logger.info("event_bus_disconnected")
 
     def _get_stream_key(self, event_type: str) -> str:
-        """获取事件类型对应的 stream key.
+        """Return the stream key for an event type.
 
         Returns ``{prefix}:{event_type}``.  All consumer groups share the
         same stream — Redis Streams handles fan-out natively.
@@ -136,16 +136,16 @@ class EventBus:
 
     async def publish(self, event: Event) -> bool:
         """
-        发布事件到 Redis Stream.
+        Publish an event to a Redis Stream.
 
         The event is appended (XADD) to the stream for the event type.
         Redis Streams natively fan out to all consumer groups.
 
         Args:
-            event: 要发布的事件
+            event: Event to publish.
 
         Returns:
-            是否发布成功
+            Whether publishing succeeded.
         """
         await self.connect()
 
@@ -183,16 +183,16 @@ class EventBus:
         group: str | None = None,
     ) -> AsyncGenerator[Event, None]:
         """
-        订阅事件 via Redis Streams consumer groups.
+        Subscribe to events via Redis Streams consumer groups.
 
         Args:
-            event_types: 要订阅的事件类型列表
-            timeout: 等待超时毫秒数（传给XREADGROUP block参数），0表示无限等待
-            group: 消费者组标识。Each group independently consumes the stream.
+            event_types: Event types to subscribe to.
+            timeout: Wait timeout in seconds. Zero means wait indefinitely.
+            group: Consumer group identifier. Each group independently consumes the stream.
                    A consumer group is created on the stream if it doesn't exist.
 
         Yields:
-            接收到的事件
+            Received events.
         """
         await self.connect()
 
@@ -262,10 +262,10 @@ class EventBus:
                 break
             except Exception as e:
                 logger.error("event_receive_failed", error=str(e))
-                await asyncio.sleep(1)  # 错误后等待再重试
+                await asyncio.sleep(1)  # retry after an error
 
     async def get_queue_length(self, event_type: str) -> int:
-        """获取 stream 长度 (total messages in the stream)."""
+        """Return stream length for an event type."""
         await self.connect()
         stream_key = self._get_stream_key(event_type)
         try:
@@ -274,7 +274,7 @@ class EventBus:
             return 0
 
     async def get_all_queue_lengths(self) -> dict[str, int]:
-        """获取所有 stream 的长度"""
+        """Return stream lengths for all event types."""
         await self.connect()
 
         # Use scan_iter (not KEYS) to avoid blocking Redis on large keyspaces
@@ -368,5 +368,5 @@ def create_event_bus(backend: str | None = None) -> EventBusProtocol:
         )
 
 
-# 全局事件总线实例 (config-driven: redis or nats)
+# Global event bus instance (config-driven: redis or nats)
 event_bus = create_event_bus()

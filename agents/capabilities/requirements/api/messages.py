@@ -1,9 +1,9 @@
 """
-Messages API - 消息搜索与会话查询
+Messages API - message search and session lookup.
 
 Endpoints:
-- GET /api/messages/search - 搜索消息（支持全文搜索）
-- GET /api/messages/session/{session_id} - 获取会话详情
+- GET /api/messages/search - search messages with full-text support.
+- GET /api/messages/session/{session_id} - get session details.
 """
 
 from datetime import datetime

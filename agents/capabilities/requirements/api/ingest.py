@@ -1,7 +1,7 @@
 """
-Ingest API - 导入接口
+Ingest API.
 
-处理会议内容的导入，委托给 Agent 处理。
+Handles meeting content ingestion by delegating processing to the agent.
 """
 from datetime import datetime
 
@@ -29,11 +29,12 @@ async def upload_content(
     session: AsyncSession = Depends(get_db)
 ):
     """
-    手动上传会议内容
+    Manually upload meeting content.
 
-    用于上传微信聊天记录、手工整理的会议纪要等。
+    Supports WeChat chat logs, manually curated meeting notes, and similar
+    source material.
     """
-    # 解析会议日期
+    # Parse meeting date.
     meeting_date = None
     if request.meeting_date:
         try:
@@ -41,7 +42,7 @@ async def upload_content(
         except ValueError:
             pass
 
-    # 委托给 Agent 处理
+    # Delegate processing to the agent.
     result = await get_agent().ingest_meeting(
         content=request.content,
         source=request.source,
@@ -72,13 +73,13 @@ async def feishu_webhook(
     session: AsyncSession = Depends(get_db)
 ):
     """
-    飞书Webhook回调
+    Feishu webhook callback.
 
-    接收飞书会议纪要的Webhook推送。
+    Receives Feishu meeting summary webhook events.
     """
     meeting_repo = MeetingRepository(session)
 
-    # 检查是否已处理过（去重）
+    # Deduplicate already processed meetings.
     if request.meeting_id:
         existing = await meeting_repo.get_by_source_id("feishu", request.meeting_id)
         if existing:
@@ -89,7 +90,7 @@ async def feishu_webhook(
                 questions_generated=0
             )
 
-    # 解析会议时间
+    # Parse meeting time.
     meeting_date = None
     if request.meeting_time:
         try:
@@ -97,7 +98,7 @@ async def feishu_webhook(
         except ValueError:
             pass
 
-    # 委托给 Agent 处理
+    # Delegate processing to the agent.
     result = await get_agent().ingest_meeting(
         content=request.summary,
         source="feishu",

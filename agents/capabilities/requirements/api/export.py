@@ -1,7 +1,7 @@
 """
-Export API - 导出接口
+Export API.
 
-提供 PRD 文档和问题清单的导出功能。
+Exports PRD documents and question lists.
 """
 from datetime import UTC, datetime
 from typing import Optional
@@ -23,26 +23,27 @@ logger = get_logger("api.export")
 
 @router.get("/prd", response_model=PRDExportResponse)
 async def export_prd(
-    status: Optional[str] = Query(None, description="状态筛选: confirmed/pending/all"),
-    format: str = Query("json", description="输出格式: json/markdown"),
-    project_name: str = Query("Wisdoverse Cell", description="项目名称"),
-    version: str = Query("1.0", description="文档版本"),
+    status: Optional[str] = Query(None, description="Status filter: confirmed/pending/all"),
+    format: str = Query("json", description="Output format: json/markdown"),
+    project_name: str = Query("Wisdoverse Cell", description="Project name"),
+    version: str = Query("1.0", description="Document version"),
     session: AsyncSession = Depends(get_db)
 ):
     """
-    导出 PRD 文档
+    Export a PRD document.
 
-    从已有需求生成产品需求文档。支持按状态筛选。
+    Generates a product requirements document from existing requirements.
+    Supports filtering by requirement status.
     """
     repo = RequirementRepository(session)
 
-    # 获取需求
+    # Fetch requirements.
     if status and status != "all":
         requirements, _ = await repo.list_all(status=status, limit=500)
     else:
         requirements, _ = await repo.list_all(limit=500)
 
-    # 转换为字典列表
+    # Convert to dictionaries.
     req_dicts = [
         {
             "id": r.id,
@@ -58,7 +59,7 @@ async def export_prd(
         for r in requirements
     ]
 
-    # 生成 PRD
+    # Generate the PRD.
     result = await generator.generate_prd(
         requirements=req_dicts,
         project_name=project_name,
@@ -71,7 +72,7 @@ async def export_prd(
         format=format
     )
 
-    # 根据格式返回
+    # Return according to requested format.
     if format == "markdown":
         return PlainTextResponse(
             content=result.content,
@@ -92,13 +93,13 @@ async def export_prd(
 
 @router.get("/prd/download")
 async def download_prd(
-    status: Optional[str] = Query(None, description="状态筛选"),
-    project_name: str = Query("Wisdoverse Cell", description="项目名称"),
-    version: str = Query("1.0", description="文档版本"),
+    status: Optional[str] = Query(None, description="Status filter"),
+    project_name: str = Query("Wisdoverse Cell", description="Project name"),
+    version: str = Query("1.0", description="Document version"),
     session: AsyncSession = Depends(get_db)
 ):
     """
-    下载 PRD 文档 (Markdown 文件)
+    Download a PRD document as a Markdown file.
     """
     repo = RequirementRepository(session)
 
@@ -139,29 +140,29 @@ async def download_prd(
 
 @router.get("/questions", response_model=QuestionsExportResponse)
 async def export_questions(
-    status: Optional[str] = Query(None, description="状态筛选: open/answered/all"),
-    format: str = Query("json", description="输出格式: json/markdown"),
-    project_name: str = Query("Wisdoverse Cell", description="项目名称"),
+    status: Optional[str] = Query(None, description="Status filter: open/answered/all"),
+    format: str = Query("json", description="Output format: json/markdown"),
+    project_name: str = Query("Wisdoverse Cell", description="Project name"),
     session: AsyncSession = Depends(get_db)
 ):
     """
-    导出问题清单
+    Export a question list.
 
-    导出待确认问题，用于下次会议讨论。
+    Exports open clarification questions for the next discussion.
     """
     question_repo = QuestionRepository(session)
     requirement_repo = RequirementRepository(session)
 
-    # 获取问题
+    # Fetch questions.
     if status == "open":
         questions = await question_repo.list_open(limit=200)
     elif status == "answered":
-        # 需要实现 list_answered 方法，这里简化处理
+        # list_answered is not implemented yet, so keep the current behavior.
         questions = []
     else:
         questions = await question_repo.list_open(limit=200)
 
-    # 获取关联的需求标题
+    # Fetch related requirement titles.
     question_dicts = []
     for q in questions:
         req = await requirement_repo.get_by_id(q.requirement_id)
@@ -172,10 +173,10 @@ async def export_questions(
             "status": q.status,
             "answer": q.answer,
             "answered_by": q.answered_by,
-            "requirement_title": req.title if req else "未知需求",
+            "requirement_title": req.title if req else "Unknown requirement",
         })
 
-    # 生成导出
+    # Generate export content.
     result = generator.generate_questions_export(
         questions=question_dicts,
         project_name=project_name
@@ -206,12 +207,12 @@ async def export_questions(
 
 @router.get("/questions/download")
 async def download_questions(
-    status: Optional[str] = Query("open", description="状态筛选"),
-    project_name: str = Query("Wisdoverse Cell", description="项目名称"),
+    status: Optional[str] = Query("open", description="Status filter"),
+    project_name: str = Query("Wisdoverse Cell", description="Project name"),
     session: AsyncSession = Depends(get_db)
 ):
     """
-    下载问题清单 (Markdown 文件)
+    Download a question list as a Markdown file.
     """
     question_repo = QuestionRepository(session)
     requirement_repo = RequirementRepository(session)
@@ -231,7 +232,7 @@ async def download_questions(
             "status": q.status,
             "answer": q.answer,
             "answered_by": q.answered_by,
-            "requirement_title": req.title if req else "未知需求",
+            "requirement_title": req.title if req else "Unknown requirement",
         })
 
     result = generator.generate_questions_export(

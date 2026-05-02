@@ -84,6 +84,13 @@ shared/
 
 ## Part 4: Coding Standards
 
+**Language**: English is the primary project language. Use English for
+documentation, code comments, API descriptions, LLM prompts, agent seed prompts,
+commit messages, PR/MR descriptions, and internal runbooks. Non-English text is
+allowed only for locale files, external platform field names, quoted user/source
+content, test fixtures that intentionally exercise multilingual behavior, and
+user-facing product copy while an i18n path is being migrated.
+
 **Events**: `Event(event_id="evt_{ulid}", event_type="{domain}.{action}", source_agent, payload, schema_version="1.0")`
 - Immutable, fire-and-forget, use `trace_id`
 
@@ -138,5 +145,6 @@ ruff check agents/ shared/                         # Lint
 * **[2026-04 User Gateway]**: The user interaction gateway handles simple queries directly and escalates complex cross-module workflows to the Coordinator. The prompt teaches operation strategy, not tool lists.
 * **[2026-05 Agent Org]**: CEO/CTO/CPO/COO are first-class `organization_role` AgentRole records. Sync, quality, requirements, development, and similar deployed services are `capability_module` records. Do not present capability modules as organization roles.
 * **[2026-04 Prompt Style]**: Follow Claude Code pattern - tool definitions via API `tools` param, prompt teaches usage STRATEGY not tool list. Sections: System -> Doing Tasks -> Executing Actions -> Output Efficiency. Include anti-patterns ("do not...").
+* **[2026-05 Language]**: The repository is English-first. Prompts, docs, comments, API descriptions, and contribution text should be English unless the text is a locale value, external contract, quoted user content, or multilingual test fixture.
 
 > *v2026.04.03-compact*

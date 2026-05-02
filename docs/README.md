@@ -2,8 +2,10 @@
 
 Wisdoverse Cell is an AI-native company control plane: humans focus on high-leverage decisions while agents handle repeatable execution.
 
-This documentation is English-first. Chinese text may remain in legacy domain
-terminology, but new and public-facing documentation should put English first.
+This documentation is English-first. New documentation, edits to existing
+documentation, runbooks, API descriptions, prompts, and comments should use
+English as the primary language. Non-English text is reserved for locale files,
+quoted source content, external platform field names, and multilingual fixtures.
 
 For the current implementation contract, start with [SPEC.md](../SPEC.md).
 

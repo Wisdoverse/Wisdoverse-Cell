@@ -1,7 +1,8 @@
 """
-Feedback API - 反馈接口
+Feedback API.
 
-处理需求确认、拒绝、问题回答等操作，委托给 Agent 处理。
+Handles requirement confirmation, rejection, and question answers by
+delegating business logic to the agent.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +34,7 @@ async def confirm_requirement(
     request: ConfirmRequest,
     session: AsyncSession = Depends(get_db)
 ):
-    """确认需求"""
+    """Confirm a requirement."""
     requirement = await get_agent().confirm_requirement(
         requirement_id=requirement_id,
         confirmed_by=request.confirmed_by,
@@ -41,7 +42,7 @@ async def confirm_requirement(
     )
 
     if not requirement:
-        raise HTTPException(status_code=404, detail="需求不存在")
+        raise HTTPException(status_code=404, detail="Requirement not found")
 
     return RequirementOut.model_validate(requirement)
 
@@ -52,7 +53,7 @@ async def reject_requirement(
     request: RejectRequest,
     session: AsyncSession = Depends(get_db)
 ):
-    """拒绝需求"""
+    """Reject a requirement."""
     requirement = await get_agent().reject_requirement(
         requirement_id=requirement_id,
         reason=request.reason,
@@ -61,7 +62,7 @@ async def reject_requirement(
     )
 
     if not requirement:
-        raise HTTPException(status_code=404, detail="需求不存在")
+        raise HTTPException(status_code=404, detail="Requirement not found")
 
     return RequirementOut.model_validate(requirement)
 
@@ -72,7 +73,7 @@ async def answer_question(
     request: AnswerQuestionRequest,
     session: AsyncSession = Depends(get_db)
 ):
-    """回答待确认问题"""
+    """Answer an open clarification question."""
     repo = QuestionRepository(session)
 
     question = await repo.answer(
@@ -81,7 +82,7 @@ async def answer_question(
         answered_by=request.answered_by
     )
     if not question:
-        raise HTTPException(status_code=404, detail="问题不存在")
+        raise HTTPException(status_code=404, detail="Question not found")
 
     logger.info(
         "question_answered",
@@ -96,7 +97,7 @@ async def answer_question(
 async def list_open_questions(
     session: AsyncSession = Depends(get_db)
 ):
-    """获取所有未回答的问题"""
+    """List all unanswered questions."""
     repo = QuestionRepository(session)
 
     questions = await repo.list_open()
@@ -108,9 +109,9 @@ async def batch_confirm_requirements(
     request: BatchConfirmRequest,
 ):
     """
-    批量确认需求
+    Batch-confirm requirements.
 
-    一次确认多个需求，适用于批量处理场景。
+    Confirms multiple requirements in one request for batch workflows.
     """
     results = await get_agent().batch_confirm_requirements(
         requirement_ids=request.requirement_ids,
@@ -141,9 +142,9 @@ async def batch_reject_requirements(
     request: BatchRejectRequest,
 ):
     """
-    批量拒绝需求
+    Batch-reject requirements.
 
-    一次拒绝多个需求，使用相同的拒绝原因。
+    Rejects multiple requirements with the same rejection reason.
     """
     results = await get_agent().batch_reject_requirements(
         requirement_ids=request.requirement_ids,

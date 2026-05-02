@@ -1,9 +1,9 @@
 """
-Admin API - 管理端点
+Admin API.
 
-提供系统管理功能:
-- LLM 使用量统计
-- 断路器状态
+Provides system administration endpoints:
+- LLM usage statistics.
+- Circuit breaker status.
 """
 from datetime import UTC, datetime
 from typing import Optional
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/v1/admin", tags=["Admin"])
 
 
 class LLMUsageSummaryResponse(BaseModel):
-    """LLM 使用量汇总响应"""
+    """LLM usage summary response."""
     date: str
     total_calls: int
     success_calls: int
@@ -35,7 +35,7 @@ class LLMUsageSummaryResponse(BaseModel):
 
 
 class CircuitBreakerStatusResponse(BaseModel):
-    """断路器状态响应"""
+    """Circuit breaker status response."""
     state: str
     failures: int
     failure_threshold: int
@@ -47,23 +47,23 @@ class CircuitBreakerStatusResponse(BaseModel):
 async def get_llm_usage(
     date: Optional[str] = Query(
         default=None,
-        description="日期 (YYYY-MM-DD)，默认为今天",
+        description="Date in YYYY-MM-DD format. Defaults to today.",
         pattern=r"^\d{4}-\d{2}-\d{2}$"
     ),
     agent_id: Optional[str] = Query(
         default=None,
-        description="Agent ID 过滤"
+        description="Agent ID filter"
     ),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    获取 LLM 使用量统计
+    Get LLM usage statistics.
 
-    返回指定日期的 LLM 调用统计信息，包括:
-    - 总调用次数和成功/失败分布
-    - Token 使用量
-    - 成本统计
-    - 按 Agent 和任务类型的分组统计
+    Returns usage statistics for the selected date, including:
+    - Total calls and success/failure distribution.
+    - Token usage.
+    - Cost statistics.
+    - Grouped statistics by agent and task type.
     """
     if date is None:
         date = datetime.now(UTC).strftime("%Y-%m-%d")
@@ -77,9 +77,9 @@ async def get_llm_usage(
 @router.get("/circuit-breaker", response_model=CircuitBreakerStatusResponse)
 async def get_circuit_breaker_status():
     """
-    获取断路器状态
+    Get circuit breaker status.
 
-    返回 LLM Gateway 断路器的当前状态。
+    Returns the current LLM Gateway circuit breaker state.
     """
     stats = llm_gateway.get_circuit_breaker_stats()
 
@@ -95,10 +95,10 @@ async def get_circuit_breaker_status():
 @router.post("/circuit-breaker/reset")
 async def reset_circuit_breaker():
     """
-    重置断路器
+    Reset the circuit breaker.
 
-    手动重置断路器状态为 CLOSED。
-    用于运维场景，当确认 LLM 服务已恢复时使用。
+    Manually resets the circuit breaker state to CLOSED for operations
+    scenarios where the LLM service has recovered.
     """
     llm_gateway.reset_circuit_breaker()
 

@@ -1,8 +1,9 @@
 """
-PMAgent - 预警调度 + 任务拆解 Agent
+PMAgent - alert scheduling and task decomposition agent.
 
-订阅 sync.completed、analysis.risk-detected、chat.pm-query 和 sync.task-needs-decompose，
-执行预警检查、风险推送、PM 查询响应和自动任务拆解。
+Subscribes to sync.completed, analysis.risk-detected, chat.pm-query, and
+sync.task-needs-decompose. Handles alert checks, risk notifications, PM query
+responses, and automated task decomposition.
 """
 
 from datetime import UTC, datetime, timedelta

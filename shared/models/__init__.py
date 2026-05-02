@@ -1,5 +1,5 @@
 """
-Shared Models - 跨组件共享的数据模型
+Shared Models - data models shared across components.
 """
 from .platform import Platform
 from .user import User

@@ -1,7 +1,7 @@
 """
-User Model - 统一用户表
+User Model - unified user table.
 
-跨平台身份映射，支持 Feishu、Wecom、Web 等平台账号关联。
+Maps identities across Feishu, WeCom, Web, and other platform accounts.
 """
 from datetime import UTC, datetime
 from typing import Optional
@@ -14,7 +14,7 @@ from shared.utils.id_generator import IDPrefix, generate_id
 
 
 class User(Base):
-    """统一用户表 - 跨平台身份映射"""
+    """Unified user table with cross-platform identity mappings."""
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(
@@ -23,7 +23,7 @@ class User(Base):
         default=lambda: generate_id(IDPrefix.USER)
     )
 
-    # 身份标识
+    # Identity fields
     email: Mapped[Optional[str]] = mapped_column(
         String(128), unique=True, nullable=True, index=True
     )
@@ -31,11 +31,11 @@ class User(Base):
         String(32), unique=True, nullable=True, index=True
     )
 
-    # 基本信息
+    # Basic profile
     name: Mapped[str] = mapped_column(String(64))
     avatar_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
 
-    # 平台账号映射
+    # Platform account mappings
     feishu_open_id: Mapped[Optional[str]] = mapped_column(
         String(64), unique=True, nullable=True, index=True
     )
@@ -47,7 +47,7 @@ class User(Base):
         String(64), unique=True, nullable=True, index=True
     )
 
-    # 活跃信息
+    # Activity metadata
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC)

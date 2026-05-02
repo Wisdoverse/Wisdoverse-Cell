@@ -1,5 +1,5 @@
 """
-Requirements API - 需求查询接口
+Requirements API.
 """
 from typing import Optional
 
@@ -38,14 +38,14 @@ logger = get_logger("api.requirements")
 
 @router.get("/requirements", response_model=RequirementListResponse)
 async def list_requirements(
-    status: Optional[str] = Query(None, description="状态筛选: pending/confirmed/changed/rejected"),
-    category: Optional[str] = Query(None, description="分类筛选"),
-    priority: Optional[str] = Query(None, description="优先级筛选: high/medium/low"),
-    page: int = Query(1, ge=1, description="页码"),
-    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    status: Optional[str] = Query(None, description="Status filter: pending/confirmed/changed/rejected"),
+    category: Optional[str] = Query(None, description="Category filter"),
+    priority: Optional[str] = Query(None, description="Priority filter: high/medium/low"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     session: AsyncSession = Depends(get_db)
 ):
-    """获取需求列表"""
+    """List requirements."""
     repo = RequirementRepository(session)
 
     skip = (page - 1) * page_size
@@ -70,12 +70,12 @@ async def get_requirement(
     requirement_id: str,
     session: AsyncSession = Depends(get_db)
 ):
-    """获取需求详情"""
+    """Get requirement details."""
     repo = RequirementRepository(session)
 
     requirement = await repo.get_by_id(requirement_id)
     if not requirement:
-        raise HTTPException(status_code=404, detail="需求不存在")
+        raise HTTPException(status_code=404, detail="Requirement not found")
 
     return RequirementOut.model_validate(requirement)
 
@@ -86,23 +86,23 @@ async def update_requirement(
     request: RequirementUpdateRequest,
     session: AsyncSession = Depends(get_db)
 ):
-    """更新需求信息"""
+    """Update requirement information."""
     from ..service.feedback_learning import FeedbackLearningService
 
     repo = RequirementRepository(session)
 
-    # 检查需求是否存在
+    # Check that the requirement exists.
     requirement = await repo.get_by_id(requirement_id)
     if not requirement:
-        raise HTTPException(status_code=404, detail="需求不存在")
+        raise HTTPException(status_code=404, detail="Requirement not found")
 
-    # 构建更新字段
+    # Build update fields.
     update_data = request.model_dump(exclude_unset=True, exclude_none=True)
     if "comment" in update_data:
-        del update_data["comment"]  # comment用于记录历史，不直接更新
+        del update_data["comment"]  # comment is history metadata, not a field update
 
     if update_data:
-        # 捕获原始值用于反馈学习
+        # Capture original values for feedback learning.
         original_values = {
             "title": requirement.title,
             "description": requirement.description,
@@ -110,17 +110,17 @@ async def update_requirement(
             "category": requirement.category,
         }
 
-        # 记录变更历史
+        # Record change history.
         requirement.add_history(
             action="updated",
-            detail=f"字段更新: {list(update_data.keys())}",
+            detail=f"Updated fields: {list(update_data.keys())}",
             by=request.comment or "system"
         )
 
-        # 更新字段
+        # Update fields.
         requirement = await repo.update(requirement_id, **update_data)
 
-        # 记录反馈用于学习（如果关键字段被修改，不阻塞主流程）
+        # Record feedback for learning when key fields changed.
         feedback_fields = {"title", "description", "priority", "category"}
         if update_data.keys() & feedback_fields:
             try:
@@ -139,7 +139,7 @@ async def update_requirement(
                     note=f"Updated fields: {list(update_data.keys())}",
                 )
             except Exception:
-                pass  # 反馈记录失败不影响主流程
+                pass  # feedback recording must not block the main flow
 
     return RequirementOut.model_validate(requirement)
 
@@ -151,17 +151,17 @@ async def delete_requirement(
     session: AsyncSession = Depends(get_db)
 ):
     """
-    删除需求
+    Delete a requirement.
 
-    同时删除关联的问题和向量库记录。
-    删除后会发布 requirement.deleted 事件。
+    Deletes related questions and vector-store records as well. Emits a
+    requirement.deleted event after deletion.
     """
     repo = RequirementRepository(session)
 
-    # 删除需求（包括向量库同步删除）
+    # Delete the requirement, including vector-store synchronization.
     requirement = await repo.delete(requirement_id)
     if not requirement:
-        raise HTTPException(status_code=404, detail="需求不存在")
+        raise HTTPException(status_code=404, detail="Requirement not found")
 
     await session.commit()
 
@@ -180,18 +180,18 @@ async def delete_requirement(
 
 @router.get("/requirements/search", response_model=SemanticSearchResponse)
 async def search_requirements(
-    q: str = Query(..., min_length=1, description="搜索关键词"),
-    category: Optional[str] = Query(None, description="分类过滤"),
-    limit: int = Query(20, ge=1, le=100, description="返回数量"),
-    min_similarity: float = Query(0.5, ge=0, le=1, description="最小相似度阈值"),
+    q: str = Query(..., min_length=1, description="Search keyword"),
+    category: Optional[str] = Query(None, description="Category filter"),
+    limit: int = Query(20, ge=1, le=100, description="Result limit"),
+    min_similarity: float = Query(0.5, ge=0, le=1, description="Minimum similarity threshold"),
 ):
     """
-    语义搜索需求
+    Semantically search requirements.
 
-    使用向量数据库进行语义匹配，返回与查询最相关的需求。
-    支持自然语言查询，如"离线功能"、"用户登录相关"等。
+    Uses the vector database for semantic matching and returns the most
+    relevant requirements for the query.
     """
-    # 使用向量库搜索
+    # Search the vector store.
     results = await vector_store.search(
         query=q,
         n_results=limit,
@@ -225,24 +225,24 @@ async def search_requirements(
 @router.get("/requirements/{requirement_id}/similar", response_model=SimilarRequirementsResponse)
 async def find_similar_requirements(
     requirement_id: str,
-    limit: int = Query(5, ge=1, le=20, description="返回数量"),
-    min_similarity: float = Query(0.7, ge=0, le=1, description="最小相似度"),
+    limit: int = Query(5, ge=1, le=20, description="Result limit"),
+    min_similarity: float = Query(0.7, ge=0, le=1, description="Minimum similarity"),
     session: AsyncSession = Depends(get_db)
 ):
     """
-    查找相似需求
+    Find similar requirements.
 
-    根据指定需求，找出语义上相似的其他需求。
-    用于发现重复需求或相关需求。
+    Finds other semantically similar requirements for the selected requirement.
+    Useful for duplicate or related requirement discovery.
     """
     repo = RequirementRepository(session)
 
-    # 验证需求存在
+    # Verify that the requirement exists.
     requirement = await repo.get_by_id(requirement_id)
     if not requirement:
-        raise HTTPException(status_code=404, detail="需求不存在")
+        raise HTTPException(status_code=404, detail="Requirement not found")
 
-    # 查找相似需求
+    # Find similar requirements.
     similar = await vector_store.find_similar(
         requirement_id=requirement_id,
         n_results=limit,
@@ -270,10 +270,10 @@ async def check_conflict(
     request: ConflictCheckRequest,
 ):
     """
-    检查需求冲突
+    Check requirement conflicts.
 
-    在创建或更新需求前，检查是否与已有需求冲突或重复。
-    返回关系类型和建议操作。
+    Checks whether a new or updated requirement conflicts with, duplicates, or
+    updates existing requirements. Returns the relation and suggested action.
     """
     result = await comparator.compare(
         new_title=request.title,
@@ -301,12 +301,12 @@ async def check_conflict(
 
 @router.get("/meetings", response_model=MeetingListResponse)
 async def list_meetings(
-    source: Optional[str] = Query(None, description="来源筛选"),
+    source: Optional[str] = Query(None, description="Source filter"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     session: AsyncSession = Depends(get_db)
 ):
-    """获取会议列表"""
+    """List meetings."""
     repo = MeetingRepository(session)
 
     skip = (page - 1) * page_size
@@ -328,18 +328,18 @@ async def list_meetings(
 async def get_stats(
     session: AsyncSession = Depends(get_db)
 ):
-    """获取统计信息"""
+    """Get statistics."""
     req_repo = RequirementRepository(session)
     meeting_repo = MeetingRepository(session)
 
-    # 按状态统计需求
+    # Count requirements by status.
     status_counts = await req_repo.count_by_status()
 
-    # 会议统计
+    # Meeting statistics.
     meetings, total_meetings = await meeting_repo.list_all(limit=1)
     unprocessed = await meeting_repo.list_unprocessed(limit=1000)
 
-    # 向量库统计
+    # Vector-store statistics.
     vector_stats = await vector_store.get_stats()
 
     return StatsResponse(
@@ -354,23 +354,23 @@ async def get_stats(
 async def get_enhanced_stats(
     session: AsyncSession = Depends(get_db)
 ):
-    """获取增强统计信息（含趋势）"""
+    """Get enhanced statistics with trends."""
     req_repo = RequirementRepository(session)
     meeting_repo = MeetingRepository(session)
 
-    # 多维度统计
+    # Multi-dimensional statistics.
     status_counts = await req_repo.count_by_status()
     priority_counts = await req_repo.count_by_priority()
     category_counts = await req_repo.count_by_category()
 
-    # 会议统计
+    # Meeting statistics.
     meetings, total_meetings = await meeting_repo.list_all(limit=1)
     unprocessed = await meeting_repo.list_unprocessed(limit=1000)
 
-    # 向量库统计
+    # Vector-store statistics.
     vector_stats = await vector_store.get_stats()
 
-    # 趋势数据
+    # Trend data.
     weekly_trend = await req_repo.get_daily_counts(days=7)
     today_count = await req_repo.count_today()
 
@@ -389,24 +389,24 @@ async def get_enhanced_stats(
 @router.post("/requirements/{requirement_id}/analyze")
 async def analyze_requirement(
     requirement_id: str,
-    use_llm: bool = Query(False, description="使用LLM深度分析"),
+    use_llm: bool = Query(False, description="Use LLM for deeper analysis"),
     session: AsyncSession = Depends(get_db)
 ):
     """
-    分析需求，提供智能建议
+    Analyze a requirement and provide intelligent suggestions.
 
-    返回:
-    - 分类建议
-    - 优先级建议
-    - 复杂度估算
-    - 依赖分析
-    - 风险评估
+    Returns:
+    - Category suggestion.
+    - Priority suggestion.
+    - Complexity estimate.
+    - Dependency analysis.
+    - Risk assessment.
     """
     repo = RequirementRepository(session)
 
     requirement = await repo.get_by_id(requirement_id)
     if not requirement:
-        raise HTTPException(status_code=404, detail="需求不存在")
+        raise HTTPException(status_code=404, detail="Requirement not found")
 
     if use_llm:
         result = await analyzer.analyze_with_llm(
@@ -429,12 +429,12 @@ async def analyze_requirement(
 
 @router.post("/requirements/analyze-text")
 async def analyze_text(
-    title: str = Query(..., description="需求标题"),
-    description: str = Query("", description="需求描述"),
-    use_llm: bool = Query(False, description="使用LLM深度分析")
+    title: str = Query(..., description="Requirement title"),
+    description: str = Query("", description="Requirement description"),
+    use_llm: bool = Query(False, description="Use LLM for deeper analysis")
 ):
     """
-    分析文本，提供智能建议（无需先创建需求）
+    Analyze text and provide intelligent suggestions without creating a requirement.
     """
     if use_llm:
         result = await analyzer.analyze_with_llm(
@@ -459,19 +459,19 @@ async def get_requirement_history(
     session: AsyncSession = Depends(get_db)
 ):
     """
-    获取需求变更历史
+    Get requirement change history.
 
-    返回需求的所有变更记录，包括:
-    - 创建
-    - 确认/拒绝
-    - 更新
-    - 状态变更
+    Returns all change records for the requirement, including:
+    - Creation.
+    - Confirmation or rejection.
+    - Updates.
+    - Status changes.
     """
     repo = RequirementRepository(session)
 
     requirement = await repo.get_by_id(requirement_id)
     if not requirement:
-        raise HTTPException(status_code=404, detail="需求不存在")
+        raise HTTPException(status_code=404, detail="Requirement not found")
 
     history = requirement.history or []
 
@@ -487,38 +487,38 @@ async def get_requirement_history(
 @router.get("/requirements/{requirement_id}/diff")
 async def get_requirement_diff(
     requirement_id: str,
-    from_index: int = Query(0, description="起始变更索引"),
-    to_index: int = Query(-1, description="结束变更索引 (-1 表示最新)"),
+    from_index: int = Query(0, description="Start change index"),
+    to_index: int = Query(-1, description="End change index (-1 means latest)"),
     session: AsyncSession = Depends(get_db)
 ):
     """
-    获取需求变更 diff
+    Get a requirement change diff.
 
-    比较两个时间点的需求状态差异。
+    Compares requirement state changes across two points in its history.
     """
     repo = RequirementRepository(session)
 
     requirement = await repo.get_by_id(requirement_id)
     if not requirement:
-        raise HTTPException(status_code=404, detail="需求不存在")
+        raise HTTPException(status_code=404, detail="Requirement not found")
 
     history = requirement.history or []
 
     if not history:
         return {
             "requirement_id": requirement_id,
-            "message": "无变更历史",
+            "message": "No change history",
             "diff": []
         }
 
-    # 调整索引
+    # Normalize indexes.
     if to_index == -1 or to_index >= len(history):
         to_index = len(history) - 1
 
     if from_index >= len(history):
         from_index = 0
 
-    # 获取范围内的变更
+    # Fetch changes in range.
     changes = history[from_index:to_index + 1]
 
     return {

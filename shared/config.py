@@ -1,7 +1,8 @@
 """
-Configuration - 统一的配置管理
+Configuration - centralized settings management.
 
-使用pydantic-settings从环境变量和.env文件加载配置。
+Loads settings from environment variables and the local .env file through
+pydantic-settings.
 """
 
 from functools import lru_cache
@@ -13,12 +14,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     """
-    全局配置
+    Global application settings.
 
-    配置优先级：环境变量 > .env文件 > 默认值
+    Priority: environment variables > .env file > defaults.
     """
 
-    # ============ 数据库配置 ============
+    # ============ Database Configuration ============
     # PostgreSQL
     postgres_host: str = "localhost"
     postgres_port: int = 5432
@@ -36,7 +37,7 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        """SQLAlchemy数据库URL"""
+        """SQLAlchemy database URL."""
         return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password.get_secret_value()}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
     # Database Read Replica (optional — enables read/write split)
@@ -59,7 +60,7 @@ class Settings(BaseSettings):
 
     @property
     def redis_url(self) -> str:
-        """Redis连接URL"""
+        """Redis connection URL."""
         if self.redis_password:
             return f"redis://:{self.redis_password.get_secret_value()}@{self.redis_host}:{self.redis_port}/{self.redis_db}"
         return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
@@ -90,19 +91,19 @@ class Settings(BaseSettings):
     chroma_host: str = "localhost"
     chroma_port: int = 8000
 
-    # ============ LLM配置 ============
+    # ============ LLM Configuration ============
     anthropic_api_key: SecretStr = SecretStr("")
     default_model: str = "claude-opus-4-6"
     chat_model: str = "claude-sonnet-4-20250514"  # Conversations: $3/$15 per MTok
     decompose_model: str = "claude-opus-4-20250514"  # Complex decomposition: $15/$75
     summary_model: str = "claude-haiku-4-5-20251001"  # Summaries/reports: $1/$5
 
-    # 成本控制
-    llm_daily_budget_usd: float = 10.0  # 每日预算
-    llm_monthly_budget_usd: float = 200.0  # 每月预算
+    # Cost controls
+    llm_daily_budget_usd: float = 10.0  # daily budget
+    llm_monthly_budget_usd: float = 200.0  # monthly budget
     llm_per_request_cost_cap_usd: float = 2.0  # max cost per single LLM call
 
-    # ============ Control Plane 配置 ============
+    # ============ Control Plane Configuration ============
     control_plane_enabled: bool = False
     control_plane_company_id: str = "cmp_projectcell"
     control_plane_approval_enforced: bool = False
@@ -124,32 +125,32 @@ class Settings(BaseSettings):
             if item.strip()
         }
 
-    # ============ 通知配置 ============
+    # ============ Notification Configuration ============
     feishu_webhook_url: Optional[str] = None
     feishu_app_id: Optional[str] = None
     feishu_app_secret: Optional[SecretStr] = None
 
-    # ============ 飞书深度集成配置 ============
-    # 安全配置
+    # ============ Feishu Deep Integration Configuration ============
+    # Security configuration
     feishu_encrypt_key: SecretStr = SecretStr("")
     feishu_verification_token: SecretStr = SecretStr("")
     feishu_verify_signature: bool = True
 
-    # 功能开关
+    # Feature flags
     feishu_enabled: bool = False
     feishu_bot_enabled: bool = True
     feishu_event_enabled: bool = True
     feishu_card_enabled: bool = True
 
-    # 通知配置
+    # Notification configuration
     feishu_default_chat_id: str = ""
-    feishu_default_user_id: str = ""  # 优先发送给个人
+    feishu_default_user_id: str = ""  # prefer direct user delivery
 
-    # 高级配置
+    # Advanced configuration
     feishu_api_base_url: str = "https://open.feishu.cn/open-apis"
     feishu_token_refresh_buffer: int = 300
 
-    # ============ 飞书消息记录配置 ============
+    # ============ Feishu Message Recording Configuration ============
     feishu_message_recording_enabled: bool = False
     feishu_monitored_chat_ids_raw: str = ""  # Comma-separated chat IDs
     feishu_session_timeout: int = 300  # seconds (5 minutes)
@@ -162,7 +163,7 @@ class Settings(BaseSettings):
             return []
         return [x.strip() for x in self.feishu_monitored_chat_ids_raw.split(",") if x.strip()]
 
-    # ============ 企业微信配置 ============
+    # ============ WeCom Configuration ============
     wecom_enabled: bool = False
     wecom_corp_id: str = ""
     wecom_agent_id: int = 0
@@ -174,13 +175,13 @@ class Settings(BaseSettings):
     wecom_bot_enabled: bool = True
     wecom_card_enabled: bool = True
 
-    # ============ OpenClaw 配置 ============
+    # ============ OpenClaw Configuration ============
     openclaw_enabled: bool = False
     openclaw_gateway_url: str = "ws://127.0.0.1:18789"
     openclaw_gateway_token: SecretStr = SecretStr("")
     openclaw_device_id: str = "projectcell"
 
-    # ============ CORS 配置 ============
+    # ============ CORS Configuration ============
     cors_allowed_origins: str = ""
     cors_allowed_methods: str = "GET,POST,PUT,DELETE,OPTIONS"
     cors_allowed_headers: str = "Content-Type,Authorization,X-Request-ID,X-API-Key"
@@ -192,12 +193,12 @@ class Settings(BaseSettings):
         """Parse comma-separated CORS origins."""
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
 
-    # ============ 应用配置 ============
+    # ============ Application Configuration ============
     app_name: str = "Wisdoverse Cell"
     app_env: str = "development"  # development, staging, production
     debug: bool = False
 
-    # API配置
+    # API configuration
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
@@ -206,12 +207,12 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = 60
     max_payload_size_bytes: int = 1_000_000  # 1MB default for input validation
 
-    # ============ 安全配置 ============
+    # ============ Security Configuration ============
     secret_key: SecretStr = SecretStr("change-me-in-production")
     pm_api_key: str = ""  # X-API-Key for non-health endpoints; empty only in dev/test
     internal_service_key: str = ""  # X-Internal-Key for inter-service calls; empty only in dev/test
 
-    # ============ A2A 协议配置 ============
+    # ============ A2A Protocol Configuration ============
     a2a_enabled: bool = False
     a2a_server_port: int = 8001
     a2a_jwt_secret: SecretStr = SecretStr("change-me-in-production-a2a")
@@ -222,19 +223,19 @@ class Settings(BaseSettings):
     a2a_rate_limit_requests: int = 100
     a2a_rate_limit_window_seconds: int = 60
 
-    # ============ OpenTelemetry 配置 ============
+    # ============ OpenTelemetry Configuration ============
     otel_endpoint: str = ""
     otel_service_name: str = "ai-core"
 
-    # ============ MCP 协议配置 ============
+    # ============ MCP Protocol Configuration ============
     mcp_enabled: bool = False
     mcp_server_port: int = 8002
 
-    # ============ OpenProject 配置 ============
+    # ============ OpenProject Configuration ============
     openproject_url: str = ""
     openproject_api_key: SecretStr = SecretStr("")
 
-    # ============ PM 系统配置 ============
+    # ============ PM System Configuration ============
     feishu_bitable_app_token: str = ""
     feishu_bitable_table_id: str = ""
     feishu_bitable_member_table_id: str = ""
@@ -248,26 +249,26 @@ class Settings(BaseSettings):
     feishu_pm_rules_table_id: str = ""
     feishu_report_chat_id: str = ""
 
-    # ============ 拆解配置 ============
+    # ============ Decomposition Configuration ============
     decompose_project_ids: str = ""  # Comma-separated OP project IDs, e.g. "72,84"
     decompose_notify_open_id: str = ""  # Feishu open_id for decompose approval notifications
 
     # ============ Channel Gateway Feature Flags ============
-    use_new_delivery_service: bool = False  # 出站路径使用新 DeliveryService (灰度开关)
+    use_new_delivery_service: bool = False  # gray-release outbound DeliveryService
 
-    # ============ Event Bus 配置 ============
+    # ============ Event Bus Configuration ============
     event_bus_queue_max_length: int = 10_000  # Max events per consumer-group queue
     event_bus_queue_ttl_seconds: int = 86_400  # Queue key expiry (24h)
     event_loop_max_backoff_seconds: int = 60  # Max retry backoff for agent event loops
     event_handler_timeout_seconds: int = 300  # 5 min default per event handler
 
-    # ============ GitLab 集成配置 ============
+    # ============ GitLab Integration Configuration ============
     gitlab_api_url: str = ""  # e.g. https://gitlab.example.com/api/v4
     gitlab_project_id: str = ""
     gitlab_qa_token: SecretStr = SecretStr("")  # Bot token for MR comments
     gitlab_comment_marker: str = "<!-- qa-agent-acceptance-report -->"
 
-    # ============ QA Agent 配置 ============
+    # ============ QA Agent Configuration ============
     qa_agent_url: str = "http://qa-agent:8014"
     qa_runner_timeout_seconds: int = 120
     qa_feishu_webhook_url: str = ""  # QA-specific Feishu webhook (fallback to feishu_webhook_url)
@@ -279,12 +280,12 @@ class Settings(BaseSettings):
             return []
         return [c.strip() for c in self.qa_high_severity_checks.split(",") if c.strip()]
 
-    # ============ Agent 服务发现 ============
+    # ============ Agent Service Discovery ============
     sync_agent_host: str = "sync-agent"
     sync_agent_port: int = 8010
     pjm_agent_url: str = "http://pjm-agent:8012"
 
-    # ============ Claude API (OneAPI 代理) ============
+    # ============ Claude API (OneAPI Proxy) ============
     anthropic_base_url: str = ""
     require_anthropic_proxy: bool = False  # Set True in production for data residency
 
@@ -316,7 +317,7 @@ class Settings(BaseSettings):
             raise ValueError(f"production settings require non-default secrets: {names}")
         return self
 
-    # ============ Dev Agent 配置 ============
+    # ============ Dev Agent Configuration ============
     # AgentForge Orchestrator
     agentforge_api_url: str = "http://localhost:4010"
     agentforge_token: SecretStr = SecretStr("")
@@ -345,12 +346,12 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     """
-    获取配置单例
+    Return the cached settings singleton.
 
-    使用lru_cache确保只加载一次配置。
+    lru_cache ensures settings are loaded only once per process.
     """
     return Settings()
 
 
-# 便捷访问
+# Convenient module-level access
 settings = get_settings()
