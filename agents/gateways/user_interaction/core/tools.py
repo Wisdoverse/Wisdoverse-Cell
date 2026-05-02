@@ -74,41 +74,41 @@ def _format_fields_display(fields: dict) -> str:
         if v is not None
     )
 
-# Claude Tool Calling 工具定义
+# Claude Tool Calling tool definitions
 TOOLS = [
     {
         "name": "get_work_packages",
         "description": (
-            "获取 OpenProject 中的工作包（公司战略方向级任务，"
-            "Epic/Feature）。仅在需要了解大方向时使用，"
-            "日常任务查询请优先用 list_bitable_records"
+            "Get OpenProject work packages for strategic-level company work "
+            "(Epic/Feature). Use this only for high-level context; prefer "
+            "`list_bitable_records` for daily task queries."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "project_id": {"type": "integer", "description": "项目ID"},
-                "limit": {"type": "integer", "description": "返回数量限制", "default": 10},
+                "project_id": {"type": "integer", "description": "Project ID"},
+                "limit": {"type": "integer", "description": "Maximum number of results", "default": 10},
             },
             "required": [],
         },
     },
     {
         "name": "get_work_package_detail",
-        "description": "获取单个工作包的详细信息",
+        "description": "Get details for a single OpenProject work package.",
         "input_schema": {
             "type": "object",
-            "properties": {"work_package_id": {"type": "integer", "description": "工作包ID"}},
+            "properties": {"work_package_id": {"type": "integer", "description": "Work package ID"}},
             "required": ["work_package_id"],
         },
     },
     {
         "name": "update_work_package_progress",
-        "description": "更新工作包的进度百分比",
+        "description": "Update the progress percentage for an OpenProject work package.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "work_package_id": {"type": "integer", "description": "工作包ID"},
-                "progress": {"type": "integer", "description": "进度百分比（0-100）"},
+                "work_package_id": {"type": "integer", "description": "Work package ID"},
+                "progress": {"type": "integer", "description": "Progress percentage from 0 to 100"},
             },
             "required": ["work_package_id", "progress"],
         },
@@ -116,42 +116,45 @@ TOOLS = [
     {
         "name": "list_bitable_records",
         "description": (
-            "查询飞书多维表格记录（员工日常任务主表，"
-            "OP 任务的原子拆解）。用户问任务时优先调用此工具"
+            "List Feishu Bitable records from the team's primary daily task table. "
+            "This table contains atomic breakdowns of OpenProject work. "
+            "Prefer this tool when the user asks about tasks."
         ),
         "input_schema": {
             "type": "object",
-            "properties": {"limit": {"type": "integer", "description": "返回数量", "default": 20}},
+            "properties": {"limit": {"type": "integer", "description": "Maximum number of results", "default": 20}},
             "required": [],
         },
     },
     {
         "name": "list_member_records",
         "description": (
-            "查询飞书成员表（团队成员信息：姓名、部门、"
-            "关联任务）。用户问团队、成员、谁负责等问题时调用"
+            "List Feishu member-table records, including team member names, "
+            "departments, and linked tasks. Use this when the user asks about "
+            "team members or ownership."
         ),
         "input_schema": {
             "type": "object",
-            "properties": {"limit": {"type": "integer", "description": "返回数量", "default": 20}},
+            "properties": {"limit": {"type": "integer", "description": "Maximum number of results", "default": 20}},
             "required": [],
         },
     },
     {
         "name": "query_pm_table",
         "description": (
-            "查询飞书多维表格中的其他表。"
-            "可查询：categories(大类看板，AI汇总)、weekly_report(周报)"
+            "Query secondary Feishu Bitable project-management tables. "
+            "Available tables: categories (category board and AI summary), "
+            "weekly_report (weekly report)."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "table_name": {
                     "type": "string",
-                    "description": "表名：categories(大类看板) / weekly_report(周报)",
+                    "description": "Table name: categories or weekly_report",
                     "enum": ["categories", "weekly_report"],
                 },
-                "limit": {"type": "integer", "description": "返回数量", "default": 20},
+                "limit": {"type": "integer", "description": "Maximum number of results", "default": 20},
             },
             "required": ["table_name"],
         },
@@ -159,17 +162,18 @@ TOOLS = [
     {
         "name": "propose_bitable_update",
         "description": (
-            "提议更新飞书多维表格记录。"
-            "会发送确认卡片给用户，用户点击确认后才会执行更新。"
+            "Propose an update to a Feishu Bitable record. This sends a "
+            "confirmation card to the user; the update runs only after the "
+            "user confirms."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "record_id": {"type": "string", "description": "记录ID"},
-                "fields": {"type": "object", "description": "要更新的字段"},
+                "record_id": {"type": "string", "description": "Record ID"},
+                "fields": {"type": "object", "description": "Fields to update"},
                 "table_id": {
                     "type": "string",
-                    "description": "表ID（来自查询结果，非任务主表时必填）",
+                    "description": "Table ID from query results. Required for non-default tables.",
                 },
             },
             "required": ["record_id", "fields"],
@@ -178,19 +182,19 @@ TOOLS = [
     {
         "name": "propose_bitable_create",
         "description": (
-            "提议在飞书多维表格中新建记录。会发送确认卡片，"
-            "用户确认后才创建。任务主表字段名：任务(动宾短语)、"
-            "状态、DRI (负责人)、优先级、计划完成日期、"
-            "所属大类、阻塞原因"
+            "Propose creating a Feishu Bitable record. This sends a "
+            "confirmation card; the record is created only after user "
+            "confirmation. Primary task table field names are: "
+            "任务(动宾短语), 状态, DRI (负责人), 优先级, 计划完成日期, 所属大类, 阻塞原因."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "fields": {
                     "type": "object",
-                    "description": "新记录字段",
+                    "description": "Fields for the new record",
                 },
-                "table_id": {"type": "string", "description": "表ID（不填则默认为任务主表）"},
+                "table_id": {"type": "string", "description": "Table ID. Defaults to the primary task table if omitted."},
             },
             "required": ["fields"],
         },
@@ -198,95 +202,96 @@ TOOLS = [
     {
         "name": "add_bitable_field",
         "description": (
-            "给飞书多维表格添加新字段（列）。"
-            "字段类型：1=文本,2=数字,3=单选,4=多选,"
-            "5=日期,7=复选框,11=人员,15=超链接"
+            "Add a field (column) to a Feishu Bitable table. Field types: "
+            "1=text, 2=number, 3=single select, 4=multi select, 5=date, "
+            "7=checkbox, 11=person, 15=url."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "field_name": {"type": "string", "description": "字段名称"},
+                "field_name": {"type": "string", "description": "Field name"},
                 "field_type": {
                     "type": "integer",
-                    "description": "字段类型（默认1=文本）",
+                    "description": "Field type. Default is 1=text.",
                     "default": 1,
                 },
-                "table_id": {"type": "string", "description": "表ID（不填则默认为任务主表）"},
+                "table_id": {"type": "string", "description": "Table ID. Defaults to the primary task table if omitted."},
             },
             "required": ["field_name"],
         },
     },
     {
         "name": "list_bitable_fields",
-        "description": "列出飞书多维表格的所有字段（列名和类型）",
+        "description": "List all fields in a Feishu Bitable table, including field names and types.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "table_id": {"type": "string", "description": "表ID（不填则默认为任务主表）"},
+                "table_id": {"type": "string", "description": "Table ID. Defaults to the primary task table if omitted."},
             },
             "required": [],
         },
     },
     {
         "name": "sync_now",
-        "description": "立即执行一次同步",
+        "description": "Run one synchronization immediately.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
     {
         "name": "list_card_operations",
         "description": (
-            "查询卡片操作记录（审计日志）。"
-            "可查本周创建了多少任务、谁取消最多、某人最近的操作等"
+            "List confirmation-card operation audit logs. Use this for questions "
+            "such as how many tasks were created this week, who rejected the most "
+            "changes, or a user's recent operations."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "user_id": {"type": "string", "description": "按用户过滤（open_id）"},
+                "user_id": {"type": "string", "description": "Filter by user open_id"},
                 "action": {
                     "type": "string",
-                    "description": "按操作类型过滤",
+                    "description": "Filter by operation type",
                     "enum": ["propose_create", "confirm_create", "reject_create",
                              "propose_update", "confirm_update", "reject_update"],
                 },
-                "limit": {"type": "integer", "description": "返回数量", "default": 20},
+                "limit": {"type": "integer", "description": "Maximum number of results", "default": 20},
             },
             "required": [],
         },
     },
     {
         "name": "update_daily_progress",
-        "description": "更新员工的每日任务进展。解析员工回复后逐条调用此工具更新。",
+        "description": "Update an employee's daily task progress. After parsing an employee reply, call this tool once per progress record that should be updated.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "progress_id": {"type": "integer", "description": "进展记录 ID"},
+                "progress_id": {"type": "integer", "description": "Progress record ID"},
                 "status": {
                     "type": "string",
-                    "description": "任务状态",
+                    "description": "Task status",
                     "enum": ["completed", "in_progress", "blocked"],
                 },
-                "note": {"type": "string", "description": "进展备注"},
+                "note": {"type": "string", "description": "Progress note"},
             },
             "required": ["progress_id", "status"],
         },
     },
     {
         "name": "search_feishu_user",
-        "description": "搜索飞书用户，支持邮箱或11位手机号",
+        "description": "Search Feishu users by email or 11-digit phone number.",
         "input_schema": {
             "type": "object",
-            "properties": {"query": {"type": "string", "description": "搜索关键词"}},
+            "properties": {"query": {"type": "string", "description": "Search keyword"}},
             "required": ["query"],
         },
     },
     {
         "name": "send_feishu_message",
-        "description": "发送飞书消息给指定用户",
+        "description": "Send a Feishu message to a specific user.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "user_id": {"type": "string", "description": "用户的 open_id"},
-                "message": {"type": "string", "description": "消息内容"},
+                "user_id": {"type": "string", "description": "Recipient open_id"},
+                "message": {"type": "string", "description": "Message content"},
             },
             "required": ["user_id", "message"],
         },

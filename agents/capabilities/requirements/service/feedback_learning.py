@@ -140,28 +140,36 @@ class FeedbackLearningService:
 
         lines = [
             "",
-            "## 用户反馈示例（请参考这些修正来改进提取质量）",
+            "## User Feedback Examples",
+            "Use these corrections to improve extraction quality.",
             "",
         ]
 
         for i, ex in enumerate(examples, 1):
-            lines.append(f"### 示例 {i}")
+            lines.append(f"### Example {i}")
             if ex.get("source_text"):
-                lines.append(f"原文片段: \"{ex['source_text'][:200]}...\"")
+                lines.append(f"Source excerpt: \"{ex['source_text'][:200]}...\"")
 
             orig = ex.get("original", {})
             corr = ex.get("corrected", {})
 
             if ex.get("feedback_type") == "rejection":
-                lines.append(f"❌ 错误提取: {orig.get('title', '')}")
-                lines.append(f"说明: 这不应该被提取为需求。原因: {corr.get('description', '')}")
+                lines.append(f"Incorrect extraction: {orig.get('title', '')}")
+                lines.append(
+                    "Note: this should not have been extracted as a requirement. "
+                    f"Reason: {corr.get('description', '')}"
+                )
             else:
-                lines.append(f"原始提取: {orig.get('title', '')}")
-                lines.append(f"用户修正: {corr.get('title', '')}")
+                lines.append(f"Original extraction: {orig.get('title', '')}")
+                lines.append(f"User correction: {corr.get('title', '')}")
                 if orig.get("priority") != corr.get("priority"):
-                    lines.append(f"优先级: {orig.get('priority')} → {corr.get('priority')}")
+                    lines.append(
+                        f"Priority: {orig.get('priority')} -> {corr.get('priority')}"
+                    )
                 if orig.get("category") != corr.get("category"):
-                    lines.append(f"分类: {orig.get('category')} → {corr.get('category')}")
+                    lines.append(
+                        f"Category: {orig.get('category')} -> {corr.get('category')}"
+                    )
 
             lines.append("")
 

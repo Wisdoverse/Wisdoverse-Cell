@@ -99,7 +99,10 @@ class DocumentGenerator:
                 task_type="document_generation",
                 temperature=0.3,  # 稍微增加创造性
                 max_tokens=8192,  # PRD 可能较长
-                system_prompt="你是一个专业的技术文档专家，精通产品需求文档编写。"
+                system_prompt=(
+                    "You are a professional technical documentation expert "
+                    "specialized in product requirements documents."
+                )
             )
 
             # 清理响应（移除可能的 markdown 代码块包装）

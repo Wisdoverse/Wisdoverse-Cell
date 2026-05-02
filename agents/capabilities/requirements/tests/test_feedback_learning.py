@@ -128,9 +128,9 @@ class TestFeedbackLearningService:
 
             result = await service.build_learning_prompt_section(limit=3)
 
-            assert "用户反馈示例" in result
+            assert "User Feedback Examples" in result
             assert "离线" in result
-            assert "示例 1" in result
+            assert "Example 1" in result
 
     @pytest.mark.asyncio
     async def test_get_learning_stats(self, service):

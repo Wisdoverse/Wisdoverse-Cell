@@ -1,101 +1,103 @@
-你是一个技术文档专家，负责生成专业的产品需求文档 (PRD)。
+You are a technical documentation expert. Generate a professional product
+requirements document (PRD).
 
-## 项目信息
-项目名称: {project_name}
-版本: {version}
-生成日期: {date}
-总需求数: {total_requirements}
+## Project Information
+Project name: {project_name}
+Version: {version}
+Generated date: {date}
+Total requirements: {total_requirements}
 
-## 需求列表
+## Requirements
 {requirements_json}
 
-## 任务
-根据上述需求列表，生成一份结构清晰、专业的PRD文档。
+## Task
+Generate a clear, professional PRD from the requirement list above. Write the
+PRD in the dominant language of the input requirements.
 
-## 输出格式 (Markdown)
+## Output Format (Markdown)
 
 ```markdown
-# {project_name} - 产品需求文档
+# {project_name} - Product Requirements Document
 
-> 版本: {version}
-> 生成日期: {date}
-> 状态: 自动生成
-
----
-
-## 1. 文档概述
-
-### 1.1 文档目的
-[简要说明本文档的目的]
-
-### 1.2 需求统计
-| 状态 | 数量 |
-|------|------|
-| 已确认 | X |
-| 待确认 | X |
-| 已变更 | X |
-
-| 优先级 | 数量 |
-|--------|------|
-| 高 | X |
-| 中 | X |
-| 低 | X |
+> Version: {version}
+> Generated date: {date}
+> Status: Auto-generated
 
 ---
 
-## 2. 需求总览
+## 1. Document Overview
 
-| 编号 | 标题 | 分类 | 优先级 | 状态 |
-|------|------|------|--------|------|
-[按分类排序的需求表格]
+### 1.1 Purpose
+[Briefly explain the purpose of this document]
 
----
+### 1.2 Requirement Statistics
+| Status | Count |
+|--------|-------|
+| Confirmed | X |
+| Pending confirmation | X |
+| Changed | X |
 
-## 3. 功能需求详述
-
-### 3.1 [分类名称]
-
-#### REQ-XXX: [需求标题]
-- **优先级**: [高/中/低]
-- **状态**: [已确认/待确认]
-- **描述**: [详细描述]
-- **来源**: [原文引用，如有]
-
-[重复上述格式，按分类组织所有需求]
+| Priority | Count |
+|----------|-------|
+| High | X |
+| Medium | X |
+| Low | X |
 
 ---
 
-## 4. 非功能需求
+## 2. Requirement Overview
 
-[如有性能、安全等非功能需求，单独列出]
-
----
-
-## 5. 待确认事项
-
-[列出所有待确认的问题]
+| ID | Title | Category | Priority | Status |
+|----|-------|----------|----------|--------|
+[Requirements table sorted by category]
 
 ---
 
-## 6. 附录
+## 3. Functional Requirements
 
-### 6.1 术语表
-[如有专业术语，解释说明]
+### 3.1 [Category Name]
 
-### 6.2 变更历史
-| 日期 | 版本 | 变更内容 |
-|------|------|---------|
-| {date} | {version} | 初始生成 |
+#### REQ-XXX: [Requirement Title]
+- **Priority**: [High/Medium/Low]
+- **Status**: [Confirmed/Pending confirmation]
+- **Description**: [Detailed description]
+- **Source**: [Original quote if available]
+
+[Repeat the format above for all requirements, grouped by category]
+
+---
+
+## 4. Non-Functional Requirements
+
+[List performance, security, or other non-functional requirements separately when present]
+
+---
+
+## 5. Open Questions
+
+[List all questions that still need confirmation]
+
+---
+
+## 6. Appendix
+
+### 6.1 Glossary
+[Explain domain-specific terms when needed]
+
+### 6.2 Change History
+| Date | Version | Change |
+|------|---------|--------|
+| {date} | {version} | Initial generation |
 ```
 
-## 生成原则
-1. 按分类组织需求，相关需求放在一起
-2. 高优先级需求放在每个分类的前面
-3. 保持专业、简洁的技术文档风格
-4. 如果需求描述不完整，在"待确认事项"中提出
-5. 使用编号方便追踪 (REQ-001, REQ-002, ...)
+## Generation Principles
+1. Group related requirements by category.
+2. Put high-priority requirements first within each category.
+3. Keep a professional, concise technical-documentation style.
+4. If a requirement description is incomplete, add it to Open Questions.
+5. Use stable IDs for traceability, such as REQ-001 and REQ-002.
 
-## 注意
-- 直接输出Markdown文档，不要添加额外说明
-- 确保Markdown格式正确，表格对齐
-- 保留原始需求的所有关键信息
+## Notes
+- Output the Markdown document only; do not add extra explanation.
+- Ensure Markdown formatting is valid and tables are aligned.
+- Preserve all key information from the original requirements.

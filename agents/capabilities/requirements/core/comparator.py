@@ -151,9 +151,9 @@ class RequirementComparator:
         """使用 LLM 深度分析需求关系"""
         # 格式化相似需求
         similar_text = "\n".join([
-            f"- ID: {s['id']}\n  标题: {s['title']}\n"
-            f"  分类: {s['category']}\n"
-            f"  相似度: {s['similarity']:.2%}"
+            f"- ID: {s['id']}\n  Title: {s['title']}\n"
+            f"  Category: {s['category']}\n"
+            f"  Similarity: {s['similarity']:.2%}"
             for s in similar_requirements
         ])
 
@@ -161,7 +161,7 @@ class RequirementComparator:
         prompt = self.prompt_template.format(
             new_title=new_title,
             new_description=new_description,
-            new_category=new_category or "未分类",
+            new_category=new_category or "uncategorized",
             similar_requirements=similar_text
         )
 
@@ -177,7 +177,10 @@ class RequirementComparator:
                 agent_id="requirement-manager",
                 task_type="conflict_detection",
                 temperature=0,
-                system_prompt="你是一个专业的需求分析专家，精通识别需求之间的关系。"
+            system_prompt=(
+                "You are a professional requirements analysis expert. "
+                "You are skilled at identifying relationships between requirements."
+            )
             )
 
             result = self._parse_response(response, similar_requirements)

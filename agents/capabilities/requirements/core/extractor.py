@@ -101,7 +101,11 @@ class RequirementExtractor:
                 agent_id="requirement-manager",
                 task_type="extraction",
                 temperature=0,
-                system_prompt="你是一个专业的产品需求分析师，精通从会议记录中提取结构化需求。"
+                system_prompt=(
+                    "You are a professional product requirements analyst. "
+                    "You are skilled at extracting structured requirements "
+                    "from meeting notes."
+                )
             )
 
             # 解析JSON响应
@@ -175,6 +179,7 @@ class RequirementExtractor:
 
     def _normalize_category(self, category: str) -> str:
         """规范化分类名称"""
+        normalized = category.lower()
         category_map = {
             "功能": "功能",
             "feature": "功能",
@@ -190,7 +195,7 @@ class RequirementExtractor:
             "安全": "安全",
             "security": "安全",
         }
-        return category_map.get(category, "其他")
+        return category_map.get(category, category_map.get(normalized, "其他"))
 
     def _normalize_priority(self, priority: str) -> str:
         """规范化优先级"""

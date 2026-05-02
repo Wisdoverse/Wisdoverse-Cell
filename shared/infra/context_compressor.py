@@ -17,8 +17,12 @@ logger = get_logger("infra.context_compressor")
 
 _L1_DEFAULT = 40_000
 _L2_DEFAULT = 70_000
-_TRIMMED_PLACEHOLDER = "[旧工具结果已清理]"
-_SUMMARY_SYSTEM_PROMPT = "你是一个对话摘要助手。请用 2-3 句话概括以下对话的关键信息、结论和待办事项。保留工具名称和关键数据。"
+_TRIMMED_PLACEHOLDER = "[old tool result cleared]"
+_SUMMARY_SYSTEM_PROMPT = (
+    "You are a conversation summarization assistant. Summarize the key facts, "
+    "decisions, and open follow-ups from the conversation in 2-3 sentences. "
+    "Preserve tool names and important data."
+)
 
 
 @dataclass
@@ -316,8 +320,8 @@ async def summarize_history(
         )
 
     # Build compact boundary + recent messages
-    boundary = {"role": "user", "content": f"[对话已压缩] {summary_text}"}
-    ack = {"role": "assistant", "content": "好的，我已了解之前的对话内容。"}
+    boundary = {"role": "user", "content": f"[conversation compacted] {summary_text}"}
+    ack = {"role": "assistant", "content": "Understood. I have the prior conversation context."}
     result_messages = [boundary, ack, *recent]
 
     tokens_after = estimate_tokens(result_messages).total_tokens

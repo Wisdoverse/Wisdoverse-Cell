@@ -99,27 +99,29 @@ async def _generate_dispatch_message(name: str, tasks: list[dict]) -> str:
     for t in tasks:
         due = t.get("due_date", "")
         task_lines.append(
-            f"- {t['title']} | 状态: {t['status']}"
-            f" | 优先级: {t['priority']}"
-            f" | 截止: {due or '未设定'}"
+            f"- {t['title']} | status: {t['status']}"
+            f" | priority: {t['priority']}"
+            f" | due: {due or 'not set'}"
         )
     task_block = "\n".join(task_lines)
 
     today_str = datetime.now(_SHANGHAI_TZ).strftime("%Y-%m-%d %A")
 
-    prompt = f"""你是一个顶级项目管理经理。今天是 {today_str}。
-以下是 {name} 当前的活跃任务：
+    prompt = f"""You are an excellent project manager. Today is {today_str}.
+These are {name}'s currently active tasks:
 
 {task_block}
 
-请为 {name} 生成一条简洁的晨间工作消息（纯文本，不超过300字）：
-1. 先总览：几个进行中、几个阻塞、几个待办
-2. 对阻塞任务：追问具体阻塞原因，需要什么支持
-3. 对进行中任务：询问预计完成时间
-4. 对待办任务：建议今天优先处理哪些（结合优先级）
-5. 语气专业温暖，像一个关心团队的PM
+Generate a concise morning work message for {name}.
+Requirements:
+1. Output plain text in Simplified Chinese, maximum 300 Chinese characters.
+2. Start with an overview: count in-progress, blocked, and pending tasks.
+3. For blocked tasks, ask for the specific blocker and what support is needed.
+4. For in-progress tasks, ask for the expected completion time.
+5. For pending tasks, suggest what to prioritize today based on priority.
+6. Keep the tone professional, warm, and practical.
 
-直接输出消息内容，不要加任何前缀说明。"""
+Output only the message content. Do not add a preface or explanation."""
 
     return await llm_gateway.complete(
         prompt=prompt,

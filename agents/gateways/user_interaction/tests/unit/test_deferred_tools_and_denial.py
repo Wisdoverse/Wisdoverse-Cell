@@ -412,11 +412,11 @@ class TestDenialChecking:
 
 
 # ===========================================================================
-# E3+E4: PM persona prompt includes tool_search guidance
+# E3+E4: user assistant prompt includes tool_search guidance
 # ===========================================================================
 
 
-class TestPMPersonaPromptToolSearch:
+class TestUserAssistantPromptToolSearch:
     """USER_ASSISTANT_PROMPT should include tool_search guidance."""
 
     def test_prompt_mentions_tool_search(self):
@@ -425,7 +425,7 @@ class TestPMPersonaPromptToolSearch:
 
     def test_prompt_teaches_search_strategy_without_tool_inventory(self):
         from agents.gateways.user_interaction.core.chat_service import USER_ASSISTANT_PROMPT
-        assert "不熟悉的工具用 tool_search 搜索" in USER_ASSISTANT_PROMPT
+        assert "call `tool_search` with a keyword" in USER_ASSISTANT_PROMPT
         assert "sync_now" not in USER_ASSISTANT_PROMPT
         assert "add_bitable_field" not in USER_ASSISTANT_PROMPT
 

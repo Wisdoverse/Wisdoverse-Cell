@@ -175,26 +175,27 @@ class RequirementAnalyzer:
         basic = await self.analyze(title, description, source_quote)
 
         # 构建LLM prompt
-        prompt = f"""分析以下需求，提供智能建议：
+        prompt = f"""Analyze the following requirement and provide intelligent recommendations:
 
-**需求标题**: {title}
-**需求描述**: {description}
-**原文引用**: {source_quote or '无'}
-**上下文**: {context or '无'}
+**Requirement title**: {title}
+**Requirement description**: {description}
+**Source quote**: {source_quote or 'none'}
+**Context**: {context or 'none'}
 
-请分析并以JSON格式返回：
+Return a JSON object:
 {{
-    "category": "分类 (功能/性能/安全/UI/硬件/集成/其他)",
-    "priority": "优先级 (high/medium/low)",
-    "priority_reasons": ["原因1", "原因2"],
-    "complexity": "复杂度 (S/M/L/XL)",
-    "complexity_factors": ["因素1", "因素2"],
-    "dependencies": ["依赖1", "依赖2"],
-    "risk_factors": ["风险1", "风险2"],
-    "tags": ["标签1", "标签2"]
+    "category": "feature/performance/security/UI/hardware/integration/other",
+    "priority": "high/medium/low",
+    "priority_reasons": ["reason 1", "reason 2"],
+    "complexity": "S/M/L/XL",
+    "complexity_factors": ["factor 1", "factor 2"],
+    "dependencies": ["dependency 1", "dependency 2"],
+    "risk_factors": ["risk 1", "risk 2"],
+    "tags": ["tag 1", "tag 2"]
 }}
 
-只输出JSON，不要其他内容。"""
+Write user-facing string values in the dominant language of the input
+requirement. Output JSON only; do not add any other text."""
 
         try:
             response = await llm_gateway.complete(
@@ -202,7 +203,10 @@ class RequirementAnalyzer:
                 agent_id="requirement-manager",
                 task_type="analysis",
                 temperature=0,
-                system_prompt="你是需求分析专家，擅长评估需求的优先级、复杂度和风险。"
+                system_prompt=(
+                    "You are a requirements analysis expert. You are skilled "
+                    "at evaluating priority, complexity, dependencies, and risk."
+                )
             )
 
             # 解析LLM响应并合并
@@ -218,7 +222,9 @@ class RequirementAnalyzer:
 
             # 用LLM结果更新基础分析
             return AnalysisResult(
-                suggested_category=data.get("category", basic.suggested_category),
+                suggested_category=self._normalize_category(
+                    data.get("category", basic.suggested_category)
+                ),
                 category_confidence=0.9,  # LLM分析置信度更高
                 suggested_priority=data.get("priority", basic.suggested_priority),
                 priority_reasons=data.get("priority_reasons", basic.priority_reasons),
@@ -239,6 +245,25 @@ class RequirementAnalyzer:
         except Exception as e:
             logger.warning("llm_analysis_failed", error=str(e))
             return basic
+
+    def _normalize_category(self, category: str) -> str:
+        """Normalize LLM category labels to the persisted category names."""
+        normalized = category.lower()
+        category_map = {
+            "功能": "功能",
+            "feature": "功能",
+            "性能": "性能",
+            "performance": "性能",
+            "硬件": "硬件",
+            "hardware": "硬件",
+            "集成": "集成",
+            "integration": "集成",
+            "ui": "UI",
+            "用户界面": "UI",
+            "安全": "安全",
+            "security": "安全",
+        }
+        return category_map.get(category, category_map.get(normalized, "其他"))
 
     def _analyze_category(self, content: str) -> tuple[str, float]:
         """分析分类"""

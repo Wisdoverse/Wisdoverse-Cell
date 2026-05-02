@@ -22,7 +22,10 @@ RM_EXTRACTION_SKILL = SkillConfig(
     skill_id="requirement-manager:extraction",
     version=1,
     status=SkillStatus.ACTIVE,
-    system_prompt="你是一个专业的产品需求分析师，精通从会议记录中提取结构化需求。",
+    system_prompt=(
+        "You are a professional product requirements analyst. You are skilled "
+        "at extracting structured requirements from meeting notes."
+    ),
     parameters={
         "temperature": 0,
     },
@@ -38,7 +41,10 @@ RM_DOCUMENT_GENERATION_SKILL = SkillConfig(
     skill_id="requirement-manager:document-generation",
     version=1,
     status=SkillStatus.ACTIVE,
-    system_prompt="你是一个专业的技术文档专家，精通产品需求文档编写。",
+    system_prompt=(
+        "You are a professional technical documentation expert specialized in "
+        "product requirements documents."
+    ),
     parameters={
         "temperature": 0.3,
         "max_tokens": 8192,
@@ -55,7 +61,10 @@ RM_ANALYSIS_SKILL = SkillConfig(
     skill_id="requirement-manager:analysis",
     version=1,
     status=SkillStatus.ACTIVE,
-    system_prompt="你是需求分析专家，擅长评估需求的优先级、复杂度和风险。",
+    system_prompt=(
+        "You are a requirements analysis expert. You are skilled at evaluating "
+        "priority, complexity, dependencies, and risk."
+    ),
     parameters={
         "temperature": 0,
     },
@@ -71,7 +80,10 @@ RM_CONFLICT_DETECTION_SKILL = SkillConfig(
     skill_id="requirement-manager:conflict-detection",
     version=1,
     status=SkillStatus.ACTIVE,
-    system_prompt="你是一个专业的需求分析专家，精通识别需求之间的关系。",
+    system_prompt=(
+        "You are a professional requirements analysis expert. You are skilled "
+        "at identifying relationships between requirements."
+    ),
     parameters={
         "temperature": 0,
     },
