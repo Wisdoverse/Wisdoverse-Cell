@@ -12,7 +12,6 @@
 |----------|---------|
 | [SPEC](../SPEC.md) | Root service specification and implementation contract |
 | [README](./README.md) | Documentation landing page, architecture, quick start, agent matrix |
-| [SPEC Implementation Plan](./tasks/2026-05-01-spec-goal-implementation-plan.md) | Completed implementation checklist and verification evidence for the current SPEC goal |
 | [CONTRIBUTING](./CONTRIBUTING.md) | Branching, commits, PR workflow, AI collaboration rules |
 | [CHANGELOG](./CHANGELOG.md) | Version history |
 
@@ -27,7 +26,6 @@ surfaces that currently exist.
 | Surface | Source of Truth | Notes |
 |---------|-----------------|-------|
 | Product contract | [SPEC](../SPEC.md) | Defines the control-plane goal and non-negotiable service boundaries |
-| Implementation evidence | [SPEC Implementation Plan](./tasks/2026-05-01-spec-goal-implementation-plan.md) | Tracks completed ledger, runtime, budget, approval, frontend, event, and verification work |
 | Product vocabulary | [Product Model](./overview/product-model.md) | Defines goals, work items, agent roles, runs, decisions, artifacts, budgets, approvals, and audit trails |
 | System architecture | [Architecture Overview](./overview/architecture.md) | Maps the frontend, gateway, independently deployed agents, shared runtime, control-plane ledger, and adapters |
 | Operator API | [API Reference](./guides/api-reference.md#control-plane-api) | Documents `/api/v1/control-plane/*`, `/agent/request`, wakeups, scheduler ticks, approvals, budgets, and timelines |
@@ -59,21 +57,6 @@ For onboarding, architecture, and shared terminology.
 | [ADR-0003: Tiered LLM Model Strategy](./adr/0003-tiered-llm-model-strategy.md) | 2026-03-07 | Opus/Sonnet/Haiku routing and cost control |
 | [ADR-0004: Inter-Agent HTTP Communication](./adr/0004-inter-agent-http-communication.md) | 2026-03-07 | No direct Python imports between agents; HTTP plus EventBus |
 | [ADR-0005: Channel Gateway Hexagonal Unification](./adr/0005-channel-gateway-hexagonal-unification.md) | 2026-03-08 | `core/messaging` ports and integration adapters |
-
----
-
-## Specifications
-
-| Document | Status | Purpose |
-|----------|:------:|---------|
-| [Wisdoverse Cell PRD](./specs/wisdoverse-cell-prd.md) | Published | Product vision, 26-agent plan, technical specs, roadmap |
-| [Requirement Manager Agent PRD](./specs/requirement-manager-agent-prd.md) | Published | M1-M4 feature specs, APIs, test strategy |
-| [Feishu Integration PRD](./specs/feishu-integration-prd.md) | Published | Bot, cards, event subscriptions, completed phase scope |
-| [QA Agent Spec](./specs/qa-agent.md) | Complete | Event-driven acceptance checks and notifications |
-| [Acceptance Framework Spec](./specs/acceptance-framework.md) | Complete | L0/L1/L2 quality gates |
-| [Requirement Manager Verification](./specs/requirement-manager-verification.md) | Passed | F01-F18 verification and test evidence |
-| [create_agent_app Migration Design](./specs/2026-03-20-requirement-manager-create-agent-app-design.md) | Complete | Requirement Manager migration to `create_agent_app` |
-| [VectorStore Plugin Design](./specs/2026-03-20-vector-store-plugin-design.md) | Complete | Milvus VectorStore RuntimePlugin design |
 
 ---
 
@@ -115,8 +98,6 @@ evidence that proves what has already shipped.
 ### Naming
 
 - ADRs: `docs/adr/NNNN-<topic>.md`
-- PRDs and specs: `<module>-prd.md` or `<topic>-design.md`
-- Implementation plans and verification evidence: `docs/tasks/YYYY-MM-DD-<topic>.md`
 
 ### Status
 
@@ -137,8 +118,6 @@ docs/
 ├── INDEX.md
 ├── overview/
 ├── adr/
-├── specs/
 ├── guides/
-├── tasks/
 └── workflows/
 ```
