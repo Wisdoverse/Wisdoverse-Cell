@@ -1,8 +1,8 @@
 """
-Agent Base Class - 所有Agent的基类
+Agent Base Class - common base for all agents.
 
-定义了Agent的标准接口，所有Agent都应该继承这个基类。
-支持可选的 A2A 和 MCP 协议扩展。
+Defines the standard agent interface. Every agent should inherit this base
+class. Optional A2A and MCP protocol extensions are supported.
 """
 
 from abc import ABC, abstractmethod
@@ -16,19 +16,19 @@ if TYPE_CHECKING:
 
 class BaseAgent(ABC):
     """
-    Agent基类
+    Base class for repository agents.
 
-    所有Agent都需要实现:
-    1. handle_event: 处理接收到的事件
-    2. handle_request: 处理API请求
+    Every agent must implement:
+    1. handle_event: process received events.
+    2. handle_request: process API requests.
 
-    属性:
-    - agent_id: 唯一标识符，如 "requirement-manager"
-    - agent_name: 显示名称，如 "需求管理Agent"
-    - subscribed_events: 订阅的事件类型列表
-    - published_events: 会发布的事件类型列表
-    - a2a_enabled: 是否启用 A2A 协议支持
-    - mcp_enabled: 是否启用 MCP 协议支持
+    Attributes:
+    - agent_id: unique identifier, for example "requirement-manager".
+    - agent_name: display name, for example "Requirement Manager".
+    - subscribed_events: event types consumed by the agent.
+    - published_events: event types emitted by the agent.
+    - a2a_enabled: whether A2A protocol support is enabled.
+    - mcp_enabled: whether MCP protocol support is enabled.
     """
 
     def __init__(
@@ -61,45 +61,45 @@ class BaseAgent(ABC):
     @abstractmethod
     async def handle_event(self, event: Event) -> list[Event]:
         """
-        处理接收到的事件
+        Process a received event.
 
         Args:
-            event: 接收到的事件
+            event: Received event.
 
         Returns:
-            处理过程中产生的新事件列表
+            New events produced while handling the input event.
         """
         pass
 
     @abstractmethod
     async def handle_request(self, request: dict) -> dict:
         """
-        处理API请求
+        Process an API request.
 
         Args:
-            request: 请求数据
+            request: Request payload.
 
         Returns:
-            响应数据
+            Response payload.
         """
         pass
 
     async def startup(self) -> None:
-        """Agent启动时执行的初始化逻辑"""
+        """Run agent initialization logic at startup."""
         pass
 
     async def shutdown(self) -> None:
-        """Agent关闭时执行的清理逻辑"""
+        """Run agent cleanup logic at shutdown."""
         pass
 
     async def health_check(self) -> dict[str, bool]:
-        """返回 Agent 自身的健康检查结果。"""
+        """Return this agent's health check results."""
         return {}
 
     def create_event(
         self, event_type: str, payload: dict, trace_id: str | None = None
     ) -> Event:
-        """创建事件的便捷方法"""
+        """Create an event emitted by this agent."""
         return Event.create(
             event_type=event_type,
             source_agent=self.agent_id,
@@ -164,7 +164,7 @@ class BaseAgent(ABC):
         return self.create_event(EventTypes.TASK_PROGRESS, payload)
 
     async def describe(self) -> dict[str, Any]:
-        """返回 Agent 的精简说明信息，便于接口和工具读取。"""
+        """Return a compact agent description for APIs and tools."""
         return {
             "agent_id": self.agent_id,
             "agent_name": self.agent_name,
@@ -178,10 +178,10 @@ class BaseAgent(ABC):
 
     async def audit(self) -> dict[str, Any]:
         """
-        返回符合仓库规则的轻量审计结果。
+        Return a lightweight audit result aligned with repository rules.
 
-        输出结构对齐宪章里的 `Analysis / Risk / Fixes` 形式，
-        同时保持 JSON 友好，方便接口和工具直接消费。
+        The structure follows the `Analysis / Risk / Fixes` convention while
+        staying JSON-friendly for direct API and tooling consumption.
         """
         health_checks = await self.health_check()
         failed_checks = [name for name, ok in health_checks.items() if not ok]
@@ -214,7 +214,7 @@ class BaseAgent(ABC):
     async def handle_standard_request(
         self, request: dict[str, Any]
     ) -> dict[str, Any] | None:
-        """处理所有 Agent 共用的治理类请求。"""
+        """Handle governance requests shared by all agents."""
         action = request.get("action")
         if action == "describe":
             return await self.describe()

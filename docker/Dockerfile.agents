@@ -68,7 +68,7 @@ FROM builder-base AS ai-core-builder
 # --- sync-agent --------------------------------------------------------------
 FROM builder-base AS sync-builder
 ARG PIP_INDEX_URL=https://pypi.org/simple
-COPY agents/sync_agent/requirements.txt .
+COPY agents/capabilities/sync/requirements.txt .
 # hadolint ignore=DL3042
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -i ${PIP_INDEX_URL} -r requirements.txt
@@ -76,7 +76,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # --- analysis-agent ----------------------------------------------------------
 FROM builder-base AS analysis-builder
 ARG PIP_INDEX_URL=https://pypi.org/simple
-COPY agents/analysis_agent/requirements.txt .
+COPY agents/capabilities/analysis/requirements.txt .
 # hadolint ignore=DL3042
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -i ${PIP_INDEX_URL} -r requirements.txt
@@ -84,7 +84,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # --- pjm-agent ----------------------------------------------------------------
 FROM builder-base AS pm-builder
 ARG PIP_INDEX_URL=https://pypi.org/simple
-COPY agents/pjm_agent/requirements.txt .
+COPY agents/capabilities/project_management/requirements.txt .
 # hadolint ignore=DL3042
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -i ${PIP_INDEX_URL} -r requirements.txt
@@ -92,7 +92,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # --- qa-agent ----------------------------------------------------------------
 FROM builder-base AS qa-builder
 ARG PIP_INDEX_URL=https://pypi.org/simple
-COPY agents/qa_agent/requirements.txt .
+COPY agents/capabilities/quality/requirements.txt .
 # hadolint ignore=DL3042
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -i ${PIP_INDEX_URL} -r requirements.txt
@@ -100,7 +100,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # --- chat-agent --------------------------------------------------------------
 FROM builder-base AS chat-builder
 ARG PIP_INDEX_URL=https://pypi.org/simple
-COPY agents/chat_agent/requirements.txt .
+COPY agents/gateways/user_interaction/requirements.txt .
 # hadolint ignore=DL3042
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -i ${PIP_INDEX_URL} -r requirements.txt
@@ -165,7 +165,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
 
 COPY --chown=appuser:appgroup shared/ /app/shared/
 COPY --chown=appuser:appgroup skills/ /app/skills/
-COPY --chown=appuser:appgroup agents/requirement_manager/ /app/agents/requirement_manager/
+COPY --chown=appuser:appgroup agents/capabilities/requirements/ /app/agents/capabilities/requirements/
 RUN mkdir -p /app/data && chown appuser:appgroup /app/data
 
 USER appuser
@@ -175,7 +175,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl --fail --silent http://localhost:8000/health/ready || exit 1
 
 CMD ["gunicorn", \
-     "agents.requirement_manager.app.main:app", \
+     "agents.capabilities.requirements.app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--workers", "4", \
      "--bind", "0.0.0.0:8000", \
@@ -210,8 +210,8 @@ ENV PATH="/opt/venv/bin:$PATH" \
     API_PORT=8010
 
 COPY --chown=appuser:appgroup shared/ /app/shared/
-COPY --chown=appuser:appgroup agents/requirement_manager/ /app/agents/requirement_manager/
-COPY --chown=appuser:appgroup agents/sync_agent/ /app/agents/sync_agent/
+COPY --chown=appuser:appgroup agents/capabilities/requirements/ /app/agents/capabilities/requirements/
+COPY --chown=appuser:appgroup agents/capabilities/sync/ /app/agents/capabilities/sync/
 
 USER appuser
 EXPOSE 8010
@@ -220,7 +220,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl --fail --silent http://localhost:8010/health/ready || exit 1
 
 CMD ["gunicorn", \
-     "agents.sync_agent.app.main:app", \
+     "agents.capabilities.sync.app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--workers", "1", \
      "--bind", "0.0.0.0:8010", \
@@ -255,8 +255,8 @@ ENV PATH="/opt/venv/bin:$PATH" \
     API_PORT=8011
 
 COPY --chown=appuser:appgroup shared/ /app/shared/
-COPY --chown=appuser:appgroup agents/requirement_manager/ /app/agents/requirement_manager/
-COPY --chown=appuser:appgroup agents/analysis_agent/ /app/agents/analysis_agent/
+COPY --chown=appuser:appgroup agents/capabilities/requirements/ /app/agents/capabilities/requirements/
+COPY --chown=appuser:appgroup agents/capabilities/analysis/ /app/agents/capabilities/analysis/
 
 USER appuser
 EXPOSE 8011
@@ -265,7 +265,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl --fail --silent http://localhost:8011/health/ready || exit 1
 
 CMD ["gunicorn", \
-     "agents.analysis_agent.app.main:app", \
+     "agents.capabilities.analysis.app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--workers", "1", \
      "--bind", "0.0.0.0:8011", \
@@ -300,8 +300,8 @@ ENV PATH="/opt/venv/bin:$PATH" \
     API_PORT=8012
 
 COPY --chown=appuser:appgroup shared/ /app/shared/
-COPY --chown=appuser:appgroup agents/requirement_manager/ /app/agents/requirement_manager/
-COPY --chown=appuser:appgroup agents/pjm_agent/ /app/agents/pjm_agent/
+COPY --chown=appuser:appgroup agents/capabilities/requirements/ /app/agents/capabilities/requirements/
+COPY --chown=appuser:appgroup agents/capabilities/project_management/ /app/agents/capabilities/project_management/
 
 USER appuser
 EXPOSE 8012
@@ -310,7 +310,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl --fail --silent http://localhost:8012/health/ready || exit 1
 
 CMD ["gunicorn", \
-     "agents.pjm_agent.app.main:app", \
+     "agents.capabilities.project_management.app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--workers", "1", \
      "--bind", "0.0.0.0:8012", \
@@ -345,7 +345,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     API_PORT=8014
 
 COPY --chown=appuser:appgroup shared/ /app/shared/
-COPY --chown=appuser:appgroup agents/qa_agent/ /app/agents/qa_agent/
+COPY --chown=appuser:appgroup agents/capabilities/quality/ /app/agents/capabilities/quality/
 COPY --chown=appuser:appgroup .acceptance/ /app/.acceptance/
 
 USER appuser
@@ -355,7 +355,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl --fail --silent http://localhost:8014/health/ready || exit 1
 
 CMD ["gunicorn", \
-     "agents.qa_agent.app.main:app", \
+     "agents.capabilities.quality.app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--workers", "1", \
      "--bind", "0.0.0.0:8014", \
@@ -390,8 +390,8 @@ ENV PATH="/opt/venv/bin:$PATH" \
     API_PORT=8013
 
 COPY --chown=appuser:appgroup shared/ /app/shared/
-COPY --chown=appuser:appgroup agents/requirement_manager/ /app/agents/requirement_manager/
-COPY --chown=appuser:appgroup agents/chat_agent/ /app/agents/chat_agent/
+COPY --chown=appuser:appgroup agents/capabilities/requirements/ /app/agents/capabilities/requirements/
+COPY --chown=appuser:appgroup agents/gateways/user_interaction/ /app/agents/gateways/user_interaction/
 
 USER appuser
 EXPOSE 8013
@@ -400,7 +400,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl --fail --silent http://localhost:8013/health/ready || exit 1
 
 CMD ["gunicorn", \
-     "agents.chat_agent.app.main:app", \
+     "agents.gateways.user_interaction.app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--workers", "1", \
      "--bind", "0.0.0.0:8013", \

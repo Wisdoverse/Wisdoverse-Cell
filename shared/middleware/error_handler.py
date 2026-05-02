@@ -22,7 +22,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     )
     error = ErrorResponse(
         code="INTERNAL_ERROR",
-        message="服务内部错误，请稍后再试",
+        message="Internal service error. Please try again later.",
         trace_id=trace_id,
     )
     return JSONResponse(status_code=500, content=error.model_dump())

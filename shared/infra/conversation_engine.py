@@ -180,7 +180,7 @@ class ConversationEngine:
                         )
                         yield TurnCompleteEvent(
                             reason=StopReason.ERROR,
-                            text="对话内容过长，压缩后仍超出限制。请使用 /clear 清除历史后重试。",
+                            text="Conversation context is still too long after compaction. Use /clear to reset history and try again.",
                         )
                         return
                     has_reactive_compacted = True
@@ -209,7 +209,7 @@ class ConversationEngine:
                         )
                         yield TurnCompleteEvent(
                             reason=StopReason.ERROR,
-                            text="对话内容过长，压缩后仍超出限制。请使用 /clear 清除历史后重试。",
+                            text="Conversation context is still too long after compaction. Use /clear to reset history and try again.",
                         )
                         return
                     continue  # Retry LLM call with compacted messages
@@ -333,7 +333,7 @@ class ConversationEngine:
                         )
                         yield TurnCompleteEvent(
                             reason=StopReason.ERROR,
-                            text="对话内容过长，压缩后仍超出限制。请使用 /clear 清除历史后重试。",
+                            text="Conversation context is still too long after compaction. Use /clear to reset history and try again.",
                         )
                         return
 

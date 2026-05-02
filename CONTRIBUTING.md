@@ -87,21 +87,22 @@ Event(
 - Use LLMGateway for all Claude API calls (never direct `anthropic.Anthropic()`)
 - Register tools with `@register_tool("name")`
 
-### Agent 间通信 (重要)
+### Inter-Agent Communication
 
-Agent 之间**禁止 Python 直接 import**。通信方式：
+Agents MUST NOT directly import Python code from other independently deployed
+agents. Use explicit service boundaries:
 
 ```python
-# 同步调用 — 使用 AgentClient (HTTP REST)
+# Synchronous calls: AgentClient over HTTP REST
 from shared.infra.agent_client import PMAgentClient
-client = PMAgentClient()  # URL 从 settings 读取
+client = PMAgentClient()  # URL comes from settings
 result = await client.approve_decomposition(wp_id=42, operator="alice")
 
-# 异步事件 — 使用 EventBus (Redis Streams)
+# Asynchronous collaboration: EventBus over Redis Streams
 await event_bus.publish(Event(event_type="pm.decomposition_completed", ...))
 ```
 
-详见 [ADR-0004](./docs/adr/0004-inter-agent-http-communication.md)。
+See [ADR-0004](./docs/adr/0004-inter-agent-http-communication.md).
 
 ## Commit Convention
 

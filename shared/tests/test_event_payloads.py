@@ -96,11 +96,11 @@ class TestDevTaskInfo:
         info = DevTaskInfo(
             id=2, title="Write tests", description="Add unit tests",
             estimated_hours=4.0, parent_story="US-1",
-            related_files=["agents/chat_agent/"],
+            related_files=["agents/gateways/user_interaction/"],
         )
         assert info.estimated_hours == 4.0
         assert info.parent_story == "US-1"
-        assert info.related_files == ["agents/chat_agent/"]
+        assert info.related_files == ["agents/gateways/user_interaction/"]
 
     def test_negative_estimated_hours_rejected(self):
         with pytest.raises(ValidationError):

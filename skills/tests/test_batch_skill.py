@@ -70,7 +70,7 @@ class TestBatchConfirmSkillExecute:
         )
 
         skill = BatchConfirmSkill()
-        with patch("agents.requirement_manager.skills.batch_operations.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.batch_operations.RequirementRepository", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True
@@ -121,7 +121,7 @@ class TestBatchConfirmSkillExecute:
         )
 
         skill = BatchConfirmSkill()
-        with patch("agents.requirement_manager.skills.batch_operations.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.batch_operations.RequirementRepository", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True
@@ -153,7 +153,7 @@ class TestBatchRejectSkillExecute:
         )
 
         skill = BatchRejectSkill()
-        with patch("agents.requirement_manager.skills.batch_operations.RequirementRepository", mock_repo_class):
+        with patch("agents.capabilities.requirements.skills.batch_operations.RequirementRepository", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True

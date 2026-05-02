@@ -13,9 +13,9 @@ import json
 from datetime import UTC, datetime
 from typing import Optional
 
-from agents.requirement_manager.db.database import DatabaseManager
-from agents.requirement_manager.db.repository import MessageRepository
-from agents.requirement_manager.models.chat_message import ChatMessage
+from agents.capabilities.requirements.db.database import DatabaseManager
+from agents.capabilities.requirements.db.repository import MessageRepository
+from agents.capabilities.requirements.models.chat_message import ChatMessage
 from shared.config import settings
 from shared.utils.id_generator import IDPrefix, generate_id
 from shared.utils.logger import get_logger

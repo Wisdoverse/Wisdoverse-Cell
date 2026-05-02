@@ -1,7 +1,7 @@
 """
-User Repository - 用户数据访问层
+User Repository - user data access layer.
 
-提供用户的 CRUD 操作和跨平台查询功能。
+Provides user CRUD operations and cross-platform lookup helpers.
 """
 from typing import Optional
 
@@ -13,34 +13,34 @@ from shared.models.user import User
 
 
 class UserRepository:
-    """用户数据仓储"""
+    """User data repository."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
 
     async def create(self, user: User) -> User:
-        """创建用户"""
+        """Create a user."""
         self.session.add(user)
         await self.session.flush()
         await self.session.refresh(user)
         return user
 
     async def get_by_id(self, user_id: str) -> Optional[User]:
-        """通过 ID 获取用户"""
+        """Get a user by ID."""
         result = await self.session.execute(
             select(User).where(User.id == user_id)
         )
         return result.scalar_one_or_none()
 
     async def get_by_email(self, email: str) -> Optional[User]:
-        """通过邮箱获取用户"""
+        """Get a user by email."""
         result = await self.session.execute(
             select(User).where(User.email == email)
         )
         return result.scalar_one_or_none()
 
     async def get_by_phone(self, phone: str) -> Optional[User]:
-        """通过手机号获取用户"""
+        """Get a user by phone."""
         result = await self.session.execute(
             select(User).where(User.phone == phone)
         )
@@ -49,7 +49,7 @@ class UserRepository:
     async def get_by_platform_id(
         self, platform: Platform, platform_user_id: str
     ) -> Optional[User]:
-        """通过平台特定 ID 获取用户"""
+        """Get a user by platform-specific ID."""
         column_map = {
             Platform.FEISHU: User.feishu_open_id,
             Platform.WECOM: User.wecom_user_id,
@@ -65,7 +65,7 @@ class UserRepository:
         return result.scalar_one_or_none()
 
     async def update(self, user: User) -> User:
-        """更新用户"""
+        """Update a user."""
         await self.session.flush()
         await self.session.refresh(user)
         return user

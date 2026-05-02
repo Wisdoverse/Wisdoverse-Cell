@@ -252,6 +252,6 @@ async def serve(agent, port: int = 50051):
 
 if __name__ == "__main__":
     # Standalone testing
-    from agents.requirement_manager.service.agent import agent
+    from agents.capabilities.requirements.service.agent import agent
 
     asyncio.run(serve(agent, 50051))

@@ -2,8 +2,8 @@
 Seed SkillConfig entries for Sync Agent.
 
 Source files:
-  - agents/sync_agent/core/engine.py
-  - agents/sync_agent/service/agent.py
+  - agents/capabilities/sync/core/engine.py
+  - agents/capabilities/sync/service/agent.py
 
 The Sync Agent performs deterministic OpenProject <-> Feishu data
 synchronization and does NOT make direct LLM calls.  The seed list is empty.

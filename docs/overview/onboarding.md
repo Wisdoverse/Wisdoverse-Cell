@@ -123,25 +123,25 @@ BaseAgent (you write this)
 make dev                                                      # port 8000
 
 # Sync Agent
-uvicorn agents.sync_agent.app.main:app --reload --port 8010
+uvicorn agents.capabilities.sync.app.main:app --reload --port 8010
 
 # Analysis Agent
-uvicorn agents.analysis_agent.app.main:app --reload --port 8011
+uvicorn agents.capabilities.analysis.app.main:app --reload --port 8011
 
 # PJM Agent
-uvicorn agents.pjm_agent.app.main:app --reload --port 8012
+uvicorn agents.capabilities.project_management.app.main:app --reload --port 8012
 
 # Chat Agent
-uvicorn agents.chat_agent.app.main:app --reload --port 8013
+uvicorn agents.gateways.user_interaction.app.main:app --reload --port 8013
 
 # QA Agent
-uvicorn agents.qa_agent.app.main:app --reload --port 8014
+uvicorn agents.capabilities.quality.app.main:app --reload --port 8014
 
 # Dev Agent
-uvicorn agents.dev_agent.app.main:app --reload --port 8015
+uvicorn agents.capabilities.development.app.main:app --reload --port 8015
 
 # Evolution Agent (standalone; choose a free local port)
-uvicorn agents.evolution_agent.app.main:app --reload --port 8016
+uvicorn agents.capabilities.evolution.app.main:app --reload --port 8016
 ```
 
 For each agent, verify:
@@ -189,7 +189,7 @@ Chat Agent uses Claude Tool Calling. To add a new tool:
 **Step 1**: Define the tool schema.
 
 ```python
-# agents/chat_agent/core/tools/my_tool.py
+# agents/gateways/user_interaction/core/tools/my_tool.py
 from shared.utils.logger import get_logger
 
 logger = get_logger("chat_agent.tools.my_tool")
@@ -219,9 +219,9 @@ async def handle_my_tool(params: dict) -> str:
 **Step 3**: Write tests.
 
 ```python
-# agents/chat_agent/tests/test_my_tool.py
+# agents/gateways/user_interaction/tests/test_my_tool.py
 import pytest
-from agents.chat_agent.core.tools.my_tool import handle_my_tool
+from agents.gateways.user_interaction.core.tools.my_tool import handle_my_tool
 
 @pytest.mark.asyncio
 async def test_my_tool_returns_result():
@@ -233,7 +233,7 @@ async def test_my_tool_returns_result():
 
 ```bash
 make test
-ruff check agents/chat_agent/
+ruff check agents/gateways/user_interaction/
 # Create MR from feature branch
 ```
 
@@ -242,7 +242,7 @@ ruff check agents/chat_agent/
 **Step 1**: Create the directory structure.
 
 ```
-agents/hello_agent/
+agents/capabilities/hello_capability/
 ├── __init__.py
 ├── app/
 │   ├── __init__.py
@@ -255,7 +255,7 @@ agents/hello_agent/
     └── test_agent.py
 ```
 
-**Step 2**: Implement the agent (`agents/hello_agent/service/agent.py`).
+**Step 2**: Implement the agent (`agents/capabilities/hello_capability/service/agent.py`).
 
 ```python
 from shared.schemas.agent import BaseAgent
@@ -291,7 +291,7 @@ class HelloAgent(BaseAgent):
 agent = HelloAgent()
 ```
 
-**Step 3**: Create the FastAPI app (`agents/hello_agent/app/main.py`).
+**Step 3**: Create the FastAPI app (`agents/capabilities/hello_capability/app/main.py`).
 
 ```python
 from shared.app import create_agent_app
@@ -306,11 +306,11 @@ app = create_agent_app(
 
 That is it. `create_agent_app` provides `/health`, `/health/ready`, middleware, metrics, and evolution wrapping automatically.
 
-**Step 4**: Write tests (`agents/hello_agent/tests/test_agent.py`).
+**Step 4**: Write tests (`agents/capabilities/hello_capability/tests/test_agent.py`).
 
 ```python
 from shared.schemas.agent import BaseAgent
-from agents.hello_agent.service.agent import HelloAgent
+from agents.capabilities.hello_capability.service.agent import HelloAgent
 
 
 class TestHelloAgent:
@@ -340,14 +340,14 @@ class TestHelloAgent:
 
 ```bash
 # Run tests
-.venv/bin/python -m pytest agents/hello_agent/tests/ -v
+.venv/bin/python -m pytest agents/capabilities/hello_capability/tests/ -v
 
 # Lint
-ruff check agents/hello_agent/
+ruff check agents/capabilities/hello_capability/
 
 # Create feature branch and MR
 git checkout -b feat/hello-agent
-git add agents/hello_agent/
+git add agents/capabilities/hello_capability/
 git commit -m "feat: add hello-agent minimal example"
 git push -u origin feat/hello-agent
 ```
@@ -667,7 +667,7 @@ Create `.vscode/launch.json` (gitignored):
             "request": "launch",
             "module": "uvicorn",
             "args": [
-                "agents.requirement_manager.app.main:app",
+                "agents.capabilities.requirements.app.main:app",
                 "--reload",
                 "--port", "8000"
             ],
@@ -680,7 +680,7 @@ Create `.vscode/launch.json` (gitignored):
             "request": "launch",
             "module": "uvicorn",
             "args": [
-                "agents.pjm_agent.app.main:app",
+                "agents.capabilities.project_management.app.main:app",
                 "--reload",
                 "--port", "8012"
             ],
@@ -693,7 +693,7 @@ Create `.vscode/launch.json` (gitignored):
             "request": "launch",
             "module": "uvicorn",
             "args": [
-                "agents.chat_agent.app.main:app",
+                "agents.gateways.user_interaction.app.main:app",
                 "--reload",
                 "--port", "8011"
             ],
