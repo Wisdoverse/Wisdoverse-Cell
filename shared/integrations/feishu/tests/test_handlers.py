@@ -449,7 +449,7 @@ class TestBotHandler:
         data = make_feishu_event(content='{"text": "/export"}')
 
         with patch(
-            "agents.requirement_manager.core.generator.generator",
+            "agents.capabilities.requirements.core.generator.generator",
             mock_generator,
             create=True,
         ):

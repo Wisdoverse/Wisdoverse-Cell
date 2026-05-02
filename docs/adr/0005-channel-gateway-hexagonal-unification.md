@@ -1,42 +1,55 @@
-# ADR-0005: Channel Gateway 六边形统一架构
-
-> Language note: English is the primary documentation language. This legacy document may still contain Chinese implementation details; when editing it, put the English explanation first.
+# ADR-0005: Channel Gateway Hexagonal Unification
 
 ## Status
-已采纳 (2026-03-08)
+
+Accepted on 2026-03-08.
 
 ## Context
-系统中存在三套重叠的 channel 体系:
-- `shared/services/channels/` — 底层 channel 抽象
-- `shared/services/gateway/` — 入站消息网关
-- `shared/services/channel_gateway/` — 出站 adapter 框架
 
-这导致了 import 混乱、类型重复定义、以及难以测试的交叉依赖。
+The messaging layer previously had three overlapping channel systems:
+
+- `shared/services/channels/` for low-level channel abstractions.
+- `shared/services/gateway/` for inbound message gateway behavior.
+- `shared/services/channel_gateway/` for outbound adapter behavior.
+
+That overlap caused import ambiguity, duplicated type definitions, and
+cross-dependencies that were hard to test independently.
 
 ## Decision
-统一为六边形架构 (Hexagonal Architecture)，按职责分层:
 
-- **`shared/core/messaging/`** — Port 接口层 (PlatformAdapter, UnifiedMessage, AdapterRegistry)
-- **`shared/messaging/inbound/`** — 入站网关 (原 gateway/)
-- **`shared/messaging/outbound/`** — 出站 adapter + DeliveryService (原 channel_gateway/)
-- **`shared/integrations/{feishu,wecom,openclaw,openproject}/`** — 平台 SDK wrapper
-- **`shared/integrations/channels/`** — Channel 抽象层
-- **`shared/infra/`** — 横切基础设施 (CircuitBreaker, AgentClient)
+Use a hexagonal messaging architecture with clear ownership boundaries:
 
-迁移策略: 原文件转为 compat re-export stub，实现零消费者变更的渐进式迁移。
+- `shared/core/messaging/`: port interfaces such as `PlatformAdapter`,
+  `UnifiedMessage`, and `AdapterRegistry`.
+- `shared/messaging/inbound/`: inbound gateway orchestration.
+- `shared/messaging/outbound/`: outbound adapters and `DeliveryService`.
+- `shared/integrations/{feishu,wecom,openclaw,openproject}/`: platform SDK
+  wrappers and platform-specific adapters.
+- `shared/integrations/channels/`: channel abstraction helpers.
+- `shared/infra/`: cross-cutting infrastructure such as `CircuitBreaker` and
+  `AgentClient`.
+
+Legacy import paths are migrated through compatibility re-export stubs so
+consumers can move incrementally without a flag-day rewrite.
 
 ## Consequences
 
-### Positive
-- 依赖方向清晰: core → messaging → integrations
-- Port/Adapter 模式支持独立测试每个 adapter
-- DeliveryService 提供安全广播 (semaphore + return_exceptions)
-- CI lint 拦截新的 deprecated import，防止回退
-- Feature flag (`use_new_delivery_service`) 支持灰度上线
+Positive outcomes:
 
-### Negative
-- 需维护 74 个 compat re-export 文件，待消费者迁移后移除
-- 消费者代码中仍有 229 处 legacy import (由 `migration_metrics.sh` 追踪)
+- Dependency direction is clearer: core ports -> messaging orchestration ->
+  platform integrations.
+- Port/adapter boundaries make each adapter easier to test.
+- `DeliveryService` provides safer broadcast behavior through semaphore limits
+  and `return_exceptions` handling.
+- CI deprecated-import checks prevent new code from returning to old paths.
+- `settings.use_new_delivery_service` provides a rollout and rollback switch.
 
-### Neutral
-- 对现有消费者完全透明，compat stub 保证 import 路径不变
+Costs and follow-up work:
+
+- Compatibility stubs must remain until remaining consumers have migrated.
+- Legacy imports should be tracked and removed once no consumers depend on them.
+
+Neutral impact:
+
+- Existing consumers remain operational during migration because compatibility
+  stubs preserve import paths.

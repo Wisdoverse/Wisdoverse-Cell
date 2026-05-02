@@ -79,7 +79,7 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 | Cost control | Tiered LLM routing, daily budgets, `BudgetGuard`, LLM/tool usage records | Per-goal forecasts and team-level budget planning |
 | Audit log | Immutable events, logs, traces, metrics, control-plane timeline | SLO dashboards and long-term audit retention policy |
 | Portability | Compose stack and environment templates | Export/import company templates with secret scrubbing |
-| Self-evolution | `shared/evolution/` and `evolution_agent` | Governed improvement proposals with shadow mode and rollout history |
+| Self-evolution | `shared/evolution/` and the evolution capability module | Governed improvement proposals with shadow mode and rollout history |
 
 ---
 

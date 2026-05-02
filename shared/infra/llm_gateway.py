@@ -1,14 +1,14 @@
 """
-LLM Gateway - 统一的LLM调用入口
+LLM Gateway - centralized LLM access point.
 
-所有Agent通过这个Gateway访问LLM，实现:
-1. 统一的接口
-2. 成本追踪（Redis-based daily budget metering）
-3. 失败重试（指数退避）
-4. 断路器（防止雪崩）
-5. 持久化调用记录
-6. 预算控制（超预算自动降级模型）
-7. 未来可扩展支持多模型
+All agents access LLMs through this gateway. It provides:
+1. A unified interface.
+2. Cost tracking with Redis-based daily budget metering.
+3. Failure retry with exponential backoff.
+4. Circuit breaker protection.
+5. Durable usage records.
+6. Budget controls with model downgrade support.
+7. A future extension point for multiple model providers.
 """
 import asyncio
 import random
@@ -44,16 +44,16 @@ logger = get_logger("llm_gateway")
 # Redis key prefix for daily cost tracking
 _REDIS_COST_KEY_PREFIX = "llm_cost"
 
-# 可重试的 HTTP 状态码
+# Retryable HTTP status codes
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 529}
 
 
 @dataclass
 class LLMUsageData:
     """
-    LLM 调用使用数据
+    LLM call usage data.
 
-    用于传递给持久化回调，包含一次 LLM 调用的所有相关信息。
+    Passed to persistence callbacks with all relevant fields for one LLM call.
     """
     agent_id: str
     task_type: str
@@ -75,18 +75,18 @@ class ControlPlaneBudgetReservation:
     budget_id: str
 
 
-# 持久化回调类型
+# Persistence callback type
 UsagePersistCallback = Callable[[LLMUsageData], Any]
 
 
 def _is_retryable_error(exception: BaseException) -> bool:
     """
-    判断是否为可重试的错误
+    Return whether an exception is retryable.
 
-    可重试的错误包括:
+    Retryable errors include:
     - RateLimitError (429)
     - InternalServerError (500)
-    - APIConnectionError (网络问题)
+    - APIConnectionError (network issue)
     - APIStatusError with status code in RETRYABLE_STATUS_CODES
     """
     if isinstance(exception, RateLimitError):
@@ -102,23 +102,23 @@ def _is_retryable_error(exception: BaseException) -> bool:
 
 class LLMGateway:
     """
-    LLM调用网关
+    LLM call gateway.
 
-    特性:
-    - 指数退避重试: 1s → 2s → 4s，最多重试3次
-    - 断路器: 连续5次失败后打开，60秒后半开探测
-    - 成本追踪: 记录每次调用的token使用量
-    - 完全异步: 使用 AsyncAnthropic 客户端
+    Features:
+    - Exponential backoff retry: 1s -> 2s -> 4s, up to three retries.
+    - Circuit breaker: opens after five consecutive failures, then probes after 60s.
+    - Cost tracking: records token usage for each call.
+    - Fully async: uses the AsyncAnthropic client.
 
-    当前只支持Claude，未来可扩展支持:
-    - 本地模型 (Ollama)
+    Claude is currently supported. Future providers may include:
+    - Local models (Ollama)
     - OpenAI
-    - 其他模型
+    - Other models
 
-    使用方式:
+    Usage:
         gateway = LLMGateway()
         response = await gateway.complete(
-            prompt="提取需求...",
+            prompt="Extract requirements...",
             agent_id="requirement-manager",
             task_type="extraction"
         )
@@ -133,14 +133,14 @@ class LLMGateway:
         recovery_timeout: int = 60,
     ):
         """
-        初始化LLM网关
+        Initialize the LLM gateway.
 
         Args:
-            api_key: Anthropic API密钥，默认从配置读取
+            api_key: Anthropic API key, defaults to settings.
             base_url: Anthropic API base URL (e.g. OneAPI proxy)
             timeout: Client timeout in seconds
-            failure_threshold: 断路器失败阈值
-            recovery_timeout: 断路器恢复超时（秒）
+            failure_threshold: Circuit breaker failure threshold.
+            recovery_timeout: Circuit breaker recovery timeout in seconds.
         """
         self.api_key = api_key or settings.anthropic_api_key.get_secret_value()
 
@@ -161,21 +161,21 @@ class LLMGateway:
                     "is not allowed for data residency compliance."
                 )
 
-        # 使用异步客户端，避免阻塞事件循环
+        # Use the async client to avoid blocking the event loop.
         self.async_client = AsyncAnthropic(
             api_key=self.api_key,
             base_url=resolved_base_url if resolved_base_url else None,
             timeout=timeout,
         )
 
-        # 断路器
+        # Circuit breaker.
         self._circuit_breaker = CircuitBreaker(
             failure_threshold=failure_threshold,
             recovery_timeout=recovery_timeout,
             name="llm_gateway"
         )
 
-        # 成本追踪 (简化版，正式应存数据库)
+        # Cost tracking. This in-memory map is kept for backward compatibility.
         self._usage_today: dict[str, dict] = {}
 
         # Redis client for distributed cost tracking (lazy-initialized)
@@ -199,18 +199,18 @@ class LLMGateway:
         run_id: Optional[str] = None,
     ) -> str:
         """
-        调用LLM完成任务
+        Call the LLM to complete a task.
 
         Args:
-            prompt: 用户提示词
-            agent_id: 调用方Agent ID（用于成本追踪）
-            task_type: 任务类型（extraction/generation/analysis/conversation）
-            model: 模型名称，默认使用配置中的模型
-            max_tokens: 最大输出token数
-            temperature: 温度参数
-            system_prompt: 系统提示词
-            trace_id: 可选的追踪ID（用于关联请求）
-            persist_callback: 可选的持久化回调，用于将使用记录写入数据库
+            prompt: User prompt.
+            agent_id: Calling agent ID for cost tracking.
+            task_type: Task type (extraction/generation/analysis/conversation).
+            model: Model name, defaults to the configured model.
+            max_tokens: Maximum output tokens.
+            temperature: Sampling temperature.
+            system_prompt: System prompt.
+            trace_id: Optional trace ID for request correlation.
+            persist_callback: Optional callback for persisting usage data.
             company_id: Optional control-plane company for durable budget checks.
             budget_scope: Optional budget scope override (company/goal/agent/work_item).
             budget_scope_id: Optional budget scope identifier.
@@ -218,11 +218,11 @@ class LLMGateway:
             run_id: Optional control-plane agent run ID for usage linkage.
 
         Returns:
-            LLM的响应文本
+            LLM response text.
 
         Raises:
-            CircuitBreakerError: 断路器打开时
-            anthropic.APIError: API调用失败且重试耗尽时
+            CircuitBreakerError: When the circuit breaker is open.
+            anthropic.APIError: When the API call fails after retries are exhausted.
         """
         model = model or settings.default_model
         start_time = time.time()
@@ -249,7 +249,7 @@ class LLMGateway:
             trace_id=trace_id,
         )
 
-        # 检查断路器状态
+        # Check circuit breaker state.
         if not self._circuit_breaker.can_execute():
             logger.warning(
                 "llm_call_rejected",
@@ -275,10 +275,10 @@ class LLMGateway:
             )
             model = create_kwargs["model"]
 
-            # 记录成功
+            # Record success.
             self._circuit_breaker.record_success()
 
-            # 记录使用量
+            # Record usage.
             input_tokens = response.usage.input_tokens
             output_tokens = response.usage.output_tokens
             latency_ms = int((time.time() - start_time) * 1000)
@@ -328,7 +328,7 @@ class LLMGateway:
                 trace_id=trace_id,
             )
 
-            # 调用持久化回调
+            # Invoke persistence callback.
             if persist_callback:
                 usage_data = LLMUsageData(
                     agent_id=agent_id,
@@ -344,13 +344,13 @@ class LLMGateway:
                 try:
                     persist_callback(usage_data)
                 except Exception as persist_error:
-                    # 持久化失败不影响主流程
+                    # Persistence failures must not block the main flow.
                     logger.warning(
                         "llm_usage_persist_failed",
                         error=str(persist_error)
                     )
 
-            # 提取文本响应
+            # Extract text response.
             return response.content[0].text
 
         except ContentSizeError:
@@ -535,7 +535,7 @@ class LLMGateway:
         temperature: float,
         system_prompt: Optional[str],
     ):
-        """带重试的LLM调用 — delegates to _call_with_recovery."""
+        """LLM call with retry; delegates to _call_with_recovery."""
         return await self._call_with_recovery({
             "model": model,
             "max_tokens": max_tokens,
@@ -720,7 +720,7 @@ class LLMGateway:
             raise
 
     async def _call_messages_with_retry(self, kwargs: dict, _agent_id: str = "unknown"):
-        """带重试的 messages.create 调用 — delegates to _call_with_recovery."""
+        """messages.create call with retry; delegates to _call_with_recovery."""
         return await self._call_with_recovery(kwargs, agent_id=_agent_id)
 
     # ------------------------------------------------------------------ #
@@ -968,7 +968,7 @@ class LLMGateway:
         return requested_model
 
     def _track_usage(self, agent_id: str, model: str, input_tokens: int, output_tokens: int):
-        """追踪使用量 (内存 + Redis)"""
+        """Track usage in memory and Redis."""
         today = datetime.now(UTC).strftime("%Y-%m-%d")
         # In-memory tracking (backward compat)
         if today not in self._usage_today:
@@ -1000,7 +1000,7 @@ class LLMGateway:
             logger.warning("redis_usage_tracking_failed", error=str(exc))
 
     def get_usage_today(self, agent_id: Optional[str] = None) -> dict:
-        """获取今日使用量"""
+        """Return today's usage."""
         today = datetime.now(UTC).strftime("%Y-%m-%d")
 
         if today not in self._usage_today:
@@ -1012,10 +1012,10 @@ class LLMGateway:
         return self._usage_today[today]
 
     def estimate_cost(self, input_tokens: int, output_tokens: int, model: str = None) -> float:
-        """估算成本（美元）"""
+        """Estimate cost in USD."""
         model = model or settings.default_model
 
-        # Claude定价 (大约值，实际价格请参考官方)
+        # Claude pricing. Approximate values; check official pricing for current rates.
         pricing = {
             "claude-opus-4-6": {"input": 15.0, "output": 75.0},  # per million tokens
             "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
@@ -1074,13 +1074,13 @@ class LLMGateway:
             )
 
     def get_circuit_breaker_stats(self) -> dict:
-        """获取断路器统计信息"""
+        """Return circuit breaker statistics."""
         return self._circuit_breaker.get_stats()
 
     def reset_circuit_breaker(self) -> None:
-        """手动重置断路器"""
+        """Manually reset the circuit breaker."""
         self._circuit_breaker.reset()
 
 
-# 全局LLM网关实例
+# Global LLM gateway instance
 llm_gateway = LLMGateway()

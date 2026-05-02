@@ -2,7 +2,7 @@
 
 > Last updated: 2026-05-02
 >
-> This is the entry point for Wisdoverse Cell documentation. Documentation is English-first; legacy Chinese content may remain where a detailed translation pass has not yet been completed.
+> This is the entry point for Wisdoverse Cell documentation. Documentation is English-first. Non-English text should be limited to locale values, quoted source text, external platform contracts, and multilingual fixtures.
 
 ---
 
@@ -94,6 +94,15 @@ For contributors, operators, and deployers.
 Documentation should describe current truth first, then planned work. If a page
 contains roadmap material, label it explicitly and link to the implementation
 evidence that proves what has already shipped.
+
+### Language
+
+- English is the primary language for repository documentation and code-facing
+  explanations.
+- New or changed docs must not be Chinese-only.
+- Non-English text is allowed only for locale files, quoted source content,
+  external platform field names, and test fixtures that intentionally exercise
+  multilingual behavior.
 
 ### Naming
 

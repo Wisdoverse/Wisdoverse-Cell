@@ -45,7 +45,7 @@ EMBEDDING_DIM = 384
 
 async def count_requirements(session: AsyncSession) -> int:
     """Count total requirements in PostgreSQL."""
-    from agents.requirement_manager.models.requirement import Requirement
+    from agents.capabilities.requirements.models.requirement import Requirement
 
     result = await session.execute(select(func.count(Requirement.id)))
     return result.scalar() or 0
@@ -55,7 +55,7 @@ async def fetch_requirements(
     session: AsyncSession, offset: int, limit: int
 ) -> list[dict]:
     """Fetch a batch of requirements from PostgreSQL."""
-    from agents.requirement_manager.models.requirement import Requirement
+    from agents.capabilities.requirements.models.requirement import Requirement
 
     result = await session.execute(
         select(Requirement)
@@ -82,7 +82,7 @@ def format_for_embedding(req: dict) -> str:
     """Format requirement text for embedding.
 
     Duplicates ``RequirementEmbedder.format_requirement_for_embedding`` —
-    keep in sync with ``agents/requirement_manager/core/embedder.py``.
+    keep in sync with ``agents/capabilities/requirements/core/embedder.py``.
     """
     parts = [f"需求: {req['title']}"]
     if req.get("category"):

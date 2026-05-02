@@ -80,7 +80,7 @@ def ai_core_process() -> Generator[subprocess.Popen | None, None, None]:
     proc = subprocess.Popen(
         [
             "python", "-m", "uvicorn",
-            "agents.requirement_manager.app.main:app",
+            "agents.capabilities.requirements.app.main:app",
             "--host", "0.0.0.0",
             "--port", "8000",
         ],

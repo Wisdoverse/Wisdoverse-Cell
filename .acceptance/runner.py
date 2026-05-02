@@ -5,7 +5,7 @@ Acceptance Framework Runner
 Orchestrates L0/L1/L2 checks and produces a unified JSON report.
 
 Usage:
-    python .acceptance/runner.py [--target agents/pjm_agent] [--level l0] [--format json|markdown]
+    python .acceptance/runner.py [--target agents/capabilities/project_management] [--level l0] [--format json|markdown]
     python .acceptance/runner.py --diff HEAD~1   # Only check changed files
 """
 

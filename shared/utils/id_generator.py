@@ -1,67 +1,67 @@
 """
-ID Generator - 统一的ID生成器
+ID Generator - centralized ID generation.
 
-使用ULID (Universally Unique Lexicographically Sortable Identifier)
-- 有序：可按时间排序
-- 可读：比UUID短
-- 分布式安全：无需中心化生成
+Uses ULID (Universally Unique Lexicographically Sortable Identifier).
+- Ordered: sortable by time.
+- Readable: shorter than UUID.
+- Distributed-safe: no centralized generator required.
 
-格式: {prefix}_{ulid}
-示例:
-  - req_01HQ3K4N5M6P7Q8R9S0T  (需求)
-  - mtg_01HQ3K4N5M6P7Q8R9S0T  (会议)
-  - evt_01HQ3K4N5M6P7Q8R9S0T  (事件)
-  - usr_01HQ3K4N5M6P7Q8R9S0T  (用户)
+Format: {prefix}_{ulid}
+Examples:
+  - req_01HQ3K4N5M6P7Q8R9S0T  (requirement)
+  - mtg_01HQ3K4N5M6P7Q8R9S0T  (meeting)
+  - evt_01HQ3K4N5M6P7Q8R9S0T  (event)
+  - usr_01HQ3K4N5M6P7Q8R9S0T  (user)
 """
 import ulid
 
 
 def generate_id(prefix: str) -> str:
     """
-    生成带前缀的ULID
+    Generate a prefixed ULID.
 
     Args:
-        prefix: ID前缀，如 "req", "mtg", "evt"
+        prefix: ID prefix such as "req", "mtg", or "evt".
 
     Returns:
-        格式化的ID，如 "req_01HQ3K4N5M6P7Q8R9S0T"
+        Formatted ID such as "req_01HQ3K4N5M6P7Q8R9S0T".
     """
     return f"{prefix}_{str(ulid.ULID()).lower()}"
 
 
 def generate_ulid() -> str:
     """
-    生成纯 ULID（不带前缀）
+    Generate a plain ULID without a prefix.
 
     Returns:
-        26 字符的 ULID 字符串
+        A 26-character ULID string.
     """
     return str(ulid.ULID())
 
 
-# 预定义的前缀常量
+# Predefined prefix constants
 class IDPrefix:
-    """ID前缀常量"""
-    EVENT = "evt"           # 事件
-    REQUIREMENT = "req"     # 需求
-    MEETING = "mtg"         # 会议
-    QUESTION = "qst"        # 问题
-    USER = "usr"            # 用户
-    CUSTOMER = "cus"        # 客户
-    DEVICE = "dev"          # 设备
-    TICKET = "tkt"          # 工单
-    APPROVAL = "apr"        # 审批
-    DOCUMENT = "doc"        # 文档
-    SESSION = "ses"         # 会话
-    MESSAGE = "msg"         # 消息
-    COMPANY = "cmp"         # 公司上下文
-    GOAL = "goal"           # 目标
-    AGENT_ROLE = "role"     # Agent 角色
-    WORK_ITEM = "work"      # 工作项
-    AGENT_RUN = "run"       # Agent 运行
-    DECISION = "dec"        # 决策
-    ARTIFACT = "art"        # 产物
-    BUDGET = "bud"          # 预算
-    BUDGET_USAGE = "busg"   # 预算使用
-    AUDIT_EVENT = "aud"     # 审计事件
-    EVOLUTION_PROPOSAL = "evp"  # 自进化提案
+    """ID prefix constants."""
+    EVENT = "evt"           # event
+    REQUIREMENT = "req"     # requirement
+    MEETING = "mtg"         # meeting
+    QUESTION = "qst"        # question
+    USER = "usr"            # user
+    CUSTOMER = "cus"        # customer
+    DEVICE = "dev"          # device
+    TICKET = "tkt"          # ticket
+    APPROVAL = "apr"        # approval
+    DOCUMENT = "doc"        # document
+    SESSION = "ses"         # session
+    MESSAGE = "msg"         # message
+    COMPANY = "cmp"         # company context
+    GOAL = "goal"           # goal
+    AGENT_ROLE = "role"     # agent role
+    WORK_ITEM = "work"      # work item
+    AGENT_RUN = "run"       # agent run
+    DECISION = "dec"        # decision
+    ARTIFACT = "art"        # artifact
+    BUDGET = "bud"          # budget
+    BUDGET_USAGE = "busg"   # budget usage
+    AUDIT_EVENT = "aud"     # audit event
+    EVOLUTION_PROPOSAL = "evp"  # evolution proposal

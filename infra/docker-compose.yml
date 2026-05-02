@@ -80,7 +80,7 @@ services:
   requirement-manager:
     build:
       context: ..
-      dockerfile: agents/requirement_manager/Dockerfile
+      dockerfile: agents/capabilities/requirements/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}

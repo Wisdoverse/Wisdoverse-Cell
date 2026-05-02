@@ -1,13 +1,14 @@
 """
-Circuit Breaker - 断路器实现
+Circuit Breaker implementation.
 
-防止对失败服务的持续调用，实现快速失败和自动恢复。
+Prevents repeated calls to failing services and supports fail-fast behavior
+with automatic recovery.
 
-状态机:
-    CLOSED (正常) → 失败达到阈值 → OPEN (断开)
-    OPEN (断开) → 超时后 → HALF_OPEN (半开)
-    HALF_OPEN (半开) → 成功 → CLOSED (正常)
-    HALF_OPEN (半开) → 失败 → OPEN (断开)
+State machine:
+    CLOSED (normal) -> failure threshold reached -> OPEN (fail fast)
+    OPEN (fail fast) -> timeout elapsed -> HALF_OPEN (probe)
+    HALF_OPEN (probe) -> success -> CLOSED (normal)
+    HALF_OPEN (probe) -> failure -> OPEN (fail fast)
 """
 import time
 from enum import Enum
@@ -20,14 +21,14 @@ logger = get_logger("circuit_breaker")
 
 
 class CircuitState(Enum):
-    """断路器状态"""
-    CLOSED = "closed"      # 正常状态，允许请求通过
-    OPEN = "open"          # 断开状态，快速失败
-    HALF_OPEN = "half_open"  # 半开状态，允许探测请求
+    """Circuit breaker state."""
+    CLOSED = "closed"      # normal state, requests are allowed
+    OPEN = "open"          # open state, requests fail fast
+    HALF_OPEN = "half_open"  # probe state, a trial request is allowed
 
 
 class CircuitBreakerError(Exception):
-    """断路器打开时抛出的异常"""
+    """Raised when the circuit breaker is open."""
 
     def __init__(self, message: str = "Circuit breaker is open"):
         self.message = message
@@ -36,13 +37,14 @@ class CircuitBreakerError(Exception):
 
 class CircuitBreaker:
     """
-    断路器实现
+    Circuit breaker implementation.
 
-    当连续失败次数达到阈值时，断路器打开，后续请求直接失败。
-    经过恢复时间后，断路器进入半开状态，允许一个探测请求。
-    如果探测成功，断路器关闭；如果失败，断路器重新打开。
+    When consecutive failures reach the threshold, the breaker opens and
+    later requests fail fast. After the recovery timeout, the breaker enters
+    HALF_OPEN and allows a probe request. A successful probe closes the
+    breaker; a failed probe reopens it.
 
-    使用方式:
+    Usage:
         breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=60)
 
         if not breaker.can_execute():
@@ -56,7 +58,7 @@ class CircuitBreaker:
             breaker.record_failure()
             raise
 
-    线程安全: 是（使用 Lock）
+    Thread-safe: yes, through Lock.
     """
 
     def __init__(
@@ -66,12 +68,12 @@ class CircuitBreaker:
         name: str = "default"
     ):
         """
-        初始化断路器
+        Initialize the circuit breaker.
 
         Args:
-            failure_threshold: 连续失败多少次后打开断路器
-            recovery_timeout: 断路器打开后多少秒进入半开状态
-            name: 断路器名称（用于日志）
+            failure_threshold: Consecutive failure count that opens the breaker.
+            recovery_timeout: Seconds before an open breaker enters HALF_OPEN.
+            name: Breaker name used in logs.
         """
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
@@ -84,36 +86,36 @@ class CircuitBreaker:
 
     @property
     def state(self) -> CircuitState:
-        """获取当前状态"""
+        """Return the current state."""
         with self._lock:
             return self._state
 
     @property
     def failure_count(self) -> int:
-        """获取当前失败计数"""
+        """Return the current failure count."""
         with self._lock:
             return self._failure_count
 
     def can_execute(self) -> bool:
         """
-        检查是否可以执行请求
+        Check whether a request can execute.
 
         Returns:
-            True: 可以执行
-            False: 断路器打开，应该快速失败
+            True: execution is allowed.
+            False: the breaker is open and the caller should fail fast.
         """
         with self._lock:
             if self._state == CircuitState.CLOSED:
                 return True
 
             if self._state == CircuitState.OPEN:
-                # 检查是否超过恢复时间
+                # Check whether recovery timeout has elapsed.
                 if self._last_failure_time is None:
                     return True
 
                 elapsed = time.time() - self._last_failure_time
                 if elapsed >= self.recovery_timeout:
-                    # 进入半开状态
+                    # Enter half-open state.
                     self._state = CircuitState.HALF_OPEN
                     logger.info(
                         "circuit_breaker_half_open",
@@ -124,18 +126,18 @@ class CircuitBreaker:
 
                 return False
 
-            # HALF_OPEN 状态，允许探测请求
+            # HALF_OPEN state allows a probe request.
             return True
 
     def record_success(self) -> None:
         """
-        记录成功调用
+        Record a successful call.
 
-        在 HALF_OPEN 状态下成功会关闭断路器。
+        A success in HALF_OPEN closes the breaker.
         """
         with self._lock:
             if self._state == CircuitState.HALF_OPEN:
-                # 探测成功，关闭断路器
+                # Successful probe closes the breaker.
                 self._state = CircuitState.CLOSED
                 self._failure_count = 0
                 logger.info(
@@ -144,22 +146,22 @@ class CircuitBreaker:
                     reason="probe_success"
                 )
             elif self._state == CircuitState.CLOSED:
-                # 重置失败计数
+                # Reset failure count.
                 self._failure_count = 0
 
     def record_failure(self) -> None:
         """
-        记录失败调用
+        Record a failed call.
 
-        连续失败达到阈值时打开断路器。
-        在 HALF_OPEN 状态下失败会重新打开断路器。
+        Consecutive failures open the breaker at the configured threshold.
+        A failure in HALF_OPEN reopens the breaker.
         """
         with self._lock:
             self._failure_count += 1
             self._last_failure_time = time.time()
 
             if self._state == CircuitState.HALF_OPEN:
-                # 探测失败，重新打开
+                # Failed probe reopens the breaker.
                 self._state = CircuitState.OPEN
                 logger.warning(
                     "circuit_breaker_reopened",
@@ -168,7 +170,7 @@ class CircuitBreaker:
                 )
             elif self._state == CircuitState.CLOSED:
                 if self._failure_count >= self.failure_threshold:
-                    # 达到阈值，打开断路器
+                    # Threshold reached; open the breaker.
                     self._state = CircuitState.OPEN
                     logger.warning(
                         "circuit_breaker_opened",
@@ -178,7 +180,7 @@ class CircuitBreaker:
                     )
 
     def reset(self) -> None:
-        """手动重置断路器到关闭状态"""
+        """Manually reset the circuit breaker to CLOSED."""
         with self._lock:
             self._state = CircuitState.CLOSED
             self._failure_count = 0
@@ -189,7 +191,7 @@ class CircuitBreaker:
             )
 
     def get_stats(self) -> dict:
-        """获取断路器统计信息"""
+        """Return circuit breaker statistics."""
         with self._lock:
             return {
                 "name": self.name,

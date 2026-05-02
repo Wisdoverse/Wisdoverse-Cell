@@ -9,7 +9,7 @@
 #
 # Usage:
 #   pip install -c requirements-lock.txt -r requirements.txt
-#   pip install -c requirements-lock.txt -r agents/chat_agent/requirements.txt
+#   pip install -c requirements-lock.txt -r agents/gateways/user_interaction/requirements.txt
 #
 # Regenerate after changing any requirements file:
 #   sort -u requirements.txt agents/*/requirements.txt | grep -v '^#' | ...

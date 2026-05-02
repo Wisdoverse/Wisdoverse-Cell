@@ -12,8 +12,8 @@ from typing import Optional
 
 from redis.asyncio import Redis
 
-from agents.requirement_manager.db.database import DatabaseManager
-from agents.requirement_manager.db.repository import MessageRepository
+from agents.capabilities.requirements.db.database import DatabaseManager
+from agents.capabilities.requirements.db.repository import MessageRepository
 from shared.config import settings
 from shared.utils.id_generator import IDPrefix, generate_id
 from shared.utils.logger import get_logger

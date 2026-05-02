@@ -6,15 +6,15 @@ Produces structured summaries that preserve more context than flat text.
 import re
 
 DEFAULT_SECTIONS: list[dict[str, str]] = [
-    {"key": "intent", "label": "用户意图", "hint": "主要请求和目标"},
-    {"key": "concepts", "label": "关键概念", "hint": "涉及的技术概念或业务领域"},
-    {"key": "tools", "label": "工具调用", "hint": "使用过的工具名称和关键结果"},
-    {"key": "data", "label": "关键数据", "hint": "数据片段、查询结果、文件路径"},
-    {"key": "errors", "label": "错误与修复", "hint": "遇到的问题和解决方案"},
-    {"key": "decisions", "label": "决策记录", "hint": "已做出的决定和原因"},
-    {"key": "todos", "label": "待办事项", "hint": "尚未完成的任务"},
-    {"key": "current", "label": "当前工作", "hint": "最近正在进行的工作"},
-    {"key": "next", "label": "建议下一步", "hint": "建议的下一步操作"},
+    {"key": "intent", "label": "User Intent", "hint": "Main request and goal"},
+    {"key": "concepts", "label": "Key Concepts", "hint": "Technical or business concepts involved"},
+    {"key": "tools", "label": "Tool Calls", "hint": "Tool names used and important results"},
+    {"key": "data", "label": "Key Data", "hint": "Data snippets, query results, file paths"},
+    {"key": "errors", "label": "Errors And Fixes", "hint": "Problems encountered and solutions applied"},
+    {"key": "decisions", "label": "Decisions", "hint": "Decisions made and why"},
+    {"key": "todos", "label": "Open Tasks", "hint": "Tasks that are not finished yet"},
+    {"key": "current", "label": "Current Work", "hint": "Most recent active work"},
+    {"key": "next", "label": "Recommended Next Step", "hint": "Suggested next action"},
 ]
 
 _MAX_INPUT_CHARS = 8000
@@ -29,22 +29,22 @@ class StructuredSummaryTemplate:
 
     def system_prompt(self) -> str:
         lines = [
-            "你是一个对话压缩助手。请将以下对话内容提取为结构化摘要。",
-            "使用以下格式，每个段落用 ## 标题标记。跳过没有内容的段落。",
+            "You are a conversation compression assistant. Extract the conversation into a structured summary.",
+            "Use the format below. Mark each section with a ## heading. Skip sections with no content.",
             "",
         ]
         for s in self._sections:
             hint = s.get("hint", "")
             lines.append(f"## {s['label']}")
             if hint:
-                lines.append(f"（{hint}）")
+                lines.append(f"({hint})")
             lines.append("")
-        lines.append("保持简洁，每段 1-3 句话。保留工具名称和关键数据。")
+        lines.append("Keep it concise: 1-3 sentences per section. Preserve tool names and important data.")
         return "\n".join(lines)
 
     def format_boundary(self, sections: dict[str, str]) -> str:
         """Format parsed sections into a boundary message content string."""
-        parts = ["[对话已压缩]"]
+        parts = ["[Conversation compacted]"]
         if "_raw" in sections:
             parts.append(sections["_raw"])
         else:

@@ -1,7 +1,7 @@
 """
-Logger - 统一的日志配置
+Logger - centralized logging configuration.
 
-使用structlog实现结构化日志，便于后续分析。
+Uses structlog for structured logs that are easier to analyze.
 """
 import logging
 import sys
@@ -12,13 +12,13 @@ import structlog
 
 def get_logger(name: Optional[str] = None) -> structlog.BoundLogger:
     """
-    获取配置好的logger实例
+    Return a configured logger instance.
 
     Args:
-        name: logger名称，通常是模块名或Agent ID
+        name: Logger name, usually a module name or agent ID.
 
     Returns:
-        配置好的structlog logger
+        Configured structlog logger.
     """
     return structlog.get_logger(name)
 
@@ -29,21 +29,21 @@ def setup_logging(
     log_file: Optional[str] = None
 ):
     """
-    设置全局日志配置
+    Configure global logging.
 
     Args:
-        level: 日志级别 (DEBUG, INFO, WARNING, ERROR)
-        json_format: 是否使用JSON格式输出
-        log_file: 日志文件路径（可选）
+        level: Log level (DEBUG, INFO, WARNING, ERROR).
+        json_format: Whether to output JSON-formatted logs.
+        log_file: Optional log file path.
     """
-    # 设置标准库日志级别
+    # Set standard-library logging level.
     logging.basicConfig(
         format="%(message)s",
         stream=sys.stdout,
         level=getattr(logging, level.upper(), logging.INFO),
     )
 
-    # 简化的处理器列表
+    # Minimal processor list.
     processors = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
@@ -68,5 +68,5 @@ def setup_logging(
     )
 
 
-# 默认配置
+# Default configuration
 setup_logging()

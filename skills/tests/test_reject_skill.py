@@ -74,7 +74,7 @@ class TestRejectSkillExecute:
             mock_repo.reject = AsyncMock(return_value=mock_requirement)
 
             mp.setattr(
-                "agents.requirement_manager.skills.reject_requirement.RequirementRepository",
+                "agents.capabilities.requirements.skills.reject_requirement.RequirementRepository",
                 lambda db: mock_repo
             )
 
@@ -108,7 +108,7 @@ class TestRejectSkillExecute:
             mock_repo.get_by_id = AsyncMock(return_value=None)
 
             mp.setattr(
-                "agents.requirement_manager.skills.reject_requirement.RequirementRepository",
+                "agents.capabilities.requirements.skills.reject_requirement.RequirementRepository",
                 lambda db: mock_repo
             )
 
@@ -131,7 +131,7 @@ class TestRejectSkillExecute:
             mock_repo.reject = AsyncMock(return_value=mock_requirement)
 
             mp.setattr(
-                "agents.requirement_manager.skills.reject_requirement.RequirementRepository",
+                "agents.capabilities.requirements.skills.reject_requirement.RequirementRepository",
                 lambda db: mock_repo
             )
 

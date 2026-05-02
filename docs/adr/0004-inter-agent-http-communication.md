@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 requirement_manager was directly importing and calling pjm_agent's Python objects
-in-process (`from agents.pjm_agent.service.agent import agent`). This created
+in-process (`from agents.capabilities.project_management.service.agent import agent`). This created
 deployment coupling: both agents had to run in the same process, pjm_agent code
 had to be COPY'd into requirement_manager's Docker image, and independent scaling
 was impossible.

@@ -349,13 +349,16 @@ class ToolRegistry:
         """Return the ``tool_search`` meta-tool definition."""
         return {
             "name": "tool_search",
-            "description": "搜索可用的额外工具。输入关键词，返回匹配工具的完整定义。",
+            "description": (
+                "Search available deferred tools. Provide a keyword and receive "
+                "full schemas for matching tools."
+            ),
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "搜索关键词（工具名称或描述）",
+                        "description": "Search keyword, matched against tool names or descriptions.",
                     },
                 },
                 "required": ["query"],

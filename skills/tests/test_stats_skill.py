@@ -83,8 +83,8 @@ class TestStatsSkillExecute:
         )
 
         skill = StatsSkill()
-        with patch("agents.requirement_manager.skills.stats.RequirementRepository", mock_req_repo_class):
-            with patch("agents.requirement_manager.skills.stats.MeetingRepository", mock_meeting_repo_class):
+        with patch("agents.capabilities.requirements.skills.stats.RequirementRepository", mock_req_repo_class):
+            with patch("agents.capabilities.requirements.skills.stats.MeetingRepository", mock_meeting_repo_class):
                 result = await skill.execute(context)
 
         assert result.success is True
