@@ -31,17 +31,25 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_DIR"
 
-# Check spec exists
-SPEC_FILE="docs/specs/${AGENT_NAME}.md"
+# Check canonical agent handoff docs exist
+SPEC_FILE="SPEC.md"
+AGENT_GUIDE="docs/guides/agent-development.md"
 if [ ! -f "$SPEC_FILE" ]; then
     echo "ERROR: Spec file not found: $SPEC_FILE"
-    echo "Write a spec first: /write-spec or manually create docs/specs/${AGENT_NAME}.md"
+    echo "Restore the canonical project spec before creating agent workflows."
+    exit 1
+fi
+
+if [ ! -f "$AGENT_GUIDE" ]; then
+    echo "ERROR: Agent development guide not found: $AGENT_GUIDE"
+    echo "Restore the canonical agent guide before creating agent workflows."
     exit 1
 fi
 
 echo "=== AgentForge AI Team Workflow ==="
 echo "Agent:    ${AGENT_NAME}"
 echo "Spec:     ${SPEC_FILE}"
+echo "Guide:    ${AGENT_GUIDE}"
 echo "API:      ${API_URL}"
 echo ""
 
