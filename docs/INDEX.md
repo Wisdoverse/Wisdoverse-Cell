@@ -1,6 +1,6 @@
 # Wisdoverse Cell Documentation Index
 
-> Last updated: 2026-04-28
+> Last updated: 2026-05-02
 >
 > This is the entry point for Wisdoverse Cell documentation. Documentation is English-first; legacy Chinese content may remain where a detailed translation pass has not yet been completed.
 
@@ -12,8 +12,28 @@
 |----------|---------|
 | [SPEC](../SPEC.md) | Root service specification and implementation contract |
 | [README](./README.md) | Documentation landing page, architecture, quick start, agent matrix |
+| [SPEC Implementation Plan](./tasks/2026-05-01-spec-goal-implementation-plan.md) | Completed implementation checklist and verification evidence for the current SPEC goal |
 | [CONTRIBUTING](./CONTRIBUTING.md) | Branching, commits, PR workflow, AI collaboration rules |
 | [CHANGELOG](./CHANGELOG.md) | Version history |
+
+---
+
+## Current Implementation Map
+
+Use this section as the first handoff for any agent continuing product or
+platform work. It links the product contract to the code-facing operator
+surfaces that currently exist.
+
+| Surface | Source of Truth | Notes |
+|---------|-----------------|-------|
+| Product contract | [SPEC](../SPEC.md) | Defines the control-plane goal and non-negotiable service boundaries |
+| Implementation evidence | [SPEC Implementation Plan](./tasks/2026-05-01-spec-goal-implementation-plan.md) | Tracks completed ledger, runtime, budget, approval, frontend, event, and verification work |
+| Product vocabulary | [Product Model](./overview/product-model.md) | Defines goals, work items, agent roles, runs, decisions, artifacts, budgets, approvals, and audit trails |
+| System architecture | [Architecture Overview](./overview/architecture.md) | Maps the frontend, gateway, independently deployed agents, shared runtime, control-plane ledger, and adapters |
+| Operator API | [API Reference](./guides/api-reference.md#control-plane-api) | Documents `/api/v1/control-plane/*`, `/agent/request`, wakeups, scheduler ticks, approvals, budgets, and timelines |
+| Event contract | [Event Catalog](./guides/event-catalog.md#30-control-plane-domain) | Documents control-plane events and producer/consumer expectations |
+| Operations | [Operations Guide](./guides/operations.md#9-control-plane-operations) | Documents migrations, runtime switches, local-adapter fail-closed policy, heartbeat execution, and run evidence |
+| Frontend workbench | [`frontend/src/app/[locale]/(app)/workflows/`](<../frontend/src/app/[locale]/(app)/workflows/>) | Operator entry point backed by Feature-Sliced Design slices under `entities/`, `features/`, and `widgets/` |
 
 ---
 
@@ -23,8 +43,8 @@ For onboarding, architecture, and shared terminology.
 
 | Document | Purpose |
 |----------|---------|
-| [Product Model](./overview/product-model.md) | Control-plane vocabulary: goals, org chart, work items, runs, governance, budgets, audit logs |
-| [Architecture Overview](./overview/architecture.md) | System architecture, communication model, deployment topology |
+| [Product Model](./overview/product-model.md) | Control-plane vocabulary and implemented foundation: goals, org chart, work items, runs, governance, budgets, audit logs |
+| [Architecture Overview](./overview/architecture.md) | Current system architecture, communication model, control-plane runtime, frontend slices, and deployment topology |
 | [Onboarding Guide](./overview/onboarding.md) | First 30 minutes, first day, first week |
 | [Glossary](./overview/glossary.md) | Core terminology grouped by domain |
 
@@ -64,9 +84,9 @@ For contributors, operators, and deployers.
 | Document | Purpose |
 |----------|---------|
 | [Agent Development Guide](./guides/agent-development.md) | New-agent template, `create_agent_app`, plugins, tests, deployment |
-| [API Reference](./guides/api-reference.md) | REST endpoints, authentication, errors |
-| [Event Catalog](./guides/event-catalog.md) | Event types, payload schemas, producer/consumer matrix |
-| [Operations Guide](./guides/operations.md) | Deployment, scaling, monitoring, troubleshooting, backups |
+| [API Reference](./guides/api-reference.md) | REST endpoints, authentication, errors, control-plane API, agent wakeups |
+| [Event Catalog](./guides/event-catalog.md) | Event types, payload schemas, producer/consumer matrix, control-plane lifecycle events |
+| [Operations Guide](./guides/operations.md) | Deployment, scaling, monitoring, control-plane runtime switches, troubleshooting, backups |
 | [Incident Response Guide](./guides/incident-response.md) | Severity model, response flow, playbooks, recovery |
 
 ---
@@ -88,10 +108,15 @@ For contributors, operators, and deployers.
 
 ## Documentation Conventions
 
+Documentation should describe current truth first, then planned work. If a page
+contains roadmap material, label it explicitly and link to the implementation
+evidence that proves what has already shipped.
+
 ### Naming
 
 - ADRs: `docs/adr/NNNN-<topic>.md`
 - PRDs and specs: `<module>-prd.md` or `<topic>-design.md`
+- Implementation plans and verification evidence: `docs/tasks/YYYY-MM-DD-<topic>.md`
 
 ### Status
 
@@ -114,5 +139,6 @@ docs/
 ├── adr/
 ├── specs/
 ├── guides/
+├── tasks/
 └── workflows/
 ```

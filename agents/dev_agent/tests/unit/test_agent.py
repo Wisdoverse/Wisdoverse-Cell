@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -133,3 +134,48 @@ async def test_plan_and_execute_injects_project_id_before_submit():
         node["config"]["projectId"] == "project-cell"
         for node in stored_workflow["nodes"]
     )
+
+
+@pytest.mark.asyncio
+async def test_high_risk_plan_records_control_plane_approval_id():
+    agent = DevAgent()
+    sanitized = SanitizedTask(
+        title="High risk workflow",
+        description="Touches infrastructure",
+        estimated_hours=2,
+        wp_id=322,
+        related_files=["deploy/prod"],
+        risk_level=RiskLevel.HIGH,
+    )
+    task_record = MagicMock(id="dev-322", wp_id=322)
+    repo = AsyncMock()
+    repo.update_status = AsyncMock(return_value=True)
+    log_repo = AsyncMock()
+
+    plan = WorkflowPlan(
+        name="dev-task-wp-322",
+        description="Infra edit",
+        nodes=[WorkflowNode(name="plan", config={"tags": ["infra"]})],
+    )
+
+    agent._planner.plan = AsyncMock(return_value=plan)
+    agent._validator.validate = MagicMock(return_value=ValidationResult())
+    agent._router.route = MagicMock(return_value="codex")
+    agent._approval_gate = MagicMock()
+    agent._approval_gate.request_approval = AsyncMock(
+        return_value=SimpleNamespace(approval_id="appr_dev_high")
+    )
+    agent._approval_gate.enforced = False
+
+    await agent._plan_and_execute(
+        sanitized,
+        task_record,
+        repo,
+        log_repo,
+        RiskLevel.HIGH,
+    )
+
+    stored_workflow = log_repo.create_log.await_args.kwargs["workflow_json"]
+    assert stored_workflow["control_plane_approval_id"] == "appr_dev_high"
+    repo.update_status.assert_any_await(task_record.id, "awaiting_approval")
+    agent._approval_gate.request_approval.assert_awaited_once()

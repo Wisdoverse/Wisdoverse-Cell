@@ -2,6 +2,7 @@
 
 import json
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -178,6 +179,26 @@ class TestHandleRequest:
     async def test_no_action_returns_ok(self, agent):
         result = await agent.handle_request({})
         assert result == {"status": "ok"}
+
+    @pytest.mark.asyncio
+    async def test_attach_proposal_approval_adds_control_plane_id(self, agent):
+        agent._control_plane_approvals = MagicMock()
+        agent._control_plane_approvals.request_approval = AsyncMock(
+            return_value=SimpleNamespace(approval_id="appr_evo_1")
+        )
+        agent._control_plane_approvals.enforced = False
+
+        result = await agent._attach_proposal_approval(
+            {
+                "operation": "add_skill",
+                "target_agent": "pjm-agent",
+                "rationale": "Improve decomposition quality",
+            },
+            trace_id="trace-evo",
+        )
+
+        assert result["control_plane_approval_id"] == "appr_evo_1"
+        agent._control_plane_approvals.request_approval.assert_awaited_once()
 
 
 # ── GlobalAnalyzer Tests ─────────────────────────────────────────────────

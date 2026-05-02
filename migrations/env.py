@@ -19,13 +19,14 @@ from agents.requirement_manager.models import (  # noqa: F401
     Requirement,
 )
 from shared.config import settings
+from shared.control_plane.tables import control_plane_metadata
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = Base.metadata
+target_metadata = [Base.metadata, control_plane_metadata]
 
 
 def run_migrations_offline() -> None:

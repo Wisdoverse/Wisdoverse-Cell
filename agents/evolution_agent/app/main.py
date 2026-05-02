@@ -7,6 +7,7 @@ Uses create_agent_app with evolution_excluded=True.
 from fastapi import APIRouter, Depends
 
 from shared.app import create_agent_app
+from shared.config import settings
 from shared.middleware.internal_auth import verify_internal_key
 
 from ..service.agent import agent
@@ -30,4 +31,6 @@ app = create_agent_app(
     description="进化引擎 — 全局追踪分析与架构优化建议",
     routers=[(router, [Depends(verify_internal_key)])],
     evolution_excluded=True,  # No self-evolution
+    control_plane_enabled=settings.control_plane_enabled,
+    control_plane_company_id=settings.control_plane_company_id,
 )
