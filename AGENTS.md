@@ -22,7 +22,7 @@ make dev                                          # Start requirement_manager
 
 ## Part 2: Mandatory Workflow
 
-1. **Plan**: TODO checklist (Design → Logic → Events → Test → Docs)
+1. **Plan**: TODO checklist (Design -> Logic -> Events -> Test -> Docs)
 2. **Execute**: Implement one by one, verify each step
 3. **Audit** (`/audit`): Output [Analysis] [Risk:H/M/L] [Fixes]
 
@@ -35,43 +35,46 @@ make dev                                          # Start requirement_manager
 
 ## Part 3: Architecture & Context
 
-**Wisdoverse Cell**: AI 原生运营公司 — 用 AI Agent 替代传统组织架构，2 名人类 + 26 个 Agent 协作运营。Agent 具备三层自进化能力（L1 Skill 优化 / L2 架构优化 / L3 协作优化），模型越强，系统越强。
+**Wisdoverse Cell**: AI-native operating company. It replaces traditional
+organization structure with AI Agents: 2 humans + 26 agents. Agents have three
+self-evolution levels: L1 skill optimization, L2 architecture optimization, and
+L3 collaboration optimization. Stronger models should strengthen the system.
 
 ```
 agents/
-  chat_agent/                 # 用户交互网关/前台，不是 CEO
-  coordinator/                # 跨 Agent 事件编排器，不是完整 CEO 角色
-  pjm_agent/                   # 任务拆解/审批/预警/报表能力模块
-  sync_agent/                 # OP ↔ 飞书上下文同步能力模块
-  analysis_agent/             # 风险检测/数据分析能力模块
-  requirement_manager/        # 需求提取/确认/PRD 生成能力模块
-  evolution_agent/            # 自进化分析/建议能力模块
-  qa_agent/                   # QA 验收能力模块
-  dev_agent/                  # AgentForge 开发执行能力模块
-  channel_gateway/            # 多渠道消息网关
+  chat_agent/                 # User interaction gateway and receptionist; not CEO
+  coordinator/                # Cross-agent event orchestrator; not a full CEO role
+  pjm_agent/                   # Task decomposition, approval, alert, and reporting module
+  sync_agent/                 # OpenProject <-> Feishu context sync module
+  analysis_agent/             # Risk detection and data analysis module
+  requirement_manager/        # Requirement extraction, confirmation, and PRD module
+  evolution_agent/            # Self-evolution analysis and recommendation module
+  qa_agent/                   # QA acceptance module
+  dev_agent/                  # AgentForge development execution module
+  channel_gateway/            # Multi-channel messaging gateway
 gateway/                      # Go + Gin API Gateway
 frontend/                     # Next.js 16 + React 19
 shared/
-  app/                        # AgentRuntime + create_agent_app (插件架构)
+  app/                        # AgentRuntime + create_agent_app (plugin architecture)
   control_plane/              # RoleAgent / capability module ledger, runs, approvals, budgets
   api/                        # Shared API routes/schemas
-  core/messaging/             # Port 接口 (六边形架构)
+  core/messaging/             # Port interfaces (hexagonal architecture)
   db/                         # Shared database layer
   grpc/                       # gRPC proto + generated code
-  messaging/{inbound,outbound}/ # 消息网关
-  integrations/{feishu,wecom,...}/ # 平台 Adapter
+  messaging/{inbound,outbound}/ # Messaging gateway
+  integrations/{feishu,wecom,...}/ # Platform adapters
   infra/                      # CircuitBreaker, AgentClient, VectorStore, Embedder
   middleware/                  # Shared middleware
   models/                     # Shared Pydantic models
   observability/              # Logging, tracing, metrics
   protocols/                  # Protocol definitions
   schemas/                    # Event, Agent, Error
-  services/                   # EventBus, LLM Gateway + 兼容层
+  services/                   # EventBus, LLM Gateway + compatibility layer
   utils/                      # Shared utilities
-  evolution/                  # 三层自进化系统 (L1/L2/L3)
-    collaboration/            # L3 Agent Teams 协作优化
-    db/                       # Evolution 数据库层
-    seeds/                    # Agent Skill 种子数据
+  evolution/                  # Three-level self-evolution system (L1/L2/L3)
+    collaboration/            # L3 Agent Teams collaboration optimization
+    db/                       # Evolution database layer
+    seeds/                    # Agent Skill seed data
 ```
 
 **Stack**: FastAPI | Go+Gin | Next.js 16 | PostgreSQL 18 | Redis 8 (EventBus) | NATS JetStream | Milvus | Claude API | Traefik v3
@@ -96,8 +99,8 @@ make test                                          # Python tests
 make dev                                           # uvicorn --reload (requirement_manager)
 make gateway-dev                                   # Go gateway dev
 make frontend-dev                                  # Next.js dev
-make up-dev                                        # Docker Compose 全部服务
-make up-infra                                      # 仅基础设施 (PG/Redis/NATS/Milvus)
+make up-dev                                        # Docker Compose all services
+make up-infra                                      # Infrastructure only (PG/Redis/NATS/Milvus)
 make proto                                         # Generate all protobuf code
 make grpc-server                                   # Run gRPC server
 make build                                         # Build Docker images
@@ -117,20 +120,20 @@ ruff check agents/ shared/                         # Lint
 * **[2026-01 datetime]**: Use `datetime.now(UTC)` not deprecated `datetime.utcnow()`
 * **[2026-01 Code Quality]**: Run `code-simplifier` before committing feature branches
 * **[2026-03 Hexagonal Architecture]**: `shared/core/messaging/` = Port, `shared/messaging/` = orchestration, `shared/integrations/` = Adapter
-* **[2026-03 Import Migration]**: Use `patch.object(module, "attr")` not `patch("string.path")` — resilient to directory moves
-* **[2026-03 Compat Stubs]**: Old files → `"""Deprecated: use new.path"""\nfrom new.path import *` for zero-consumer-change migration
+* **[2026-03 Import Migration]**: Use `patch.object(module, "attr")` not `patch("string.path")` - resilient to directory moves
+* **[2026-03 Compat Stubs]**: Old files -> `"""Deprecated: use new.path"""\nfrom new.path import *` for zero-consumer-change migration
 * **[2026-03 Feature Flags]**: `settings.use_new_delivery_service` for outbound path rollback
 * **[2026-03 CI Lint]**: `scripts/lint_deprecated_imports.py` blocks new deprecated imports in MR
 * **[2026-03 RuntimePlugin]**: Extend agent capabilities via plugins (`runtime.use(MyPlugin())`), not by modifying runtime
-* **[2026-03 Evolution]**: `shared/evolution/` = 三层自进化 (L1 Skill/Prompt, L2 Architecture, L3 Collaboration)
+* **[2026-03 Evolution]**: `shared/evolution/` = three-level self-evolution (L1 Skill/Prompt, L2 Architecture, L3 Collaboration)
 * **[2026-03 Vector DB]**: Milvus (not Chroma). Use `shared/infra/milvus_store.py` + `shared/infra/embedder.py`
-* **[2026-04 LLM Error Taxonomy]**: `shared/infra/llm_errors.py` — 6 error categories (rate_limit/overloaded/network/auth/content_size/other) with per-category `RetryStrategy`. Anthropic returns HTTP 400 (not 413) for prompt-too-long — detect via message pattern matching in `classify_error()`.
+* **[2026-04 LLM Error Taxonomy]**: `shared/infra/llm_errors.py` - 6 error categories (rate_limit/overloaded/network/auth/content_size/other) with per-category `RetryStrategy`. Anthropic returns HTTP 400 (not 413) for prompt-too-long - detect via message pattern matching in `classify_error()`.
 * **[2026-04 ContentSizeError]**: Plain `Exception` subclass, NOT `anthropic.APIStatusError` (avoids coupling to SDK constructor that requires `httpx.Response`). Chain original via `__cause__`.
 * **[2026-04 Custom Retry]**: `_call_with_recovery()` in `llm_gateway.py` replaces tenacity. Enables model fallback mid-retry and ReactiveCompact on content_size. Circuit breaker records 1 failure after ALL retries+fallback exhausted.
-* **[2026-04 Context Compression 3-Layer]**: MicroCompact (free, block-count tool_result clearing) → L1 trim → L2 summarize → ReactiveCompact (emergency on prompt-too-long). `micro_compact()` and `reactive_compact()` in `context_compressor.py`.
-* **[2026-04 ConversationEngine]**: `shared/infra/conversation_engine.py` — shared multi-turn tool loop with AsyncGenerator events. Per-request lifetime, not singleton. Caller creates per request with `messages=loaded_history`, extracts `engine.messages` after `run()`.
-* **[2026-04 Chat Agent = 前台]**: Per coordinator-agent-design.md §2, chat_agent is the receptionist (前台), NOT the CEO. Simple queries handled directly, complex cross-agent workflows escalated to Coordinator. System prompt teaches operations, not strategy.
-* **[2026-05 Agent Org]**: CEO/CTO/CPO/COO 等是一等 `organization_role` AgentRole；sync/QA/requirement/dev 等现有服务是 `capability_module`，不要把功能模块伪装成组织角色。
-* **[2026-04 Prompt Style]**: Follow Claude Code pattern — tool definitions via API `tools` param, prompt teaches usage STRATEGY not tool list. Sections: System → Doing Tasks → Executing Actions → Output Efficiency. Include anti-patterns ("不要...").
+* **[2026-04 Context Compression 3-Layer]**: MicroCompact (free, block-count tool_result clearing) -> L1 trim -> L2 summarize -> ReactiveCompact (emergency on prompt-too-long). `micro_compact()` and `reactive_compact()` in `context_compressor.py`.
+* **[2026-04 ConversationEngine]**: `shared/infra/conversation_engine.py` - shared multi-turn tool loop with AsyncGenerator events. Per-request lifetime, not singleton. Caller creates per request with `messages=loaded_history`, extracts `engine.messages` after `run()`.
+* **[2026-04 Chat Agent = Reception]**: Per coordinator-agent-design.md section 2, chat_agent is the receptionist, NOT the CEO. Simple queries handled directly, complex cross-agent workflows escalated to Coordinator. System prompt teaches operations, not strategy.
+* **[2026-05 Agent Org]**: CEO/CTO/CPO/COO are first-class `organization_role` AgentRole records. sync/QA/requirement/dev and similar existing services are `capability_module` records. Do not present capability modules as organization roles.
+* **[2026-04 Prompt Style]**: Follow Claude Code pattern - tool definitions via API `tools` param, prompt teaches usage STRATEGY not tool list. Sections: System -> Doing Tasks -> Executing Actions -> Output Efficiency. Include anti-patterns ("do not...").
 
 > *v2026.04.03-compact*
