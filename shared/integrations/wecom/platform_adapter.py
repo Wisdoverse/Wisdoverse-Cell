@@ -1,8 +1,8 @@
 # shared/integrations/wecom/platform_adapter.py
 """
-WecomPlatformAdapter - 企业微信平台适配器
+WecomPlatformAdapter - WeCom platform adapter.
 
-实现 BasePlatformAdapter 接口，用于统一网关的企微接入。
+Implements BasePlatformAdapter for the unified gateway WeCom integration.
 """
 import json
 import xml.etree.ElementTree as ET
@@ -30,9 +30,10 @@ logger = get_logger("wecom.platform_adapter")
 
 class WecomPlatformAdapter(BasePlatformAdapter):
     """
-    企业微信平台适配器
+    WeCom platform adapter.
 
-    将企微消息/回调转换为统一格式，并将统一格式转换为企微格式发送。
+    Converts WeCom messages and callbacks to the unified format, and sends
+    unified messages back in WeCom format.
     """
 
     def __init__(self, client: "WecomClient"):
@@ -45,17 +46,18 @@ class WecomPlatformAdapter(BasePlatformAdapter):
 
     async def parse_message(self, raw_event: dict) -> Optional[UnifiedMessage]:
         """
-        将企微消息事件转换为统一格式
+        Convert a WeCom message event to the unified format.
 
-        企微消息原始格式为 XML，解析后传入此方法。
+        WeCom message callbacks are XML at the platform boundary and are passed
+        here after parsing.
 
         Args:
-            raw_event: 解析后的消息数据（从 XML 转换的 dict）
+            raw_event: Parsed message data converted from XML.
 
         Returns:
-            UnifiedMessage 或 None
+            UnifiedMessage or None.
         """
-        # 企微消息可能以 XML Element 或 dict 形式传入
+        # WeCom messages can be passed as an XML Element or a dict.
         if isinstance(raw_event, ET.Element):
             raw_event = self._xml_to_dict(raw_event)
 
@@ -66,20 +68,20 @@ class WecomPlatformAdapter(BasePlatformAdapter):
         if not user_id:
             return None
 
-        # 消息内容
+        # Message content.
         content, unified_type, attachments = self._parse_content(msg_type, raw_event)
 
-        # 时间戳
+        # Event timestamp.
         create_time = raw_event.get("CreateTime", "")
         timestamp = self._parse_timestamp(create_time)
 
         return UnifiedMessage(
             platform=Platform.WECOM,
             message_id=msg_id or f"wecom_{int(timestamp.timestamp())}",
-            chat_id=user_id,  # 企微私聊时 chat_id 即为 user_id
-            chat_type="private",  # 企微应用消息默认私聊
+            chat_id=user_id,  # For WeCom direct messages, chat_id is the user ID.
+            chat_type="private",  # WeCom app messages are private by default.
             sender_id=user_id,
-            sender_name="",  # 由 Gateway 通过 UserService 填充
+            sender_name="",  # Filled by the gateway through UserService.
             message_type=unified_type,
             content=content,
             mentions=[],
@@ -90,15 +92,15 @@ class WecomPlatformAdapter(BasePlatformAdapter):
 
     async def parse_action(self, raw_callback: dict) -> Optional[UnifiedAction]:
         """
-        将企微卡片回调转换为统一格式
+        Convert a WeCom card callback to the unified format.
 
         Args:
-            raw_callback: 企微卡片回调数据
+            raw_callback: WeCom card callback data.
 
         Returns:
-            UnifiedAction 或 None
+            UnifiedAction or None.
         """
-        # 企微卡片回调格式
+        # WeCom card callback format:
         # {
         #   "FromUserName": "user_id",
         #   "EventKey": "button_key",
@@ -112,14 +114,13 @@ class WecomPlatformAdapter(BasePlatformAdapter):
         operator_id = raw_callback.get("FromUserName", "")
         response_code = raw_callback.get("ResponseCode", "")
 
-        # 解析 EventKey
-        # 格式可能是: "action_id" 或 "action_id:payload_json"
+        # Parse EventKey. It can be "action_id" or "action_id:payload_json".
         action_id, value = self._parse_event_key(event_key)
 
         return UnifiedAction(
             platform=Platform.WECOM,
             action_id=action_id,
-            message_id=response_code,  # 用于更新卡片
+            message_id=response_code,  # Used to update the card.
             operator_id=operator_id,
             value=value,
             raw_data=raw_callback,
@@ -127,67 +128,67 @@ class WecomPlatformAdapter(BasePlatformAdapter):
 
     async def send_card(self, chat_id: str, card: UnifiedCard) -> str:
         """
-        发送卡片消息
+        Send a card message.
 
         Args:
-            chat_id: 用户 ID
-            card: 统一卡片格式
+            chat_id: User ID.
+            card: Unified card model.
 
         Returns:
-            消息 ID
+            Message ID.
         """
         wecom_card = self._build_wecom_card(card)
         return await self._client.send_template_card(chat_id, wecom_card)
 
     async def send_text(self, chat_id: str, text: str) -> str:
         """
-        发送文本消息
+        Send a text message.
 
         Args:
-            chat_id: 用户 ID
-            text: 文本内容
+            chat_id: User ID.
+            text: Message text.
 
         Returns:
-            消息 ID
+            Message ID.
         """
         return await self._client.send_text_message(chat_id, text)
 
     async def update_card(self, message_id: str, card: UnifiedCard) -> bool:
         """
-        更新已发送的卡片
+        Update a sent card.
 
         Args:
-            message_id: response_code（企微更新卡片用）
-            card: 新的卡片内容
+            message_id: response_code used by WeCom card updates.
+            card: Replacement card content.
 
         Returns:
-            是否成功
+            Whether the update succeeded.
         """
         wecom_card = self._build_wecom_card(card)
         return await self._client.update_template_card(message_id, wecom_card)
 
     async def get_user_email(self, platform_user_id: str) -> Optional[str]:
         """
-        获取用户邮箱
+        Get a user email.
 
         Args:
-            platform_user_id: 企微 UserID
+            platform_user_id: WeCom UserID.
 
         Returns:
-            邮箱或 None
+            Email address or None.
         """
         user_info = await self._get_user_info(platform_user_id)
         return user_info.get("email") or None
 
     async def get_user_name(self, platform_user_id: str) -> Optional[str]:
         """
-        获取用户名称
+        Get a user display name.
 
         Args:
-            platform_user_id: 企微 UserID
+            platform_user_id: WeCom UserID.
 
         Returns:
-            用户名或 None
+            User name or None.
         """
         user_info = await self._get_user_info(platform_user_id)
         return user_info.get("name")
@@ -195,7 +196,7 @@ class WecomPlatformAdapter(BasePlatformAdapter):
     # === Private Methods ===
 
     async def _get_user_info(self, user_id: str) -> dict:
-        """获取用户信息（带缓存）"""
+        """Get user information with an in-memory cache."""
         if user_id in self._user_cache:
             return self._user_cache[user_id]
 
@@ -204,7 +205,7 @@ class WecomPlatformAdapter(BasePlatformAdapter):
         return user_info
 
     def _xml_to_dict(self, root: ET.Element) -> dict:
-        """将 XML Element 转换为 dict"""
+        """Convert an XML Element to a dictionary."""
         result = {}
         for child in root:
             result[child.tag] = child.text or ""
@@ -214,7 +215,7 @@ class WecomPlatformAdapter(BasePlatformAdapter):
         self, msg_type: str, raw_event: dict
     ) -> tuple[str, MessageType, list[dict]]:
         """
-        解析消息内容
+        Parse message content.
 
         Returns:
             (content, message_type, attachments)
@@ -263,7 +264,7 @@ class WecomPlatformAdapter(BasePlatformAdapter):
             return f"[{msg_type}]", MessageType.TEXT, attachments
 
     def _parse_timestamp(self, timestamp_str: str) -> datetime:
-        """解析企微时间戳（秒）"""
+        """Parse a WeCom timestamp in seconds."""
         if not timestamp_str:
             return datetime.now(UTC)
 
@@ -275,9 +276,9 @@ class WecomPlatformAdapter(BasePlatformAdapter):
 
     def _parse_event_key(self, event_key: str) -> tuple[str, dict]:
         """
-        解析 EventKey
+        Parse EventKey.
 
-        格式可能是:
+        Supported formats:
         - "action_id"
         - "action_id:payload_json"
 
@@ -301,40 +302,40 @@ class WecomPlatformAdapter(BasePlatformAdapter):
 
     def _build_wecom_card(self, card: UnifiedCard) -> dict:
         """
-        将 UnifiedCard 转换为企微模板卡片格式
+        Convert UnifiedCard to the WeCom template card format.
 
         Args:
-            card: 统一卡片格式
+            card: Unified card model.
 
         Returns:
-            企微模板卡片 dict
+            WeCom template card dictionary.
         """
         builder = WecomCardBuilder()
 
-        # 标题
+        # Title.
         title = card.title
         if card.status:
             title = f"[{card.status}] {title}"
         builder.set_title(title)
 
-        # 描述（截取 Markdown 内容前 128 字符）
+        # Description. WeCom template cards limit this field length.
         description = card.content[:128] if card.content else ""
         if len(card.content) > 128:
             description += "..."
         builder.set_description(description)
 
-        # 字段
-        for field in card.fields[:6]:  # 企微最多 6 个字段
+        # Fields.
+        for field in card.fields[:6]:  # WeCom supports up to six fields.
             builder.add_horizontal_content(
                 key=field.get("label", ""),
                 value=field.get("value", ""),
             )
 
-        # 按钮（企微最多 2 个）
+        # Buttons.
         for action in card.actions[:2]:
             style = self._map_action_style(action.style)
 
-            # 构建 key，包含 action_id 和 value
+            # Build a key that carries action_id and callback value.
             key = action.action_id
             if action.value or card.context:
                 payload = {**action.value, **card.context}
@@ -350,9 +351,9 @@ class WecomPlatformAdapter(BasePlatformAdapter):
 
     def _map_action_style(self, style: CardActionStyle) -> int:
         """
-        将 CardActionStyle 映射为企微按钮样式
+        Map CardActionStyle to a WeCom button style.
 
-        企微样式: 1=蓝色, 2=灰色, 3=红色
+        WeCom styles: 1=blue, 2=gray, 3=red.
         """
         style_map = {
             CardActionStyle.PRIMARY: 1,

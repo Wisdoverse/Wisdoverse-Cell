@@ -1,5 +1,5 @@
 # shared/integrations/wecom/handlers/bot.py
-"""WecomBotHandler - 处理企微 Bot 消息"""
+"""WecomBotHandler - handles WeCom bot messages."""
 import re
 import xml.etree.ElementTree as ET
 from typing import Optional
@@ -13,7 +13,7 @@ logger = get_logger("wecom.handlers.bot")
 
 
 class WecomBotHandler:
-    """企微 Bot 消息处理器"""
+    """WeCom bot message handler."""
 
     COMMAND_PATTERN = re.compile(r"^/(\w+)(?:\s+(.*))?$")
 
@@ -22,7 +22,7 @@ class WecomBotHandler:
         self.agent = agent
 
     async def handle_message(self, root: ET.Element) -> None:
-        """处理收到的消息"""
+        """Handle an incoming message."""
         from_user = root.find("FromUserName")
         content_elem = root.find("Content")
 
@@ -47,7 +47,7 @@ class WecomBotHandler:
             await self._handle_extract(content, user_id)
 
     async def _handle_command(self, command: str, args: Optional[str], user_id: str) -> None:
-        """处理指令"""
+        """Handle a bot command."""
         if command == "help":
             await self._send_help(user_id)
         elif command == "list":
@@ -58,7 +58,7 @@ class WecomBotHandler:
             await self.client.send_text_message(user_id, f"未知指令: /{command}")
 
     async def _handle_extract(self, content: str, user_id: str) -> None:
-        """处理需求提取"""
+        """Handle requirement extraction."""
         result = await self.agent.ingest_meeting(content=content, user_id=user_id)
 
         if result.requirements_extracted > 0:
@@ -70,7 +70,7 @@ class WecomBotHandler:
             await self.client.send_text_message(user_id, "未从内容中提取到需求")
 
     async def _send_help(self, user_id: str) -> None:
-        """发送帮助卡片"""
+        """Send the help card."""
         card = (
             WecomCardBuilder()
             .set_title("需求管理助手")
@@ -80,7 +80,7 @@ class WecomBotHandler:
         await self.client.send_template_card(user_id, card)
 
     async def _send_list(self, user_id: str) -> None:
-        """发送待确认需求列表"""
+        """Send the pending requirement list."""
         requirements, total, pages = await self.agent.list_pending_requirements()
 
         if not requirements:
@@ -96,5 +96,5 @@ class WecomBotHandler:
         await self.client.send_template_card(user_id, card)
 
     async def _send_export(self, user_id: str) -> None:
-        """导出 PRD"""
+        """Send the PRD export response."""
         await self.client.send_text_message(user_id, "PRD 导出功能开发中...")
