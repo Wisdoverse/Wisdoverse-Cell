@@ -191,3 +191,12 @@ class EventTypes:
     TASK_NOTIFICATION = "task.notification"
     TASK_PROGRESS = "task.progress"
     PM_PRD_READY = "pm.prd-ready"
+
+    # A2A bridge
+    A2A_TASK_SUBMITTED = "a2a.task.submitted"
+    A2A_TASK_WORKING = "a2a.task.working"
+    A2A_TASK_INPUT_REQUIRED = "a2a.task.input-required"
+    A2A_TASK_COMPLETED = "a2a.task.completed"
+    A2A_TASK_FAILED = "a2a.task.failed"
+    A2A_TASK_CANCELED = "a2a.task.canceled"
+    A2A_TASK_ERROR = "a2a.task.error"

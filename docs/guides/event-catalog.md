@@ -67,6 +67,13 @@ actions only when the event intentionally requests work, such as `sync.trigger`.
 | `coordinator.dispatch` | coordinator | runtime agents or capability modules | Coordinator dispatched work to a target boundary |
 | `task.notification` | runtime agents | coordinator | Agent task completion or failure notification |
 | `task.progress` | runtime agents | coordinator | Agent progress heartbeat for long-running work |
+| `a2a.task.submitted` | A2A bridge | Event observers | External A2A task was submitted |
+| `a2a.task.working` | A2A bridge | Event observers | External A2A task is running |
+| `a2a.task.input-required` | A2A bridge | Event observers | External A2A task requires input |
+| `a2a.task.completed` | A2A bridge | Event observers | External A2A task completed |
+| `a2a.task.failed` | A2A bridge | Event observers | External A2A task failed |
+| `a2a.task.canceled` | A2A bridge | Event observers | External A2A task was canceled |
+| `a2a.task.error` | A2A bridge | operators and Event observers | A2A routing or bridge failure occurred |
 | `qa.run-requested` | dev agent or coordinator | QA agent | QA acceptance was requested for a code change |
 | `qa.acceptance-completed` | QA agent | project management and dev agent | Acceptance run completed |
 | `qa.gate-failed` | QA agent | project management | Acceptance gate failed with failure details |
@@ -322,6 +329,40 @@ Example `task.progress` payload:
 }
 ```
 
+## 3.6 A2A Bridge Events
+
+The A2A bridge is a protocol adapter boundary between internal EventBus events
+and external A2A agents. Internal agents must not import A2A agent
+implementations directly. Route work through bridge mappings, typed HTTP/A2A
+clients, or EventBus events.
+
+Task state events share this payload:
+
+```json
+{
+  "task_id": "task_...",
+  "context_id": "trace_...",
+  "status": "completed",
+  "message": "Done",
+  "artifacts": [
+    {
+      "artifact_id": "art_...",
+      "name": "result.json",
+      "description": "Analysis result"
+    }
+  ]
+}
+```
+
+`a2a.task.error` uses a separate failure payload:
+
+```json
+{
+  "error": "routing failed",
+  "original_event_type": "requirement.extracted"
+}
+```
+
 ## 4. Payload Guidelines
 
 Payloads should be small, versioned, and reconstructable from durable storage.
@@ -351,6 +392,7 @@ Required or recommended fields:
 | channel gateway | `channel.message.inbound`, `channel.message.delivered`, `channel.adapter.status` | `channel.message.outbound`, adapter-specific platform callbacks |
 | QA agent | `qa.acceptance-completed`, `qa.gate-failed` | `code.committed`, `qa.run-requested` |
 | Dev agent | `dev.workflow-created`, `dev.mr-created`, `dev.task-completed`, `dev.task-failed`, `qa.run-requested` | `pm.tasks-ready-for-dev`, `qa.acceptance-completed` |
+| A2A bridge | `a2a.task.*` | mapped EventBus events |
 | evolution capability | `evolution.*` | `evolution.cycle-triggered`, `evolution.human-feedback`, `evolution.pattern-approved`; reads persisted execution traces |
 | control plane | `goal.*`, `work_item.*`, `agent_run.*`, `audit.*` | runtime evidence and operator actions |
 

@@ -524,6 +524,46 @@ class CoordinatorDispatchPayload(BaseModel):
     permissions: dict = Field(default_factory=dict)
 
 
+# ============ A2A Bridge Events ============
+
+class A2ATaskArtifactPayload(BaseModel):
+    """A2A task artifact reference embedded in bridge result events."""
+
+    model_config = ConfigDict(strict=True)
+
+    artifact_id: str
+    name: str
+    description: str | None = None
+
+
+class A2ATaskEventPayload(BaseModel):
+    """a2a.task.* event payload for A2A task state transitions."""
+
+    model_config = ConfigDict(strict=True)
+
+    task_id: str
+    context_id: str
+    status: Literal[
+        "submitted",
+        "working",
+        "input-required",
+        "completed",
+        "failed",
+        "canceled",
+    ]
+    artifacts: list[A2ATaskArtifactPayload] = Field(default_factory=list)
+    message: str | None = None
+
+
+class A2ATaskErrorPayload(BaseModel):
+    """a2a.task.error payload for A2A bridge failures."""
+
+    model_config = ConfigDict(strict=True)
+
+    error: str
+    original_event_type: str
+
+
 # ============ PM Task Decomposition Events ============
 
 class SyncTaskNeedsDecomposePayload(BaseModel):
@@ -803,6 +843,13 @@ EVENT_PAYLOAD_MODELS = {
     "coordinator.dispatch": CoordinatorDispatchPayload,
     "task.notification": TaskNotification,
     "task.progress": AgentProgress,
+    "a2a.task.submitted": A2ATaskEventPayload,
+    "a2a.task.working": A2ATaskEventPayload,
+    "a2a.task.input-required": A2ATaskEventPayload,
+    "a2a.task.completed": A2ATaskEventPayload,
+    "a2a.task.failed": A2ATaskEventPayload,
+    "a2a.task.canceled": A2ATaskEventPayload,
+    "a2a.task.error": A2ATaskErrorPayload,
     "sync.task-needs-decompose": SyncTaskNeedsDecomposePayload,
     "pm.decompose-completed": PMDecomposeCompletedPayload,
     "pm.decomposition-failed": PMDecompositionFailedPayload,

@@ -14,7 +14,7 @@ from shared.protocols.bridge.event_bridge import (
     EventA2AMapping,
     EventBusA2ABridge,
 )
-from shared.schemas.event import Event, EventMetadata
+from shared.schemas.event import Event, EventMetadata, EventTypes
 
 
 class TestEventA2AMapping:
@@ -171,7 +171,7 @@ class TestEventBusA2ABridge:
 
         result_event = bridge.a2a_task_to_event(task, original_event)
 
-        assert result_event.event_type == "a2a.task.completed"
+        assert result_event.event_type == EventTypes.A2A_TASK_COMPLETED
         assert result_event.source_agent == "test-bridge"
         assert result_event.metadata.trace_id == "trace_xyz"
         assert result_event.metadata.correlation_id == "orig_123"
@@ -184,7 +184,7 @@ class TestEventBusA2ABridge:
 
         result_event = bridge.a2a_task_to_event(task)
 
-        assert result_event.event_type == "a2a.task.failed"
+        assert result_event.event_type == EventTypes.A2A_TASK_FAILED
         assert "Something went wrong" in result_event.payload.get("message", "")
 
     def test_a2a_task_to_event_canceled(self, bridge: EventBusA2ABridge):
@@ -194,7 +194,18 @@ class TestEventBusA2ABridge:
 
         result_event = bridge.a2a_task_to_event(task)
 
-        assert result_event.event_type == "a2a.task.canceled"
+        assert result_event.event_type == EventTypes.A2A_TASK_CANCELED
+
+    def test_a2a_task_to_event_working(self, bridge: EventBusA2ABridge):
+        """Test converting a non-terminal A2A task to event."""
+        task = Task()
+        task.update_status(TaskState.working("Still running"))
+
+        result_event = bridge.a2a_task_to_event(task)
+
+        assert result_event.event_type == EventTypes.A2A_TASK_WORKING
+        assert result_event.payload["status"] == "working"
+        assert "Still running" in result_event.payload.get("message", "")
 
     def test_a2a_task_to_event_with_artifacts(self, bridge: EventBusA2ABridge):
         """Test converting task with artifacts."""

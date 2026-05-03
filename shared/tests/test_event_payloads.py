@@ -13,6 +13,8 @@ from pydantic import ValidationError
 from shared.schemas.event import EventTypes
 from shared.schemas.event_payloads import (
     EVENT_PAYLOAD_MODELS,
+    A2ATaskErrorPayload,
+    A2ATaskEventPayload,
     AgentProgress,
     AgentRoleCreatedPayload,
     AgentRoleStatusUpdatedPayload,
@@ -130,6 +132,15 @@ class TestEventTypes:
         assert EventTypes.SYNC_STARTED == "sync.started"
         assert EventTypes.SYNC_COMPLETED == "sync.completed"
         assert EventTypes.SYNC_FAILED == "sync.failed"
+
+    def test_a2a_bridge_events(self):
+        assert EventTypes.A2A_TASK_SUBMITTED == "a2a.task.submitted"
+        assert EventTypes.A2A_TASK_WORKING == "a2a.task.working"
+        assert EventTypes.A2A_TASK_INPUT_REQUIRED == "a2a.task.input-required"
+        assert EventTypes.A2A_TASK_COMPLETED == "a2a.task.completed"
+        assert EventTypes.A2A_TASK_FAILED == "a2a.task.failed"
+        assert EventTypes.A2A_TASK_CANCELED == "a2a.task.canceled"
+        assert EventTypes.A2A_TASK_ERROR == "a2a.task.error"
 
 
 # ============ DevTaskInfo ============
@@ -354,6 +365,13 @@ class TestEventPayloadModelsRegistration:
             ("coordinator.dispatch", CoordinatorDispatchPayload),
             ("task.notification", TaskNotification),
             ("task.progress", AgentProgress),
+            ("a2a.task.submitted", A2ATaskEventPayload),
+            ("a2a.task.working", A2ATaskEventPayload),
+            ("a2a.task.input-required", A2ATaskEventPayload),
+            ("a2a.task.completed", A2ATaskEventPayload),
+            ("a2a.task.failed", A2ATaskEventPayload),
+            ("a2a.task.canceled", A2ATaskEventPayload),
+            ("a2a.task.error", A2ATaskErrorPayload),
         ],
     )
     def test_registered(self, event_type, model_cls):
@@ -580,6 +598,47 @@ class TestEventPayloadModelsRegistration:
     def test_validate_event_payload_invalid(self):
         with pytest.raises(ValidationError):
             validate_event_payload("dev.task-failed", {"wp_id": 1})  # missing error
+
+    def test_validate_a2a_task_event_payload(self):
+        result = validate_event_payload(
+            "a2a.task.completed",
+            {
+                "task_id": "task_001",
+                "context_id": "trace_001",
+                "status": "completed",
+                "message": "Done",
+                "artifacts": [
+                    {
+                        "artifact_id": "art_001",
+                        "name": "result.json",
+                        "description": "Analysis result",
+                    }
+                ],
+            },
+        )
+        assert isinstance(result, A2ATaskEventPayload)
+        assert result.artifacts[0].name == "result.json"
+
+    def test_validate_a2a_task_error_payload(self):
+        result = validate_event_payload(
+            "a2a.task.error",
+            {
+                "error": "routing failed",
+                "original_event_type": "requirement.extracted",
+            },
+        )
+        assert isinstance(result, A2ATaskErrorPayload)
+
+    def test_validate_a2a_task_status_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_event_payload(
+                "a2a.task.completed",
+                {
+                    "task_id": "task_001",
+                    "context_id": "trace_001",
+                    "status": "unknown",
+                },
+            )
 
 
 class TestSyncPayloadContracts:
