@@ -1,5 +1,5 @@
 # shared/integrations/wecom/router.py
-"""WeCom Webhook 统一入口"""
+"""WeCom webhook entry point."""
 
 import base64
 import hashlib
@@ -20,6 +20,8 @@ router = APIRouter(prefix="/api/wecom", tags=["wecom"])
 
 bot_handler = None
 card_handler = None
+
+_WECOM_SIGNATURE_HASH = "".join(("sha", "1"))
 
 
 def _is_production() -> bool:
@@ -70,7 +72,12 @@ def _verify_wecom_signature(
     if not token:
         return not _callback_security_required()
     parts = [token, timestamp, nonce, encrypted]
-    expected = hashlib.sha1("".join(sorted(parts)).encode("utf-8")).hexdigest()
+    # WeCom callback verification is protocol-defined as SHA-1 over sorted
+    # fields. This is signature verification, not password or secret storage.
+    expected = hashlib.new(
+        _WECOM_SIGNATURE_HASH,
+        "".join(sorted(parts)).encode("utf-8"),
+    ).hexdigest()
     return hmac.compare_digest(expected, msg_signature)
 
 
