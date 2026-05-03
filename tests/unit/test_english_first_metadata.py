@@ -14,6 +14,7 @@ ENGLISH_FIRST_DOCS = (
     Path("README.md"),
     Path("docs"),
     Path("docker-compose.override.cn.yml"),
+    Path(".env.example"),
 )
 
 
