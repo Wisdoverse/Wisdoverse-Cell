@@ -101,6 +101,19 @@ def test_runtime_code_uses_canonical_shared_paths() -> None:
                 )
 
 
+def test_agent_core_does_not_import_platform_adapters_directly() -> None:
+    for agent_root in AGENT_ROOTS:
+        root = Path("agents") / agent_root / "core"
+        if not root.exists():
+            continue
+        for path in _python_files(root):
+            for module in _imported_modules(path):
+                assert not module.startswith("shared.integrations"), (
+                    f"{path} imports platform adapter module {module}; "
+                    "inject a port or agent-local adapter"
+                )
+
+
 def test_frontend_routes_are_thin() -> None:
     route_root = Path("frontend/src/app/[locale]/(app)")
     forbidden = [

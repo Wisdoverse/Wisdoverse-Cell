@@ -20,6 +20,7 @@ from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
+from ..adapters.feishu_cards import FeishuPJMCardRenderer
 from ..core.alert_service import AlertService
 from ..core.config_service import PMConfigService
 from ..core.decompose import DecomposeService
@@ -95,11 +96,17 @@ class PMAgent(BaseAgent):
         self._alert = AlertService(bitable_service, self._config)
         op_client = get_op_client()
         feishu_client = get_feishu_client()
+        card_renderer = FeishuPJMCardRenderer()
 
         self._push = PushService(feishu_client)
         self._decompose = DecomposeService(llm_gateway)
         self._op_writer = OPWriterService(op_client)
-        self._report = ReportService(op_client, bitable_service, feishu_client)
+        self._report = ReportService(
+            op_client,
+            bitable_service,
+            card_renderer=card_renderer,
+            messenger=feishu_client,
+        )
         self._decomposition_orchestrator = DecompositionOrchestrator(
             db_manager=self._db_manager,
             op_writer=self._op_writer,
@@ -109,6 +116,7 @@ class PMAgent(BaseAgent):
             event_bus=self._event_bus,
             op_client=op_client,
             messenger=feishu_client,
+            card_renderer=card_renderer,
         )
         await self._config.refresh()
 

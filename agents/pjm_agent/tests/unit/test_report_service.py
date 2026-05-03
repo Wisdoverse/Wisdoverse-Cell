@@ -27,9 +27,21 @@ def bitable():
     return mock
 
 
+class FakeCardRenderer:
+    def build_daily_report_card(self, stats: dict) -> dict:
+        return {"kind": "daily", "total": stats["total"]}
+
+    def build_weekly_report_card(self, stats: dict) -> dict:
+        return {"kind": "weekly", "total": stats["total"]}
+
+
 @pytest.fixture
 def service(op_client, bitable):
-    return ReportService(op_client=op_client, bitable=bitable)
+    return ReportService(
+        op_client=op_client,
+        bitable=bitable,
+        card_renderer=FakeCardRenderer(),
+    )
 
 
 # ---------------------------------------------------------------------------
