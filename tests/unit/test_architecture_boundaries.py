@@ -428,3 +428,10 @@ def test_event_catalog_documents_channel_gateway_event_names() -> None:
 
     for event_type in channel_event_types:
         assert event_type in catalog
+
+
+def test_api_reference_documents_current_qa_stats_endpoint() -> None:
+    api_reference = Path("docs/guides/api-reference.md").read_text()
+
+    assert "/api/v1/qa/stats" in api_reference
+    assert "/api/v1/qa/status" not in api_reference

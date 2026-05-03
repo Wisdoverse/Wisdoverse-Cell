@@ -226,7 +226,7 @@ Primary prefix: `/api/v1`.
 | QA | `POST` | `/api/v1/qa/run` | Start QA acceptance |
 | QA | `GET` | `/api/v1/qa/runs/{run_id}` | Read one QA run |
 | QA | `GET` | `/api/v1/qa/runs` | List QA runs |
-| QA | `GET` | `/api/v1/qa/status` | Read QA status |
+| QA | `GET` | `/api/v1/qa/stats` | Read QA acceptance statistics |
 | Development | `GET` | `/api/v1/dev/tasks` | List development tasks |
 | Development | `GET` | `/api/v1/dev/tasks/failed` | List failed tasks |
 | Development | `GET` | `/api/v1/dev/tasks/{wp_id}` | Read task detail |
