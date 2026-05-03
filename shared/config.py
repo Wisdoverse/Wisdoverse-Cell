@@ -94,6 +94,10 @@ class Settings(BaseSettings):
     # ============ LLM Configuration ============
     llm_provider: str = "litellm"  # Deprecated switch; LiteLLM is the only runtime path.
     anthropic_api_key: SecretStr = SecretStr("")
+    openai_api_key: SecretStr = SecretStr("")
+    openrouter_api_key: SecretStr = SecretStr("")
+    gemini_api_key: SecretStr = SecretStr("")
+    google_api_key: SecretStr = SecretStr("")
     default_model: str = "claude-opus-4-6"
     chat_model: str = "claude-sonnet-4-20250514"  # Conversations: $3/$15 per MTok
     decompose_model: str = "claude-opus-4-20250514"  # Complex decomposition: $15/$75
@@ -301,13 +305,71 @@ class Settings(BaseSettings):
         def _empty_secret(value: SecretStr | None) -> bool:
             return value is None or not value.get_secret_value().strip()
 
+        def _selected_llm_providers() -> set[str]:
+            providers: set[str] = set()
+            for model in {
+                self.default_model,
+                self.chat_model,
+                self.decompose_model,
+                self.summary_model,
+            }:
+                normalized = model.strip().lower()
+                if not normalized:
+                    continue
+                if normalized.startswith("openrouter/"):
+                    providers.add("openrouter")
+                elif normalized.startswith(("claude-", "anthropic/")):
+                    providers.add("anthropic")
+                elif normalized.startswith(("openai/", "azure/", "gpt-", "o1", "o3", "o4")):
+                    providers.add("openai")
+                elif normalized.startswith(("gemini/", "google/", "vertex_ai/")):
+                    providers.add("gemini")
+                else:
+                    providers.add("generic")
+            return providers
+
+        def _missing_llm_access_secrets() -> list[str]:
+            provider_keys = {
+                "anthropic": [("ANTHROPIC_API_KEY", self.anthropic_api_key)],
+                "openai": [("OPENAI_API_KEY", self.openai_api_key)],
+                "openrouter": [("OPENROUTER_API_KEY", self.openrouter_api_key)],
+                "gemini": [
+                    ("GEMINI_API_KEY", self.gemini_api_key),
+                    ("GOOGLE_API_KEY", self.google_api_key),
+                ],
+            }
+
+            # LiteLLM proxy deployments commonly use OPENAI_API_KEY as the
+            # proxy auth token regardless of the upstream model provider.
+            if self.litellm_api_base.strip() and not _empty_secret(self.openai_api_key):
+                return []
+
+            missing: list[str] = []
+            for provider in sorted(_selected_llm_providers()):
+                keys = provider_keys.get(provider)
+                if keys is None:
+                    if all(
+                        _empty_secret(secret)
+                        for _, secret in [
+                            ("ANTHROPIC_API_KEY", self.anthropic_api_key),
+                            ("OPENAI_API_KEY", self.openai_api_key),
+                            ("OPENROUTER_API_KEY", self.openrouter_api_key),
+                            ("GEMINI_API_KEY", self.gemini_api_key),
+                            ("GOOGLE_API_KEY", self.google_api_key),
+                        ]
+                    ):
+                        missing.append("LLM_PROVIDER_API_KEY")
+                    continue
+                if all(_empty_secret(secret) for _, secret in keys):
+                    missing.append(" or ".join(name for name, _ in keys))
+            return missing
+
         missing: list[str] = []
         if _empty_secret(self.postgres_password):
             missing.append("POSTGRES_PASSWORD")
         if _empty_secret(self.redis_password):
             missing.append("REDIS_PASSWORD")
-        if _empty_secret(self.anthropic_api_key):
-            missing.append("ANTHROPIC_API_KEY")
+        missing.extend(_missing_llm_access_secrets())
         if self.secret_key.get_secret_value() in {
             "",
             "change-me-in-production",

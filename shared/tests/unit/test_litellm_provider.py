@@ -17,6 +17,11 @@ def _make_litellm_gateway(monkeypatch, fake_acompletion: AsyncMock) -> LLMGatewa
     )
     with patch("shared.infra.llm_gateway.settings") as s:
         s.llm_provider = "litellm"
+        s.anthropic_api_key = ""
+        s.openai_api_key = ""
+        s.openrouter_api_key = ""
+        s.gemini_api_key = ""
+        s.google_api_key = ""
         s.anthropic_base_url = ""
         s.litellm_api_base = ""
         s.require_anthropic_proxy = False
@@ -80,6 +85,41 @@ async def test_litellm_prefixes_native_claude_model(monkeypatch):
     kwargs = fake_acompletion.call_args.kwargs
     assert kwargs["model"] == "anthropic/claude-sonnet-4-20250514"
     assert kwargs["api_key"] == "test-anthropic-key"
+
+
+@pytest.mark.asyncio
+async def test_litellm_uses_provider_key_for_openai_model(monkeypatch):
+    fake_acompletion = AsyncMock(return_value=_litellm_text_response())
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "litellm",
+        SimpleNamespace(acompletion=fake_acompletion),
+    )
+    with patch("shared.infra.llm_gateway.settings") as s:
+        s.anthropic_api_key = ""
+        s.openai_api_key = "test-openai-key"
+        s.openrouter_api_key = ""
+        s.gemini_api_key = ""
+        s.google_api_key = ""
+        s.litellm_api_base = ""
+        s.llm_daily_budget_usd = 100.0
+        s.llm_per_request_cost_cap_usd = 5.0
+        s.control_plane_llm_budget_enforced = False
+        s.redis_url = "redis://localhost:6379"
+        gateway = LLMGateway()
+
+    gateway._track_usage = Mock()
+    gateway._track_redis_cost = AsyncMock()
+
+    await gateway.complete(
+        prompt="Hello",
+        agent_id="test-agent",
+        model="openai/gpt-5",
+    )
+
+    kwargs = fake_acompletion.call_args.kwargs
+    assert kwargs["model"] == "openai/gpt-5"
+    assert kwargs["api_key"] == "test-openai-key"
 
 
 @pytest.mark.asyncio

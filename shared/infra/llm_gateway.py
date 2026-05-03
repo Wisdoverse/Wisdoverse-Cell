@@ -154,7 +154,15 @@ class LLMGateway:
             recovery_timeout: Circuit breaker recovery timeout in seconds.
         """
         self.provider = "litellm"
-        self.api_key = api_key or settings.anthropic_api_key.get_secret_value()
+        self._explicit_api_key = api_key
+        self._provider_api_keys = {
+            "anthropic": self._secret_setting("anthropic_api_key"),
+            "openai": self._secret_setting("openai_api_key"),
+            "openrouter": self._secret_setting("openrouter_api_key"),
+            "gemini": self._secret_setting("gemini_api_key")
+            or self._secret_setting("google_api_key"),
+        }
+        self.api_key = api_key or self._provider_api_keys["anthropic"]
         self.timeout = timeout
         litellm_api_base = base_url or getattr(settings, "litellm_api_base", "")
         self._litellm_api_base = (
@@ -178,6 +186,36 @@ class LLMGateway:
 
         # Redis client for distributed cost tracking (lazy-initialized)
         self._redis = None
+
+    @staticmethod
+    def _secret_setting(name: str) -> str:
+        """Read a Settings secret value without coupling to SecretStr in tests."""
+        value = getattr(settings, name, "")
+        if hasattr(value, "get_secret_value"):
+            return value.get_secret_value()
+        return str(value or "")
+
+    def _provider_for_model(self, model: str) -> str:
+        """Return the LiteLLM provider implied by a model name."""
+        normalized = model.strip().lower()
+        if normalized.startswith("openrouter/"):
+            return "openrouter"
+        if normalized.startswith(("claude-", "anthropic/")):
+            return "anthropic"
+        if normalized.startswith(("openai/", "azure/", "gpt-", "o1", "o3", "o4")):
+            return "openai"
+        if normalized.startswith(("gemini/", "google/", "vertex_ai/")):
+            return "gemini"
+        return "generic"
+
+    def _api_key_for_model(self, model: str) -> str:
+        """Choose the API key that matches the selected LiteLLM route."""
+        if self._explicit_api_key:
+            return self._explicit_api_key
+        if self._litellm_api_base and self._provider_api_keys["openai"]:
+            return self._provider_api_keys["openai"]
+        provider = self._provider_for_model(model)
+        return self._provider_api_keys.get(provider, "")
 
     def _normalize_litellm_model(self, model: str) -> str:
         """Map native Claude model names to LiteLLM's provider/model format."""
@@ -342,8 +380,9 @@ class LLMGateway:
         api_base = self._litellm_api_base
         if api_base:
             kwargs["api_base"] = api_base
-        if model.startswith("anthropic/") and self.api_key:
-            kwargs["api_key"] = self.api_key
+        api_key = self._api_key_for_model(model)
+        if api_key:
+            kwargs["api_key"] = api_key
         return {key: value for key, value in kwargs.items() if value is not None}
 
     def _response_value(self, obj: Any, key: str, default: Any = None) -> Any:

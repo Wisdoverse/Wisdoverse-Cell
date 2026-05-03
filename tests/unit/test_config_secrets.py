@@ -14,6 +14,10 @@ from pydantic import SecretStr, ValidationError
 def secret_settings(monkeypatch):
     """Create a Settings instance with known secret values."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic-key-12345")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key-12345")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key-12345")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key-12345")
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-google-key-12345")
     monkeypatch.setenv("POSTGRES_PASSWORD", "pg-pass-secret")
     monkeypatch.setenv("REDIS_PASSWORD", "redis-pass-secret")
     monkeypatch.setenv("MILVUS_TOKEN", "milvus-tok-secret")
@@ -45,6 +49,13 @@ class TestSecretStrFields:
     def test_secret_value_accessible(self, secret_settings):
         assert secret_settings.anthropic_api_key.get_secret_value() == "test-anthropic-key-12345"
 
+    def test_litellm_provider_keys_are_secret(self, secret_settings):
+        assert isinstance(secret_settings.openai_api_key, SecretStr)
+        assert isinstance(secret_settings.openrouter_api_key, SecretStr)
+        assert isinstance(secret_settings.gemini_api_key, SecretStr)
+        assert isinstance(secret_settings.google_api_key, SecretStr)
+        assert secret_settings.openai_api_key.get_secret_value() == "test-openai-key-12345"
+
     def test_postgres_password_is_secret(self, secret_settings):
         assert isinstance(secret_settings.postgres_password, SecretStr)
         assert secret_settings.postgres_password.get_secret_value() == "pg-pass-secret"
@@ -68,10 +79,14 @@ class TestSecretStrFields:
     def test_a2a_jwt_secret_is_secret(self, secret_settings):
         assert isinstance(secret_settings.a2a_jwt_secret, SecretStr)
 
-    def test_all_15_fields_are_secret(self, secret_settings):
-        """All 15 migrated fields must be SecretStr."""
+    def test_all_secret_fields_are_secretstr(self, secret_settings):
+        """All secret fields must be SecretStr."""
         secret_fields = [
             "anthropic_api_key",
+            "openai_api_key",
+            "openrouter_api_key",
+            "gemini_api_key",
+            "google_api_key",
             "postgres_password",
             "redis_password",
             "milvus_token",
@@ -166,6 +181,10 @@ class TestProductionSecretValidation:
                 postgres_password="",
                 redis_password="",
                 anthropic_api_key="",
+                openai_api_key="",
+                openrouter_api_key="",
+                gemini_api_key="",
+                google_api_key="",
                 secret_key="change-me-in-production",
                 pm_api_key="",
                 internal_service_key="",
@@ -187,6 +206,70 @@ class TestProductionSecretValidation:
             a2a_jwt_secret="a2a-secret",
         )
         assert settings.app_env == "production"
+
+    def test_production_accepts_openai_litellm_models_without_anthropic_key(self):
+        from shared.config import Settings
+
+        settings = Settings(
+            _env_file=None,
+            app_env="production",
+            postgres_password="pg-secret",
+            redis_password="redis-secret",
+            anthropic_api_key="",
+            openai_api_key="openai-secret",
+            default_model="openai/gpt-5",
+            chat_model="openai/gpt-5",
+            decompose_model="openai/gpt-5",
+            summary_model="openai/gpt-5-mini",
+            secret_key="secret-key",
+            pm_api_key="pm-key",
+            internal_service_key="internal-key",
+            a2a_jwt_secret="a2a-secret",
+        )
+        assert settings.openai_api_key.get_secret_value() == "openai-secret"
+
+    def test_production_accepts_litellm_proxy_key_for_any_model_route(self):
+        from shared.config import Settings
+
+        settings = Settings(
+            _env_file=None,
+            app_env="production",
+            postgres_password="pg-secret",
+            redis_password="redis-secret",
+            anthropic_api_key="",
+            openai_api_key="proxy-secret",
+            litellm_api_base="https://litellm.internal/v1",
+            default_model="anthropic/claude-sonnet-4-20250514",
+            chat_model="anthropic/claude-sonnet-4-20250514",
+            decompose_model="openrouter/google/gemini-2.5-pro",
+            summary_model="gemini/gemini-2.5-flash",
+            secret_key="secret-key",
+            pm_api_key="pm-key",
+            internal_service_key="internal-key",
+            a2a_jwt_secret="a2a-secret",
+        )
+        assert settings.litellm_api_base == "https://litellm.internal/v1"
+
+    def test_production_rejects_selected_openai_model_without_openai_key(self):
+        from shared.config import Settings
+
+        with pytest.raises(ValidationError, match="OPENAI_API_KEY"):
+            Settings(
+                _env_file=None,
+                app_env="production",
+                postgres_password="pg-secret",
+                redis_password="redis-secret",
+                anthropic_api_key="",
+                openai_api_key="",
+                default_model="openai/gpt-5",
+                chat_model="openai/gpt-5",
+                decompose_model="openai/gpt-5",
+                summary_model="openai/gpt-5-mini",
+                secret_key="secret-key",
+                pm_api_key="pm-key",
+                internal_service_key="internal-key",
+                a2a_jwt_secret="a2a-secret",
+            )
 
     def test_production_rejects_enabled_feishu_without_signature_secret(self):
         from shared.config import Settings
