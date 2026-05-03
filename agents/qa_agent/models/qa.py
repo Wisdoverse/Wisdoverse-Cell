@@ -21,7 +21,7 @@ from .base import Base
 
 
 class QAAcceptanceRun(Base):
-    """QA 验收运行记录"""
+    """QA acceptance run record."""
 
     __tablename__ = "qa_acceptance_runs"
 
@@ -79,7 +79,7 @@ class QAAcceptanceRun(Base):
 
 
 class QAAcceptanceResult(Base):
-    """QA 验收具体检查结果"""
+    """QA acceptance check result."""
 
     __tablename__ = "qa_acceptance_results"
 

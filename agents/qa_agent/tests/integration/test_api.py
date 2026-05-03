@@ -29,7 +29,7 @@ def auth_headers():
 
 @pytest.mark.asyncio
 async def test_health_check(api_client):
-    """测试健康检查 (通常由 create_agent_app 自动添加)"""
+    """Test health check, usually added by create_agent_app."""
     response = api_client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "alive"
@@ -37,7 +37,7 @@ async def test_health_check(api_client):
 
 @pytest.mark.asyncio
 async def test_trigger_run_success(auth_headers):
-    """测试手动触发验收成功"""
+    """Test a successful manual acceptance trigger."""
     mock_result = MagicMock(spec=AcceptanceExecutionResult)
     mock_result.summary = AcceptanceSummary(
         l0_gate="PASS",
@@ -71,7 +71,7 @@ async def test_trigger_run_success(auth_headers):
 
 @pytest.mark.asyncio
 async def test_list_runs(auth_headers):
-    """测试查询运行列表"""
+    """Test listing runs."""
     mock_runs = [
         {
             "id": "run_1",
@@ -100,7 +100,7 @@ async def test_list_runs(auth_headers):
 
 @pytest.mark.asyncio
 async def test_get_run_detail_not_found(auth_headers):
-    """测试查询不存在的记录"""
+    """Test querying a missing run."""
     mock_agent = AsyncMock()
     mock_agent.get_run.return_value = None
 
@@ -113,7 +113,7 @@ async def test_get_run_detail_not_found(auth_headers):
 
 @pytest.mark.asyncio
 async def test_get_stats(auth_headers):
-    """测试查询统计数据"""
+    """Test querying statistics."""
     mock_stats = QARunStats(
         agent_name="pjm_agent",
         days=7,
@@ -146,8 +146,8 @@ async def test_get_stats(auth_headers):
 
 @pytest.mark.asyncio
 async def test_unauthorized(api_client):
-    """测试未授权访问"""
-    # 强制设置一个 key 以确保验证逻辑生效
+    """Test unauthorized access."""
+    # Force a key to ensure verification logic is active.
     with patch("shared.config.settings.internal_service_key", "secret-key"):
         response = api_client.get("/api/v1/qa/runs")
         assert response.status_code == 401

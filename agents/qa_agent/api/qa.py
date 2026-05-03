@@ -26,7 +26,7 @@ logger = get_logger("qa_agent.api")
     response_model=QARunTriggerResponse,
 )
 async def trigger_run(request: QARunTriggerRequest):
-    """手动触发 QA 验收运行"""
+    """Trigger a QA acceptance run manually."""
     agent = get_agent()
 
     run_req = QARunRequest(
@@ -36,17 +36,16 @@ async def trigger_run(request: QARunTriggerRequest):
         files_changed=request.files_changed,
         mr_iid=request.mr_iid,
         gitlab_project_id=request.gitlab_project_id,
-        trigger="manual",  # 显式标为 manual
+        trigger="manual",  # Explicitly mark API-triggered runs as manual.
         requested_by=request.requested_by,
         reason=request.reason,
     )
 
     try:
-        # 使用 asyncio.wait_for 以防 agent 内部超时逻辑失效
-        # timeout 取自 settings 最好，但这里我们依赖 run_acceptance 内部的超时控制
+        # Rely on run_acceptance's internal timeout control.
         result = await agent.run_acceptance(run_req)
 
-        # 映射 L0 状态到 API 状态
+        # Map L0 status to the API status.
         status_map = {
             "PASS": "passed",
             "FAIL": "failed",
@@ -83,7 +82,7 @@ async def list_runs(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
-    """查询 QA 验收历史列表"""
+    """List QA acceptance run history."""
     agent = get_agent()
     try:
         runs_data = await agent.list_runs(
@@ -109,8 +108,7 @@ async def list_runs(
                 )
             )
 
-        # Note: 这里的 total 可能是分页后的，如果 BaseAgent.list_runs 支持 count 的话更好。
-        # 暂时按 items 长度返回，或者从 agent 获取更多元数据。
+        # total currently reflects returned items; use richer metadata when the agent exposes it.
         return QARunListResponse(total=len(items), items=items)
     except Exception as e:
         logger.error("api_list_runs_error", error=str(e))
@@ -122,7 +120,7 @@ async def list_runs(
     response_model=QARunDetailResponse,
 )
 async def get_run_detail(run_id: str):
-    """查询单次验收运行详情"""
+    """Get details for one QA acceptance run."""
     agent = get_agent()
     try:
         run = await agent.get_run(run_id)
@@ -159,7 +157,7 @@ async def get_stats(
     agent_name: str | None = Query(None),
     days: int = Query(30, ge=1, le=365),
 ):
-    """获取 QA 运行统计数据"""
+    """Get QA run statistics."""
     agent = get_agent()
     try:
         stats = await agent.get_stats(agent_name=agent_name, days=days)

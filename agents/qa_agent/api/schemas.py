@@ -7,7 +7,7 @@ from ..models.schemas import AcceptanceFinding, AcceptanceSummary, QACheckAggreg
 
 
 class QARunTriggerRequest(BaseModel):
-    """POST /api/v1/qa/run 请求体"""
+    """POST /api/v1/qa/run request body."""
 
     model_config = ConfigDict(strict=True)
 
@@ -22,7 +22,7 @@ class QARunTriggerRequest(BaseModel):
 
 
 class QARunTriggerResponse(BaseModel):
-    """POST /api/v1/qa/run 响应体"""
+    """POST /api/v1/qa/run response body."""
 
     run_id: str
     status: Literal["passed", "failed", "warn", "error"]
@@ -34,7 +34,7 @@ class QARunTriggerResponse(BaseModel):
 
 
 class QARunListItem(BaseModel):
-    """GET /api/v1/qa/runs 列表项"""
+    """GET /api/v1/qa/runs list item."""
 
     run_id: str
     agent_name: str
@@ -49,14 +49,14 @@ class QARunListItem(BaseModel):
 
 
 class QARunListResponse(BaseModel):
-    """GET /api/v1/qa/runs 响应体"""
+    """GET /api/v1/qa/runs response body."""
 
     total: int
     items: list[QARunListItem]
 
 
 class QARunDetailResponse(BaseModel):
-    """GET /api/v1/qa/runs/{id} 响应体"""
+    """GET /api/v1/qa/runs/{id} response body."""
 
     run_id: str
     agent_name: str
@@ -74,7 +74,7 @@ class QARunDetailResponse(BaseModel):
 
 
 class QAStatsResponse(BaseModel):
-    """GET /api/v1/qa/stats 响应体"""
+    """GET /api/v1/qa/stats response body."""
 
     agent_name: str | None = None
     days: int

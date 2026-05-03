@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class AcceptanceFinding(BaseModel):
-    """单条验收发现项"""
+    """Single acceptance finding."""
 
     model_config = ConfigDict(strict=True)
 
@@ -20,7 +20,7 @@ class AcceptanceFinding(BaseModel):
 
 
 class AcceptanceSummary(BaseModel):
-    """验收汇总"""
+    """Acceptance summary."""
 
     model_config = ConfigDict(strict=True)
 
@@ -33,7 +33,7 @@ class AcceptanceSummary(BaseModel):
 
 
 class AcceptanceExecutionResult(BaseModel):
-    """验收执行结果 (Runner 输出)"""
+    """Acceptance execution result returned by the runner."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -52,7 +52,7 @@ class AcceptanceExecutionResult(BaseModel):
 
 
 class QARunRequest(BaseModel):
-    """QA 运行请求"""
+    """QA run request."""
 
     model_config = ConfigDict(strict=True)
 
@@ -70,14 +70,14 @@ class QARunRequest(BaseModel):
 
 
 class QACheckAggregate(BaseModel):
-    """检查项聚合统计"""
+    """Aggregated check statistics."""
 
     check: str
     count: int
 
 
 class QARunStats(BaseModel):
-    """QA 运行统计"""
+    """QA run statistics."""
 
     agent_name: str | None = None
     days: int

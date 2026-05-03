@@ -29,14 +29,14 @@ class QAReportStore:
         trigger_event_id: str | None = None,
         notification_summary: dict[str, Any] | None = None,
     ) -> QAAcceptanceRun:
-        """保存验收执行结果到数据库"""
+        """Persist an acceptance execution result to the database."""
 
-        # 1. 创建 Run 记录
+        # 1. Create the run record.
         run = await self.run_repo.create(
             trace_id=trace_id,
             trigger_event_id=trigger_event_id,
             agent_name=request.agent_name,
-            target_path=f"agents/{request.agent_name}",  # 约定路径
+            target_path=f"agents/{request.agent_name}",  # Conventional agent path.
             commit_sha=request.commit_sha,
             branch=request.branch,
             mr_iid=request.mr_iid,
@@ -58,7 +58,7 @@ class QAReportStore:
             completed_at=datetime.now(UTC),
         )
 
-        # 2. 批量创建 Result 记录
+        # 2. Create result records in batch.
         if result.findings:
             finding_dicts = []
             for f in result.findings:
