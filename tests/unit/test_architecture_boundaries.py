@@ -431,6 +431,8 @@ def test_frontend_routes_are_thin() -> None:
     route_files = [
         *Path("frontend/src/app/[locale]/(app)").rglob("page.tsx"),
         Path("frontend/src/app/[locale]/(app)/layout.tsx"),
+        Path("frontend/src/app/[locale]/(app)/error.tsx"),
+        Path("frontend/src/app/[locale]/(app)/not-found.tsx"),
         Path("frontend/src/app/[locale]/(auth)/login/page.tsx"),
     ]
     forbidden = [
@@ -481,6 +483,8 @@ def test_frontend_route_pages_compose_widgets_only() -> None:
     route_files = [
         *Path("frontend/src/app/[locale]/(app)").rglob("page.tsx"),
         Path("frontend/src/app/[locale]/(app)/layout.tsx"),
+        Path("frontend/src/app/[locale]/(app)/error.tsx"),
+        Path("frontend/src/app/[locale]/(app)/not-found.tsx"),
         Path("frontend/src/app/[locale]/(auth)/login/page.tsx"),
     ]
     allowed_internal_imports = ("@/widgets",)
