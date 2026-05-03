@@ -96,3 +96,24 @@ class TestChannelRegistryPlugin:
             await plugin.startup(MagicMock())
             result = await plugin.health_check()
             assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_health_ok_when_expected_channel_registered(self):
+        from agents.requirement_manager.app.plugins.channel_registry import (
+            ChannelRegistryPlugin,
+        )
+        from shared.core.channels import ChannelRegistry
+
+        ChannelRegistry.clear()
+        try:
+            channel = MagicMock()
+            channel.channel_name = "feishu"
+            ChannelRegistry.register(channel)
+
+            plugin = ChannelRegistryPlugin()
+            plugin._expected_channels = 1
+            result = await plugin.health_check()
+
+            assert result["channels"].status == "ok"
+        finally:
+            ChannelRegistry.clear()

@@ -10,7 +10,7 @@ WecomCardBuilder - 企业微信模板卡片构建器
 import json
 from typing import Literal
 
-from shared.integrations.channels import ChannelCard
+from shared.core.channels import ChannelCard
 
 
 class WecomCardBuilder:

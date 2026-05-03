@@ -2,7 +2,7 @@
 """WecomChannelAdapter - 企微渠道适配器"""
 from typing import TYPE_CHECKING
 
-from shared.integrations.channels import (
+from shared.core.channels import (
     ChannelCard,
     ChannelMessage,
     ChannelResponse,

@@ -20,7 +20,7 @@ class ChannelRegistryPlugin(RuntimePlugin):
     async def startup(self, runtime) -> None:
         if settings.feishu_enabled:
             self._expected_channels += 1
-            from shared.integrations.channels import ChannelRegistry
+            from shared.core.channels import ChannelRegistry
             from shared.integrations.feishu.adapter import FeishuChannelAdapter
             from shared.integrations.feishu.client import get_feishu_client
 
@@ -29,7 +29,7 @@ class ChannelRegistryPlugin(RuntimePlugin):
 
         if settings.wecom_enabled:
             self._expected_channels += 1
-            from shared.integrations.channels import ChannelRegistry
+            from shared.core.channels import ChannelRegistry
             from shared.integrations.wecom.adapter import WecomChannelAdapter
             from shared.integrations.wecom.client import get_wecom_client
 
@@ -38,7 +38,7 @@ class ChannelRegistryPlugin(RuntimePlugin):
 
         if settings.openclaw_enabled:
             self._expected_channels += 1
-            from shared.integrations.channels import ChannelRegistry
+            from shared.core.channels import ChannelRegistry
             from shared.integrations.openclaw.adapter import OpenClawChannelAdapter
             from shared.integrations.openclaw.client import OpenClawClient
 
@@ -64,7 +64,7 @@ class ChannelRegistryPlugin(RuntimePlugin):
     async def health_check(self) -> dict[str, HealthCheckResult]:
         if self._expected_channels == 0:
             return {}
-        from shared.integrations.channels import ChannelRegistry
+        from shared.core.channels import ChannelRegistry
 
         registered = (
             len(ChannelRegistry.list_channels())

@@ -43,7 +43,7 @@ contribution documents.
 | `agents/README.md` | Directory-local boundary rules and runtime-role map |
 | `shared/app/` | Agent runtime factory and plugin system |
 | `shared/control_plane/` | Control-plane ledger, runs, approvals, budgets, and APIs |
-| `shared/core/` | Port interfaces and domain-neutral contracts |
+| `shared/core/` | Port interfaces, channel abstractions, and domain-neutral contracts |
 | `shared/db/` | Shared database primitives and repositories |
 | `shared/grpc/` | Shared protocol artifacts; capability gRPC runtimes live under their owning agent |
 | `shared/messaging/` | Messaging orchestration and outbound/inbound adapters |

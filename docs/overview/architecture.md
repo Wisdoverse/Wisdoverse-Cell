@@ -206,7 +206,7 @@ widgets and pass only route/search parameters.
 
 ## 5. Hexagonal Architecture
 
-The messaging system follows hexagonal architecture (see ADR-0005), decoupling core ports from external adapters. `shared/core/messaging/` defines messaging port interfaces, `shared/core/integration_ports.py` defines external platform ports for OpenProject, Feishu Bitable, Feishu messaging, Feishu contact lookup, Feishu webhooks, GitLab MR creation, and GitLab MR notes, `shared/messaging/` handles inbound/outbound orchestration, and `shared/integrations/` implements platform adapters. This layering allows platform adapters to be replaced without changing core logic.
+The messaging system follows hexagonal architecture (see ADR-0005), decoupling core ports from external adapters. `shared/core/messaging/` defines messaging port interfaces, `shared/core/channels/` defines channel message/card abstractions, `shared/core/integration_ports.py` defines external platform ports for OpenProject, Feishu Bitable, Feishu messaging, Feishu contact lookup, Feishu webhooks, GitLab MR creation, and GitLab MR notes, `shared/messaging/` handles inbound/outbound orchestration, and `shared/integrations/` implements platform adapters. This layering allows platform adapters to be replaced without changing core logic.
 
 Inside a root business agent, service-specific external clients live under the
 agent's own `adapters/` package. The agent `core/` package owns business and
@@ -215,6 +215,7 @@ than constructing HTTP clients directly.
 
 ```
 shared/core/messaging/   -> Port interfaces (abstract)
+shared/core/channels/    -> Channel message/card abstractions
 shared/core/integration_ports.py -> External platform ports (abstract)
 shared/messaging/inbound/ -> Inbound orchestration
 shared/messaging/outbound/ -> Outbound orchestration

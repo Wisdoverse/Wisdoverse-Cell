@@ -1,2 +1,3 @@
-"""Deprecated: use shared.integrations.channels.base"""
-from shared.integrations.channels.base import *  # noqa: F401,F403
+"""Deprecated: use shared.core.channels.base."""
+
+from shared.core.channels.base import *  # noqa: F401,F403

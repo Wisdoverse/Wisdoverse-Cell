@@ -1,14 +1,18 @@
-"""Deprecated: use shared.core.channels."""
+"""Channel messaging ports and value objects.
 
-from shared.core.channels import (
+Concrete platform adapters live under ``shared.integrations``. Runtime code
+should import these abstractions from ``shared.core.channels``.
+"""
+
+from .base import MessageChannel
+from .registry import ChannelRegistry
+from .types import (
     CardAction,
     CardElement,
     ChannelCard,
     ChannelMessage,
-    ChannelRegistry,
     ChannelResponse,
     IncomingMessage,
-    MessageChannel,
 )
 
 __all__ = [

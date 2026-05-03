@@ -101,6 +101,27 @@ def test_runtime_code_uses_canonical_shared_paths() -> None:
                 )
 
 
+def test_runtime_code_uses_core_channel_abstractions() -> None:
+    roots = [Path("agents"), Path("services"), Path("shared")]
+    compat_paths = {
+        Path("shared/integrations/channels/__init__.py"),
+        Path("shared/integrations/channels/base.py"),
+        Path("shared/integrations/channels/registry.py"),
+        Path("shared/integrations/channels/types.py"),
+    }
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in _python_files(root):
+            if path in compat_paths or path.parts[:2] == ("shared", "services"):
+                continue
+            for module in _imported_modules(path):
+                assert not module.startswith("shared.integrations.channels"), (
+                    f"{path} imports channel abstractions from {module}; "
+                    "use shared.core.channels"
+                )
+
+
 def test_agent_core_does_not_import_platform_adapters_directly() -> None:
     for agent_root in AGENT_ROOTS:
         root = Path("agents") / agent_root / "core"
