@@ -3,11 +3,11 @@
 import json
 import re
 
-from shared.config import settings
 from shared.infra.llm_gateway import LLMGateway
 from shared.utils.logger import get_logger
 
 from ..models.schemas import TaskCheckResult, WBSResult
+from .config import PJMCoreConfig
 from .prompts import (
     DECOMPOSE_SYSTEM_PROMPT,
     TASK_CHECK_SYSTEM_PROMPT,
@@ -23,8 +23,13 @@ class DecomposeError(Exception):
 
 
 class DecomposeService:
-    def __init__(self, llm_gateway: LLMGateway):
+    def __init__(
+        self,
+        llm_gateway: LLMGateway,
+        config: PJMCoreConfig | None = None,
+    ):
         self._llm = llm_gateway
+        self._config = config or PJMCoreConfig()
 
     async def decompose(
         self,
@@ -50,7 +55,7 @@ class DecomposeService:
                     prompt=prompt,
                     agent_id="pjm-agent",
                     task_type="decompose",
-                    model=settings.decompose_model,
+                    model=self._config.decompose_model,
                     system_prompt=DECOMPOSE_SYSTEM_PROMPT,
                     max_tokens=4096,
                     temperature=0,
@@ -106,7 +111,7 @@ class DecomposeService:
                     prompt=prompt,
                     agent_id="pjm-agent",
                     task_type="task_check",
-                    model=settings.decompose_model,
+                    model=self._config.decompose_model,
                     system_prompt=TASK_CHECK_SYSTEM_PROMPT,
                     max_tokens=4096,
                     temperature=0,

@@ -31,6 +31,7 @@ from ..core.report_service import ReportService
 from ..db.database import DatabaseManager, db_manager
 from ..db.repository import AlertLogRepository, DecompositionRepository
 from ..models.schemas import ChatPMQueryPayload, RiskDetectedPayload
+from .config_factory import build_pjm_core_config
 
 try:
     from ..app.metrics import ALERTS_TRIGGERED
@@ -81,6 +82,7 @@ class PMAgent(BaseAgent):
         self._op_writer: OPWriterService | None = None
         self._report: ReportService | None = None
         self._decomposition_orchestrator: DecompositionOrchestrator | None = None
+        self._core_config = build_pjm_core_config()
 
     async def startup(self):
         logger.info("agent_starting", agent_id=self.agent_id)
@@ -98,8 +100,8 @@ class PMAgent(BaseAgent):
         feishu_client = get_feishu_client()
         card_renderer = FeishuPJMCardRenderer()
 
-        self._push = PushService(feishu_client)
-        self._decompose = DecomposeService(llm_gateway)
+        self._push = PushService(feishu_client, config=self._core_config)
+        self._decompose = DecomposeService(llm_gateway, config=self._core_config)
         self._op_writer = OPWriterService(op_client)
         self._report = ReportService(
             op_client,

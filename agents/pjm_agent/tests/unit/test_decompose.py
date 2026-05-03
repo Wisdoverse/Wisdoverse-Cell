@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from agents.pjm_agent.core.config import PJMCoreConfig
 from agents.pjm_agent.core.decompose import DecomposeError, DecomposeService
 from agents.pjm_agent.models.schemas import WBSResult
 
@@ -150,3 +151,21 @@ class TestDecomposeRetry:
 
         assert isinstance(result, WBSResult)
         assert llm_gateway.complete.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_uses_injected_decompose_model(self, llm_gateway):
+        """The LLM call uses the injected core config model."""
+        llm_gateway.complete = AsyncMock(return_value=json.dumps(_valid_wbs_dict()))
+        service = DecomposeService(
+            llm_gateway=llm_gateway,
+            config=PJMCoreConfig.from_values(decompose_model="pm-model"),
+        )
+
+        await service.decompose(
+            wp_id=1,
+            subject="Test",
+            description="Test description",
+            wp_type="Feature",
+        )
+
+        assert llm_gateway.complete.await_args.kwargs["model"] == "pm-model"

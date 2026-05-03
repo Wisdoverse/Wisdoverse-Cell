@@ -1,12 +1,15 @@
 """
 Unit Tests - PushService
 
-测试推送服务的消息发送逻辑。
+Tests PM notification formatting and sending.
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
+
+from agents.pjm_agent.core.config import PJMCoreConfig
+from agents.pjm_agent.core.push_service import PushService
 
 
 @pytest.fixture
@@ -16,16 +19,17 @@ def messenger():
     return client
 
 
-@pytest.fixture
-def push_service(messenger):
-    from agents.pjm_agent.core.push_service import PushService
-
-    return PushService(messenger)
+def make_push_service(messenger, *, chat_id: str = "") -> PushService:
+    return PushService(
+        messenger,
+        config=PJMCoreConfig.from_values(feishu_report_chat_id=chat_id),
+    )
 
 
 @pytest.mark.asyncio
-async def test_push_alerts_success(push_service, messenger):
-    """有预警且配置了 chat_id 时应格式化并成功发送"""
+async def test_push_alerts_success(messenger):
+    """Alerts are formatted and sent when chat_id is configured."""
+    push_service = make_push_service(messenger, chat_id="feishu_report_001")
     alerts = [
         {"type": "deadline", "severity": "critical", "task": "部署服务", "message": "已逾期 3 天"},
         {
@@ -36,15 +40,11 @@ async def test_push_alerts_success(push_service, messenger):
         },
     ]
 
-    with patch("agents.pjm_agent.core.push_service.settings") as mock_settings:
-        mock_settings.feishu_report_chat_id = "feishu_report_001"
-
-        result = await push_service.push_alerts(alerts)
+    result = await push_service.push_alerts(alerts)
 
     assert result is True
     messenger.send_message.assert_called_once()
 
-    # 验证发送内容包含预警信息
     call_kwargs = messenger.send_message.call_args[1]
     assert call_kwargs["receive_id"] == "feishu_report_001"
     assert call_kwargs["receive_id_type"] == "chat_id"
@@ -53,38 +53,36 @@ async def test_push_alerts_success(push_service, messenger):
 
 
 @pytest.mark.asyncio
-async def test_push_alerts_no_chat_id(push_service):
-    """未配置 chat_id 时应记录 warning 并返回 False"""
+async def test_push_alerts_no_chat_id(messenger):
+    """Missing chat_id returns False."""
+    push_service = make_push_service(messenger)
     alerts = [
         {"type": "deadline", "severity": "critical", "task": "T1", "message": "已逾期"},
     ]
 
-    with patch("agents.pjm_agent.core.push_service.settings") as mock_settings:
-        mock_settings.feishu_report_chat_id = ""
-        result = await push_service.push_alerts(alerts)
+    result = await push_service.push_alerts(alerts)
 
     assert result is False
 
 
 @pytest.mark.asyncio
-async def test_push_alerts_empty(push_service):
-    """空预警列表应返回 False"""
+async def test_push_alerts_empty(messenger):
+    """Empty alert lists return False."""
+    push_service = make_push_service(messenger)
     result = await push_service.push_alerts([])
     assert result is False
 
 
 @pytest.mark.asyncio
-async def test_push_risks_success(push_service, messenger):
-    """有风险且配置了 chat_id 时应格式化并成功发送"""
+async def test_push_risks_success(messenger):
+    """Risks are formatted and sent when chat_id is configured."""
+    push_service = make_push_service(messenger, chat_id="chat_risk_001")
     risks = [
         {"risk_level": "high", "message": "核心模块延期风险"},
         {"risk_level": "medium", "message": "人员不足风险"},
     ]
 
-    with patch("agents.pjm_agent.core.push_service.settings") as mock_settings:
-        mock_settings.feishu_report_chat_id = "chat_risk_001"
-
-        result = await push_service.push_risks(risks)
+    result = await push_service.push_risks(risks)
 
     assert result is True
     messenger.send_message.assert_called_once()
@@ -96,7 +94,8 @@ async def test_push_risks_success(push_service, messenger):
 
 
 @pytest.mark.asyncio
-async def test_push_risks_empty(push_service):
-    """空风险列表应返回 False"""
+async def test_push_risks_empty(messenger):
+    """Empty risk lists return False."""
+    push_service = make_push_service(messenger)
     result = await push_service.push_risks([])
     assert result is False
