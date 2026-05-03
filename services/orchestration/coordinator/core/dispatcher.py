@@ -19,6 +19,7 @@ def decision_to_event(decision: Decision) -> Event:
                 "instruction": decision.instruction,
                 "workflow_id": decision.workflow_id,
             },
+            trace_id=decision.trace_id,
         )
 
     if target == "qa-agent":
@@ -35,6 +36,7 @@ def decision_to_event(decision: Decision) -> Event:
                 "instruction": decision.instruction,
                 "workflow_id": decision.workflow_id,
             },
+            trace_id=decision.trace_id,
         )
 
     if target == "chat-agent":
@@ -46,6 +48,7 @@ def decision_to_event(decision: Decision) -> Event:
                 status=decision.status or "completed",
                 summary=decision.summary or "",
             ).model_dump(),
+            trace_id=decision.trace_id,
         )
 
     return Event.create(
@@ -58,4 +61,5 @@ def decision_to_event(decision: Decision) -> Event:
             "workflow_id": decision.workflow_id,
             "scratchpad_ref": decision.scratchpad_ref,
         },
+        trace_id=decision.trace_id,
     )

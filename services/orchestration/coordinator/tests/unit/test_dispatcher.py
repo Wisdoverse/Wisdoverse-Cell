@@ -19,6 +19,23 @@ def test_dispatch_to_requirement_manager():
     assert event.source_agent == "coordinator"
 
 
+def test_dispatch_preserves_decision_trace_id():
+    from services.orchestration.coordinator.core.dispatcher import decision_to_event
+    from services.orchestration.coordinator.core.models import Decision
+
+    decision = Decision(
+        target_agent="requirement-manager",
+        action="dispatch_task",
+        task_id="task_001",
+        instruction="Produce PRD for @mention feature",
+        trace_id="trace_001",
+    )
+
+    event = decision_to_event(decision)
+
+    assert event.metadata.trace_id == "trace_001"
+
+
 def test_dispatch_to_dev_agent_preserves_contract():
     from services.orchestration.coordinator.core.dispatcher import decision_to_event
     from services.orchestration.coordinator.core.models import Decision

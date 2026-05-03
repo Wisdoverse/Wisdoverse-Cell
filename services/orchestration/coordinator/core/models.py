@@ -16,6 +16,7 @@ class Decision(BaseModel):
     reasoning: str = ""
     context: dict[str, Any] = {}
     command_id: str | None = None
+    trace_id: str | None = None
     status: str | None = None
     summary: str | None = None
     scratchpad_ref: str | None = None

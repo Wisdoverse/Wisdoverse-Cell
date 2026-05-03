@@ -74,11 +74,13 @@ async def test_handle_event_with_command_returns_events():
             "user_id": "u1",
             "user_name": "Alice",
         },
+        trace_id="trace_001",
     )
     result_events = await agent.handle_event(event)
     assert len(result_events) == 1
     assert result_events[0].event_type == EventTypes.COORDINATOR_DISPATCH
     assert result_events[0].payload["target_agent"] == "requirement-manager"
+    assert result_events[0].metadata.trace_id == "trace_001"
 
 
 @pytest.mark.asyncio

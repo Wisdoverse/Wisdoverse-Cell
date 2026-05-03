@@ -77,6 +77,14 @@ class CoordinatorAgent(BaseAgent):
             pending_decisions=pending,
         )
         decisions = await self._think(context)
+        trace_id = event.metadata.trace_id if event.metadata else None
+        if trace_id:
+            decisions = [
+                decision
+                if decision.trace_id
+                else decision.model_copy(update={"trace_id": trace_id})
+                for decision in decisions
+            ]
 
         outgoing = [decision_to_event(d) for d in decisions]
 
