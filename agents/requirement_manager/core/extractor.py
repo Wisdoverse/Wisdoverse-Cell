@@ -1,7 +1,7 @@
 """
-Requirement Extractor - 需求提取核心逻辑
+Requirement extraction core logic.
 
-从会议记录中使用LLM提取结构化需求。
+Extracts structured requirements from meeting records through the LLM Gateway.
 """
 import json
 from pathlib import Path
@@ -16,7 +16,7 @@ logger = get_logger("extractor")
 
 
 class ExtractedRequirement(BaseModel):
-    """提取的需求结构"""
+    """Extracted requirement structure."""
     title: str
     description: str
     category: str = "功能"
@@ -25,19 +25,19 @@ class ExtractedRequirement(BaseModel):
 
 
 class ExtractedDecision(BaseModel):
-    """提取的决定"""
+    """Extracted decision."""
     content: str
     decided_by: Optional[str] = None
 
 
 class ExtractedQuestion(BaseModel):
-    """提取的待确认问题"""
+    """Extracted open question."""
     question: str
     context: Optional[str] = None
 
 
 class ExtractionResult(BaseModel):
-    """提取结果"""
+    """Extraction result."""
     requirements: list[ExtractedRequirement] = []
     decisions: list[ExtractedDecision] = []
     open_questions: list[ExtractedQuestion] = []
@@ -45,16 +45,16 @@ class ExtractionResult(BaseModel):
 
 class RequirementExtractor:
     """
-    需求提取器
+    Requirement extractor.
 
-    使用LLM从会议记录中提取:
-    - 结构化需求
-    - 做出的决定
-    - 待确认的问题
+    Uses the LLM Gateway to extract from meeting records:
+    - Structured requirements
+    - Decisions
+    - Open questions
     """
 
     def __init__(self):
-        # 加载prompt模板
+        # Load the prompt template.
         prompt_path = Path(__file__).parent.parent / "prompts" / "extract_requirements.md"
         self.prompt_template = prompt_path.read_text(encoding="utf-8")
 
@@ -67,19 +67,19 @@ class RequirementExtractor:
         context: Optional[str] = None
     ) -> ExtractionResult:
         """
-        从会议内容中提取需求
+        Extract requirements from meeting content.
 
         Args:
-            content: 会议内容文本
-            source: 来源 (feishu/upload/wechat)
-            meeting_date: 会议日期
-            participants: 参与者列表
-            context: 额外上下文说明
+            content: Meeting content text.
+            source: Source channel (feishu/upload/wechat).
+            meeting_date: Meeting date.
+            participants: Participant list.
+            context: Additional context notes.
 
         Returns:
-            ExtractionResult 包含需求、决定和问题
+            Extraction result containing requirements, decisions, and questions.
         """
-        # 构建prompt
+        # Build the prompt.
         prompt = self.prompt_template.format(
             meeting_content=content,
             source=source,
@@ -95,7 +95,7 @@ class RequirementExtractor:
         )
 
         try:
-            # 调用LLM
+            # Call the LLM.
             response = await llm_gateway.complete(
                 prompt=prompt,
                 agent_id="requirement-manager",
@@ -108,7 +108,7 @@ class RequirementExtractor:
                 )
             )
 
-            # 解析JSON响应
+            # Parse the JSON response.
             result = self._parse_response(response)
 
             logger.info(
@@ -125,10 +125,10 @@ class RequirementExtractor:
             raise
 
     def _parse_response(self, response: str) -> ExtractionResult:
-        """解析LLM响应"""
-        # 尝试从响应中提取JSON
+        """Parse the LLM response."""
+        # Try to extract JSON from the response.
         try:
-            # 清理响应（可能包含markdown代码块）
+            # Clean responses that may contain Markdown code fences.
             cleaned = response.strip()
             if cleaned.startswith("```json"):
                 cleaned = cleaned[7:]
@@ -140,7 +140,7 @@ class RequirementExtractor:
 
             data = json.loads(cleaned)
 
-            # 解析需求
+            # Parse requirements.
             requirements = []
             for req in data.get("requirements", []):
                 requirements.append(ExtractedRequirement(
@@ -151,7 +151,7 @@ class RequirementExtractor:
                     source_quote=req.get("source_quote")
                 ))
 
-            # 解析决定
+            # Parse decisions.
             decisions = []
             for dec in data.get("decisions", []):
                 decisions.append(ExtractedDecision(
@@ -159,7 +159,7 @@ class RequirementExtractor:
                     decided_by=dec.get("decided_by")
                 ))
 
-            # 解析问题
+            # Parse questions.
             questions = []
             for q in data.get("open_questions", []):
                 questions.append(ExtractedQuestion(
@@ -182,7 +182,7 @@ class RequirementExtractor:
             return ExtractionResult()
 
     def _normalize_category(self, category: str) -> str:
-        """规范化分类名称"""
+        """Normalize category names."""
         normalized = category.lower()
         category_map = {
             "功能": "功能",
@@ -202,7 +202,7 @@ class RequirementExtractor:
         return category_map.get(category, category_map.get(normalized, "其他"))
 
     def _normalize_priority(self, priority: str) -> str:
-        """规范化优先级"""
+        """Normalize priority values."""
         priority_map = {
             "high": "high",
             "高": "high",
@@ -214,5 +214,5 @@ class RequirementExtractor:
         return priority_map.get(priority.lower(), "medium")
 
 
-# 全局提取器实例
+# Global extractor instance.
 extractor = RequirementExtractor()
