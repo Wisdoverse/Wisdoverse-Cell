@@ -3,9 +3,14 @@ from shared.messaging.outbound.core.enums import ChatType
 from shared.messaging.outbound.models.events import (
     AdapterStatusPayload,
     ChannelEventTypes,
+    MessageDeletedPayload,
     MessageDeliveredPayload,
+    MessageEditedPayload,
     MessageInboundPayload,
     MessageOutboundPayload,
+    ReactionPayload,
+    ReadReceiptPayload,
+    TypingStartedPayload,
 )
 from shared.messaging.outbound.models.messages import (
     ChatContext,
@@ -35,8 +40,14 @@ class TestChannelEventTypes:
     def test_reaction_added(self):
         assert ChannelEventTypes.REACTION_ADDED == "channel.reaction.added"
 
+    def test_reaction_removed(self):
+        assert ChannelEventTypes.REACTION_REMOVED == "channel.reaction.removed"
+
     def test_read_receipt(self):
         assert ChannelEventTypes.READ_RECEIPT == "channel.read.receipt"
+
+    def test_typing_started(self):
+        assert ChannelEventTypes.TYPING_STARTED == "channel.typing.started"
 
     def test_adapter_status(self):
         assert ChannelEventTypes.ADAPTER_STATUS == "channel.adapter.status"
@@ -84,6 +95,56 @@ class TestMessageDeliveredPayload:
             result=result,
         )
         assert payload.result.success is False
+
+
+class TestMessageEditedPayload:
+    def test_create(self):
+        payload = MessageEditedPayload(
+            channel_id="slack",
+            platform_message_id="msg_1",
+            new_content="Updated",
+        )
+        assert payload.new_content == "Updated"
+
+
+class TestMessageDeletedPayload:
+    def test_create(self):
+        payload = MessageDeletedPayload(
+            channel_id="slack",
+            platform_message_id="msg_1",
+        )
+        assert payload.platform_message_id == "msg_1"
+
+
+class TestReactionPayload:
+    def test_create(self):
+        payload = ReactionPayload(
+            channel_id="discord",
+            platform_message_id="msg_1",
+            user_id="user_1",
+            emoji="thumbsup",
+        )
+        assert payload.emoji == "thumbsup"
+
+
+class TestReadReceiptPayload:
+    def test_create(self):
+        payload = ReadReceiptPayload(
+            channel_id="matrix",
+            platform_message_id="msg_1",
+            user_id="user_1",
+        )
+        assert payload.user_id == "user_1"
+
+
+class TestTypingStartedPayload:
+    def test_create(self):
+        payload = TypingStartedPayload(
+            channel_id="telegram",
+            platform_chat_id="chat_1",
+            user_id="user_1",
+        )
+        assert payload.platform_chat_id == "chat_1"
 
 
 class TestAdapterStatusPayload:

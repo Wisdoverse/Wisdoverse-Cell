@@ -89,6 +89,7 @@ actions only when the event intentionally requests work, such as `sync.trigger`.
 | `channel.reaction.added` | channel gateway | Event observers | Reaction added |
 | `channel.reaction.removed` | channel gateway | Event observers | Reaction removed |
 | `channel.read.receipt` | channel gateway | Event observers | Read receipt received |
+| `channel.typing.started` | channel gateway | Event observers | Typing indicator started |
 | `channel.adapter.status` | channel gateway | Event observers | Adapter status changed |
 
 ## 3.0 Control Plane Domain
@@ -169,6 +170,11 @@ publishes one `channel.message.delivered` event with a `DeliveryResult`.
 Missing adapters and adapter exceptions are represented as failed delivery
 results so operators can inspect the failed step without losing the event
 chain.
+
+Inbound platform state notifications such as message edits, deletes, reactions,
+read receipts, and typing indicators are optional channel gateway events. They
+must use the `channel.*` event names declared by the shared channel event
+models, even when only a subset is implemented by a specific adapter.
 
 Example `channel.message.outbound` payload:
 
@@ -389,7 +395,7 @@ Required or recommended fields:
 | PJM agent | `pm.*`, `chat.pm-response`, retry `sync.task-needs-decompose` | `sync.completed`, `sync.task-needs-decompose`, `analysis.risk-detected`, `chat.pm-query`, `coordinator.dispatch` |
 | user interaction gateway | `chat.pm-query`, `coordinator.command`, `sync.trigger` | `chat.pm-response`, `coordinator.response` |
 | coordinator | `coordinator.response`, `coordinator.dispatch`, `pm.tasks-ready-for-dev`, `qa.run-requested` | `coordinator.command`, `task.notification`, `task.progress`, `pm.prd-ready`, `pm.decompose-completed`, `pm.decomposition-failed`, `analysis.risk-detected` |
-| channel gateway | `channel.message.inbound`, `channel.message.delivered`, `channel.adapter.status` | `channel.message.outbound`, adapter-specific platform callbacks |
+| channel gateway | `channel.message.inbound`, `channel.message.delivered`, `channel.message.edited`, `channel.message.deleted`, `channel.reaction.added`, `channel.reaction.removed`, `channel.read.receipt`, `channel.typing.started`, `channel.adapter.status` | `channel.message.outbound`, adapter-specific platform callbacks |
 | QA agent | `qa.acceptance-completed`, `qa.gate-failed` | `code.committed`, `qa.run-requested` |
 | Dev agent | `dev.workflow-created`, `dev.mr-created`, `dev.task-completed`, `dev.task-failed`, `qa.run-requested` | `pm.tasks-ready-for-dev`, `qa.acceptance-completed` |
 | A2A bridge | `a2a.task.*` | mapped EventBus events |

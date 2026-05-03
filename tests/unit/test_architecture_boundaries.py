@@ -4,6 +4,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from shared.messaging.outbound.models.events import ChannelEventTypes
 from shared.schemas.event import EventTypes
 
 AGENT_ROOTS = {
@@ -415,3 +416,15 @@ def test_event_catalog_uses_canonical_runtime_event_names() -> None:
         assert event_type in catalog
     for event_type in stale:
         assert event_type not in catalog
+
+
+def test_event_catalog_documents_channel_gateway_event_names() -> None:
+    catalog = Path("docs/guides/event-catalog.md").read_text()
+    channel_event_types = {
+        value
+        for name, value in vars(ChannelEventTypes).items()
+        if name.isupper() and isinstance(value, str)
+    }
+
+    for event_type in channel_event_types:
+        assert event_type in catalog

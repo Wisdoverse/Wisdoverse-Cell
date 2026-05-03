@@ -77,6 +77,14 @@ class ReadReceiptPayload(BaseModel):
     user_id: str
 
 
+class TypingStartedPayload(BaseModel):
+    """Payload for channel.typing.started event."""
+
+    channel_id: str
+    platform_chat_id: str
+    user_id: str | None = None
+
+
 class AdapterStatusPayload(BaseModel):
     """Payload for channel.adapter.status event."""
 
