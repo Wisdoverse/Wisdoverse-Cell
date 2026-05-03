@@ -32,10 +32,12 @@ from .llm_errors import (
     default_retry_config,
 )
 from .metrics import (
+    LLM_COST_DOLLARS_TOTAL,
     LLM_DAILY_COST_DOLLARS,
     LLM_ERROR_TOTAL,
     LLM_FALLBACK_TOTAL,
     LLM_REQUEST_DURATION,
+    LLM_TOKEN_TOTAL,
 )
 
 logger = get_logger("llm_gateway")
@@ -190,6 +192,32 @@ class LLMGateway:
         if model.startswith("anthropic/"):
             return model.split("/", 1)[1]
         return model
+
+    def _record_llm_success_metrics(
+        self,
+        *,
+        model: str,
+        agent_id: str,
+        input_tokens: int,
+        output_tokens: int,
+        cost_usd: float,
+        latency_ms: int,
+    ) -> None:
+        """Emit Prometheus metrics for successful LLM usage."""
+        LLM_REQUEST_DURATION.labels(model=model, agent_id=agent_id).observe(
+            latency_ms / 1000.0
+        )
+        LLM_TOKEN_TOTAL.labels(
+            model=model,
+            agent_id=agent_id,
+            token_type="input",
+        ).inc(input_tokens)
+        LLM_TOKEN_TOTAL.labels(
+            model=model,
+            agent_id=agent_id,
+            token_type="output",
+        ).inc(output_tokens)
+        LLM_COST_DOLLARS_TOTAL.labels(model=model, agent_id=agent_id).inc(cost_usd)
 
     def _system_blocks_to_text(self, system: Any) -> str:
         if not system:
@@ -509,9 +537,13 @@ class LLMGateway:
                 trace_id=trace_id,
             )
 
-            # Prometheus instrumentation
-            LLM_REQUEST_DURATION.labels(model=model, agent_id=agent_id).observe(
-                latency_ms / 1000.0
+            self._record_llm_success_metrics(
+                model=model,
+                agent_id=agent_id,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=cost_usd,
+                latency_ms=latency_ms,
             )
 
             logger.info(
@@ -898,9 +930,13 @@ class LLMGateway:
                 trace_id=trace_id,
             )
 
-            # Prometheus instrumentation
-            LLM_REQUEST_DURATION.labels(model=model, agent_id=agent_id).observe(
-                latency_ms / 1000.0
+            self._record_llm_success_metrics(
+                model=model,
+                agent_id=agent_id,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=cost_usd,
+                latency_ms=latency_ms,
             )
 
             logger.info(

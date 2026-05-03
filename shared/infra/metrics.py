@@ -35,6 +35,18 @@ LLM_DAILY_COST_DOLLARS = Gauge(
     "Accumulated LLM spend for today in USD (updated after each call)",
 )
 
+LLM_COST_DOLLARS_TOTAL = Counter(
+    "projectcell_llm_cost_dollars_total",
+    "Total LLM spend in USD by model and agent",
+    ["model", "agent_id"],
+)
+
+LLM_TOKEN_TOTAL = Counter(
+    "projectcell_llm_tokens_total",
+    "Total LLM token usage by model, agent, and token type",
+    ["model", "agent_id", "token_type"],
+)
+
 LLM_ERROR_TOTAL = Counter(
     "projectcell_llm_error_total",
     "Total LLM API errors by category",
