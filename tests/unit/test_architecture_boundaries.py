@@ -201,6 +201,27 @@ def test_qa_core_uses_card_renderer_port_for_feishu_payloads() -> None:
     assert ".card_ports" in text
 
 
+def test_user_interaction_routes_do_not_build_feishu_cards_directly() -> None:
+    """Gateway route/service code should use the shared Feishu card renderer."""
+    roots = [
+        Path("services/gateways/user_interaction/api"),
+        Path("services/gateways/user_interaction/core"),
+        Path("services/gateways/user_interaction/service"),
+    ]
+    for root in roots:
+        for path in _python_files(root):
+            for module in _imported_modules(path):
+                assert module != "shared.integrations.feishu.cards.builder", (
+                    f"{path} imports {module}; route/service layers should use "
+                    "shared.integrations.feishu.cards.tools"
+                )
+            text = path.read_text()
+            assert "CardBuilder(" not in text, (
+                f"{path} constructs Feishu cards directly; use "
+                "FeishuToolCardRenderer"
+            )
+
+
 def test_sync_core_does_not_read_global_settings() -> None:
     root = Path("shared/capabilities/sync/core")
     for path in _python_files(root):
