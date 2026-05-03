@@ -1,11 +1,5 @@
-"""
-DecompositionOrchestrator - Handles decomposition workflow for PMAgent.
+"""Decomposition workflow orchestration for PMAgent."""
 
-Extracted from PMAgent to separate decomposition orchestration concerns
-(decompose, approve, reject) from the main agent class.
-"""
-
-from shared.config import settings as app_settings
 from shared.control_plane import (
     ApprovalCategory,
     ApprovalGateService,
@@ -19,6 +13,7 @@ from ..db.database import DatabaseManager
 from ..db.repository import DecompositionRepository
 from ..models.schemas import DecomposePayload
 from .card_ports import PJMCardRendererPort
+from .config import PJMCoreConfig
 from .decompose import DecomposeError, DecomposeService
 from .op_writer import OPWriterService
 from .push_service import PushService
@@ -41,6 +36,7 @@ class DecompositionOrchestrator:
         messenger: FeishuMessengerPort | None = None,
         card_renderer: PJMCardRendererPort | None = None,
         approval_gate: ApprovalGateService | None = None,
+        config: PJMCoreConfig | None = None,
     ):
         self._db_manager = db_manager
         self._op_writer = op_writer
@@ -52,6 +48,7 @@ class DecompositionOrchestrator:
         self._messenger = messenger
         self._card_renderer = card_renderer
         self._approval_gate = approval_gate or ApprovalGateService(source_agent_id="pjm-agent")
+        self._config = config or PJMCoreConfig()
 
     async def handle_decompose(self, event: Event) -> list[Event]:
         """Handle a SYNC_TASK_NEEDS_DECOMPOSE event."""
@@ -166,10 +163,7 @@ class DecompositionOrchestrator:
 
         # Send approval card to Feishu
         try:
-            decompose_notify_id = (
-                getattr(app_settings, "decompose_notify_open_id", "")
-                or app_settings.feishu_report_chat_id
-            )
+            decompose_notify_id = self._config.decompose_notification_chat_id
             if decompose_notify_id and self._messenger:
                 if self._card_renderer is None:
                     logger.warning("decompose_card_renderer_missing", wp_id=wp_id)
@@ -276,10 +270,7 @@ class DecompositionOrchestrator:
 
         # Send refinement approval card
         try:
-            decompose_notify_id = (
-                getattr(app_settings, "decompose_notify_open_id", "")
-                or app_settings.feishu_report_chat_id
-            )
+            decompose_notify_id = self._config.decompose_notification_chat_id
             if decompose_notify_id and self._messenger:
                 if self._card_renderer is None:
                     logger.warning("task_refinement_card_renderer_missing", wp_id=wp_id)

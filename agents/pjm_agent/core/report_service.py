@@ -2,12 +2,12 @@
 
 from datetime import date
 
-from shared.config import settings
 from shared.core import BitableTablePort, FeishuMessengerPort, OpenProjectWorkPackagePort
 from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from .card_ports import PJMCardRendererPort
+from .config import PJMCoreConfig
 
 logger = get_logger("pjm_agent.report")
 
@@ -22,18 +22,19 @@ class ReportService:
         *,
         card_renderer: PJMCardRendererPort,
         messenger: FeishuMessengerPort | None = None,
+        config: PJMCoreConfig | None = None,
     ):
         self._op = op_client
         self._bitable = bitable
         self._card_renderer = card_renderer
         self._messenger = messenger
+        self._config = config or PJMCoreConfig()
 
     async def _fetch_op_work_packages(self) -> list[dict]:
-        if not settings.decompose_project_ids.strip():
+        if not self._config.decompose_project_ids:
             return []
-        project_ids = [p.strip() for p in settings.decompose_project_ids.split(",") if p.strip()]
         wps = []
-        for pid in project_ids:
+        for pid in self._config.decompose_project_ids:
             try:
                 items = await self._op.get_work_packages(project_id=int(pid))
                 wps.extend(items)
@@ -42,8 +43,8 @@ class ReportService:
         return wps
 
     async def _fetch_feishu_tasks(self) -> list[dict]:
-        app_token = settings.feishu_pm_app_token
-        table_id = settings.feishu_pm_task_table_id
+        app_token = self._config.feishu_pm_app_token
+        table_id = self._config.feishu_pm_task_table_id
         if not app_token or not table_id:
             logger.warning("fetch_feishu_tasks_missing_config")
             return []
@@ -216,7 +217,7 @@ class ReportService:
         }
 
     async def push_card(self, card: dict) -> None:
-        chat_id = settings.feishu_report_chat_id
+        chat_id = self._config.feishu_report_chat_id
         if not chat_id:
             logger.warning("report_push_skipped", reason="feishu_report_chat_id_not_set")
             return

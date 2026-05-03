@@ -258,14 +258,9 @@ def test_dev_core_does_not_read_global_settings() -> None:
             )
 
 
-def test_pjm_decompose_and_push_do_not_read_global_settings() -> None:
-    paths = [
-        Path("agents/pjm_agent/core/alert_service.py"),
-        Path("agents/pjm_agent/core/config_service.py"),
-        Path("agents/pjm_agent/core/decompose.py"),
-        Path("agents/pjm_agent/core/push_service.py"),
-    ]
-    for path in paths:
+def test_pjm_core_does_not_read_global_settings() -> None:
+    root = Path("agents/pjm_agent/core")
+    for path in _python_files(root):
         for module in _imported_modules(path):
             assert module != "shared.config", (
                 f"{path} imports global settings; inject explicit PJM config"

@@ -4,10 +4,11 @@ Unit Tests - ReportService
 Tests for work package aggregation and report generation.
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
+from agents.pjm_agent.core.config import PJMCoreConfig
 from agents.pjm_agent.core.report_service import ReportService
 
 # ---------------------------------------------------------------------------
@@ -35,13 +36,33 @@ class FakeCardRenderer:
         return {"kind": "weekly", "total": stats["total"]}
 
 
-@pytest.fixture
-def service(op_client, bitable):
+def make_report_service(
+    op_client,
+    bitable,
+    *,
+    decompose_project_ids: str = "",
+    feishu_pm_app_token: str = "",
+    feishu_pm_task_table_id: str = "",
+    feishu_report_chat_id: str = "",
+    messenger=None,
+) -> ReportService:
     return ReportService(
         op_client=op_client,
         bitable=bitable,
         card_renderer=FakeCardRenderer(),
+        messenger=messenger,
+        config=PJMCoreConfig.from_values(
+            decompose_project_ids=decompose_project_ids,
+            feishu_pm_app_token=feishu_pm_app_token,
+            feishu_pm_task_table_id=feishu_pm_task_table_id,
+            feishu_report_chat_id=feishu_report_chat_id,
+        ),
     )
+
+
+@pytest.fixture
+def service(op_client, bitable):
+    return make_report_service(op_client, bitable)
 
 
 # ---------------------------------------------------------------------------
@@ -216,11 +237,8 @@ class TestAggregate:
 
 class TestGenerateReports:
     @pytest.mark.asyncio
-    @patch("agents.pjm_agent.core.report_service.settings")
-    async def test_generate_daily_returns_card_and_stats(self, mock_settings, service, op_client):
-        mock_settings.decompose_project_ids = "1"
-        mock_settings.feishu_pm_app_token = ""
-        mock_settings.feishu_pm_task_table_id = ""
+    async def test_generate_daily_returns_card_and_stats(self, op_client, bitable):
+        service = make_report_service(op_client, bitable, decompose_project_ids="1")
         op_client.get_work_packages = AsyncMock(
             return_value=[
                 _make_wp(1, "Task A", status="In Progress", progress=50),
@@ -235,11 +253,8 @@ class TestGenerateReports:
         assert result["stats"]["total"] == 2
 
     @pytest.mark.asyncio
-    @patch("agents.pjm_agent.core.report_service.settings")
-    async def test_generate_weekly_returns_card_and_stats(self, mock_settings, service, op_client):
-        mock_settings.decompose_project_ids = "1"
-        mock_settings.feishu_pm_app_token = ""
-        mock_settings.feishu_pm_task_table_id = ""
+    async def test_generate_weekly_returns_card_and_stats(self, op_client, bitable):
+        service = make_report_service(op_client, bitable, decompose_project_ids="1")
         op_client.get_work_packages = AsyncMock(
             return_value=[
                 _make_wp(1, "Task A", status="In Progress", progress=50),
@@ -253,11 +268,7 @@ class TestGenerateReports:
         assert result["stats"]["total"] == 1
 
     @pytest.mark.asyncio
-    @patch("agents.pjm_agent.core.report_service.settings")
-    async def test_generate_daily_empty_project_ids(self, mock_settings, service, op_client):
-        mock_settings.decompose_project_ids = ""
-        mock_settings.feishu_pm_app_token = ""
-        mock_settings.feishu_pm_task_table_id = ""
+    async def test_generate_daily_empty_project_ids(self, service, op_client):
 
         result = await service.generate_daily()
 

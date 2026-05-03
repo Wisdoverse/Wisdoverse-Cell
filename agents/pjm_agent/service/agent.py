@@ -112,6 +112,7 @@ class PMAgent(BaseAgent):
             bitable_service,
             card_renderer=card_renderer,
             messenger=feishu_client,
+            config=self._core_config,
         )
         self._decomposition_orchestrator = DecompositionOrchestrator(
             db_manager=self._db_manager,
@@ -123,6 +124,7 @@ class PMAgent(BaseAgent):
             op_client=op_client,
             messenger=feishu_client,
             card_renderer=card_renderer,
+            config=self._core_config,
         )
         await self._config.refresh()
 

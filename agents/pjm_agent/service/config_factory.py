@@ -13,6 +13,7 @@ def build_pjm_core_config() -> PJMCoreConfig:
         decompose_model=app_settings.decompose_model,
         feishu_report_chat_id=app_settings.feishu_report_chat_id,
         decompose_notify_open_id=app_settings.decompose_notify_open_id,
+        decompose_project_ids=app_settings.decompose_project_ids,
         feishu_pm_app_token=app_settings.feishu_pm_app_token,
         feishu_pm_member_table_id=app_settings.feishu_pm_member_table_id,
         feishu_pm_project_table_id=app_settings.feishu_pm_project_table_id,

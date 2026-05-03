@@ -25,3 +25,9 @@ def test_pjm_core_config_uses_planner_fallback_model_when_empty() -> None:
     config = PJMCoreConfig.from_values(decompose_model="")
 
     assert config.decompose_model == "claude-sonnet-4-20250514"
+
+
+def test_pjm_core_config_parses_decompose_project_ids() -> None:
+    config = PJMCoreConfig.from_values(decompose_project_ids="1, 2, , 3")
+
+    assert config.decompose_project_ids == ("1", "2", "3")
