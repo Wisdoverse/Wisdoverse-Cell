@@ -260,6 +260,8 @@ def test_dev_core_does_not_read_global_settings() -> None:
 
 def test_pjm_decompose_and_push_do_not_read_global_settings() -> None:
     paths = [
+        Path("agents/pjm_agent/core/alert_service.py"),
+        Path("agents/pjm_agent/core/config_service.py"),
         Path("agents/pjm_agent/core/decompose.py"),
         Path("agents/pjm_agent/core/push_service.py"),
     ]

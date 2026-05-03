@@ -94,8 +94,12 @@ class PMAgent(BaseAgent):
         await self._event_bus.connect()
         logger.info("event_bus_connected")
 
-        self._config = PMConfigService(bitable_service)
-        self._alert = AlertService(bitable_service, self._config)
+        self._config = PMConfigService(bitable_service, config=self._core_config)
+        self._alert = AlertService(
+            bitable_service,
+            self._config,
+            core_config=self._core_config,
+        )
         op_client = get_op_client()
         feishu_client = get_feishu_client()
         card_renderer = FeishuPJMCardRenderer()

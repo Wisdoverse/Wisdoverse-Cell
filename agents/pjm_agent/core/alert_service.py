@@ -1,25 +1,31 @@
-"""预警服务 - 检测截止日期/超载/进度/阻塞风险"""
+"""Detect PM deadline, overload, progress, and blocked-task risks."""
 
 import re
 from datetime import UTC, datetime
 from typing import Any
 
-from shared.config import settings
 from shared.core import BitableTablePort
 from shared.utils.logger import get_logger
 
+from .config import PJMCoreConfig
 from .config_service import PMConfigService
 
 logger = get_logger("pjm_agent.alert")
 
 
 class AlertService:
-    def __init__(self, bitable: BitableTablePort, config: PMConfigService):
+    def __init__(
+        self,
+        bitable: BitableTablePort,
+        config: PMConfigService,
+        core_config: PJMCoreConfig | None = None,
+    ):
         self._bitable = bitable
         self._config = config
+        self._core_config = core_config or PJMCoreConfig()
 
     async def check_all(self) -> list[dict[str, Any]]:
-        """执行所有预警检查"""
+        """Run all PM alert checks."""
         alerts: list[dict] = []
         tasks = await self._fetch_tasks()
         alerts.extend(self._check_deadlines(tasks))
@@ -29,8 +35,8 @@ class AlertService:
         return alerts
 
     async def _fetch_tasks(self) -> list[dict]:
-        app_token = settings.feishu_pm_app_token
-        table_id = settings.feishu_pm_task_table_id
+        app_token = self._core_config.feishu_pm_app_token
+        table_id = self._core_config.feishu_pm_task_table_id
         if not app_token or not table_id:
             logger.warning(
                 "fetch_tasks_missing_config",

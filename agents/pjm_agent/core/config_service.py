@@ -1,15 +1,21 @@
-"""PJM 配置服务 - 从飞书多维表格读取配置"""
+"""Load PJM configuration from Feishu Bitable tables."""
 
-from shared.config import settings
 from shared.core import BitableTablePort
 from shared.utils.logger import get_logger
+
+from .config import PJMCoreConfig
 
 logger = get_logger("pjm_agent.config")
 
 
 class PMConfigService:
-    def __init__(self, bitable: BitableTablePort):
+    def __init__(
+        self,
+        bitable: BitableTablePort,
+        config: PJMCoreConfig | None = None,
+    ):
         self._bitable = bitable
+        self._core_config = config or PJMCoreConfig()
         self._members: list[dict] = []
         self._projects: list[dict] = []
         self._rules: dict[str, str] = {}
@@ -30,8 +36,8 @@ class PMConfigService:
         return self._rules.get(name, default)
 
     async def refresh(self) -> None:
-        """从飞书表刷新所有配置（原子更新）"""
-        app_token = settings.feishu_pm_app_token
+        """Refresh all PM config tables atomically."""
+        app_token = self._core_config.feishu_pm_app_token
         if not app_token:
             logger.warning("pm_config_no_token")
             return
@@ -41,10 +47,11 @@ class PMConfigService:
         new_projects = self._projects
         new_rules = self._rules
 
-        if settings.feishu_pm_member_table_id:
+        if self._core_config.feishu_pm_member_table_id:
             try:
                 records = await self._bitable.list_all_records(
-                    app_token=app_token, table_id=settings.feishu_pm_member_table_id
+                    app_token=app_token,
+                    table_id=self._core_config.feishu_pm_member_table_id,
                 )
                 new_members = [r.get("fields", {}) for r in records]
                 logger.info("pm_config_members_loaded", count=len(new_members))
@@ -52,10 +59,11 @@ class PMConfigService:
                 errors.append(f"members: {e}")
                 logger.error("pm_config_members_failed", error=str(e))
 
-        if settings.feishu_pm_project_table_id:
+        if self._core_config.feishu_pm_project_table_id:
             try:
                 records = await self._bitable.list_all_records(
-                    app_token=app_token, table_id=settings.feishu_pm_project_table_id
+                    app_token=app_token,
+                    table_id=self._core_config.feishu_pm_project_table_id,
                 )
                 new_projects = [r.get("fields", {}) for r in records]
                 logger.info("pm_config_projects_loaded", count=len(new_projects))
@@ -63,10 +71,11 @@ class PMConfigService:
                 errors.append(f"projects: {e}")
                 logger.error("pm_config_projects_failed", error=str(e))
 
-        if settings.feishu_pm_rules_table_id:
+        if self._core_config.feishu_pm_rules_table_id:
             try:
                 records = await self._bitable.list_all_records(
-                    app_token=app_token, table_id=settings.feishu_pm_rules_table_id
+                    app_token=app_token,
+                    table_id=self._core_config.feishu_pm_rules_table_id,
                 )
                 rules = {}
                 for r in records:
