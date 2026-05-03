@@ -263,7 +263,7 @@ class ApprovalRequest(ControlPlaneModel):
     reason: str
     risk: str
     rollback_note: str
-    affected_resources: list[str] = Field(default_factory=list)
+    affected_resources: list[str] = Field(min_length=1)
     artifact_links: list[str] = Field(default_factory=list)
     run_id: str | None = None
     work_item_id: str | None = None

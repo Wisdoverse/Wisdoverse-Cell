@@ -44,6 +44,23 @@ def test_approval_requires_decision_context():
             reason="Need migration",
             risk="Schema change",
             rollback_note="Rollback migration",
+            affected_resources=["postgres"],
+        )
+
+
+def test_approval_requires_affected_resources():
+    company = CompanyContext(name="Wisdoverse Cell")
+
+    with pytest.raises(ValidationError):
+        ApprovalRequest(
+            company_id=company.company_id,
+            category=ApprovalCategory.TECHNICAL,
+            requested_by="agent:dev-agent",
+            source_agent_id="dev-agent",
+            proposed_action="Apply migration",
+            reason="Need migration",
+            risk="Schema change",
+            rollback_note="Rollback migration",
         )
 
 

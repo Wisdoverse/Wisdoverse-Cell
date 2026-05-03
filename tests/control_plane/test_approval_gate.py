@@ -75,6 +75,7 @@ async def test_approval_gate_service_requests_and_approves(db_session: AsyncSess
     assert approval is not None
     assert approval.company_id == "cmp_test"
     assert approval.source_agent_id == "dev-agent"
+    assert approval.affected_resources == ["agent:dev-agent"]
     with pytest.raises(ApprovalRequiredError):
         await ApprovalGate(ControlPlaneRepository(db_session)).ensure_approved(
             approval.approval_id
@@ -119,6 +120,8 @@ async def test_approval_gate_rejects(db_session: AsyncSession):
         risk="Spend increase",
         rollback_note="Restore previous budget limit",
     )
+
+    assert approval.affected_resources == ["agent:analysis-agent"]
 
     decision = await gate.reject(approval.approval_id, resolved_by="human:cfo")
     assert decision.approved is False

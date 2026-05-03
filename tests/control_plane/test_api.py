@@ -57,6 +57,7 @@ async def _seed(db_session: AsyncSession):
             reason="High risk task",
             risk="External workflow execution",
             rollback_note="Cancel workflow",
+            affected_resources=["agentforge:workflow"],
             run_id=run.run_id,
             trace_id="trace-api",
         )

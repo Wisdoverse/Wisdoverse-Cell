@@ -546,11 +546,33 @@ class TestEventPayloadModelsRegistration:
                 "requested_by": "agent:dev-agent",
                 "source_agent_id": "dev-agent",
                 "proposed_action": "Run workflow",
+                "reason": "High-risk production workflow requested",
                 "risk": "External system mutation",
+                "rollback_note": "Cancel the workflow before execution",
+                "affected_resources": ["agentforge:workflow"],
+                "artifact_links": ["https://gitlab.example/mr/1"],
                 "trace_id": "trace_approval",
             },
         )
         assert isinstance(result, ApprovalEventPayload)
+
+    def test_validate_control_plane_approval_payload_requires_affected_resources(self):
+        with pytest.raises(ValidationError):
+            validate_event_payload(
+                "approval.requested",
+                {
+                    "company_id": "cmp_test",
+                    "approval_id": "apr_001",
+                    "category": "technical",
+                    "status": "pending",
+                    "requested_by": "agent:dev-agent",
+                    "source_agent_id": "dev-agent",
+                    "proposed_action": "Run workflow",
+                    "reason": "High-risk production workflow requested",
+                    "risk": "External system mutation",
+                    "rollback_note": "Cancel the workflow before execution",
+                },
+            )
 
     def test_validate_control_plane_budget_payload(self):
         result = validate_event_payload(

@@ -209,6 +209,7 @@ async def test_approval_request_can_be_resolved(db_session: AsyncSession):
             reason="Control-plane ledger requires durable tables",
             risk="Schema change",
             rollback_note="Downgrade migration drops new ledger tables",
+            affected_resources=["postgres"],
         )
     )
 
@@ -258,6 +259,7 @@ async def test_evolution_proposal_lifecycle(db_session: AsyncSession):
             reason="Reduce routing latency",
             risk="May change coordination behavior",
             rollback_note="Keep current routing",
+            affected_resources=["agent-routing"],
         )
     )
     proposal = await repo.create_evolution_proposal(

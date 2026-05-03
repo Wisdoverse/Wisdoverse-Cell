@@ -296,7 +296,11 @@ class ApprovalEventPayload(ControlPlaneReferencePayload):
     requested_by: str
     source_agent_id: str
     proposed_action: str
+    reason: str
     risk: str
+    rollback_note: str
+    affected_resources: list[str] = Field(min_length=1)
+    artifact_links: list[str] = Field(default_factory=list)
     resolved_by: str | None = None
 
 

@@ -59,7 +59,7 @@ class ApprovalGate:
                 reason=reason,
                 risk=risk,
                 rollback_note=rollback_note,
-                affected_resources=affected_resources or [],
+                affected_resources=affected_resources or [f"agent:{source_agent_id}"],
                 artifact_links=artifact_links or [],
                 run_id=run_id,
                 work_item_id=work_item_id,
