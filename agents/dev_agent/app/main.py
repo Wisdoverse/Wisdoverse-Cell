@@ -157,7 +157,7 @@ async def _reconcile() -> None:
     """ReconciliationLoop: scan active tasks, poll AgentForge, trigger result collection,
     and start pending/planning tasks when slots open."""
     try:
-        _get_agent()
+        agent = _get_agent()
     except RuntimeError:
         return  # Not started yet
 
@@ -244,8 +244,10 @@ async def _reconcile() -> None:
                                         repo=repo,
                                         log_repo=log_repo,
                                         gitlab=_gitlab_client,
-                                        notifier=_raw_agent._notifier or build_dev_notifier(),
-                                        security_scanner=_raw_agent._scanner or SecurityScanner(),
+                                        notifier=getattr(agent, "_notifier", None)
+                                        or build_dev_notifier(),
+                                        security_scanner=getattr(agent, "_scanner", None)
+                                        or SecurityScanner(),
                                     )
                                     events = await collector.handle_completion(task, status)
                                     # Publish events returned by ResultCollector
@@ -329,6 +331,8 @@ async def _start_pending_task(task, repo, log_repo) -> None:
     """Start a pending/planning task through the plan-and-execute pipeline."""
     from ..models.schemas import RiskLevel, SanitizedTask
 
+    agent = _get_agent()
+
     # Try to restore full task context from workflow log
     wf_log = await log_repo.get_by_task_id(task.id)
     task_input_data = None
@@ -349,7 +353,7 @@ async def _start_pending_task(task, repo, log_repo) -> None:
 
     # Use the agent's planner/validator/router
     await repo.update_status(task.id, "planning")
-    plan = await _raw_agent._planner.plan(sanitized)
+    plan = await agent._planner.plan(sanitized)
     if plan is None:
         await repo.update_status(
             task.id, "failed", error_message="Workflow planning failed (reconcile)"
@@ -357,7 +361,7 @@ async def _start_pending_task(task, repo, log_repo) -> None:
         return
 
     plan = inject_project_id(plan, settings.dev_agentforge_project_id)
-    validation = _raw_agent._validator.validate(plan)
+    validation = agent._validator.validate(plan)
     if not validation.is_valid:
         await repo.update_status(
             task.id, "failed",
@@ -366,12 +370,12 @@ async def _start_pending_task(task, repo, log_repo) -> None:
         return
 
     for node in plan.nodes:
-        tool = _raw_agent._router.route(node)
+        tool = agent._router.route(node)
         node.config["cliTool"] = tool
 
     plan_json = plan.model_dump()
     if risk == RiskLevel.HIGH:
-        approval_id = await _raw_agent._request_workflow_approval(
+        approval_id = await agent._request_workflow_approval(
             sanitized=sanitized,
             task_id=task.id,
             plan_json=plan_json,
