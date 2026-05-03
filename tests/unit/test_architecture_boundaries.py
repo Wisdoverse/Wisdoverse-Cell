@@ -138,6 +138,35 @@ def test_runtime_code_uses_core_id_contracts() -> None:
                 )
 
 
+def test_shared_utils_stays_foundational() -> None:
+    """shared/utils must not grow business logic or cross-boundary imports."""
+    root = Path("shared/utils")
+    allowed_files = {
+        root / "__init__.py",
+        root / "id_generator.py",
+        root / "logger.py",
+    }
+    forbidden_import_prefixes = (
+        "agents.",
+        "services.",
+        "shared.capabilities.",
+        "shared.control_plane.",
+        "shared.integrations.",
+        "shared.messaging.",
+    )
+
+    for path in _python_files(root):
+        assert path in allowed_files, (
+            f"{path} is not a foundational utility; put it in shared/core, "
+            "shared/infra, shared/integrations, or an owning feature boundary"
+        )
+        for module in _imported_modules(path):
+            assert not module.startswith(forbidden_import_prefixes), (
+                f"{path} imports {module}; shared/utils must not depend on "
+                "business or infrastructure boundaries"
+            )
+
+
 def test_feishu_card_renderers_live_in_shared_integrations() -> None:
     """Old local Feishu card modules must stay compatibility-only shims."""
     shim_paths = [
