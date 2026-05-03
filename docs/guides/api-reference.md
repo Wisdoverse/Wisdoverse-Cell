@@ -285,3 +285,6 @@ result = await client.approve_decomposition(wp_id=42, operator="alice")
 
 For asynchronous collaboration, publish an EventBus event and include `trace_id`
 when one already exists.
+
+`POST /agent/request` accepts `X-Trace-ID`; the shared runtime copies it into
+the request payload when the JSON body does not already contain `trace_id`.

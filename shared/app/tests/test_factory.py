@@ -130,6 +130,42 @@ class TestFactoryAgentRequest:
         }
 
     @pytest.mark.asyncio
+    async def test_agent_request_adds_trace_id_from_header(self):
+        app = create_agent_app(FakeAgent(), evolution_enabled=False)
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                "/agent/request",
+                headers={"X-Trace-ID": "trace-agent-request"},
+                json={"action": "wakeup"},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["request"] == {
+            "action": "wakeup",
+            "trace_id": "trace-agent-request",
+        }
+
+    @pytest.mark.asyncio
+    async def test_agent_request_keeps_payload_trace_id_when_present(self):
+        app = create_agent_app(FakeAgent(), evolution_enabled=False)
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                "/agent/request",
+                headers={"X-Trace-ID": "trace-header"},
+                json={"action": "wakeup", "trace_id": "trace-body"},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["request"] == {
+            "action": "wakeup",
+            "trace_id": "trace-body",
+        }
+
+    @pytest.mark.asyncio
     async def test_agent_request_requires_internal_key_when_configured(self):
         with patch("shared.middleware.internal_auth.settings") as mock_settings:
             mock_settings.internal_service_key = "test-secret-key"
