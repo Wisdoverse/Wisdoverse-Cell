@@ -291,10 +291,10 @@ class SyncAgent(BaseAgent):
             return {"status": "failed", "error": str(e)}
 
 
-# 全局 Agent 实例（单例）
+# Global Agent singleton.
 agent = SyncAgent()
 
 
 def get_agent() -> SyncAgent:
-    """获取当前 Agent 实例（支持测试时替换）"""
+    """Return the current Agent instance and support test replacement."""
     return agent

@@ -1,7 +1,7 @@
 """
 SyncAgent DB Models
 
-从 feishu-to-openproject 迁移，适配 PostgreSQL。
+PostgreSQL models migrated from the historical feishu-to-openproject flow.
 """
 from datetime import UTC, datetime
 
@@ -11,7 +11,7 @@ from .base import Base
 
 
 class SyncMapping(Base):
-    """OP work package ID ↔ 飞书 record ID 映射"""
+    """OpenProject work package ID to Feishu record ID mapping."""
     __tablename__ = "sync_agent_mappings"
 
     id = Column(Integer, primary_key=True)
@@ -26,7 +26,7 @@ class SyncMapping(Base):
 
 
 class SubtaskMapping(Base):
-    """子任务的飞书记录映射"""
+    """Feishu record mapping for subtasks."""
     __tablename__ = "sync_agent_subtask_mappings"
 
     id = Column(Integer, primary_key=True)
@@ -39,7 +39,7 @@ class SubtaskMapping(Base):
 
 
 class SyncLog(Base):
-    """同步操作日志"""
+    """Sync operation log."""
     __tablename__ = "sync_agent_logs"
     __table_args__ = (
         CheckConstraint("sync_type IN ('op_to_feishu', 'feishu_to_op', 'full')", name="ck_sync_type"),
@@ -56,7 +56,7 @@ class SyncLog(Base):
 
 
 class SyncLock(Base):
-    """分布式锁"""
+    """Distributed lock."""
     __tablename__ = "sync_agent_locks"
 
     id = Column(Integer, primary_key=True)

@@ -1,4 +1,4 @@
-"""SyncAgent API - 同步相关 HTTP 端点"""
+"""SyncAgent HTTP endpoints."""
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession

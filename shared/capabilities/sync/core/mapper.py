@@ -33,7 +33,7 @@ class FeishuRecordData:
 class DataMapper:
     """Map data between OpenProject and Feishu formats."""
 
-    # 飞书任务表字段名
+    # Feishu task table field names.
     FIELD_OP_ID = "关联 Feature ID (关键字段)"
     FIELD_TITLE = "任务(动宾短语)"
     FIELD_STATUS = "状态"

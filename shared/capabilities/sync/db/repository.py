@@ -96,7 +96,7 @@ class SubtaskMappingRepository:
 
 
 class SyncLockRepository:
-    """分布式锁仓储，使用 PostgreSQL 行锁"""
+    """Distributed lock repository using PostgreSQL row locks."""
 
     LOCK_TIMEOUT_MINUTES = 10
 
@@ -104,7 +104,7 @@ class SyncLockRepository:
         self.session = session
 
     async def acquire(self, lock_name: str, locked_by: str) -> bool:
-        """尝试获取锁，超时自动释放"""
+        """Try to acquire a lock and release it automatically after timeout."""
         now = datetime.now(UTC)
         expires_at = now + timedelta(minutes=self.LOCK_TIMEOUT_MINUTES)
 
@@ -121,7 +121,7 @@ class SyncLockRepository:
             await self.session.flush()
             return True
 
-        # 锁已过期，可以获取
+        # Expired locks can be acquired.
         if lock_row.is_locked and lock_row.expires_at and lock_row.expires_at < now:
             lock_row.locked_by = locked_by
             lock_row.locked_at = now
