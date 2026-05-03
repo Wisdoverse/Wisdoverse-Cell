@@ -203,9 +203,29 @@ class TestProductionSecretValidation:
             secret_key="secret-key",
             pm_api_key="pm-key",
             internal_service_key="internal-key",
+            control_plane_enabled=True,
+            control_plane_approval_enforced=True,
             a2a_jwt_secret="a2a-secret",
         )
         assert settings.app_env == "production"
+
+    def test_production_rejects_disabled_control_plane_approval(self):
+        from shared.config import Settings
+
+        with pytest.raises(ValidationError, match="CONTROL_PLANE_APPROVAL_ENFORCED"):
+            Settings(
+                _env_file=None,
+                app_env="production",
+                postgres_password="pg-secret",
+                redis_password="redis-secret",
+                anthropic_api_key="llm-secret",
+                secret_key="secret-key",
+                pm_api_key="pm-key",
+                internal_service_key="internal-key",
+                control_plane_enabled=True,
+                control_plane_approval_enforced=False,
+                a2a_jwt_secret="a2a-secret",
+            )
 
     def test_production_accepts_openai_litellm_models_without_anthropic_key(self):
         from shared.config import Settings
@@ -224,6 +244,8 @@ class TestProductionSecretValidation:
             secret_key="secret-key",
             pm_api_key="pm-key",
             internal_service_key="internal-key",
+            control_plane_enabled=True,
+            control_plane_approval_enforced=True,
             a2a_jwt_secret="a2a-secret",
         )
         assert settings.openai_api_key.get_secret_value() == "openai-secret"
@@ -246,6 +268,8 @@ class TestProductionSecretValidation:
             secret_key="secret-key",
             pm_api_key="pm-key",
             internal_service_key="internal-key",
+            control_plane_enabled=True,
+            control_plane_approval_enforced=True,
             a2a_jwt_secret="a2a-secret",
         )
         assert settings.litellm_api_base == "https://litellm.internal/v1"
@@ -268,6 +292,8 @@ class TestProductionSecretValidation:
                 secret_key="secret-key",
                 pm_api_key="pm-key",
                 internal_service_key="internal-key",
+                control_plane_enabled=True,
+                control_plane_approval_enforced=True,
                 a2a_jwt_secret="a2a-secret",
             )
 
@@ -284,6 +310,8 @@ class TestProductionSecretValidation:
                 secret_key="secret-key",
                 pm_api_key="pm-key",
                 internal_service_key="internal-key",
+                control_plane_enabled=True,
+                control_plane_approval_enforced=True,
                 a2a_jwt_secret="a2a-secret",
                 feishu_enabled=True,
                 feishu_verify_signature=False,
@@ -303,6 +331,8 @@ class TestProductionSecretValidation:
                 secret_key="secret-key",
                 pm_api_key="pm-key",
                 internal_service_key="internal-key",
+                control_plane_enabled=True,
+                control_plane_approval_enforced=True,
                 a2a_jwt_secret="a2a-secret",
                 wecom_enabled=True,
                 wecom_token="",

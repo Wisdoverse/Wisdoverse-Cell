@@ -384,6 +384,10 @@ class Settings(BaseSettings):
             missing.append("PM_API_KEY")
         if not self.internal_service_key.strip():
             missing.append("INTERNAL_SERVICE_KEY")
+        if not self.control_plane_enabled:
+            missing.append("CONTROL_PLANE_ENABLED")
+        if not self.control_plane_approval_enforced:
+            missing.append("CONTROL_PLANE_APPROVAL_ENFORCED")
         if self.a2a_jwt_secret.get_secret_value() in {
             "",
             "change-me-in-production-a2a",
