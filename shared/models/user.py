@@ -9,8 +9,8 @@ from typing import Optional
 from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from shared.core.ids import IDPrefix, generate_id
 from shared.db.base import Base
-from shared.utils.id_generator import IDPrefix, generate_id
 
 
 class User(Base):

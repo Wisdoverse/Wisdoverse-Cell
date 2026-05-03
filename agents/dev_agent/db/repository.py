@@ -5,7 +5,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.utils.id_generator import generate_id
+from shared.core.ids import generate_id
 from shared.utils.logger import get_logger
 
 from ..models.dev import DevAgentTask, DevAgentWorkflowLog

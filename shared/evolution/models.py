@@ -14,7 +14,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
-from shared.utils.id_generator import generate_id
+from shared.core.ids import generate_id
 
 # ── Cost table (USD per token) ──────────────────────────────────────────────
 

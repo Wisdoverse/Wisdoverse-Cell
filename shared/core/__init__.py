@@ -1,5 +1,6 @@
 """Core framework — Port interfaces, ABCs, engines."""
 
+from .ids import IDPrefix, generate_id, generate_ulid
 from .integration_ports import (
     BitableTablePort,
     FeishuContactLookupPort,
@@ -18,4 +19,7 @@ __all__ = [
     "GitLabMergeRequestPort",
     "GitLabMergeRequestNotePort",
     "OpenProjectWorkPackagePort",
+    "IDPrefix",
+    "generate_id",
+    "generate_ulid",
 ]

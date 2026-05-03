@@ -7,7 +7,7 @@ from typing import Optional
 from sqlalchemy import JSON, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from shared.utils.id_generator import IDPrefix, generate_id
+from shared.core.ids import IDPrefix, generate_id
 
 from .base import Base
 

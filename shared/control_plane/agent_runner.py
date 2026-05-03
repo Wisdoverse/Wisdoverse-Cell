@@ -15,8 +15,8 @@ from shared.config import settings
 from shared.control_plane.adapter_registry import DEFAULT_ADAPTER_REGISTRY
 from shared.control_plane.models import AgentRun, AgentRunStatus, AuditEvent
 from shared.control_plane.repository import ControlPlaneRepository
+from shared.core.ids import IDPrefix, generate_id
 from shared.schemas.event import EventTypes
-from shared.utils.id_generator import IDPrefix, generate_id
 from shared.utils.logger import get_logger
 
 logger = get_logger("control_plane.agent_runner")

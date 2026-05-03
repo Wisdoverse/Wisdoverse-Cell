@@ -23,7 +23,7 @@ import pytest
 from agents.requirement_manager.db.repository import MessageRepository, RequirementRepository
 from agents.requirement_manager.models.chat_message import ChatMessage
 from agents.requirement_manager.models.requirement import Requirement
-from shared.utils.id_generator import IDPrefix, generate_id
+from shared.core.ids import IDPrefix, generate_id
 
 
 class TestMessageRecordingE2EFlow:

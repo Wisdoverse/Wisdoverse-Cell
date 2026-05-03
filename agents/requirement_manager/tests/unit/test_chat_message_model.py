@@ -17,7 +17,7 @@ if str(_project_root) not in sys.path:
 
 
 from agents.requirement_manager.models.chat_message import ChatMessage
-from shared.utils.id_generator import IDPrefix
+from shared.core.ids import IDPrefix
 
 
 class TestChatMessageModel:
@@ -61,7 +61,7 @@ class TestChatMessageModel:
 
     def test_id_generated_with_message_prefix(self):
         """Verify ID is generated with MESSAGE prefix when explicitly provided"""
-        from shared.utils.id_generator import generate_id
+        from shared.core.ids import generate_id
 
         # Test that generate_id produces correct prefix
         generated_id = generate_id(IDPrefix.MESSAGE)

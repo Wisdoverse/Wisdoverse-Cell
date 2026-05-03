@@ -9,7 +9,7 @@ from typing import Optional
 from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from shared.utils.id_generator import generate_ulid
+from shared.core.ids import generate_ulid
 
 from .base import Base
 

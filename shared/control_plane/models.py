@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from shared.utils.id_generator import IDPrefix, generate_id
+from shared.core.ids import IDPrefix, generate_id
 
 
 def _now() -> datetime:

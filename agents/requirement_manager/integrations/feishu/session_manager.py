@@ -15,8 +15,8 @@ from redis.asyncio import Redis
 from agents.requirement_manager.db.database import DatabaseManager
 from agents.requirement_manager.db.repository import MessageRepository
 from shared.config import settings
+from shared.core.ids import IDPrefix, generate_id
 from shared.observability.privacy import hash_identifier
-from shared.utils.id_generator import IDPrefix, generate_id
 from shared.utils.logger import get_logger
 
 logger = get_logger("feishu.services.session_manager")

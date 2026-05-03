@@ -122,6 +122,22 @@ def test_runtime_code_uses_core_channel_abstractions() -> None:
                 )
 
 
+def test_runtime_code_uses_core_id_contracts() -> None:
+    roots = [Path("agents"), Path("services"), Path("shared")]
+    compat_path = Path("shared/utils/id_generator.py")
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in _python_files(root):
+            if path == compat_path:
+                continue
+            for module in _imported_modules(path):
+                assert module != "shared.utils.id_generator", (
+                    f"{path} imports ID contracts from shared.utils; "
+                    "use shared.core.ids"
+                )
+
+
 def test_agent_core_does_not_import_platform_adapters_directly() -> None:
     for agent_root in AGENT_ROOTS:
         root = Path("agents") / agent_root / "core"

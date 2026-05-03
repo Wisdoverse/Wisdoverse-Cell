@@ -9,7 +9,7 @@ from typing import Any
 from shared.control_plane.agent_runner import AgentWakeupError, ControlPlaneAgentRunner
 from shared.control_plane.models import AgentRunStatus
 from shared.control_plane.repository import ControlPlaneRepository
-from shared.utils.id_generator import generate_ulid
+from shared.core.ids import generate_ulid
 
 _DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 300
 _MIN_HEARTBEAT_INTERVAL_SECONDS = 60

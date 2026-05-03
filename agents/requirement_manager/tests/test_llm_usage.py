@@ -15,7 +15,7 @@ import pytest
 
 from agents.requirement_manager.db.repository import LLMUsageRepository
 from agents.requirement_manager.models.llm_usage import LLMUsage
-from shared.utils.id_generator import generate_ulid
+from shared.core.ids import generate_ulid
 
 
 class TestLLMUsageModel:

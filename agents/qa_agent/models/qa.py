@@ -15,7 +15,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
-from shared.utils.id_generator import generate_ulid
+from shared.core.ids import generate_ulid
 
 from .base import Base
 

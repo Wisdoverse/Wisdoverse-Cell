@@ -19,7 +19,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from agents.requirement_manager.models.chat_message import ChatMessage
-from shared.utils.id_generator import IDPrefix, generate_id
+from shared.core.ids import IDPrefix, generate_id
 
 
 class TestSearchMessagesAPI:

@@ -7,10 +7,10 @@ UserService - 用户身份管理服务
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Optional
 
+from shared.core.ids import IDPrefix, generate_id
 from shared.db.repository import UserRepository
 from shared.models.user import User
 from shared.observability.privacy import hash_identifier
-from shared.utils.id_generator import IDPrefix, generate_id
 from shared.utils.logger import get_logger
 
 from .models import Platform

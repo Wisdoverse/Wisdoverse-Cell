@@ -24,7 +24,7 @@ import pytest_asyncio
 
 from agents.requirement_manager.db.repository import MessageRepository
 from agents.requirement_manager.models.chat_message import ChatMessage
-from shared.utils.id_generator import IDPrefix, generate_id
+from shared.core.ids import IDPrefix, generate_id
 
 
 class TestMessageRepositoryCreate:
