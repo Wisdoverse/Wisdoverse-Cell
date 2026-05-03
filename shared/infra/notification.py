@@ -1,10 +1,10 @@
 """
-Notification Service - 统一的通知服务
+Notification Service - unified notification service.
 
-支持多渠道通知:
-- 飞书 (API)
-- 邮件 (未实现)
-- 短信 (未实现)
+Supports multi-channel notifications:
+- Feishu (API)
+- Email (not implemented)
+- SMS (not implemented)
 """
 from enum import Enum
 from typing import Optional
@@ -17,7 +17,7 @@ logger = get_logger("notification")
 
 
 class NotificationChannel(Enum):
-    """通知渠道"""
+    """Notification channel."""
     FEISHU = "feishu"
     EMAIL = "email"
     SMS = "sms"
@@ -25,14 +25,14 @@ class NotificationChannel(Enum):
 
 class NotificationService:
     """
-    通知服务
+    Notification service.
 
-    使用方式:
+    Usage:
         notifier = NotificationService()
         await notifier.send(
             channel=NotificationChannel.FEISHU,
-            title="新需求待确认",
-            content="从会议中提取了3个新需求",
+            title="New requirements need confirmation",
+            content="Extracted three new requirements from the meeting",
             link="http://localhost:8000/requirements"
         )
     """
@@ -41,7 +41,7 @@ class NotificationService:
         self._feishu_client = None
 
     def _get_feishu_client(self):
-        """延迟初始化飞书客户端"""
+        """Lazily initialize the Feishu client."""
         if self._feishu_client is None:
             from shared.integrations.feishu.client import get_feishu_client
             self._feishu_client = get_feishu_client()
@@ -56,17 +56,17 @@ class NotificationService:
         **kwargs
     ) -> bool:
         """
-        发送通知
+        Send a notification.
 
         Args:
-            channel: 通知渠道
-            title: 标题
-            content: 内容
-            link: 可选的链接
-            **kwargs: 渠道特定的参数
+            channel: Notification channel.
+            title: Title.
+            content: Content.
+            link: Optional link.
+            **kwargs: Channel-specific parameters.
 
         Returns:
-            是否发送成功
+            Whether the notification was sent successfully.
         """
         handlers = {
             NotificationChannel.FEISHU: lambda: self._send_feishu(title, content, link),
@@ -87,12 +87,12 @@ class NotificationService:
         content: str,
         link: Optional[str] = None
     ) -> bool:
-        """发送飞书消息（使用 API）"""
+        """Send a Feishu message through the API."""
         if not settings.feishu_enabled:
             logger.warning("feishu_not_enabled")
             return False
 
-        # 优先发送给个人用户，其次发送到群聊
+        # Prefer sending to a direct user, then fall back to a chat.
         if settings.feishu_default_user_id:
             receive_id = settings.feishu_default_user_id
             receive_id_type = "open_id"
@@ -103,7 +103,7 @@ class NotificationService:
             logger.warning("feishu_no_recipient_configured")
             return False
 
-        # 构建消息卡片
+        # Build message card.
         elements = [
             {
                 "tag": "div",
@@ -114,7 +114,7 @@ class NotificationService:
             }
         ]
 
-        # 添加链接按钮
+        # Add link button.
         if link:
             elements.append({
                 "tag": "action",
@@ -161,15 +161,15 @@ class NotificationService:
             return False
 
     async def _send_email(self, title: str, content: str, **kwargs) -> bool:
-        """发送邮件（未实现）"""
+        """Send email. Not implemented."""
         logger.warning("email_notification_not_implemented")
         return False
 
     async def _send_sms(self, content: str, **kwargs) -> bool:
-        """发送短信（未实现）"""
+        """Send SMS. Not implemented."""
         logger.warning("sms_notification_not_implemented")
         return False
 
 
-# 全局通知服务实例
+# Global notification service instance.
 notification_service = NotificationService()

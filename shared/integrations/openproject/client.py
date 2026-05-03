@@ -1,7 +1,8 @@
 """
 OpenProject API Client
 
-基于 httpx 的异步 OpenProject REST API 客户端，支持重试和乐观锁。
+Async OpenProject REST API client based on httpx, with retry and optimistic lock
+support.
 """
 import asyncio
 from typing import Any, Optional
@@ -102,7 +103,7 @@ class OpenProjectClient:
     async def delete(self, path: str) -> None:
         await self._request("DELETE", path)
 
-    # ============ 业务方法 ============
+    # ============ Business methods ============
 
     async def get_work_packages(
         self,
@@ -110,7 +111,7 @@ class OpenProjectClient:
         filters: str | None = None,
         page_size: int = 100,
     ) -> list[dict]:
-        """获取工作包列表"""
+        """Get work packages."""
         params: dict[str, Any] = {"pageSize": page_size}
         if filters:
             params["filters"] = filters
@@ -119,25 +120,25 @@ class OpenProjectClient:
         return result.get("_embedded", {}).get("elements", [])
 
     async def get_work_package(self, wp_id: int) -> dict:
-        """获取单个工作包"""
+        """Get one work package."""
         return await self.get(f"/api/v3/work_packages/{wp_id}")
 
     async def update_work_package(self, wp_id: int, data: dict[str, Any]) -> dict:
-        """更新工作包（自动处理 lockVersion）"""
+        """Update a work package and handle lockVersion automatically."""
         current = await self.get_work_package(wp_id)
         data["lockVersion"] = current["lockVersion"]
         return await self.patch(f"/api/v3/work_packages/{wp_id}", data)
 
     async def create_work_package(self, project_id: int, data: dict[str, Any]) -> dict:
-        """在指定项目下创建工作包"""
+        """Create a work package under a project."""
         return await self.post(f"/api/v3/projects/{project_id}/work_packages", data)
 
     async def get_project(self, project_id: int) -> dict:
-        """获取项目信息"""
+        """Get project information."""
         return await self.get(f"/api/v3/projects/{project_id}")
 
     async def test_connection(self) -> bool:
-        """测试 API 连接"""
+        """Test API connectivity."""
         try:
             await self.get("/api/v3")
             return True
@@ -146,7 +147,7 @@ class OpenProjectClient:
 
 
 def get_op_client() -> OpenProjectClient:
-    """获取 OpenProjectClient 单例"""
+    """Get the OpenProjectClient singleton."""
     return _op_client
 
 

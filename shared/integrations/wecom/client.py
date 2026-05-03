@@ -1,11 +1,11 @@
 # shared/integrations/wecom/client.py
 """
-WecomClient - 企业微信 API 客户端
+WecomClient - WeCom API client.
 
-职责：
-1. access_token 管理（自动刷新）
-2. 消息发送（文本、卡片）
-3. 卡片更新
+Responsibilities:
+1. access_token management with automatic refresh
+2. Message sending for text and cards
+3. Card updates
 """
 import asyncio
 import time
@@ -21,9 +21,9 @@ logger = get_logger("wecom.client")
 
 class WecomClient:
     """
-    企业微信 API 客户端
+    WeCom API client.
 
-    使用方式:
+    Usage:
         client = WecomClient(corp_id, secret, agent_id)
         await client.send_text_message(user_id, "Hello")
         await client.send_template_card(user_id, card)
@@ -48,13 +48,13 @@ class WecomClient:
         self._lock = asyncio.Lock()
 
     def _is_token_valid(self) -> bool:
-        """检查 token 是否有效"""
+        """Check whether the token is valid."""
         if not self._token:
             return False
         return time.time() < (self._token_expires_at - self.TOKEN_EXPIRE_BUFFER)
 
     async def _refresh_token(self) -> str:
-        """从企微 API 获取新 token"""
+        """Fetch a new token from the WeCom API."""
         url = f"{self.base_url}/gettoken"
         params = {
             "corpid": self.corp_id,
@@ -77,14 +77,14 @@ class WecomClient:
         return self._token
 
     async def get_access_token(self) -> str:
-        """获取 access_token，自动刷新"""
+        """Get access_token with automatic refresh."""
         async with self._lock:
             if self._is_token_valid():
                 return self._token
             return await self._refresh_token()
 
     async def send_text_message(self, user_id: str, content: str) -> str:
-        """发送文本消息"""
+        """Send a text message."""
         token = await self.get_access_token()
         url = f"{self.base_url}/message/send"
         params = {"access_token": token}
@@ -108,7 +108,7 @@ class WecomClient:
         return data.get("msgid", "")
 
     async def send_template_card(self, user_id: str, card: dict) -> str:
-        """发送模板卡片消息"""
+        """Send a template card message."""
         token = await self.get_access_token()
         url = f"{self.base_url}/message/send"
         params = {"access_token": token}
@@ -132,7 +132,7 @@ class WecomClient:
         return data.get("msgid", "")
 
     async def update_template_card(self, response_code: str, card: dict) -> bool:
-        """更新模板卡片"""
+        """Update a template card."""
         token = await self.get_access_token()
         url = f"{self.base_url}/message/update_template_card"
         params = {"access_token": token}
@@ -157,15 +157,15 @@ class WecomClient:
 
     async def get_user_info(self, user_id: str) -> dict:
         """
-        获取用户信息
+        Get user information.
 
-        通过企微通讯录 API 获取用户详情。
+        Fetches user details through the WeCom contacts API.
 
         Args:
-            user_id: 企微成员 UserID
+            user_id: WeCom member UserID.
 
         Returns:
-            用户信息字典，包含 name, email 等字段
+            User information dictionary containing fields such as name and email.
         """
         token = await self.get_access_token()
         url = f"{self.base_url}/user/get"
@@ -201,12 +201,12 @@ class WecomClient:
             return {"userid": user_id, "name": "Unknown"}
 
 
-# 全局客户端实例
+# Global client instance.
 _wecom_client: Optional[WecomClient] = None
 
 
 def get_wecom_client() -> WecomClient:
-    """获取企微客户端单例"""
+    """Get the WeCom client singleton."""
     global _wecom_client
     if _wecom_client is None:
         from .config import get_wecom_config

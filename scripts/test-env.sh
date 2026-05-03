@@ -1,5 +1,5 @@
 #!/bin/bash
-# 测试环境启动/清理脚本
+# Start or clean up the test environment.
 
 set -e
 
