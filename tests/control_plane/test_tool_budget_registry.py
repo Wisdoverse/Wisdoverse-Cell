@@ -1,6 +1,7 @@
 """Tool registry budget enforcement against the control-plane ledger."""
 
 from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -225,6 +226,12 @@ async def test_expensive_tool_records_budget_usage_when_allowed(
     async def handler(_input: dict, _context: ToolContext) -> ToolResult:
         return ToolResult(success=True)
 
+    publish_budget = AsyncMock()
+    monkeypatch.setattr(
+        "shared.infra.tool_registry.publish_budget_usage_recorded",
+        publish_budget,
+    )
+
     tool = build_tool(
         name="agentforge_apply",
         description="Apply an AgentForge workflow",
@@ -247,3 +254,12 @@ async def test_expensive_tool_records_budget_usage_when_allowed(
     assert updated is not None
     assert updated.cost_usd == pytest.approx(0.75)
     assert await repo.get_budget_usage_total(budget.budget_id) == pytest.approx(0.75)
+    publish_budget.assert_awaited_once()
+    publish_kwargs = publish_budget.await_args.kwargs
+    assert publish_kwargs["company_id"] == company.company_id
+    assert publish_kwargs["budget_id"] == budget.budget_id
+    assert publish_kwargs["cost_usd"] == pytest.approx(0.75)
+    assert publish_kwargs["model"] == "tool:agentforge_apply"
+    assert publish_kwargs["source_agent_id"] == "dev-agent"
+    assert publish_kwargs["run_id"] == run.run_id
+    assert publish_kwargs["trace_id"] == "trace-tool-allowed"

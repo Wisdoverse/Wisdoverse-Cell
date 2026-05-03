@@ -23,6 +23,7 @@ from ..config import settings
 from ..control_plane.context import get_current_run_context
 from ..utils.logger import get_logger
 from .audit_log import AuditAction, audit_log
+from .budget_events import publish_budget_usage_recorded
 from .circuit_breaker import CircuitBreaker, CircuitBreakerError
 from .llm_errors import (
     ContentSizeError,
@@ -570,6 +571,7 @@ class LLMGateway:
                 reservation=budget_reservation,
                 cost_usd=cost_usd,
                 model=model,
+                source_agent_id=agent_id,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 run_id=resolved_run_id,
@@ -963,6 +965,7 @@ class LLMGateway:
                 reservation=budget_reservation,
                 cost_usd=cost_usd,
                 model=model,
+                source_agent_id=agent_id,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 run_id=resolved_run_id,
@@ -1119,6 +1122,7 @@ class LLMGateway:
         reservation: ControlPlaneBudgetReservation | None,
         cost_usd: float,
         model: str,
+        source_agent_id: str,
         input_tokens: int,
         output_tokens: int,
         run_id: str | None,
@@ -1132,11 +1136,12 @@ class LLMGateway:
             from shared.control_plane.database import control_plane_db_manager
             from shared.control_plane.repository import ControlPlaneRepository
 
+            budget_event: dict[str, Any] | None = None
             async with control_plane_db_manager.session() as session:
                 repo = ControlPlaneRepository(session)
                 if reservation is not None:
                     guard = BudgetGuard(repo)
-                    await guard.record_usage(
+                    usage = await guard.record_usage(
                         company_id=reservation.company_id,
                         budget_id=reservation.budget_id,
                         cost_usd=cost_usd,
@@ -1146,6 +1151,18 @@ class LLMGateway:
                         run_id=run_id,
                         trace_id=trace_id,
                     )
+                    budget_event = {
+                        "company_id": reservation.company_id,
+                        "usage_id": usage.usage_id,
+                        "budget_id": reservation.budget_id,
+                        "cost_usd": cost_usd,
+                        "model": model,
+                        "source_agent_id": source_agent_id,
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "run_id": run_id,
+                        "trace_id": trace_id,
+                    }
                 if run_id is not None:
                     run = await repo.add_agent_run_usage(
                         run_id,
@@ -1159,6 +1176,8 @@ class LLMGateway:
                             run_id=run_id,
                             trace_id=trace_id,
                         )
+            if budget_event is not None:
+                await publish_budget_usage_recorded(**budget_event)
         except Exception as exc:
             logger.warning(
                 "llm_control_plane_usage_record_failed",
