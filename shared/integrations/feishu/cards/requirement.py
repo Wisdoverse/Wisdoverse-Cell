@@ -48,13 +48,13 @@ def build_requirement_extracted_card(
     detail_url: Optional[str] = None,
 ) -> dict:
     """
-    构建需求提取结果卡片
+    Build a requirement extraction result card.
 
     Args:
-        requirements: 需求列表 [{id, title, description, priority, category}]
-        meeting_title: 会议标题
-        questions_count: 待确认问题数量
-        detail_url: 详情页 URL
+        requirements: Requirement list [{id, title, description, priority, category}].
+        meeting_title: Meeting title.
+        questions_count: Number of pending clarification questions.
+        detail_url: Detail page URL.
     """
     count = len(requirements)
     builder = CardBuilder()
@@ -135,9 +135,9 @@ def build_requirement_confirmed_card(
     confirmed_at: Optional[datetime] = None,
 ) -> dict:
     """
-    构建需求确认卡片
+    Build a requirement confirmed card.
 
-    用于替换原卡片，显示确认状态。
+    Replaces the original card and shows confirmed state.
     """
     builder = CardBuilder()
 
@@ -170,9 +170,9 @@ def build_requirement_rejected_card(
     rejected_at: Optional[datetime] = None,
 ) -> dict:
     """
-    构建需求拒绝卡片
+    Build a requirement rejected card.
 
-    用于替换原卡片，显示拒绝状态。
+    Replaces the original card and shows rejected state.
     """
     builder = CardBuilder()
 
@@ -196,13 +196,14 @@ def build_requirement_detail_card(
     meeting: Optional[dict] = None,
 ) -> dict:
     """
-    构建需求详情卡片
+    Build a requirement detail card.
 
-    显示需求的完整信息，包括来源引用和会议信息。
+    Shows complete requirement information, including source quote and meeting
+    context.
 
     Args:
-        requirement: 需求数据 {id, title, description, priority, category, source_quote, status}
-        meeting: 会议数据 {id, title, meeting_date, participants}
+        requirement: Requirement data {id, title, description, priority, category, source_quote, status}.
+        meeting: Meeting data {id, title, meeting_date, participants}.
     """
     builder = CardBuilder()
 
@@ -233,14 +234,14 @@ def build_requirement_detail_card(
         builder.add_plain_text(desc)
         builder.add_divider()
 
-    # Source quote - 来源引用
+    # Source quote.
     source_quote = requirement.get("source_quote")
     if source_quote:
         builder.add_markdown("**💬 原文引用**")
         builder.add_markdown(f"> {source_quote}")
         builder.add_divider()
 
-    # Meeting info - 会议来源
+    # Meeting info.
     if meeting:
         builder.add_markdown("**📅 来源会议**")
         meeting_title = meeting.get("title", "未命名会议")
@@ -263,7 +264,7 @@ def build_requirement_detail_card(
 
 
 def build_bot_help_card() -> dict:
-    """构建 Bot 帮助卡片"""
+    """Build the bot help card."""
     builder = CardBuilder()
 
     builder.set_header("🤖 需求管理助手", template="blue")
@@ -286,14 +287,14 @@ def build_requirement_list_card(
     chat_id: str = "",
 ) -> dict:
     """
-    构建待确认需求列表卡片
+    Build a pending requirement list card.
 
     Args:
-        requirements: 需求列表 [{id, title, description, priority, category}]
-        page: 当前页码
-        total_pages: 总页数
-        total_count: 需求总数
-        chat_id: 聊天ID (用于分页回调)
+        requirements: Requirement list [{id, title, description, priority, category}].
+        page: Current page number.
+        total_pages: Total page count.
+        total_count: Total requirement count.
+        chat_id: Chat ID used for pagination callbacks.
     """
     builder = CardBuilder()
 
@@ -398,12 +399,12 @@ def build_prd_preview_card(
     generated_at: Optional[datetime] = None,
 ) -> dict:
     """
-    构建 PRD 预览卡片
+    Build a PRD preview card.
 
     Args:
-        prd_content: PRD 内容（截取前500字符显示）
-        requirements_count: 需求数量
-        generated_at: 生成时间
+        prd_content: PRD content. The first 500 characters are shown.
+        requirements_count: Requirement count.
+        generated_at: Generated timestamp.
     """
     builder = CardBuilder()
 
@@ -436,14 +437,14 @@ def build_calendar_reminder_card(
     keywords_found: list[str] = None,
 ) -> dict:
     """
-    构建日历会议提醒卡片
+    Build a calendar meeting reminder card.
 
     Args:
-        event_title: 会议标题
-        start_time: 开始时间
-        organizer: 组织者
-        attendees: 参与者列表
-        keywords_found: 匹配到的关键词
+        event_title: Meeting title.
+        start_time: Start time.
+        organizer: Organizer.
+        attendees: Attendee list.
+        keywords_found: Matched keywords.
     """
     builder = CardBuilder()
 
@@ -476,13 +477,13 @@ def build_batch_confirmation_card(
     chat_id: str = "",
 ) -> dict:
     """
-    构建批量确认卡片
+    Build a batch confirmation card.
 
-    支持一键确认/拒绝多个需求。
+    Supports one-click confirmation or rejection for multiple requirements.
 
     Args:
-        requirements: 需求列表 [{id, title, description, priority, category}]
-        chat_id: 聊天ID (用于回调)
+        requirements: Requirement list [{id, title, description, priority, category}].
+        chat_id: Chat ID used for callbacks.
     """
     count = len(requirements)
     builder = CardBuilder()

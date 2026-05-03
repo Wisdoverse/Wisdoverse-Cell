@@ -1,7 +1,7 @@
 """
-BitableService - 飞书多维表格操作服务
+BitableService - Feishu Bitable operation service.
 
-提供多维表格的 CRUD 操作，基于 lark-oapi SDK。
+Provides Bitable CRUD operations through the lark-oapi SDK.
 """
 from typing import Any
 
@@ -23,7 +23,7 @@ logger = get_logger("feishu.bitable")
 
 
 class BitableService:
-    """飞书多维表格服务"""
+    """Feishu Bitable service."""
 
     def __init__(self):
         self.app_token = settings.feishu_bitable_app_token
@@ -34,7 +34,7 @@ class BitableService:
         return get_feishu_client()._sdk
 
     async def list_tables(self, app_token: str | None = None) -> list[dict]:
-        """列出多维表格中的所有数据表"""
+        """List all tables in a Bitable app."""
         token = app_token or self.app_token
         req = ListAppTableRequest.builder().app_token(token).build()
         resp = await self._sdk.bitable.v1.app_table.alist(req)
@@ -53,7 +53,7 @@ class BitableService:
         page_token: str | None = None,
         filter_expr: str | None = None,
     ) -> dict[str, Any]:
-        """查询多维表格记录"""
+        """Query Bitable records."""
         token = app_token or self.app_token
         tid = table_id or self.table_id
 
@@ -92,7 +92,7 @@ class BitableService:
         app_token: str | None = None,
         table_id: str | None = None,
     ) -> str:
-        """创建一条记录，返回 record_id"""
+        """Create a record and return its record_id."""
         token = app_token or self.app_token
         tid = table_id or self.table_id
 
@@ -117,7 +117,7 @@ class BitableService:
         app_token: str | None = None,
         table_id: str | None = None,
     ) -> bool:
-        """更新一条记录"""
+        """Update a record."""
         token = app_token or self.app_token
         tid = table_id or self.table_id
 
@@ -142,7 +142,7 @@ class BitableService:
         table_id: str | None = None,
         filter_expr: str | None = None,
     ) -> list[dict]:
-        """分页获取所有记录"""
+        """Fetch all records across pages."""
         all_items = []
         page_token = None
         while True:
@@ -164,7 +164,7 @@ class BitableService:
         app_token: str | None = None,
         table_id: str | None = None,
     ) -> list[dict]:
-        """列出数据表的所有字段"""
+        """List all fields for a table."""
         token = app_token or self.app_token
         tid = table_id or self.table_id
         req = (
@@ -188,7 +188,7 @@ class BitableService:
         app_token: str | None = None,
         table_id: str | None = None,
     ) -> dict:
-        """创建字段。field_type: 1=文本,2=数字,3=单选,4=多选,5=日期,7=复选框,11=人员,15=超链接"""
+        """Create a field. Types: 1=text, 2=number, 3=single-select, 4=multi-select, 5=date, 7=checkbox, 11=user, 15=url."""
         token = app_token or self.app_token
         tid = table_id or self.table_id
 
@@ -217,7 +217,7 @@ class BitableService:
 
 
 def get_bitable_service() -> BitableService:
-    """获取 BitableService 单例"""
+    """Return the BitableService singleton."""
     return _bitable_service
 
 

@@ -1,10 +1,10 @@
 """
-FeishuClient - 飞书 API 客户端
+FeishuClient - Feishu API client.
 
-职责：
-1. 通过 lark-oapi SDK 管理 API 调用（token 自动管理）
-2. 请求签名验证
-3. API 调用封装
+Responsibilities:
+1. Manage API calls through the lark-oapi SDK with automatic token handling.
+2. Verify request signatures.
+3. Wrap Feishu API calls.
 """
 import asyncio
 import hashlib
@@ -42,9 +42,9 @@ logger = get_logger("feishu.client")
 
 class FeishuClient:
     """
-    飞书 API 客户端（基于 lark-oapi SDK）
+    Feishu API client based on the lark-oapi SDK.
 
-    使用方式:
+    Usage:
         client = FeishuClient(app_id, app_secret)
         await client.send_card(chat_id, card)
     """
@@ -60,7 +60,7 @@ class FeishuClient:
         self.app_secret = app_secret or (_secret.get_secret_value() if _secret else "")
         self.base_url = base_url or settings.feishu_api_base_url
 
-        # 从 base_url 提取 domain（去掉 /open-apis 后缀）
+        # Extract the SDK domain from base_url by removing the /open-apis suffix.
         domain = self.base_url.removesuffix("/open-apis")
 
         self._sdk = (
@@ -74,10 +74,10 @@ class FeishuClient:
 
     async def get_access_token(self) -> str:
         """
-        获取 access_token（用于健康检查/凭证验证）
+        Get an access token for health checks and credential validation.
 
-        SDK 内部自动管理 token 缓存与刷新，此方法通过显式调用
-        auth API 来验证凭证是否有效。
+        The SDK manages token caching and refresh internally. This method calls
+        the auth API explicitly to validate credentials.
         """
         request = (
             InternalTenantAccessTokenRequest.builder()
@@ -105,12 +105,13 @@ class FeishuClient:
         signature: str,
     ) -> bool:
         """
-        验证飞书请求签名
+        Verify a Feishu request signature.
 
-        签名算法: SHA256(timestamp + nonce + encrypt_key + body)
+        Signature algorithm: SHA256(timestamp + nonce + encrypt_key + body).
 
-        当签名验证被调用时，encrypt_key 必须配置。未配置时返回 False，
-        避免在生产配置漂移时静默放行回调。
+        The encrypt_key must be configured when signature verification is used.
+        Returning False for missing configuration avoids silently accepting
+        callbacks when production configuration drifts.
         """
         encrypt_key = settings.feishu_encrypt_key.get_secret_value()
         if not encrypt_key:
@@ -130,7 +131,7 @@ class FeishuClient:
 
         return True
 
-    # === 消息 API ===
+    # === Message API ===
 
     @feishu_error_handler("send_card")
     async def send_card(
@@ -140,18 +141,18 @@ class FeishuClient:
         card: dict,
     ) -> str:
         """
-        发送消息卡片
+        Send an interactive card message.
 
         Args:
-            receive_id: 接收者 ID
-            receive_id_type: ID 类型 ("open_id" | "chat_id" | "user_id")
-            card: 卡片内容
+            receive_id: Receiver ID.
+            receive_id_type: ID type ("open_id" | "chat_id" | "user_id").
+            card: Card content.
 
         Returns:
             message_id
 
         Raises:
-            FeishuAPIError: 发送失败时抛出
+            FeishuAPIError: Raised when sending fails.
         """
         request = (
             CreateMessageRequest.builder()
@@ -183,19 +184,19 @@ class FeishuClient:
         content: str = "",
     ) -> str:
         """
-        发送消息（文本、富文本、卡片等通用消息）
+        Send a generic message such as text, rich text, or card content.
 
         Args:
-            receive_id: 接收者 ID
-            receive_id_type: ID 类型 ("open_id" | "chat_id" | "user_id")
-            msg_type: 消息类型 ("text" | "interactive" | "post" 等)
-            content: 消息内容（已编码的 JSON 字符串，调用方自行序列化）
+            receive_id: Receiver ID.
+            receive_id_type: ID type ("open_id" | "chat_id" | "user_id").
+            msg_type: Message type ("text" | "interactive" | "post", etc.).
+            content: Message content as an encoded JSON string serialized by the caller.
 
         Returns:
             message_id
 
         Raises:
-            FeishuAPIError: 发送失败时抛出
+            FeishuAPIError: Raised when sending fails.
         """
         request = (
             CreateMessageRequest.builder()
@@ -226,12 +227,13 @@ class FeishuClient:
         card: dict,
     ) -> bool:
         """
-        更新已发送的卡片
+        Update a sent card.
 
-        用于操作后更新卡片状态（如确认后显示已确认）。
+        Used to update card state after an operation, for example after
+        confirmation.
 
         Raises:
-            FeishuAPIError: 更新失败时抛出
+            FeishuAPIError: Raised when updating fails.
         """
         request = (
             PatchMessageRequest.builder()
@@ -256,18 +258,18 @@ class FeishuClient:
         msg_type: str = "text",
     ) -> str:
         """
-        回复消息
+        Reply to a message.
 
         Args:
-            message_id: 要回复的消息 ID
-            content: 回复内容
-            msg_type: 消息类型
+            message_id: Message ID to reply to.
+            content: Reply content.
+            msg_type: Message type.
 
         Returns:
-            新消息的 message_id
+            New message_id.
 
         Raises:
-            FeishuAPIError: 回复失败时抛出
+            FeishuAPIError: Raised when replying fails.
         """
         if msg_type == "text":
             encoded_content = json.dumps({"text": content})
@@ -291,14 +293,14 @@ class FeishuClient:
 
     async def add_reaction(self, message_id: str, emoji_type: str = "OnIt") -> bool:
         """
-        给消息添加 emoji 表情回应
+        Add an emoji reaction to a message.
 
         Args:
-            message_id: 消息 ID
-            emoji_type: 表情类型 (如 "OnIt", "THUMBSUP", "HEART" 等)
+            message_id: Message ID.
+            emoji_type: Emoji type such as "OnIt", "THUMBSUP", or "HEART".
 
         Returns:
-            是否成功
+            Whether the reaction succeeded.
         """
         from lark_oapi.api.im.v1 import (
             CreateMessageReactionRequest,
@@ -331,10 +333,10 @@ class FeishuClient:
 
     async def get_user_info(self, open_id: str) -> dict:
         """
-        获取用户信息
+        Get user information.
 
-        用于将 open_id 转换为用户名。
-        注意：此方法不抛出异常，失败时返回默认值。
+        Converts open_id to a display name. This method does not raise on
+        failure; it returns a default value instead.
         """
         try:
             request = (
@@ -390,7 +392,7 @@ class FeishuClient:
         ]
 
     def _check_response(self, response, operation: str) -> None:
-        """统一检查 SDK 响应"""
+        """Check an SDK response consistently."""
         if not response.success():
             raise FeishuAPIError(
                 code=response.code,
@@ -398,12 +400,12 @@ class FeishuClient:
             )
 
 
-# 全局客户端实例（延迟初始化）
+# Global client instance, initialized lazily.
 _feishu_client: Optional[FeishuClient] = None
 
 
 def get_feishu_client() -> FeishuClient:
-    """获取飞书客户端单例"""
+    """Return the FeishuClient singleton."""
     global _feishu_client
     if _feishu_client is None:
         _feishu_client = FeishuClient()
