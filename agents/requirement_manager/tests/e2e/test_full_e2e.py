@@ -1,13 +1,13 @@
 """
-完整端到端测试 - 大里程碑时执行
+Full end-to-end tests for major milestones.
 
-真实 LLM + 真实基础设施
-需要设置 E2E_FULL=1 才会执行
+Uses real LLM and real infrastructure.
+Requires E2E_FULL=1 to run.
 """
 import sys
 from pathlib import Path
 
-# 确保项目根目录在 Python 路径中
+# Ensure the project root is on the Python path.
 _project_root = Path(__file__).parent.parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -19,18 +19,18 @@ from httpx import AsyncClient
 
 from shared.schemas.event import EventTypes
 
-# 跳过条件：未设置 E2E_FULL=1
+# Skip unless E2E_FULL=1 is set.
 pytestmark = [
     pytest.mark.skipif(
         os.getenv("E2E_FULL") != "1",
-        reason="Full E2E 需要设置 E2E_FULL=1"
+        reason="Full E2E requires E2E_FULL=1"
     ),
     pytest.mark.e2e_full,
 ]
 
 
 class TestCompleteRequirementLifecycle:
-    """完整需求生命周期测试"""
+    """Complete requirement lifecycle tests."""
 
     @pytest.mark.asyncio
     async def test_full_lifecycle_with_real_llm(
@@ -40,11 +40,11 @@ class TestCompleteRequirementLifecycle:
         get_published_events
     ):
         """
-        完整生命周期：导入 → 提取 → 搜索 → 冲突检测 → 确认 → 导出
+        Complete lifecycle: ingest, extract, search, conflict check, confirm, export.
 
-        使用真实 LLM，验证端到端流程。
+        Uses a real LLM to validate the end-to-end flow.
         """
-        # 1. 上传真实会议内容
+        # 1. Upload real meeting content.
         meeting_content = """
         2026年1月21日产品需求会议
 
@@ -71,18 +71,18 @@ class TestCompleteRequirementLifecycle:
         assert resp.status_code == 200
         data = resp.json()
 
-        # 验证提取结果合理
-        assert data["requirements_extracted"] >= 1, "应该至少提取出1个需求"
+        # Validate that extraction produced a plausible result.
+        assert data["requirements_extracted"] >= 1, "Expected at least one requirement"
 
-        # 2. 验证语义搜索能找到
+        # 2. Validate semantic search can find the result.
         resp = await client.get("/api/requirements/search", params={
             "q": "离线录音"
         })
         assert resp.status_code == 200
         search_results = resp.json()
-        assert search_results["total"] >= 1, "语义搜索应该能找到相关需求"
+        assert search_results["total"] >= 1, "Expected semantic search to find related requirements"
 
-        # 3. 获取需求详情
+        # 3. Fetch requirement detail.
         resp = await client.get("/api/requirements")
         requirements = resp.json()["items"]
         assert len(requirements) >= 1
@@ -95,7 +95,7 @@ class TestCompleteRequirementLifecycle:
         assert "title" in detail
         assert "description" in detail
 
-        # 4. 检测冲突（对于新需求应该返回 "new"）
+        # 4. Check conflicts. New requirements should return "new".
         resp = await client.post("/api/requirements/check-conflict", json={
             "title": "语音实时转写功能",
             "description": "支持录音的实时语音转文字",
@@ -105,29 +105,29 @@ class TestCompleteRequirementLifecycle:
         conflict_result = resp.json()
         assert conflict_result["relation"] in ["new", "update", "duplicate", "conflict"]
 
-        # 5. 确认需求
+        # 5. Confirm requirement.
         resp = await client.put(f"/api/requirements/{req_id}/confirm", json={
             "confirmed_by": "产品经理"
         })
         assert resp.status_code == 200
         assert resp.json()["status"] == "CONFIRMED"
 
-        # 6. 导出 PRD
+        # 6. Export PRD.
         resp = await client.get("/api/export/prd", params={
             "status": "confirmed"
         })
         assert resp.status_code == 200
         prd = resp.json()
-        assert len(prd["content"]) > 100, "PRD 内容应该足够丰富"
+        assert len(prd["content"]) > 100, "Expected PRD content to be sufficiently detailed"
         assert prd["requirements_count"] >= 1
 
-        # 7. 验证事件发布
+        # 7. Validate event publishing.
         events = await get_published_events(EventTypes.REQUIREMENT_CONFIRMED)
         assert len(events) >= 1
 
 
 class TestFeishuIntegration:
-    """飞书 Webhook 集成测试"""
+    """Feishu webhook integration tests."""
 
     @pytest.mark.asyncio
     async def test_feishu_webhook_full_flow(
@@ -136,11 +136,11 @@ class TestFeishuIntegration:
         real_llm
     ):
         """
-        模拟飞书 Webhook 回调
+        Simulate a Feishu webhook callback.
 
-        验证从飞书接收会议纪要的完整流程。
+        Validates the full flow for receiving meeting notes from Feishu.
         """
-        # 模拟飞书 Webhook 请求
+        # Simulate a Feishu webhook request.
         resp = await client.post("/api/ingest/feishu", json={
             "event_type": "meeting.ended",
             "meeting_id": "feishu_meeting_001",
@@ -169,10 +169,10 @@ class TestFeishuIntegration:
         data = resp.json()
         assert data["requirements_extracted"] >= 1
 
-        # 验证去重：同一 meeting_id 不应重复处理
+        # Validate deduplication: the same meeting_id should not be processed twice.
         resp2 = await client.post("/api/ingest/feishu", json={
             "event_type": "meeting.ended",
-            "meeting_id": "feishu_meeting_001",  # 相同 ID
+            "meeting_id": "feishu_meeting_001",  # Same ID.
             "topic": "重复的会议",
             "summary": "测试去重",
             "participants": [],
@@ -181,31 +181,31 @@ class TestFeishuIntegration:
 
         assert resp2.status_code == 200
         data2 = resp2.json()
-        assert data2["requirements_extracted"] == 0, "重复会议不应再次提取需求"
+        assert data2["requirements_extracted"] == 0, "Duplicate meeting should not be extracted again"
 
 
 class TestEdgeCases:
-    """边界情况测试"""
+    """Edge case tests."""
 
     @pytest.mark.asyncio
     async def test_empty_meeting_content(self, client: AsyncClient, real_llm):
-        """测试空会议内容"""
+        """Test empty meeting content."""
         resp = await client.post("/api/ingest/upload", json={
-            "content": "今天天气不错，大家聊了聊近况。",  # 无实质需求
+            "content": "今天天气不错，大家聊了聊近况。",  # No substantive requirement.
             "source": "upload",
             "title": "闲聊"
         })
 
-        # 应该成功，但提取0个需求
+        # Should succeed while extracting zero requirements.
         assert resp.status_code == 200
-        # LLM 可能提取0个或尝试提取，取决于模型判断
+        # The LLM may extract zero items or attempt extraction depending on model judgment.
 
     @pytest.mark.asyncio
     async def test_very_long_meeting_content(self, client: AsyncClient, real_llm):
-        """测试长会议内容"""
+        """Test long meeting content."""
         long_content = """
         这是一个很长的会议记录。
-        """ + "需求讨论点 " * 500  # 约 3000 字
+        """ + "需求讨论点 " * 500  # Approximately 3,000 Chinese characters.
 
         resp = await client.post("/api/ingest/upload", json={
             "content": long_content,
@@ -217,7 +217,7 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_concurrent_requests(self, client: AsyncClient, real_llm):
-        """测试并发请求"""
+        """Test concurrent requests."""
         import asyncio
 
         async def upload_meeting(idx: int):
@@ -227,7 +227,7 @@ class TestEdgeCases:
                 "title": f"并发测试会议 {idx}"
             })
 
-        # 并发 3 个请求
+        # Run three concurrent requests.
         results = await asyncio.gather(
             upload_meeting(1),
             upload_meeting(2),

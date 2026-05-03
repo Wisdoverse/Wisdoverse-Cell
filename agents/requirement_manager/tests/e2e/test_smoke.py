@@ -1,13 +1,13 @@
 """
-冒烟测试 - 验证核心业务路径
+Smoke tests for core business paths.
 
-每次提交触发，<30秒完成。
-使用 Mock LLM，真实数据库和 Redis。
+Runs on each commit and finishes in under 30 seconds.
+Uses a mock LLM with real database and Redis infrastructure.
 """
 import sys
 from pathlib import Path
 
-# 确保项目根目录在 Python 路径中
+# Ensure the project root is on the Python path.
 _project_root = Path(__file__).parent.parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -17,23 +17,23 @@ from httpx import AsyncClient
 
 from shared.schemas.event import EventTypes
 
-# 所有 smoke 测试统一超时 30 秒，防止单个测试卡死拖垮整个 pipeline
+# Keep every smoke test under 30 seconds to avoid blocking the pipeline.
 pytestmark = pytest.mark.timeout(30)
 
 
 class TestHealthCheck:
-    """健康检查"""
+    """Health check tests."""
 
     @pytest.mark.asyncio
     async def test_health_endpoint(self, client: AsyncClient):
-        """验证健康检查端点"""
+        """Validate the health endpoint."""
         resp = await client.get("/health")
         assert resp.status_code == 200
         assert resp.json()["status"] == "alive"
 
     @pytest.mark.asyncio
     async def test_api_info_endpoint(self, client: AsyncClient):
-        """验证 API 信息端点"""
+        """Validate the API info endpoint."""
         resp = await client.get("/api/v1")
         assert resp.status_code == 200
         data = resp.json()
@@ -41,7 +41,7 @@ class TestHealthCheck:
 
 
 class TestCoreWorkflow:
-    """核心路径：上传会议 → 提取需求 → 确认需求"""
+    """Core path: upload meeting, extract requirements, confirm requirement."""
 
     @pytest.mark.asyncio
     async def test_ingest_extract_confirm_flow(
@@ -52,15 +52,15 @@ class TestCoreWorkflow:
         get_published_events
     ):
         """
-        完整核心流程测试
+        Full core flow test.
 
-        1. 上传会议内容
-        2. 验证需求已提取
-        3. 查询待确认需求
-        4. 确认需求
-        5. 验证事件已发布
+        1. Upload meeting content.
+        2. Validate that requirements were extracted.
+        3. Query pending requirements.
+        4. Confirm a requirement.
+        5. Validate that the event was published.
         """
-        # 1. 上传会议内容
+        # 1. Upload meeting content.
         resp = await client.post("/api/v1/ingest/upload", json={
             "content": sample_meeting_content,
             "source": "upload",
@@ -77,7 +77,7 @@ class TestCoreWorkflow:
         meeting_id = data["meeting_id"]
         assert meeting_id.startswith("mtg_")
 
-        # 2. 查询提取的需求
+        # 2. Query extracted requirements.
         resp = await client.get("/api/v1/requirements", params={"status": "pending"})
         assert resp.status_code == 200
         requirements = resp.json()["items"]
@@ -88,7 +88,7 @@ class TestCoreWorkflow:
         req_id = requirements[0]["id"]
         assert req_id.startswith("req_")
 
-        # 3. 确认需求
+        # 3. Confirm requirement.
         resp = await client.put(f"/api/v1/requirements/{req_id}/confirm", json={
             "confirmed_by": "测试用户"
         })
@@ -99,7 +99,7 @@ class TestCoreWorkflow:
         assert confirmed["status"] == "confirmed"
         assert confirmed["confirmed_by"] == "测试用户"
 
-        # 4. 验证需求确认事件已发布
+        # 4. Validate that the requirement confirmation event was published.
         events = await get_published_events(EventTypes.REQUIREMENT_CONFIRMED)
         assert len(events) >= 1, "Expected REQUIREMENT_CONFIRMED event"
         assert events[0].payload["requirement_id"] == req_id
@@ -113,13 +113,13 @@ class TestCoreWorkflow:
         get_published_events
     ):
         """
-        拒绝流程测试
+        Rejection flow test.
 
-        1. 上传会议内容
-        2. 拒绝需求
-        3. 验证事件已发布
+        1. Upload meeting content.
+        2. Reject a requirement.
+        3. Validate that the event was published.
         """
-        # 1. 上传
+        # 1. Upload.
         resp = await client.post("/api/v1/ingest/upload", json={
             "content": sample_meeting_content,
             "source": "upload",
@@ -129,7 +129,7 @@ class TestCoreWorkflow:
             f"Upload failed: {resp.status_code} {resp.text}"
         )
 
-        # 2. 获取需求
+        # 2. Fetch requirements.
         resp = await client.get("/api/v1/requirements", params={"status": "pending"})
         assert resp.status_code == 200
         requirements = resp.json()["items"]
@@ -138,7 +138,7 @@ class TestCoreWorkflow:
         )
         req_id = requirements[0]["id"]
 
-        # 3. 拒绝需求
+        # 3. Reject requirement.
         resp = await client.put(f"/api/v1/requirements/{req_id}/reject", json={
             "reason": "不符合产品方向",
             "rejected_by": "产品经理"
@@ -149,13 +149,13 @@ class TestCoreWorkflow:
         rejected = resp.json()
         assert rejected["status"] == "rejected"
 
-        # 4. 验证拒绝事件
+        # 4. Validate rejection event.
         events = await get_published_events(EventTypes.REQUIREMENT_REJECTED)
         assert len(events) >= 1, "Expected REQUIREMENT_REJECTED event"
 
 
 class TestQueryFeatures:
-    """查询功能测试"""
+    """Query feature tests."""
 
     @pytest.mark.asyncio
     async def test_requirements_list_pagination(
@@ -164,8 +164,8 @@ class TestQueryFeatures:
         mock_llm,
         sample_meeting_content: str
     ):
-        """测试需求列表分页"""
-        # 上传会议内容
+        """Test requirement list pagination."""
+        # Upload meeting content.
         resp = await client.post("/api/v1/ingest/upload", json={
             "content": sample_meeting_content,
             "source": "upload",
@@ -175,7 +175,7 @@ class TestQueryFeatures:
             f"Upload failed: {resp.status_code} {resp.text}"
         )
 
-        # 查询第一页
+        # Query the first page.
         resp = await client.get("/api/v1/requirements", params={
             "page": 1,
             "page_size": 2
@@ -193,8 +193,8 @@ class TestQueryFeatures:
         mock_llm,
         sample_meeting_content: str
     ):
-        """测试需求详情"""
-        # 上传会议内容
+        """Test requirement detail."""
+        # Upload meeting content.
         resp = await client.post("/api/v1/ingest/upload", json={
             "content": sample_meeting_content,
             "source": "upload",
@@ -204,7 +204,7 @@ class TestQueryFeatures:
             f"Upload failed: {resp.status_code} {resp.text}"
         )
 
-        # 获取需求列表
+        # Fetch requirement list.
         resp = await client.get("/api/v1/requirements")
         assert resp.status_code == 200
         items = resp.json()["items"]
@@ -213,7 +213,7 @@ class TestQueryFeatures:
         )
         req_id = items[0]["id"]
 
-        # 获取详情
+        # Fetch detail.
         resp = await client.get(f"/api/v1/requirements/{req_id}")
         assert resp.status_code == 200
         detail = resp.json()
@@ -223,7 +223,7 @@ class TestQueryFeatures:
 
 
 class TestExportFeatures:
-    """导出功能测试"""
+    """Export feature tests."""
 
     @pytest.mark.asyncio
     async def test_export_prd(
@@ -232,8 +232,8 @@ class TestExportFeatures:
         mock_llm,
         sample_meeting_content: str
     ):
-        """测试 PRD 导出"""
-        # 上传并确认需求
+        """Test PRD export."""
+        # Upload and confirm a requirement.
         resp = await client.post("/api/v1/ingest/upload", json={
             "content": sample_meeting_content,
             "source": "upload",
@@ -253,7 +253,7 @@ class TestExportFeatures:
         })
         assert resp.status_code == 200
 
-        # 导出 PRD
+        # Export PRD.
         resp = await client.get("/api/v1/export/prd", params={
             "status": "confirmed"
         })
@@ -269,8 +269,8 @@ class TestExportFeatures:
         mock_llm,
         sample_meeting_content: str
     ):
-        """测试问题清单导出"""
-        # 上传会议内容（会生成待确认问题）
+        """Test open question list export."""
+        # Upload meeting content that generates open questions.
         resp = await client.post("/api/v1/ingest/upload", json={
             "content": sample_meeting_content,
             "source": "upload",
@@ -280,7 +280,7 @@ class TestExportFeatures:
             f"Upload failed: {resp.status_code} {resp.text}"
         )
 
-        # 导出问题清单
+        # Export open questions.
         resp = await client.get("/api/v1/export/questions")
         assert resp.status_code == 200
         data = resp.json()

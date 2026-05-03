@@ -211,7 +211,7 @@ class TestRequirementCards:
         ]
         assert len(md_with_numbered) == 10
 
-        # Should have a truncation note "还有 5 个需求"
+        # Should have a truncation note for the remaining requirements.
         notes = [el for el in card["elements"] if el.get("tag") == "note"]
         note_texts = [n["elements"][0]["content"] for n in notes]
         assert any("还有 5 个需求" in t for t in note_texts)
@@ -404,7 +404,7 @@ class TestRequirementCards:
         assert any("2026-02-26 14:00" in c for c in md_contents)
         # Organizer
         assert any("王五" in c for c in md_contents)
-        # Attendees truncated: first 5 shown, then "等 8 人"
+        # Attendees are truncated after the first five entries.
         attendees_line = [c for c in md_contents if "参与者" in c][0]
         assert "user0@example.com" in attendees_line
         assert "user4@example.com" in attendees_line
