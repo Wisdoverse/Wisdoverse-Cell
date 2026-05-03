@@ -1,7 +1,7 @@
 """
 Integration Tests - SyncAgent API
 
-使用 httpx.AsyncClient 测试 sync_agent 的 HTTP 端点。
+Tests sync_agent HTTP endpoints with httpx.AsyncClient.
 """
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -11,7 +11,7 @@ from httpx import ASGITransport, AsyncClient
 
 @pytest.fixture
 def mock_agent():
-    """模拟 SyncAgent 实例"""
+    """Mock SyncAgent instance."""
     agent = MagicMock()
     agent.agent_id = "sync-agent-test"
     agent.trigger_sync = AsyncMock(return_value={
@@ -29,7 +29,7 @@ def mock_agent():
 
 @pytest.fixture
 def test_app(mock_agent):
-    """创建不启动 lifespan 的测试 app"""
+    """Create a test app without starting lifespan."""
     with patch("shared.capabilities.sync.api.sync.get_agent", return_value=mock_agent), \
          patch("shared.capabilities.sync.app.main._raw_agent", mock_agent), \
          patch("shared.capabilities.sync.app.main.settings") as mock_settings:
@@ -57,7 +57,7 @@ def test_app(mock_agent):
 
 @pytest.mark.asyncio
 async def test_health_endpoint(test_app):
-    """GET /health 应返回 alive"""
+    """GET /health should return alive."""
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/health")
@@ -69,7 +69,7 @@ async def test_health_endpoint(test_app):
 
 @pytest.mark.asyncio
 async def test_trigger_sync(test_app, mock_agent):
-    """POST /api/v1/sync/trigger 应触发同步"""
+    """POST /api/v1/sync/trigger should trigger sync."""
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post("/api/v1/sync/trigger")
@@ -122,7 +122,7 @@ async def test_trigger_feishu_bitable_sync(test_app, mock_agent):
 
 @pytest.mark.asyncio
 async def test_sync_status(test_app, mock_agent):
-    """GET /api/v1/sync/status 应返回状态"""
+    """GET /api/v1/sync/status should return status."""
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/api/v1/sync/status")
@@ -132,7 +132,7 @@ async def test_sync_status(test_app, mock_agent):
 
 @pytest.mark.asyncio
 async def test_list_mappings(test_app):
-    """GET /api/v1/sync/mappings 应返回映射列表"""
+    """GET /api/v1/sync/mappings should return the mapping list."""
     with patch("shared.capabilities.sync.api.sync.get_db") as mock_get_db, \
         patch("shared.capabilities.sync.api.sync.SyncMappingRepository") as repo_cls:
         async def _override():

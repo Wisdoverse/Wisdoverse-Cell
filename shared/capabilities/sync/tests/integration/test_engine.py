@@ -37,8 +37,8 @@ def engine(mock_db_manager, mock_op_client, mock_bitable):
 
 @pytest.mark.asyncio
 async def test_sync_op_to_feishu_updates_existing(engine, mock_op_client, mock_bitable, db_session):
-    """已有映射时，应更新飞书记录而非创建"""
-    # 先创建一条映射
+    """Update an existing Feishu record instead of creating a new one."""
+    # Create an existing mapping first.
     repo = SyncMappingRepository(db_session)
     await repo.upsert(op_id=200, record_id="rec_existing", project_id=1, title="旧任务")
 
@@ -76,7 +76,7 @@ async def test_sync_op_to_feishu_updates_existing(engine, mock_op_client, mock_b
 
 @pytest.mark.asyncio
 async def test_sync_op_to_feishu_lock_held(engine, db_session):
-    """锁被占用时，应跳过同步"""
+    """Skip sync when the lock is held."""
     from shared.capabilities.sync.db.repository import SyncLockRepository
 
     lock_repo = SyncLockRepository(db_session)

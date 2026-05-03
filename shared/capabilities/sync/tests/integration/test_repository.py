@@ -1,7 +1,7 @@
 """
 Unit Tests - SyncMappingRepository / SyncLockRepository
 
-测试数据访问层的 CRUD 和锁操作。
+Tests data access CRUD and lock operations.
 """
 import pytest
 
@@ -17,7 +17,7 @@ from shared.capabilities.sync.db.repository import (
 
 @pytest.mark.asyncio
 async def test_upsert_creates_new_mapping(db_session):
-    """upsert 应创建新映射"""
+    """upsert should create a new mapping."""
     repo = SyncMappingRepository(db_session)
     mapping = await repo.upsert(op_id=1001, record_id="rec_aaa", project_id=5, title="新任务")
 
@@ -30,7 +30,7 @@ async def test_upsert_creates_new_mapping(db_session):
 
 @pytest.mark.asyncio
 async def test_upsert_updates_existing_mapping(db_session):
-    """upsert 已有映射时应更新"""
+    """upsert should update an existing mapping."""
     repo = SyncMappingRepository(db_session)
     await repo.upsert(op_id=1002, record_id="rec_old", project_id=1, title="旧标题")
     updated = await repo.upsert(op_id=1002, record_id="rec_new", project_id=1, title="新标题")
@@ -41,7 +41,7 @@ async def test_upsert_updates_existing_mapping(db_session):
 
 @pytest.mark.asyncio
 async def test_get_by_op_id(db_session):
-    """按 OP ID 查询映射"""
+    """Query mappings by OpenProject work package ID."""
     repo = SyncMappingRepository(db_session)
     await repo.upsert(op_id=2001, record_id="rec_bbb")
 
@@ -55,7 +55,7 @@ async def test_get_by_op_id(db_session):
 
 @pytest.mark.asyncio
 async def test_get_by_record_id(db_session):
-    """按飞书 record ID 查询映射"""
+    """Query mappings by Feishu record ID."""
     repo = SyncMappingRepository(db_session)
     await repo.upsert(op_id=3001, record_id="rec_ccc")
 
@@ -69,7 +69,7 @@ async def test_get_by_record_id(db_session):
 
 @pytest.mark.asyncio
 async def test_list_all(db_session):
-    """列出所有映射"""
+    """List all mappings."""
     repo = SyncMappingRepository(db_session)
     await repo.upsert(op_id=4001, record_id="rec_d1")
     await repo.upsert(op_id=4002, record_id="rec_d2")
@@ -84,7 +84,7 @@ async def test_list_all(db_session):
 
 @pytest.mark.asyncio
 async def test_acquire_lock_new(db_session):
-    """首次获取锁应成功"""
+    """First lock acquisition should succeed."""
     repo = SyncLockRepository(db_session)
     acquired = await repo.acquire("test_lock", "agent-1")
     assert acquired is True
@@ -92,7 +92,7 @@ async def test_acquire_lock_new(db_session):
 
 @pytest.mark.asyncio
 async def test_acquire_lock_already_held(db_session):
-    """锁已被持有时，获取应失败"""
+    """Lock acquisition should fail when the lock is already held."""
     repo = SyncLockRepository(db_session)
     await repo.acquire("test_lock_2", "agent-1")
     acquired = await repo.acquire("test_lock_2", "agent-2")
@@ -101,7 +101,7 @@ async def test_acquire_lock_already_held(db_session):
 
 @pytest.mark.asyncio
 async def test_release_lock(db_session):
-    """释放锁后，其他人应能获取"""
+    """Another owner should acquire the lock after release."""
     repo = SyncLockRepository(db_session)
     await repo.acquire("test_lock_3", "agent-1")
     await repo.release("test_lock_3")
@@ -111,12 +111,12 @@ async def test_release_lock(db_session):
 
 @pytest.mark.asyncio
 async def test_acquire_expired_lock(db_session):
-    """过期锁应能被重新获取"""
+    """Expired locks should be acquirable again."""
     from datetime import UTC, datetime, timedelta
 
     from shared.capabilities.sync.models.sync import SyncLock
 
-    # 手动插入一条已过期的锁
+    # Insert an expired lock manually.
     expired_lock = SyncLock(
         lock_name="expired_lock",
         locked_by="old-agent",
@@ -137,7 +137,7 @@ async def test_acquire_expired_lock(db_session):
 
 @pytest.mark.asyncio
 async def test_create_and_complete_log(db_session):
-    """创建日志并标记完成"""
+    """Create a log entry and mark it completed."""
     repo = SyncLogRepository(db_session)
     log = await repo.create("op_to_feishu", "started")
     assert log.id is not None
@@ -158,7 +158,7 @@ async def test_create_and_complete_log(db_session):
 
 @pytest.mark.asyncio
 async def test_complete_log_with_error(db_session):
-    """日志标记失败"""
+    """Mark a log entry as failed."""
     repo = SyncLogRepository(db_session)
     log = await repo.create("feishu_to_op", "started")
     await repo.complete(log.id, records_processed=0, error="connection timeout")
@@ -178,7 +178,7 @@ async def test_complete_log_with_error(db_session):
 
 @pytest.mark.asyncio
 async def test_subtask_upsert_and_query(db_session):
-    """子任务映射的创建和查询"""
+    """Create and query a subtask mapping."""
     repo = SubtaskMappingRepository(db_session)
     mapping = await repo.upsert(parent_op_id=500, record_id="sub_001", name="子任务A", status="进行中")
     assert mapping.id is not None
@@ -193,7 +193,7 @@ async def test_subtask_upsert_and_query(db_session):
 
 @pytest.mark.asyncio
 async def test_subtask_upsert_updates(db_session):
-    """子任务映射更新"""
+    """Update a subtask mapping."""
     repo = SubtaskMappingRepository(db_session)
     await repo.upsert(parent_op_id=600, record_id="sub_002", name="旧名", status="未开始")
     updated = await repo.upsert(parent_op_id=600, record_id="sub_002", name="新名", status="完成")

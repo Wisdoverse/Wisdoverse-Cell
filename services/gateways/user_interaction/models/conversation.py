@@ -6,7 +6,7 @@ from .base import Base
 
 
 class ConversationHistory(Base):
-    """聊天历史"""
+    """Persisted chat history."""
     __tablename__ = "chat_agent_conversation_histories"
 
     id = Column(Integer, primary_key=True)

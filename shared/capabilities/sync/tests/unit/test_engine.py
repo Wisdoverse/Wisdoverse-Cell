@@ -1,7 +1,7 @@
 """
 Unit Tests - SyncEngine
 
-SyncEngine 的核心同步逻辑测试，使用 mock 的 op_client 和 bitable_service。
+Core SyncEngine tests using mocked OpenProject and Bitable clients.
 """
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -16,7 +16,7 @@ from shared.capabilities.sync.core.engine import SyncEngine
 
 @pytest.fixture
 def mock_db_manager(db_session):
-    """模拟 DatabaseManager，返回真实的 db_session"""
+    """Mock DatabaseManager and yield the real db_session fixture."""
     from contextlib import asynccontextmanager
 
     manager = MagicMock()
@@ -58,7 +58,7 @@ def feishu_bitable_engine(mock_db_manager, mock_op_client, mock_bitable):
 
 @pytest.mark.asyncio
 async def test_openproject_sync_empty(openproject_engine, mock_op_client):
-    """OP 无工作包时，同步应成功且 processed=0"""
+    """Return success with processed=0 when OpenProject has no work packages."""
     mock_op_client.get_work_packages.return_value = []
     result = await openproject_engine.sync_to_bitable()
     assert result["status"] == "success"
@@ -71,7 +71,7 @@ async def test_openproject_sync_creates_mapping(
     mock_op_client,
     mock_bitable,
 ):
-    """OP 有新工作包时，应创建飞书记录和映射"""
+    """Create a Feishu record and mapping for a new OpenProject work package."""
     mock_op_client.get_work_packages.return_value = [
         {
             "id": 100,
@@ -195,7 +195,7 @@ async def test_openproject_member_map_skips_without_config(
 
 @pytest.mark.asyncio
 async def test_feishu_bitable_sync_empty(feishu_bitable_engine, mock_bitable):
-    """飞书无记录时，同步应成功且 processed=0"""
+    """Return success with processed=0 when Feishu Bitable has no records."""
     mock_bitable.list_all_records.return_value = []
     result = await feishu_bitable_engine.sync_progress_to_openproject()
     assert result["status"] == "success"
@@ -221,7 +221,7 @@ async def test_openproject_sync_handles_wp_error(
     mock_op_client,
     mock_bitable,
 ):
-    """单个工作包同步失败时，应记录错误并继续"""
+    """Record an error and continue when one work package fails to sync."""
     mock_op_client.get_work_packages.return_value = [
         {"id": 300, "subject": "失败任务", "_links": {}, "percentageDone": 0},
     ]

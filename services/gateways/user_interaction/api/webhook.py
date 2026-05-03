@@ -110,7 +110,7 @@ async def feishu_webhook(request: Request):
     if not text:
         return WebhookResponse()
 
-    # 去掉 @机器人 的前缀
+    # Remove the bot mention prefix.
     if text.startswith("@"):
         parts = text.split(" ", 1)
         text = parts[1] if len(parts) > 1 else ""

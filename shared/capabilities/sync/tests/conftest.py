@@ -18,7 +18,7 @@ import pytest
 
 @pytest.fixture
 def mock_event_bus():
-    """模拟 EventBus"""
+    """Mock EventBus."""
     bus = MagicMock()
     bus.publish = AsyncMock(return_value=True)
     bus.subscribe = AsyncMock()
@@ -30,7 +30,7 @@ def mock_event_bus():
 
 @pytest.fixture
 def mock_bitable():
-    """模拟飞书 BitableService"""
+    """Mock Feishu BitableService."""
     bitable = AsyncMock()
     bitable.list_all_records = AsyncMock(return_value=[])
     bitable.create_record = AsyncMock(return_value="rec_mock_001")
@@ -40,7 +40,7 @@ def mock_bitable():
 
 @pytest.fixture
 def mock_op_client():
-    """模拟 OpenProject Client"""
+    """Mock OpenProject client."""
     client = AsyncMock()
     client.get_work_packages = AsyncMock(return_value=[])
     client.update_work_package = AsyncMock()

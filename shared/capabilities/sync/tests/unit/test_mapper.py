@@ -1,7 +1,7 @@
 """
 Unit Tests - DataMapper
 
-测试 OpenProject <-> 飞书数据格式转换逻辑。
+Tests OpenProject <-> Feishu data format conversion.
 """
 
 from shared.capabilities.sync.core.mapper import DataMapper, FeishuRecordData, WorkPackageData
@@ -9,7 +9,7 @@ from shared.capabilities.sync.core.mapper import DataMapper, FeishuRecordData, W
 
 class TestOpToWorkPackageData:
     def test_op_to_work_package_data_full(self):
-        """完整 OP 工作包 JSON（含所有字段）应正确转换"""
+        """Convert a complete OpenProject work package JSON payload."""
         wp = {
             "id": 42,
             "subject": "完成用户认证模块",
@@ -38,7 +38,7 @@ class TestOpToWorkPackageData:
         assert result.parent_id == 10
 
     def test_op_to_work_package_data_minimal(self):
-        """只有 id 和 subject 的最小 OP 工作包应正确转换，可选字段为默认值"""
+        """Convert a minimal OpenProject work package and apply defaults."""
         wp = {
             "id": 1,
             "subject": "最小任务",
@@ -58,7 +58,7 @@ class TestOpToWorkPackageData:
         assert result.parent_id is None
 
     def test_op_to_work_package_data_invalid_project_href(self):
-        """project href 为非数字 ID 时，project_id 应为 None"""
+        """Return project_id=None when the project href has no numeric ID."""
         wp = {
             "id": 5,
             "subject": "测试",
@@ -77,7 +77,7 @@ class TestOpToWorkPackageData:
 
 class TestWorkPackageToFeishuFields:
     def test_work_package_to_feishu_fields_full(self):
-        """完整 WorkPackageData 应转换为包含所有字段的飞书 fields dict"""
+        """Convert a complete WorkPackageData model to Feishu fields."""
         wp_data = WorkPackageData(
             op_id=42,
             title="完成设计文档",
@@ -97,7 +97,7 @@ class TestWorkPackageToFeishuFields:
         assert result["完成百分比"] == 50
 
     def test_work_package_to_feishu_fields_minimal(self):
-        """只有 op_id 和 title（无可选字段）时，fields 只包含必要字段"""
+        """Include only required fields when optional WorkPackageData fields are absent."""
         wp_data = WorkPackageData(
             op_id=1,
             title="最小任务",
@@ -107,17 +107,17 @@ class TestWorkPackageToFeishuFields:
 
         assert result[DataMapper.FIELD_OP_ID] == 1
         assert result[DataMapper.FIELD_TITLE] == "最小任务"
-        # status/assignee/due_date 不应出现在 fields 中
+        # Optional fields should be omitted when absent.
         assert DataMapper.FIELD_STATUS not in result
         assert DataMapper.FIELD_ASSIGNEE not in result
         assert DataMapper.FIELD_DUE_DATE not in result
-        # progress 默认为 0，非 None，所以仍然会被包含
+        # progress defaults to 0 and is still included.
         assert result["完成百分比"] == 0
 
 
 class TestFeishuToRecordData:
     def test_feishu_to_record_data(self):
-        """飞书记录（含 float op_id）应正确转换为 FeishuRecordData"""
+        """Convert a Feishu record with float IDs to FeishuRecordData."""
         record = {
             "record_id": "rec_abc_123",
             "fields": {
@@ -142,7 +142,7 @@ class TestFeishuToRecordData:
         assert isinstance(result.parent_op_id, int)
 
     def test_feishu_to_record_data_empty(self):
-        """空 fields dict 应返回所有字段为 None 的 FeishuRecordData"""
+        """Return FeishuRecordData with None fields for an empty fields dict."""
         record = {
             "record_id": "rec_empty",
             "fields": {},

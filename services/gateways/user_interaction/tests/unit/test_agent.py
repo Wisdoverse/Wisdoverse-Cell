@@ -1,7 +1,7 @@
 """
 Unit Tests - ChatAgent
 
-ChatAgent 的核心逻辑单元测试。
+Core ChatAgent behavior tests.
 """
 from unittest.mock import MagicMock, patch
 
@@ -12,7 +12,7 @@ from shared.schemas.event import Event, EventTypes
 
 @pytest.mark.asyncio
 async def test_agent_init(mock_event_bus, mock_chat_service):
-    """验证 ChatAgent 初始化属性"""
+    """Verify ChatAgent initialization attributes."""
     from services.gateways.user_interaction.service.agent import ChatAgent
 
     agent = ChatAgent(db=MagicMock(), bus=mock_event_bus)
@@ -31,7 +31,7 @@ async def test_agent_init(mock_event_bus, mock_chat_service):
 
 @pytest.mark.asyncio
 async def test_handle_event_pm_response(mock_event_bus, mock_chat_service):
-    """验证 handle_event 处理 CHAT_PM_RESPONSE 事件，返回空列表"""
+    """Verify handle_event processes CHAT_PM_RESPONSE and returns no events."""
     from services.gateways.user_interaction.service.agent import ChatAgent, _hash_user_id
 
     agent = ChatAgent(db=MagicMock(), bus=mock_event_bus)
@@ -54,7 +54,7 @@ async def test_handle_event_pm_response(mock_event_bus, mock_chat_service):
 
 @pytest.mark.asyncio
 async def test_handle_request_chat(mock_event_bus, mock_chat_service):
-    """验证 handle_request action=chat 调用 chat service"""
+    """Verify handle_request action=chat calls the chat service."""
     from services.gateways.user_interaction.service.agent import ChatAgent
 
     agent = ChatAgent(db=MagicMock(), bus=mock_event_bus)
@@ -103,7 +103,7 @@ async def test_handle_request_chat_user_assistant(mock_event_bus, mock_chat_serv
 
 @pytest.mark.asyncio
 async def test_handle_request_clear_history(mock_event_bus, mock_chat_service):
-    """验证 handle_request action=clear_history 清除聊天历史"""
+    """Verify handle_request action=clear_history clears chat history."""
     from services.gateways.user_interaction.service.agent import ChatAgent
 
     agent = ChatAgent(db=MagicMock(), bus=mock_event_bus)
@@ -120,7 +120,7 @@ async def test_handle_request_clear_history(mock_event_bus, mock_chat_service):
 
 @pytest.mark.asyncio
 async def test_handle_request_unknown(mock_event_bus, mock_chat_service):
-    """验证 handle_request 未知 action 返回错误"""
+    """Verify handle_request returns an error for an unknown action."""
     from services.gateways.user_interaction.service.agent import ChatAgent
 
     agent = ChatAgent(db=MagicMock(), bus=mock_event_bus)
