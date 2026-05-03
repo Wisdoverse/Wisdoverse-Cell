@@ -16,6 +16,7 @@ from shared.core import (
 )
 from shared.utils.logger import get_logger
 
+from .card_ports import ToolCardRendererPort
 from .ops_logger import record_op
 
 # Redis for storing pending operation fields (SEC-103)
@@ -57,6 +58,7 @@ class ToolDependencies:
     bitable: BitableTablePort
     messenger: FeishuMessengerPort
     contact_lookup: FeishuContactLookupPort
+    card_renderer: ToolCardRendererPort
 
 
 _tool_dependencies: ToolDependencies | None = None
@@ -565,8 +567,6 @@ async def _handle_propose_bitable_update(
     record_id: str, fields: dict, context: dict,
     title: str = "", table_id: str = "",
 ) -> str:
-    from shared.integrations.feishu.cards.builder import CardBuilder, truncate_card_if_needed
-
     deps = _require_dependencies()
     user_id = context.get("user_id", "")
     chat_id = context.get("chat_id", "")
@@ -588,38 +588,13 @@ async def _handle_propose_bitable_update(
     # Build field summary for the card
     field_lines = _format_fields_display(fields)
 
-    action_value = {
-        "action": "confirm_bitable_update",
-        "action_id": action_id,
-    }
-
-    builder = (
-        CardBuilder()
-        .set_header("📝 表格修改确认", template="orange")
-        .add_markdown(f"**{title or record_id}**\n\n**修改内容**:\n{field_lines}")
-        .add_divider()
-        .add_action_buttons([
-            {
-                "tag": "button",
-                "text": {"tag": "plain_text", "content": "✓ 确认修改"},
-                "type": "primary",
-                "value": action_value,
-            },
-            {
-                "tag": "button",
-                "text": {"tag": "plain_text", "content": "✗ 取消"},
-                "type": "danger",
-                "value": {
-                    "action": "reject_bitable_update",
-                },
-            },
-        ])
+    card = deps.card_renderer.build_bitable_update_confirmation(
+        title=title,
+        record_id=record_id,
+        field_lines=field_lines,
+        action_id=action_id,
+        is_group_chat=chat_type == "group",
     )
-    if chat_type == "group":
-        builder.add_note("仅提议人可操作此卡片")
-    builder.add_note("点击按钮确认或取消此修改")
-    card = builder.build()
-    card = truncate_card_if_needed(card)
 
     card_content = json.dumps(card, ensure_ascii=False)
 
@@ -651,8 +626,6 @@ async def _handle_propose_bitable_update(
 
 @register_tool("propose_bitable_create")
 async def _handle_propose_bitable_create(fields: dict, context: dict, table_id: str = "") -> str:
-    from shared.integrations.feishu.cards.builder import CardBuilder, truncate_card_if_needed
-
     deps = _require_dependencies()
     user_id = context.get("user_id", "")
     chat_id = context.get("chat_id", "")
@@ -672,38 +645,11 @@ async def _handle_propose_bitable_create(fields: dict, context: dict, table_id: 
 
     field_lines = _format_fields_display(fields)
 
-    action_value = {
-        "action": "confirm_bitable_create",
-        "action_id": action_id,
-    }
-
-    builder = (
-        CardBuilder()
-        .set_header("📋 新建任务确认", template="blue")
-        .add_markdown(f"**新任务内容**:\n{field_lines}")
-        .add_divider()
-        .add_action_buttons([
-            {
-                "tag": "button",
-                "text": {"tag": "plain_text", "content": "✓ 确认创建"},
-                "type": "primary",
-                "value": action_value,
-            },
-            {
-                "tag": "button",
-                "text": {"tag": "plain_text", "content": "✗ 取消"},
-                "type": "danger",
-                "value": {
-                    "action": "reject_bitable_create",
-                },
-            },
-        ])
+    card = deps.card_renderer.build_bitable_create_confirmation(
+        field_lines=field_lines,
+        action_id=action_id,
+        is_group_chat=chat_type == "group",
     )
-    if chat_type == "group":
-        builder.add_note("仅提议人可操作此卡片")
-    builder.add_note("点击按钮确认或取消创建")
-    card = builder.build()
-    card = truncate_card_if_needed(card)
 
     card_content = json.dumps(card, ensure_ascii=False)
 

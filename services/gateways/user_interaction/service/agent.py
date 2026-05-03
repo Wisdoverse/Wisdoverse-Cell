@@ -11,6 +11,7 @@ from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
+from ..adapters.feishu_cards import FeishuToolCardRenderer
 from ..core.chat_service import ChatService
 from ..core.daily_tasks import (
     DailyTaskDependencies,
@@ -61,12 +62,14 @@ class ChatAgent(BaseAgent):
         logger.info("event_bus_connected")
 
         feishu_client = get_feishu_client()
+        card_renderer = FeishuToolCardRenderer()
         configure_tool_dependencies(
             ToolDependencies(
                 op_client=get_op_client(),
                 bitable=bitable_service,
                 messenger=feishu_client,
                 contact_lookup=feishu_client,
+                card_renderer=card_renderer,
             )
         )
         configure_daily_task_dependencies(

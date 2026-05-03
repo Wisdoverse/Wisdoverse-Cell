@@ -114,6 +114,20 @@ def test_agent_core_does_not_import_platform_adapters_directly() -> None:
                 )
 
 
+def test_gateway_core_does_not_import_platform_adapters_directly() -> None:
+    gateway_roots = [Path("services/gateways")]
+    for gateway_root in gateway_roots:
+        if not gateway_root.exists():
+            continue
+        for core_root in gateway_root.glob("*/core"):
+            for path in _python_files(core_root):
+                for module in _imported_modules(path):
+                    assert not module.startswith("shared.integrations"), (
+                        f"{path} imports platform adapter module {module}; "
+                        "inject a port or gateway-local adapter"
+                    )
+
+
 def test_frontend_routes_are_thin() -> None:
     route_root = Path("frontend/src/app/[locale]/(app)")
     forbidden = [

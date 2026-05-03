@@ -11,6 +11,39 @@ import pytest
 from shared.infra import event_bus as _event_bus_mod
 
 
+class FakeToolCardRenderer:
+    def build_bitable_update_confirmation(
+        self,
+        *,
+        title: str,
+        record_id: str,
+        field_lines: str,
+        action_id: str,
+        is_group_chat: bool,
+    ) -> dict:
+        return {
+            "kind": "update",
+            "title": title or record_id,
+            "field_lines": field_lines,
+            "action_id": action_id,
+            "is_group_chat": is_group_chat,
+        }
+
+    def build_bitable_create_confirmation(
+        self,
+        *,
+        field_lines: str,
+        action_id: str,
+        is_group_chat: bool,
+    ) -> dict:
+        return {
+            "kind": "create",
+            "field_lines": field_lines,
+            "action_id": action_id,
+            "is_group_chat": is_group_chat,
+        }
+
+
 @pytest.fixture
 def tool_dependencies():
     from services.gateways.user_interaction.core.tools import (
@@ -22,12 +55,14 @@ def tool_dependencies():
     mock_bitable = AsyncMock()
     mock_messenger = AsyncMock()
     mock_contact_lookup = AsyncMock()
+    card_renderer = FakeToolCardRenderer()
     configure_tool_dependencies(
         ToolDependencies(
             op_client=mock_op,
             bitable=mock_bitable,
             messenger=mock_messenger,
             contact_lookup=mock_contact_lookup,
+            card_renderer=card_renderer,
         )
     )
     yield {
@@ -35,6 +70,7 @@ def tool_dependencies():
         "bitable": mock_bitable,
         "messenger": mock_messenger,
         "contact_lookup": mock_contact_lookup,
+        "card_renderer": card_renderer,
     }
     configure_tool_dependencies(None)
 
