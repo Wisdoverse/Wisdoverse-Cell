@@ -6,7 +6,7 @@ from .base import Base
 
 
 class ReportLog(Base):
-    """分析报告日志"""
+    """Analysis report log."""
     __tablename__ = "analysis_agent_report_logs"
     __table_args__ = (
         CheckConstraint("report_type IN ('daily', 'weekly', 'milestone')", name="ck_report_type"),

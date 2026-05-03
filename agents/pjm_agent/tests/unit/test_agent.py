@@ -1,7 +1,7 @@
 """
 Unit Tests - PMAgent
 
-测试 PMAgent 的初始化、事件处理和请求处理逻辑。
+Tests PMAgent initialization, event handling, and request handling.
 """
 
 from unittest.mock import AsyncMock, MagicMock
@@ -35,7 +35,7 @@ def agent(mock_db_manager, mock_event_bus):
     from agents.pjm_agent.service.agent import PMAgent
 
     a = PMAgent(db=mock_db_manager, bus=mock_event_bus)
-    # 注入 mock 的 core 组件
+    # Inject mock core components.
     a._config = MagicMock()
     a._config.members = []
     a._config.projects = []
@@ -53,18 +53,18 @@ def agent(mock_db_manager, mock_event_bus):
 
 class TestAgentInit:
     def test_agent_id(self, agent):
-        """agent_id 应为 pjm-agent"""
+        """agent_id is pjm-agent."""
         assert agent.agent_id == "pjm-agent"
 
     def test_subscribed_events(self, agent):
-        """应订阅核心事件类型"""
+        """Agent subscribes to core event types."""
         assert EventTypes.SYNC_COMPLETED in agent.subscribed_events
         assert EventTypes.ANALYSIS_RISK_DETECTED in agent.subscribed_events
         assert EventTypes.CHAT_PM_QUERY in agent.subscribed_events
         assert len(agent.subscribed_events) >= 3
 
     def test_published_events(self, agent):
-        """应发布预警触发和聊天响应事件"""
+        """Agent publishes alert and chat response events."""
         assert EventTypes.PM_ALERT_TRIGGERED in agent.published_events
         assert EventTypes.CHAT_PM_RESPONSE in agent.published_events
         assert EventTypes.PM_DECOMPOSITION_FAILED in agent.published_events
@@ -77,7 +77,7 @@ class TestAgentInit:
 class TestHandleEvent:
     @pytest.mark.asyncio
     async def test_handle_event_sync_completed(self, agent):
-        """收到 sync.completed 事件后应执行预警检查"""
+        """sync.completed triggers alert checks."""
         agent._alert.check_all.return_value = [
             {"type": "deadline", "severity": "critical", "task": "T1", "message": "已逾期 2 天"},
         ]
@@ -98,7 +98,7 @@ class TestHandleEvent:
 
     @pytest.mark.asyncio
     async def test_handle_event_sync_completed_no_alerts(self, agent):
-        """无预警时不应产生 PM_ALERT_TRIGGERED 事件"""
+        """No PM_ALERT_TRIGGERED event is produced when there are no alerts."""
         agent._alert.check_all.return_value = []
 
         event = Event.create(
@@ -115,7 +115,7 @@ class TestHandleEvent:
 
     @pytest.mark.asyncio
     async def test_handle_event_risk_detected(self, agent):
-        """收到 analysis.risk-detected 事件后应记录风险"""
+        """analysis.risk-detected records risk information."""
         event = Event.create(
             event_type=EventTypes.ANALYSIS_RISK_DETECTED,
             source_agent="analysis-agent",
@@ -125,12 +125,12 @@ class TestHandleEvent:
 
         result_events = await agent.handle_event(event)
 
-        # _handle_risks 只做日志记录，不产生新事件
+        # _handle_risks only logs and produces no new events.
         assert result_events == []
 
     @pytest.mark.asyncio
     async def test_handle_event_chat_query(self, agent):
-        """收到 chat.pm-query 事件后应返回 PM 响应事件"""
+        """chat.pm-query returns a PM response event."""
         agent._config.members = [{"name": "Alice"}]
         agent._config.projects = [{"name": "P1"}]
         agent._alert.check_all.return_value = [
@@ -153,7 +153,7 @@ class TestHandleEvent:
 
     @pytest.mark.asyncio
     async def test_handle_event_unknown_type(self, agent):
-        """未知事件类型应返回空列表"""
+        """Unknown event types return an empty list."""
         event = Event.create(
             event_type="unknown.event",
             source_agent="other-agent",
@@ -188,7 +188,7 @@ class TestHandleEvent:
 class TestHandleRequest:
     @pytest.mark.asyncio
     async def test_handle_request_config(self, agent):
-        """action=config 应返回配置信息"""
+        """action=config returns configuration information."""
         agent._config.members = [{"name": "Alice"}]
         agent._config.projects = [{"name": "P1"}]
         agent._config.rules = {"截止日期预警天数": "3"}
@@ -201,7 +201,7 @@ class TestHandleRequest:
 
     @pytest.mark.asyncio
     async def test_handle_request_alerts(self, agent):
-        """action=alerts 应返回预警列表"""
+        """action=alerts returns the alert list."""
         agent._alert.check_all.return_value = [
             {"type": "deadline", "severity": "critical", "task": "T1", "message": "已逾期"},
             {"type": "blocked", "severity": "warning", "task": "T2", "message": "阻塞"},
@@ -215,7 +215,7 @@ class TestHandleRequest:
 
     @pytest.mark.asyncio
     async def test_handle_request_refresh(self, agent):
-        """action=refresh_config 应刷新配置"""
+        """action=refresh_config refreshes configuration."""
         result = await agent.handle_request({"action": "refresh_config"})
 
         assert result["status"] == "refreshed"
@@ -223,13 +223,13 @@ class TestHandleRequest:
 
     @pytest.mark.asyncio
     async def test_handle_request_unknown(self, agent):
-        """未知 action 应返回 error"""
+        """Unknown action returns an error."""
         result = await agent.handle_request({"action": "nonexistent"})
         assert "error" in result
         assert result["error"] == "unknown action"
 
     @pytest.mark.asyncio
     async def test_handle_request_no_action(self, agent):
-        """无 action 字段应返回 error"""
+        """Missing action returns an error."""
         result = await agent.handle_request({})
         assert "error" in result

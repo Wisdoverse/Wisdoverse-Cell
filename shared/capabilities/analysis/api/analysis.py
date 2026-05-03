@@ -1,4 +1,4 @@
-"""AnalysisAgent API - 分析报告 HTTP 端点"""
+"""AnalysisAgent API - analysis report HTTP endpoints."""
 from fastapi import APIRouter, HTTPException
 
 from shared.utils.logger import get_logger
@@ -12,7 +12,7 @@ logger = get_logger("analysis_agent.api")
 
 @router.post("/daily", response_model=DailyReportResponse)
 async def generate_daily():
-    """手动触发日报生成"""
+    """Manually trigger daily report generation."""
     agent = get_agent()
     try:
         result = await agent.handle_request({"action": "daily_report"})
@@ -24,7 +24,7 @@ async def generate_daily():
 
 @router.post("/weekly", response_model=WeeklyReportResponse)
 async def generate_weekly():
-    """手动触发周报生成"""
+    """Manually trigger weekly report generation."""
     agent = get_agent()
     try:
         result = await agent.handle_request({"action": "weekly_report"})
@@ -36,7 +36,7 @@ async def generate_weekly():
 
 @router.get("/risks", response_model=RiskCheckResponse)
 async def check_risks():
-    """检查里程碑风险"""
+    """Check milestone risks."""
     agent = get_agent()
     try:
         result = await agent.handle_request({"action": "check_milestones"})

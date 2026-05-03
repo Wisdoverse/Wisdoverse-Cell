@@ -144,7 +144,7 @@ class AnalysisAgent(BaseAgent):
         events = []
         trace_id = event.metadata.trace_id
 
-        # 1. 日报
+        # 1. Daily report.
         try:
             report = await self._daily.generate()
             await self._daily.push_to_chat(report["content"])
@@ -158,7 +158,7 @@ class AnalysisAgent(BaseAgent):
         except Exception as e:
             logger.error("daily_report_failed", error=str(e))
 
-        # 2. 里程碑风险
+        # 2. Milestone risks.
         try:
             risks = await self._milestone.check()
             if risks:
@@ -174,7 +174,7 @@ class AnalysisAgent(BaseAgent):
         except Exception as e:
             logger.error("milestone_check_failed", error=str(e))
 
-        # 3. 交付物质量评估
+        # 3. Deliverable quality evaluation.
         try:
             results = await self._quality.evaluate_all()
             if results:
@@ -186,7 +186,7 @@ class AnalysisAgent(BaseAgent):
         except Exception as e:
             logger.error("quality_eval_failed", error=str(e))
 
-        # 4. 周五生成周报
+        # 4. Generate a weekly report on Friday.
         if datetime.now(_CHINA_TZ).weekday() == 4:
             try:
                 report = await self._weekly.generate()

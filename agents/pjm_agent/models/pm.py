@@ -7,7 +7,7 @@ from .base import Base
 
 
 class AlertLog(Base):
-    """预警日志"""
+    """Alert log."""
 
     __tablename__ = "pjm_agent_alert_logs"
     __table_args__ = (
@@ -26,7 +26,7 @@ class AlertLog(Base):
 
 
 class PMConfigCache(Base):
-    """PJM 配置缓存"""
+    """PJM configuration cache."""
 
     __tablename__ = "pjm_agent_config_cache"
     __table_args__ = (
@@ -44,7 +44,7 @@ class PMConfigCache(Base):
 
 
 class DecompositionRecord(Base):
-    """任务拆解记录"""
+    """Task decomposition record."""
 
     __tablename__ = "pjm_agent_decomposition_records"
     __table_args__ = (

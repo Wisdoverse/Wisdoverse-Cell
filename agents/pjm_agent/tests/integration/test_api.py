@@ -1,7 +1,7 @@
 """
 Integration Tests - PMAgent API
 
-使用 httpx.AsyncClient 测试 pjm_agent 的 HTTP 端点。
+Tests pjm_agent HTTP endpoints with httpx.AsyncClient.
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -12,7 +12,7 @@ from httpx import ASGITransport, AsyncClient
 
 @pytest.fixture
 def mock_agent():
-    """模拟 PMAgent 实例"""
+    """Mock PMAgent instance."""
     agent = MagicMock()
     agent.agent_id = "pjm-agent-test"
     agent._db_manager = None
@@ -25,7 +25,7 @@ def mock_agent():
 
 @pytest.fixture
 def test_app(mock_agent):
-    """创建不启动 lifespan 的测试 app"""
+    """Create a test app without starting lifespan."""
     with (
         patch("agents.pjm_agent.api.pm.get_agent", return_value=mock_agent),
         patch("agents.pjm_agent.app.main.agent", mock_agent),
@@ -65,7 +65,7 @@ def test_app(mock_agent):
 
 @pytest.mark.asyncio
 async def test_health_endpoint(test_app):
-    """GET /health 应返回 alive"""
+    """GET /health returns alive."""
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/health")
@@ -77,14 +77,14 @@ async def test_health_endpoint(test_app):
 
 @pytest.mark.asyncio
 async def test_readiness_endpoint(test_app, mock_agent):
-    """GET /health/ready 应返回就绪状态"""
+    """GET /health/ready returns readiness state."""
     mock_agent._db_manager = MagicMock()
     mock_agent._event_bus = MagicMock()
 
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/health/ready")
-    # scheduler 为 False，所以 all_ok 为 False → 503
+    # scheduler is False, so all_ok is False and returns 503.
     assert resp.status_code == 503
     data = resp.json()
     assert "checks" in data
@@ -92,7 +92,7 @@ async def test_readiness_endpoint(test_app, mock_agent):
 
 @pytest.mark.asyncio
 async def test_readiness_degraded(test_app, mock_agent):
-    """数据库不可用时应返回 degraded"""
+    """Database unavailability returns degraded."""
     mock_agent._db_manager = None
     mock_agent._event_bus = None
 
@@ -106,7 +106,7 @@ async def test_readiness_degraded(test_app, mock_agent):
 
 @pytest.mark.asyncio
 async def test_config_endpoint(test_app, mock_agent):
-    """GET /api/v1/pm/config 应返回 PM 配置"""
+    """GET /api/v1/pm/config returns PM configuration."""
     mock_agent.handle_request.return_value = {
         "members": [{"name": "Alice"}],
         "projects": [{"name": "P1"}],
@@ -125,7 +125,7 @@ async def test_config_endpoint(test_app, mock_agent):
 
 @pytest.mark.asyncio
 async def test_alerts_endpoint(test_app, mock_agent):
-    """GET /api/v1/pm/alerts 应返回预警列表"""
+    """GET /api/v1/pm/alerts returns alert list."""
     mock_agent.handle_request.return_value = {
         "alerts": [
             {"type": "deadline", "task": "T1", "message": "已逾期 2 天", "severity": "critical"},
@@ -145,7 +145,7 @@ async def test_alerts_endpoint(test_app, mock_agent):
 
 @pytest.mark.asyncio
 async def test_config_endpoint_error(test_app, mock_agent):
-    """配置获取失败时应返回 500"""
+    """Configuration retrieval failure returns 500."""
     mock_agent.handle_request.side_effect = Exception("bitable error")
 
     transport = ASGITransport(app=test_app)
@@ -157,7 +157,7 @@ async def test_config_endpoint_error(test_app, mock_agent):
 
 @pytest.mark.asyncio
 async def test_alerts_endpoint_empty(test_app, mock_agent):
-    """无预警时应返回空列表"""
+    """No alerts returns an empty list."""
     mock_agent.handle_request.return_value = {"alerts": []}
 
     transport = ASGITransport(app=test_app)

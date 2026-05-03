@@ -1,4 +1,4 @@
-"""PMAgent API - PM 预警 HTTP 端点"""
+"""PMAgent API - PM alert HTTP endpoints."""
 
 from fastapi import APIRouter, HTTPException
 
@@ -20,7 +20,7 @@ logger = get_logger("pjm_agent.api")
 
 @router.get("/config", response_model=PMConfigResponse)
 async def get_config():
-    """获取 PM 配置"""
+    """Get PM configuration."""
     agent = get_agent()
     try:
         result = await agent.handle_request({"action": "config"})
@@ -32,7 +32,7 @@ async def get_config():
 
 @router.post("/config/refresh", response_model=ConfigRefreshResponse)
 async def refresh_config():
-    """刷新 PM 配置"""
+    """Refresh PM configuration."""
     agent = get_agent()
     try:
         result = await agent.handle_request({"action": "refresh_config"})
@@ -44,7 +44,7 @@ async def refresh_config():
 
 @router.get("/alerts", response_model=AlertListResponse)
 async def get_alerts():
-    """获取当前预警"""
+    """Get current alerts."""
     agent = get_agent()
     try:
         result = await agent.handle_request({"action": "alerts"})
@@ -57,7 +57,7 @@ async def get_alerts():
 
 @router.post("/report/daily")
 async def trigger_daily_report():
-    """手动触发日报"""
+    """Manually trigger a daily report."""
     agent = get_agent()
     result = await agent.handle_request({"action": "daily_report"})
     if result.get("error"):
@@ -67,7 +67,7 @@ async def trigger_daily_report():
 
 @router.post("/report/weekly")
 async def trigger_weekly_report():
-    """手动触发周报"""
+    """Manually trigger a weekly report."""
     agent = get_agent()
     result = await agent.handle_request({"action": "weekly_report"})
     if result.get("error"):
@@ -77,7 +77,7 @@ async def trigger_weekly_report():
 
 @router.post("/decompose/{wp_id}/retry")
 async def retry_decomposition(wp_id: int):
-    """重试失败的拆解"""
+    """Retry a failed decomposition."""
     agent = get_agent()
     result = await agent.handle_request({"action": "retry_decompose", "wp_id": wp_id})
     if result.get("error"):
@@ -87,7 +87,7 @@ async def retry_decomposition(wp_id: int):
 
 @router.get("/decompose/{wp_id}", response_model=DecomposeStatusResponse)
 async def get_decomposition(wp_id: int):
-    """查询拆解状态"""
+    """Query decomposition status."""
     agent = get_agent()
     result = await agent.handle_request({"action": "get_decompose", "wp_id": wp_id})
     if not result:
@@ -97,7 +97,7 @@ async def get_decomposition(wp_id: int):
 
 @router.post("/decompose/{wp_id}/approve", response_model=DecomposeActionResponse)
 async def approve_decomposition(wp_id: int, body: DecomposeActionRequest):
-    """批准拆解，写入 OP"""
+    """Approve decomposition and write to OpenProject."""
     agent = get_agent()
     result = await agent.approve_decomposition(wp_id, approved_by=body.operator or "api")
     if result is None:
@@ -115,7 +115,7 @@ async def approve_decomposition(wp_id: int, body: DecomposeActionRequest):
 
 @router.post("/decompose/{wp_id}/reject", response_model=DecomposeActionResponse)
 async def reject_decomposition(wp_id: int, body: DecomposeActionRequest):
-    """拒绝拆解"""
+    """Reject decomposition."""
     agent = get_agent()
     result = await agent.reject_decomposition(wp_id, rejected_by=body.operator or "api")
     if result is None:
