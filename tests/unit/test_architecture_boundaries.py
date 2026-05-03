@@ -191,6 +191,16 @@ def test_feishu_card_renderers_live_in_shared_integrations() -> None:
             )
 
 
+def test_qa_core_uses_card_renderer_port_for_feishu_payloads() -> None:
+    """QA core must not construct concrete Feishu card payloads directly."""
+    path = Path("agents/qa_agent/core/notifier.py")
+    text = path.read_text()
+
+    assert '"msg_type": "interactive"' not in text
+    assert "shared.integrations.feishu" not in text
+    assert ".card_ports" in text
+
+
 def test_sync_core_does_not_read_global_settings() -> None:
     root = Path("shared/capabilities/sync/core")
     for path in _python_files(root):

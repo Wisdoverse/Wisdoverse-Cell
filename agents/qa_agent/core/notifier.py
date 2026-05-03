@@ -15,6 +15,8 @@ from shared.infra.event_bus import EventBus, event_bus
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
+from .card_ports import QualityCardRendererPort
+
 logger = get_logger("qa_agent.notifier")
 
 
@@ -26,10 +28,12 @@ class QANotifier:
         bus: EventBus | None = None,
         gitlab: GitLabMergeRequestNotePort | None = None,
         feishu_webhook: FeishuWebhookPort | None = None,
+        card_renderer: QualityCardRendererPort | None = None,
     ):
         self._bus = bus or event_bus
         self._gitlab = gitlab
         self._feishu_webhook = feishu_webhook
+        self._card_renderer = card_renderer
 
     async def notify_all(
         self,
@@ -193,55 +197,17 @@ class QANotifier:
             return {"sent": False, "reason": "no_webhook"}
         if not self._feishu_webhook:
             return {"sent": False, "reason": "no_webhook_adapter"}
+        if not self._card_renderer:
+            return {"sent": False, "reason": "no_card_renderer"}
 
-        l0 = summary.get("l0_gate", "?")
-        l1 = summary.get("l1_check", "?")
-        status_emoji = "\u274c" if l0 == "FAIL" else "\u26a0\ufe0f"
-
-        failure_lines = []
-        for f in findings[:5]:
-            if f.get("status") not in ("FAIL", "WARN"):
-                continue
-            loc = f.get("file", "")
-            if f.get("line"):
-                loc += f":{f['line']}"
-            failure_lines.append(
-                f"- [{f.get('level')}] **{f.get('check')}**: "
-                f"{(f.get('details') or '')[:60]} `{loc}`"
-            )
-
-        mr_link = ""
-        gitlab_url = settings.gitlab_api_url.replace("/api/v4", "")
-        if mr_iid and gitlab_url and settings.gitlab_project_id:
-            mr_link = (
-                f"\n[MR !{mr_iid}]"
-                f"({gitlab_url}/{settings.gitlab_project_id}/"
-                f"-/merge_requests/{mr_iid})"
-            )
-
-        card = {
-            "msg_type": "interactive",
-            "card": {
-                "header": {
-                    "title": {
-                        "tag": "plain_text",
-                        "content": (f"{status_emoji} QA: {agent_name} L0={l0} L1={l1}"),
-                    },
-                    "template": "red" if l0 == "FAIL" else "orange",
-                },
-                "elements": [
-                    {
-                        "tag": "markdown",
-                        "content": (
-                            f"**Agent**: {agent_name}\n"
-                            f"**L0**: {l0} | **L1**: {l1}\n\n"
-                            + ("\n".join(failure_lines) or "No issues")
-                            + mr_link
-                        ),
-                    },
-                ],
-            },
-        }
+        card = self._card_renderer.build_acceptance_alert_message(
+            agent_name=agent_name,
+            summary=summary,
+            findings=findings,
+            mr_iid=mr_iid,
+            gitlab_api_url=settings.gitlab_api_url,
+            gitlab_project_id=settings.gitlab_project_id,
+        )
 
         try:
             ok = await self._feishu_webhook.send_interactive_card(

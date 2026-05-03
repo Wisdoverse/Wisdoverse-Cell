@@ -8,6 +8,7 @@ from .decomposition import (
     build_task_refinement_approval_card,
 )
 from .pjm import FeishuPJMCardRenderer
+from .quality import FeishuQualityCardRenderer
 from .requirement import (
     FeishuRequirementCardRenderer,
     build_batch_confirmation_card,
@@ -26,6 +27,7 @@ from .tools import FeishuToolCardRenderer
 __all__ = [
     "CardBuilder",
     "FeishuPJMCardRenderer",
+    "FeishuQualityCardRenderer",
     "FeishuRequirementCardRenderer",
     "FeishuToolCardRenderer",
     "build_batch_confirmation_card",

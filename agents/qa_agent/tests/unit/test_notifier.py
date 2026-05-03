@@ -7,6 +7,24 @@ import pytest
 from agents.qa_agent.core.notifier import QANotifier
 
 
+class FakeQualityCardRenderer:
+    def __init__(self):
+        self.calls = []
+
+    def build_acceptance_alert_message(self, **kwargs):
+        self.calls.append(kwargs)
+        return {
+            "msg_type": "interactive",
+            "card": {
+                "header": {
+                    "title": {"tag": "plain_text", "content": "QA alert"},
+                    "template": "red",
+                },
+                "elements": [],
+            },
+        }
+
+
 @pytest.fixture
 def mock_bus():
     bus = AsyncMock()
@@ -29,11 +47,17 @@ def mock_feishu_webhook():
 
 
 @pytest.fixture
-def notifier(mock_bus, mock_gitlab, mock_feishu_webhook):
+def card_renderer():
+    return FakeQualityCardRenderer()
+
+
+@pytest.fixture
+def notifier(mock_bus, mock_gitlab, mock_feishu_webhook, card_renderer):
     return QANotifier(
         bus=mock_bus,
         gitlab=mock_gitlab,
         feishu_webhook=mock_feishu_webhook,
+        card_renderer=card_renderer,
     )
 
 
@@ -97,6 +121,7 @@ class TestFeishuNotification:
         mock_gitlab,
         mock_feishu_webhook,
     ):
+        card_renderer = FakeQualityCardRenderer()
         mock_settings.qa_feishu_webhook_url = "https://hook.example.com"
         mock_settings.feishu_webhook_url = ""
         mock_settings.qa_high_severity_check_list = []
@@ -106,6 +131,7 @@ class TestFeishuNotification:
             bus=mock_bus,
             gitlab=mock_gitlab,
             feishu_webhook=mock_feishu_webhook,
+            card_renderer=card_renderer,
         )
 
         result = await notifier.notify_all(
@@ -118,6 +144,7 @@ class TestFeishuNotification:
 
         assert result["feishu"]["sent"] is True
         mock_feishu_webhook.send_interactive_card.assert_called_once()
+        assert card_renderer.calls[0]["agent_name"] == "pjm_agent"
 
 
 class TestGitLabComment:
