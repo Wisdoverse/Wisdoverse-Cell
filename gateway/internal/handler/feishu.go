@@ -171,15 +171,15 @@ func (h *FeishuHandler) handleMessageEvent(c *gin.Context, req *feishu.WebhookRe
 		if err != nil {
 			h.logger.Warn("dedup check failed", zap.Error(err))
 		} else if isDup {
-			h.logger.Debug("duplicate message ignored", zap.String("message_id", msg.MessageID))
+			h.logger.Debug("duplicate message ignored", zap.String("message_id_hash", shortLogHash(msg.MessageID)))
 			c.JSON(http.StatusOK, gin.H{"code": 0})
 			return
 		}
 	}
 
 	h.logger.Info("message received",
-		zap.String("message_id", msg.MessageID),
-		zap.String("chat_id", msg.ChatID),
+		zap.String("message_id_hash", shortLogHash(msg.MessageID)),
+		zap.String("chat_id_hash", shortLogHash(msg.ChatID)),
 		zap.String("message_type", msg.MessageType),
 	)
 
@@ -197,11 +197,12 @@ func (h *FeishuHandler) handleMessageEvent(c *gin.Context, req *feishu.WebhookRe
 	// Try to match a skill
 	match := h.matcher.Match(content)
 	if match != nil {
-		h.logger.Info("skill matched",
+		fields := []zap.Field{
 			zap.String("skill", match.SkillName),
 			zap.String("match_type", match.MatchType),
-			zap.Any("params", match.Parameters),
-		)
+		}
+		fields = append(fields, stringMapSummaryFields("params", match.Parameters)...)
+		h.logger.Info("skill matched", fields...)
 
 		// Execute skill via gRPC
 		h.executeSkill(c, match, &event)
@@ -209,7 +210,10 @@ func (h *FeishuHandler) handleMessageEvent(c *gin.Context, req *feishu.WebhookRe
 	}
 
 	// No skill matched - forward to chat-agent
-	h.logger.Info("no skill matched, forwarding to chat-agent", zap.String("content", content))
+	h.logger.Info("no skill matched, forwarding to chat-agent",
+		zap.String("content_hash", shortLogHash(content)),
+		zap.Int("content_len", len(content)),
+	)
 	h.forwardToChatAgent(c)
 }
 
@@ -581,8 +585,10 @@ func (h *FeishuHandler) handleCardActionTrigger(c *gin.Context, req *feishu.Webh
 	}
 
 	h.logger.Info("card action trigger",
-		zap.String("operator", event.Operator.OpenID),
-		zap.Any("value", event.Action.Value),
+		zap.String("operator_hash", shortLogHash(event.Operator.OpenID)),
+	)
+	h.logger.Debug("card action trigger value",
+		mapSummaryFields("value", event.Action.Value)...,
 	)
 
 	actx := &cardActionContext{
@@ -613,8 +619,11 @@ func (h *FeishuHandler) handleCardAction(c *gin.Context, req *feishu.WebhookRequ
 	}
 
 	h.logger.Info("card action",
-		zap.String("user_id", action.UserID),
-		zap.Any("value", action.Action.Value),
+		zap.String("user_id_hash", shortLogHash(action.UserID)),
+		zap.String("open_id_hash", shortLogHash(action.OpenID)),
+	)
+	h.logger.Debug("card action value",
+		mapSummaryFields("value", action.Action.Value)...,
 	)
 
 	actx := &cardActionContext{
@@ -732,7 +741,7 @@ func (h *FeishuHandler) forwardBitableConfirm(recordID string, value map[string]
 		// instead of an error so the user knows the operation is still running.
 		if ctx.Err() == context.DeadlineExceeded {
 			h.logger.Warn("bitable confirm timed out, returning processing card",
-				zap.String("record_id", recordID))
+				zap.String("record_id_hash", shortLogHash(recordID)))
 			return buildProcessingCard()
 		}
 		h.logger.Error("bitable confirm forward failed", zap.Error(err))
@@ -754,7 +763,9 @@ func (h *FeishuHandler) forwardBitableConfirm(recordID string, value map[string]
 
 	// Check HTTP status before parsing — non-200 responses are error JSON, not cards
 	if resp.StatusCode != http.StatusOK {
-		h.logger.Error("bitable confirm bad status", zap.Int("status", resp.StatusCode), zap.String("body", string(respBody)))
+		fields := []zap.Field{zap.Int("status", resp.StatusCode)}
+		fields = append(fields, bytesFingerprintFields("body", respBody)...)
+		h.logger.Error("bitable confirm bad status", fields...)
 		return feishu.NewCardBuilder().
 			SetHeader("⚠️ 操作失败", "red").
 			AddMarkdown(fmt.Sprintf("更新服务返回错误 (HTTP %d)", resp.StatusCode)).
@@ -772,14 +783,14 @@ func (h *FeishuHandler) forwardBitableConfirm(recordID string, value map[string]
 
 	// Guard against empty card from round-trip (would cause Feishu 200340)
 	if card.Header == nil && len(card.Elements) == 0 {
-		h.logger.Error("bitable confirm returned empty card", zap.String("body", string(respBody)))
+		h.logger.Error("bitable confirm returned empty card", bytesFingerprintFields("body", respBody)...)
 		return feishu.NewCardBuilder().
 			SetHeader("⚠️ 操作失败", "red").
 			AddMarkdown("更新服务返回了空响应").
 			Build()
 	}
 
-	h.logger.Info("bitable confirm forwarded", zap.String("record_id", recordID))
+	h.logger.Info("bitable confirm forwarded", zap.String("record_id_hash", shortLogHash(recordID)))
 	return &card
 }
 
@@ -850,7 +861,9 @@ func (h *FeishuHandler) forwardBitableCreate(value map[string]interface{}, opera
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		h.logger.Error("bitable create bad status", zap.Int("status", resp.StatusCode), zap.String("body", string(respBody)))
+		fields := []zap.Field{zap.Int("status", resp.StatusCode)}
+		fields = append(fields, bytesFingerprintFields("body", respBody)...)
+		h.logger.Error("bitable create bad status", fields...)
 		return feishu.NewCardBuilder().
 			SetHeader("⚠️ 操作失败", "red").
 			AddMarkdown(fmt.Sprintf("创建服务返回错误 (HTTP %d)", resp.StatusCode)).
@@ -867,7 +880,7 @@ func (h *FeishuHandler) forwardBitableCreate(value map[string]interface{}, opera
 	}
 
 	if card.Header == nil && len(card.Elements) == 0 {
-		h.logger.Error("bitable create returned empty card", zap.String("body", string(respBody)))
+		h.logger.Error("bitable create returned empty card", bytesFingerprintFields("body", respBody)...)
 		return feishu.NewCardBuilder().
 			SetHeader("⚠️ 操作失败", "red").
 			AddMarkdown("创建服务返回了空响应").
@@ -1000,10 +1013,9 @@ func (h *FeishuHandler) forwardDecompositionAction(wpID int, action string, oper
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		h.logger.Error("decomposition action bad status",
-			zap.Int("status", resp.StatusCode),
-			zap.String("body", string(respBody)),
-		)
+		fields := []zap.Field{zap.Int("status", resp.StatusCode)}
+		fields = append(fields, bytesFingerprintFields("body", respBody)...)
+		h.logger.Error("decomposition action bad status", fields...)
 		return feishu.NewCardBuilder().
 			SetHeader("⚠️ 操作失败", "red").
 			AddMarkdown(fmt.Sprintf("PJM Agent 返回错误 (HTTP %d)", resp.StatusCode)).

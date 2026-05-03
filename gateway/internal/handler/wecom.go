@@ -76,7 +76,7 @@ func (h *WecomHandler) handleURLVerification(c *gin.Context) {
 
 	h.logger.Info("wecom url verification",
 		zap.String("timestamp", timestamp),
-		zap.String("nonce", nonce),
+		zap.String("nonce_hash", shortLogHash(nonce)),
 	)
 
 	plainText, err := h.crypto.VerifyURL(msgSignature, timestamp, nonce, echoStr)
@@ -128,16 +128,16 @@ func (h *WecomHandler) handleMessage(c *gin.Context) {
 		if err != nil {
 			h.logger.Warn("dedup check failed", zap.Error(err))
 		} else if isDup {
-			h.logger.Debug("duplicate message ignored", zap.String("msg_id", msgID))
+			h.logger.Debug("duplicate message ignored", zap.String("msg_id_hash", shortLogHash(msgID)))
 			c.String(http.StatusOK, "success")
 			return
 		}
 	}
 
 	h.logger.Info("wecom message received",
-		zap.String("from", msg.FromUserName),
+		zap.String("from_hash", shortLogHash(msg.FromUserName)),
 		zap.String("type", msg.MsgType),
-		zap.Int64("msg_id", msg.MsgID),
+		zap.String("msg_id_hash", shortLogHash(msgID)),
 	)
 
 	// Handle different message types
@@ -177,7 +177,10 @@ func (h *WecomHandler) handleTextMessage(c *gin.Context, msg *wecom.ReceivedMess
 		return
 	}
 
-	h.logger.Debug("no skill matched", zap.String("content", content))
+	h.logger.Debug("no skill matched",
+		zap.String("content_hash", shortLogHash(content)),
+		zap.Int("content_len", len(content)),
+	)
 	c.String(http.StatusOK, "success")
 }
 
@@ -185,7 +188,7 @@ func (h *WecomHandler) handleTextMessage(c *gin.Context, msg *wecom.ReceivedMess
 func (h *WecomHandler) handleEvent(c *gin.Context, msg *wecom.ReceivedMessage) {
 	h.logger.Info("wecom event",
 		zap.String("event", msg.Event),
-		zap.String("event_key", msg.EventKey),
+		zap.String("event_key_hash", shortLogHash(msg.EventKey)),
 	)
 
 	switch msg.Event {
