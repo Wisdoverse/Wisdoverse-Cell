@@ -170,7 +170,7 @@ class FeishuClient:
         logger.info(
             "feishu_card_sent",
             receive_id_hash=hash_identifier(receive_id),
-            message_id=response.data.message_id,
+            message_hash=hash_identifier(response.data.message_id),
         )
         return response.data.message_id
 
@@ -215,7 +215,7 @@ class FeishuClient:
             "feishu_message_sent",
             receive_id_hash=hash_identifier(receive_id),
             msg_type=msg_type,
-            message_id=response.data.message_id,
+            message_hash=hash_identifier(response.data.message_id),
         )
         return response.data.message_id
 
@@ -245,7 +245,7 @@ class FeishuClient:
         )
         response = await self._sdk.im.v1.message.apatch(request)
         self._check_response(response, "update_card")
-        logger.info("feishu_card_updated", message_id=message_id)
+        logger.info("feishu_card_updated", message_hash=hash_identifier(message_id))
         return True
 
     @feishu_error_handler("reply_message")
@@ -319,7 +319,11 @@ class FeishuClient:
             if not response.success():
                 logger.warning("feishu_add_reaction_failed", code=response.code, msg=response.msg)
                 return False
-            logger.info("feishu_reaction_added", message_id=message_id, emoji=emoji_type)
+            logger.info(
+                "feishu_reaction_added",
+                message_hash=hash_identifier(message_id),
+                emoji=emoji_type,
+            )
             return True
         except Exception as e:
             logger.warning("feishu_add_reaction_error", error=str(e))

@@ -114,7 +114,7 @@ class UnifiedGateway:
         logger.info(
             "message_received",
             platform=platform.value,
-            message_id=message.message_id,
+            message_hash=hash_identifier(message.message_id),
             chat_hash=hash_identifier(message.chat_id),
             content_length=len(message.content or ""),
         )
@@ -239,8 +239,8 @@ class UnifiedGateway:
             logger.info(
                 "card_sent",
                 platform=platform.value,
-                chat_id=chat_id,
-                message_id=message_id,
+                chat_hash=hash_identifier(chat_id),
+                message_hash=hash_identifier(message_id),
             )
             return message_id
         except Exception as e:
@@ -274,8 +274,8 @@ class UnifiedGateway:
             logger.info(
                 "text_sent",
                 platform=platform.value,
-                chat_id=chat_id,
-                message_id=message_id,
+                chat_hash=hash_identifier(chat_id),
+                message_hash=hash_identifier(message_id),
             )
             return message_id
         except Exception as e:
@@ -297,7 +297,11 @@ class UnifiedGateway:
             elif response.text:
                 await adapter.send_text(chat_id, response.text)
         except Exception as e:
-            logger.error("send_response_error", error=str(e), chat_id=chat_id)
+            logger.error(
+                "send_response_error",
+                error=str(e),
+                chat_hash=hash_identifier(chat_id),
+            )
 
     async def _handle_action_response(
         self,

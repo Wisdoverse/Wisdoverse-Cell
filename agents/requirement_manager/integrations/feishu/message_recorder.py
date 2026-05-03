@@ -57,7 +57,7 @@ class MessageRecorder:
 
         # 1. Whitelist check
         if not self._is_monitored_chat(chat_id):
-            logger.debug("message_skipped_not_monitored", chat_id=chat_id)
+            logger.debug("message_skipped_not_monitored", chat_hash=hash_identifier(chat_id))
             return None
 
         # 2. Message type filter
@@ -67,7 +67,10 @@ class MessageRecorder:
 
         # 3. Dedup check
         if await self._exists(message_id):
-            logger.debug("message_skipped_duplicate", message_id=message_id)
+            logger.debug(
+                "message_skipped_duplicate",
+                message_hash=hash_identifier(message_id),
+            )
             return None
 
         # 4. Extract content
@@ -107,8 +110,8 @@ class MessageRecorder:
 
         logger.info(
             "message_recorded",
-            message_id=message_id,
-            chat_id=chat_id,
+            message_hash=hash_identifier(message_id),
+            chat_hash=hash_identifier(chat_id),
             session_id=session_id,
             message_type=message_type,
         )

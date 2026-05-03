@@ -4,6 +4,7 @@ import json
 
 from shared.config import settings
 from shared.core import FeishuMessengerPort
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 logger = get_logger("pjm_agent.push")
@@ -21,10 +22,10 @@ class PushService:
                 msg_type=msg_type,
                 content=content,
             )
-            logger.info("push_sent", chat_id=chat_id)
+            logger.info("push_sent", chat_hash=hash_identifier(chat_id))
             return True
         except Exception as e:
-            logger.error("push_failed", chat_id=chat_id, error=str(e))
+            logger.error("push_failed", chat_hash=hash_identifier(chat_id), error=str(e))
             return False
 
     async def push_risks(self, risks: list[dict]) -> bool:

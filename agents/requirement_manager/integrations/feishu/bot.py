@@ -60,7 +60,7 @@ class BotHandler:
 
         logger.info(
             "bot_message_received",
-            message_id=message_id,
+            message_hash=hash_identifier(message_id),
             chat_hash=hash_identifier(chat_id),
             content_length=len(content),
         )

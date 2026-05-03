@@ -7,6 +7,7 @@ from shared.messaging.outbound.models.events import (
     MessageOutboundPayload,
 )
 from shared.messaging.outbound.models.messages import DeliveryResult, OutboundMessage
+from shared.observability.privacy import hash_identifier
 from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
@@ -54,7 +55,7 @@ async def handle_message_outbound(
 
     logger.info(
         "processing_outbound_message",
-        message_id=message.message_id,
+        message_hash=hash_identifier(message.message_id),
         channel_id=message.channel_id,
         trace_id=trace_id,
     )
@@ -73,7 +74,7 @@ async def handle_message_outbound(
     except Exception as exc:
         logger.error(
             "outbound_message_delivery_failed",
-            message_id=message.message_id,
+            message_hash=hash_identifier(message.message_id),
             channel_id=message.channel_id,
             error=str(exc),
         )

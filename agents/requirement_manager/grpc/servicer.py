@@ -298,8 +298,9 @@ class RequirementServicer(pb2_grpc.RequirementServiceServicer):
         """
         logger.info(
             "grpc_search_requirements",
-            keyword=request.keyword,
-            chat_id=request.chat_id,
+            keyword_length=len(request.keyword or ""),
+            keyword_hash=hash_identifier(request.keyword),
+            chat_hash=hash_identifier(request.chat_id),
         )
 
         try:

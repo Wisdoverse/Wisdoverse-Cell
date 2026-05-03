@@ -5,6 +5,7 @@ from datetime import date, datetime, timezone
 from shared.config import settings
 from shared.core import BitableTablePort, FeishuMessengerPort, OpenProjectWorkPackagePort
 from shared.integrations.feishu.cards.builder import CardBuilder
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 logger = get_logger("pjm_agent.report")
@@ -374,4 +375,4 @@ class ReportService:
             return
         id_type = "open_id" if chat_id.startswith("ou_") else "chat_id"
         await self._messenger.send_card(receive_id=chat_id, receive_id_type=id_type, card=card)
-        logger.info("report_card_pushed", chat_id=chat_id)
+        logger.info("report_card_pushed", chat_hash=hash_identifier(chat_id))

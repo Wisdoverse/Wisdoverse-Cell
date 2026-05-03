@@ -13,6 +13,7 @@ from agents.requirement_manager.integrations.feishu.cards.requirement import (
     build_calendar_reminder_card,
     build_requirement_extracted_card,
 )
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 logger = get_logger("feishu.handlers.event")
@@ -127,7 +128,7 @@ class EventHandler:
                     receive_id_type="chat_id",
                     card=card
                 )
-                logger.info("meeting_card_sent", chat_id=chat_id)
+                logger.info("meeting_card_sent", chat_hash=hash_identifier(chat_id))
             except Exception as e:
                 logger.error("meeting_card_send_error", error=str(e))
 

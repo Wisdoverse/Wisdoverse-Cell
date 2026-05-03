@@ -317,7 +317,7 @@ class EventBus:
                     "event_received",
                     event_id=event.event_id,
                     event_type=event.event_type,
-                    message_id=message_id,
+                    stream_message_id=message_id,
                 )
 
                 yield event

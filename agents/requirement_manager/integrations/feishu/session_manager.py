@@ -15,6 +15,7 @@ from redis.asyncio import Redis
 from agents.requirement_manager.db.database import DatabaseManager
 from agents.requirement_manager.db.repository import MessageRepository
 from shared.config import settings
+from shared.observability.privacy import hash_identifier
 from shared.utils.id_generator import IDPrefix, generate_id
 from shared.utils.logger import get_logger
 
@@ -53,7 +54,11 @@ class SessionManager:
         if chat_id not in self._active_sessions:
             session_id = generate_id(IDPrefix.SESSION)
             self._active_sessions[chat_id] = session_id
-            logger.info("session_created", chat_id=chat_id, session_id=session_id)
+            logger.info(
+                "session_created",
+                chat_hash=hash_identifier(chat_id),
+                session_id=session_id,
+            )
 
         # Update timeout in Redis
         timeout_at = time.time() + settings.feishu_session_timeout
@@ -84,7 +89,11 @@ class SessionManager:
 
             session_id = self._active_sessions.pop(chat_id, None)
             if session_id:
-                logger.info("session_timed_out", chat_id=chat_id, session_id=session_id)
+                logger.info(
+                    "session_timed_out",
+                    chat_hash=hash_identifier(chat_id),
+                    session_id=session_id,
+                )
                 await self._on_session_ended(session_id)
                 processed_sessions.append(session_id)
 

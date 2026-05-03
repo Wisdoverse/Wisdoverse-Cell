@@ -825,14 +825,14 @@ class RequirementManagerAgent(BaseAgent):
 
             logger.info(
                 "session_extraction_card_sent",
-                chat_id=chat_id,
+                chat_hash=hash_identifier(chat_id),
                 session_id=session_id,
             )
 
         except Exception as e:
             logger.error(
                 "session_extraction_card_failed",
-                chat_id=chat_id,
+                chat_hash=hash_identifier(chat_id),
                 session_id=session_id,
                 error=str(e),
             )
