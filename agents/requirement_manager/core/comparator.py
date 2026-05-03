@@ -1,10 +1,11 @@
 """
-Comparator - 需求冲突检测
+Requirement relationship comparator.
 
-使用向量相似度和LLM分析检测需求之间的关系：
-- 重复需求
-- 更新/细化
-- 冲突矛盾
+Uses vector similarity and LLM analysis to detect relationships between
+requirements:
+- Duplicate requirements
+- Updates or refinements
+- Conflicts
 """
 import json
 from enum import Enum
@@ -20,21 +21,21 @@ logger = get_logger("comparator")
 
 
 def _get_vector_store():
-    """延迟导入以避免循环依赖"""
+    """Import lazily to avoid circular dependencies."""
     from ..db.vector_store import vector_store
     return vector_store
 
 
 class RelationType(str, Enum):
-    """需求关系类型"""
-    NEW = "new"              # 全新需求
-    DUPLICATE = "duplicate"  # 重复需求
-    UPDATE = "update"        # 更新/细化
-    CONFLICT = "conflict"    # 冲突矛盾
+    """Requirement relationship type."""
+    NEW = "new"              # New requirement
+    DUPLICATE = "duplicate"  # Duplicate requirement
+    UPDATE = "update"        # Update or refinement
+    CONFLICT = "conflict"    # Conflict
 
 
 class ComparisonResult(BaseModel):
-    """比对结果"""
+    """Comparison result."""
     relation: RelationType
     confidence: float = Field(ge=0, le=1, description="Decision confidence")
     explanation: str
@@ -45,26 +46,26 @@ class ComparisonResult(BaseModel):
 
 class RequirementComparator:
     """
-    需求比对器
+    Requirement comparator.
 
-    工作流程:
-    1. 使用向量搜索找到相似需求
-    2. 如果没有相似需求 -> 直接判定为 new
-    3. 如果有相似需求 -> 调用 LLM 深度分析关系
+    Workflow:
+    1. Use vector search to find similar requirements.
+    2. If no similar requirement is found, classify the requirement as new.
+    3. If similar requirements exist, call the LLM for deeper relationship analysis.
 
-    这种两阶段方法平衡了速度和准确度:
-    - 大多数新需求可以快速跳过 LLM 调用
-    - 只有潜在冲突/重复的需求才需要深度分析
+    This two-stage approach balances speed and accuracy:
+    - Most new requirements skip LLM calls quickly.
+    - Only potential conflicts or duplicates need deeper analysis.
     """
 
     def __init__(self):
-        # 加载 prompt 模板
+        # Load the prompt template.
         prompt_path = Path(__file__).parent.parent / "prompts" / "detect_conflicts.md"
         self.prompt_template = prompt_path.read_text(encoding="utf-8")
 
-        # 相似度阈值
-        self.similarity_threshold = 0.6  # 低于此值认为无关
-        self.duplicate_threshold = 0.85  # 高于此值可能是重复
+        # Similarity thresholds.
+        self.similarity_threshold = 0.6  # Values below this are considered unrelated.
+        self.duplicate_threshold = 0.85  # Values above this may be duplicates.
 
     async def compare(
         self,
@@ -74,32 +75,32 @@ class RequirementComparator:
         exclude_ids: Optional[list[str]] = None
     ) -> ComparisonResult:
         """
-        比对新需求与已有需求
+        Compare a new requirement with existing requirements.
 
         Args:
-            new_title: 新需求标题
-            new_description: 新需求描述
-            new_category: 新需求分类
-            exclude_ids: 排除的需求ID列表（如正在编辑的需求本身）
+            new_title: New requirement title.
+            new_description: New requirement description.
+            new_category: New requirement category.
+            exclude_ids: Requirement IDs to exclude, such as the one being edited.
 
         Returns:
-            ComparisonResult 比对结果
+            Comparison result.
         """
-        # 构建搜索文本
+        # Build search text.
         search_text = f"{new_title} {new_description}"
 
-        # 向量搜索相似需求
+        # Vector-search similar requirements.
         similar = await _get_vector_store().search(
             query=search_text,
             n_results=5,
             min_similarity=self.similarity_threshold
         )
 
-        # 排除指定ID
+        # Exclude specified IDs.
         if exclude_ids:
             similar = [s for s in similar if s["id"] not in exclude_ids]
 
-        # 没有相似需求 -> 新需求
+        # No similar requirements means this is a new requirement.
         if not similar:
             logger.info(
                 "no_similar_requirements",
@@ -112,10 +113,10 @@ class RequirementComparator:
                 suggested_action="直接创建新需求"
             )
 
-        # 检查是否有高度相似的（可能重复）
+        # Check for high similarity, which may indicate a duplicate.
         top_similar = similar[0]
         if top_similar["similarity"] >= self.duplicate_threshold:
-            # 高度相似，可能是重复，快速返回
+            # High similarity can return quickly as a likely duplicate.
             logger.info(
                 "high_similarity_detected",
                 title=new_title,
@@ -133,7 +134,7 @@ class RequirementComparator:
                 related_requirement_id=top_similar["id"]
             )
 
-        # 中等相似度，需要 LLM 深度分析
+        # Medium similarity needs deeper LLM analysis.
         return await self._llm_analyze(
             new_title=new_title,
             new_description=new_description,
@@ -148,8 +149,8 @@ class RequirementComparator:
         new_category: Optional[str],
         similar_requirements: list[dict]
     ) -> ComparisonResult:
-        """使用 LLM 深度分析需求关系"""
-        # 格式化相似需求
+        """Use the LLM for deeper requirement relationship analysis."""
+        # Format similar requirements.
         similar_text = "\n".join([
             f"- ID: {s['id']}\n  Title: {s['title']}\n"
             f"  Category: {s['category']}\n"
@@ -157,7 +158,7 @@ class RequirementComparator:
             for s in similar_requirements
         ])
 
-        # 构建 prompt
+        # Build the prompt.
         prompt = self.prompt_template.format(
             new_title=new_title,
             new_description=new_description,
@@ -196,7 +197,7 @@ class RequirementComparator:
 
         except Exception as e:
             logger.error("llm_conflict_analysis_failed", error=str(e))
-            # 降级处理：返回需要人工审核
+            # Fallback: return a result that requires human review.
             return ComparisonResult(
                 relation=RelationType.NEW,
                 confidence=0.5,
@@ -218,9 +219,9 @@ class RequirementComparator:
         response: str,
         similar_requirements: list[dict]
     ) -> ComparisonResult:
-        """解析 LLM 响应"""
+        """Parse the LLM response."""
         try:
-            # 清理响应
+            # Clean the response.
             cleaned = response.strip()
             if cleaned.startswith("```json"):
                 cleaned = cleaned[7:]
@@ -232,7 +233,7 @@ class RequirementComparator:
 
             data = json.loads(cleaned)
 
-            # 映射关系类型
+            # Map relationship types.
             relation_map = {
                 "new": RelationType.NEW,
                 "duplicate": RelationType.DUPLICATE,
@@ -256,7 +257,7 @@ class RequirementComparator:
 
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             logger.error("parse_conflict_response_failed", error=str(e))
-            # 解析失败时的默认响应
+            # Default response when parsing fails.
             return ComparisonResult(
                 relation=RelationType.NEW,
                 confidence=0.5,
@@ -273,13 +274,13 @@ class RequirementComparator:
         requirements: list[dict]
     ) -> list[tuple[dict, ComparisonResult]]:
         """
-        批量检查需求冲突
+        Check a batch of requirements for conflicts.
 
         Args:
-            requirements: 需求列表，每个包含 title, description, category
+            requirements: Requirement list; each item contains title, description, and category.
 
         Returns:
-            (需求, 比对结果) 元组列表
+            A list of (requirement, comparison result) tuples.
         """
         results = []
         for req in requirements:
@@ -293,5 +294,5 @@ class RequirementComparator:
         return results
 
 
-# 全局比对器实例
+# Global comparator instance.
 comparator = RequirementComparator()

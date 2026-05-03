@@ -1,7 +1,7 @@
 """
-Generator - 文档生成器
+Document generator.
 
-生成 PRD 文档和问题清单等导出文档。
+Generates exported documents such as PRDs and open-question lists.
 """
 import json
 from datetime import UTC, datetime
@@ -16,7 +16,7 @@ logger = get_logger("generator")
 
 
 class PRDGenerationResult(BaseModel):
-    """PRD 生成结果"""
+    """PRD generation result."""
     content: str
     format: str = "markdown"
     generated_at: datetime
@@ -25,7 +25,7 @@ class PRDGenerationResult(BaseModel):
 
 
 class QuestionExportResult(BaseModel):
-    """问题清单导出结果"""
+    """Question-list export result."""
     content: str
     format: str = "markdown"
     generated_at: datetime
@@ -34,15 +34,15 @@ class QuestionExportResult(BaseModel):
 
 class DocumentGenerator:
     """
-    文档生成器
+    Document generator.
 
-    支持生成:
-    1. PRD (产品需求文档) - 使用 LLM 生成专业格式
-    2. 问题清单 - 直接模板生成，无需 LLM
+    Supports:
+    1. PRD generation through the LLM for professional formatting.
+    2. Direct template-based open-question list generation without the LLM.
     """
 
     def __init__(self):
-        # 加载 PRD 生成 prompt
+        # Load the PRD generation prompt.
         prompt_path = Path(__file__).parent.parent / "prompts" / "generate_prd.md"
         self.prd_prompt_template = prompt_path.read_text(encoding="utf-8")
 
@@ -53,19 +53,19 @@ class DocumentGenerator:
         version: str = "1.0"
     ) -> PRDGenerationResult:
         """
-        生成 PRD 文档
+        Generate a PRD document.
 
         Args:
-            requirements: 需求列表，每个包含:
+            requirements: Requirement list; each item contains:
                 - id, title, description, category, priority, status, source_quote
-            project_name: 项目名称
-            version: 文档版本
+            project_name: Project name.
+            version: Document version.
 
         Returns:
-            PRDGenerationResult 包含生成的 Markdown 文档
+            PRD generation result containing the generated Markdown document.
         """
         if not requirements:
-            # 空需求列表，返回空模板
+            # Empty requirement list: return the empty template.
             return PRDGenerationResult(
                 content=self._empty_prd_template(project_name, version),
                 generated_at=datetime.now(UTC),
@@ -73,10 +73,10 @@ class DocumentGenerator:
                 version=version
             )
 
-        # 格式化需求为 JSON
+        # Format requirements as JSON.
         requirements_json = json.dumps(requirements, ensure_ascii=False, indent=2)
 
-        # 构建 prompt
+        # Build the prompt.
         prompt = self.prd_prompt_template.format(
             project_name=project_name,
             version=version,
@@ -92,20 +92,20 @@ class DocumentGenerator:
         )
 
         try:
-            # 调用 LLM 生成
+            # Call the LLM for generation.
             content = await llm_gateway.complete(
                 prompt=prompt,
                 agent_id="requirement-manager",
                 task_type="document_generation",
-                temperature=0.3,  # 稍微增加创造性
-                max_tokens=8192,  # PRD 可能较长
+                temperature=0.3,  # Slightly increase creativity.
+                max_tokens=8192,  # PRDs may be long.
                 system_prompt=(
                     "You are a professional technical documentation expert "
                     "specialized in product requirements documents."
                 )
             )
 
-            # 清理响应（移除可能的 markdown 代码块包装）
+            # Clean possible Markdown code-fence wrappers.
             content = self._clean_markdown_response(content)
 
             logger.info(
@@ -122,7 +122,7 @@ class DocumentGenerator:
 
         except Exception as e:
             logger.error("prd_generation_failed", error=str(e))
-            # 降级：返回简单格式的 PRD
+            # Fallback: return a simple PRD.
             return PRDGenerationResult(
                 content=self._fallback_prd(requirements, project_name, version),
                 generated_at=datetime.now(UTC),
@@ -136,17 +136,17 @@ class DocumentGenerator:
         project_name: str = "Wisdoverse Cell"
     ) -> QuestionExportResult:
         """
-        生成问题清单导出
+        Generate an open-question list export.
 
-        不使用 LLM，直接模板生成。
+        Does not use the LLM; generated directly from a template.
 
         Args:
-            questions: 问题列表，每个包含:
+            questions: Question list; each item contains:
                 - id, question, context, status, requirement_title
-            project_name: 项目名称
+            project_name: Project name.
 
         Returns:
-            QuestionExportResult 包含 Markdown 格式的问题清单
+            Question export result containing the Markdown question list.
         """
         now = datetime.now(UTC)
         date_str = now.strftime("%Y-%m-%d")
@@ -168,7 +168,7 @@ class DocumentGenerator:
                 "所有问题已回答完毕。",
             ])
         else:
-            # 按状态分组
+            # Group by status.
             open_questions = [q for q in questions if q.get("status") == "open"]
             answered_questions = [q for q in questions if q.get("status") == "answered"]
 
@@ -231,7 +231,7 @@ class DocumentGenerator:
         )
 
     def _clean_markdown_response(self, content: str) -> str:
-        """清理 LLM 响应中可能的代码块包装"""
+        """Clean possible code-fence wrappers from an LLM response."""
         content = content.strip()
         if content.startswith("```markdown"):
             content = content[11:]
@@ -244,7 +244,7 @@ class DocumentGenerator:
         return content.strip()
 
     def _empty_prd_template(self, project_name: str, version: str) -> str:
-        """空需求的 PRD 模板"""
+        """Return a PRD template for an empty requirement list."""
         date_str = datetime.now(UTC).strftime("%Y-%m-%d")
         return f"""# {project_name} - 产品需求文档
 
@@ -269,7 +269,7 @@ class DocumentGenerator:
         project_name: str,
         version: str
     ) -> str:
-        """LLM 失败时的降级 PRD 生成"""
+        """Generate a fallback PRD when the LLM call fails."""
         date_str = datetime.now(UTC).strftime("%Y-%m-%d")
 
         lines = [
@@ -287,7 +287,7 @@ class DocumentGenerator:
             "|------|------|------|--------|------|",
         ]
 
-        # 按分类排序
+        # Sort by category.
         sorted_reqs = sorted(
             requirements,
             key=lambda x: (
@@ -335,5 +335,5 @@ class DocumentGenerator:
         return "\n".join(lines)
 
 
-# 全局生成器实例
+# Global generator instance.
 generator = DocumentGenerator()
