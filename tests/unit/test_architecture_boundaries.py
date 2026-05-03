@@ -515,6 +515,15 @@ def test_frontend_locale_layout_keeps_provider_composition_in_widget() -> None:
         )
 
 
+def test_frontend_root_shell_uses_shared_foundation() -> None:
+    path = Path("frontend/src/widgets/root-shell/ui/locale-root-shell.tsx")
+    source = path.read_text()
+
+    assert "@/shared/providers" in source
+    assert "@/shared/ui" in source
+    assert "@/components" not in source
+
+
 def test_event_catalog_uses_canonical_runtime_event_names() -> None:
     catalog = Path("docs/guides/event-catalog.md").read_text()
     expected = {
