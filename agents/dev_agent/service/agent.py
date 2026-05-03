@@ -548,7 +548,12 @@ class DevAgent(BaseAgent):
         return events
 
     async def _handle_qa_result(self, event: Event) -> list[Event]:
-        logger.info("qa_result_received", payload=event.payload)
+        logger.info(
+            "qa_result_received",
+            event_id=event.event_id,
+            trace_id=event.metadata.trace_id,
+            payload_keys=sorted(event.payload.keys()),
+        )
 
         mr_iid = event.payload.get("mr_iid")
         if mr_iid is None:

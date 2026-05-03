@@ -174,7 +174,11 @@ class RequirementExtractor:
             )
 
         except json.JSONDecodeError as e:
-            logger.error("json_parse_failed", error=str(e), response=response[:500])
+            logger.error(
+                "json_parse_failed",
+                error=str(e),
+                response_length=len(response or ""),
+            )
             return ExtractionResult()
 
     def _normalize_category(self, category: str) -> str:

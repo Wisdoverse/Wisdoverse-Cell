@@ -214,7 +214,10 @@ class OpenClawClient:
                 try:
                     msg = json.loads(raw)
                 except json.JSONDecodeError:
-                    logger.warning("openclaw_invalid_json", raw=str(raw)[:200])
+                    logger.warning(
+                        "openclaw_invalid_json",
+                        raw_length=len(str(raw)),
+                    )
                     continue
 
                 if "id" in msg and msg["id"] in self._pending:

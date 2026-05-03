@@ -184,7 +184,7 @@ def handle_feishu_response(response_data: dict) -> Any:
         logger.error(
             "feishu_api_error",
             code=code,
-            message=response_data.get("msg", ""),
+            platform_message_length=len(str(response_data.get("msg", ""))),
         )
         raise error
 

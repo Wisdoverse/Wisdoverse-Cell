@@ -184,7 +184,13 @@ class EvolutionAgent(BaseAgent):
 
     async def _process_feedback(self, event: Event) -> list[Event]:
         """Process human approval/rejection of proposals."""
-        logger.info("human_feedback_received", payload=event.payload)
+        logger.info(
+            "human_feedback_received",
+            event_id=event.event_id,
+            trace_id=event.metadata.trace_id,
+            approved=bool(event.payload.get("approved", False)),
+            payload_keys=sorted(event.payload.keys()),
+        )
         approval_id = event.payload.get("control_plane_approval_id") or event.payload.get(
             "approval_id"
         )
