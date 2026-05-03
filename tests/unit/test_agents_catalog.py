@@ -41,6 +41,17 @@ def test_runtime_modules_keep_canonical_package_boundaries() -> None:
             )
 
 
+def test_runtime_modules_use_shared_app_factory() -> None:
+    for module in RUNTIME_MODULES:
+        app_main = Path(*module.package_path.split(".")) / "app" / "main.py"
+
+        assert app_main.exists(), f"{module.agent_id} is missing {app_main}"
+        source = app_main.read_text()
+        assert "create_agent_app" in source, (
+            f"{module.agent_id} must use shared create_agent_app runtime factory"
+        )
+
+
 def test_runtime_modules_expose_event_contracts() -> None:
     modules = {module.agent_id: module for module in RUNTIME_MODULES}
 

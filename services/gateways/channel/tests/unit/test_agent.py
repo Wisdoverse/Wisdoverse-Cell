@@ -1,6 +1,6 @@
 """Tests for channel gateway agent."""
 from typing import AsyncIterator
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -87,6 +87,23 @@ class TestChannelGatewayAgentDependencyInjection:
         registry = AdapterRegistry()
         agent = ChannelGatewayAgent(adapter_registry=registry)
         assert agent._adapter_registry is registry
+
+    @pytest.mark.asyncio
+    async def test_startup_uses_runtime_event_loop_boundary(self):
+        mock_bus = AsyncMock()
+        mock_bus.connect = AsyncMock()
+        mock_bus.disconnect = AsyncMock()
+        agent = ChannelGatewayAgent(
+            bus=mock_bus,
+            adapter_registry=AdapterRegistry(),
+        )
+
+        await agent.startup()
+        await agent.shutdown()
+
+        assert agent._consumer_task is None
+        mock_bus.connect.assert_awaited_once()
+        mock_bus.disconnect.assert_awaited_once()
 
 
 class TestHandleRequest:

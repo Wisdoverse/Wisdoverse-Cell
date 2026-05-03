@@ -45,10 +45,6 @@ class ChannelGatewayAgent(BaseAgent):
         # Connect all registered adapters
         await self._connect_adapters()
 
-        # Start event consumer
-        if self.subscribed_events:
-            self._consumer_task = asyncio.create_task(self._run_event_loop())
-
         logger.info("channel_gateway_agent_started")
 
     async def shutdown(self) -> None:
