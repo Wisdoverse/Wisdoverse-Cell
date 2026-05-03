@@ -5,12 +5,15 @@ All inter-agent communication flows through Event objects. Events are the
 shared language of the system.
 """
 import math
+import re
 from datetime import UTC, datetime
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from shared.core.ids import generate_id
+
+_EVENT_TYPE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)+$")
 
 
 class _ReadOnlyDict(dict):
@@ -108,6 +111,14 @@ class Event(BaseModel):
 
     # Optional fields
     metadata: EventMetadata = Field(default_factory=EventMetadata)
+
+    @field_validator("event_type")
+    @classmethod
+    def _validate_event_type(cls, event_type: str) -> str:
+        """Enforce the cross-agent event naming contract: {domain}.{action}."""
+        if not _EVENT_TYPE_PATTERN.fullmatch(event_type):
+            raise ValueError("event_type must use {domain}.{action} naming")
+        return event_type
 
     @field_validator("payload", mode="after")
     @classmethod

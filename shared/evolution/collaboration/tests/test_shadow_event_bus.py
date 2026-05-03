@@ -29,6 +29,6 @@ class TestShadowEventBus:
 
     async def test_reset_clears(self):
         bus = ShadowEventBus()
-        await bus.publish(Event.create(event_type="test", source_agent="t", payload={}))
+        await bus.publish(Event.create(event_type="test.event", source_agent="t", payload={}))
         bus.reset()
         assert len(bus.published_events) == 0

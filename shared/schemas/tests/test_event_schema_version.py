@@ -53,6 +53,14 @@ class TestEventSchemaVersion:
         )
         assert event.schema_version == "1.0"
 
+    def test_event_type_requires_domain_action_name(self):
+        with pytest.raises(ValidationError, match="event_type must use"):
+            Event.create(
+                event_type="invalid",
+                source_agent="test-agent",
+                payload={},
+            )
+
     def test_event_fields_are_immutable(self):
         event = Event.create(
             event_type="test.created",
