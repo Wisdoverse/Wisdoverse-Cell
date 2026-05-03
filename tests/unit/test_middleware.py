@@ -86,6 +86,28 @@ def test_api_key_skip_health():
         assert resp.json() == {"status": "alive"}
 
 
+def test_api_key_skip_external_platform_webhooks():
+    with patch.object(_middleware_mod, "settings") as mock_settings:
+        mock_settings.pm_api_key = "test-key"
+        app = _make_app()
+
+        @app.post("/api/feishu/webhook")
+        async def feishu_webhook():
+            return {"status": "signed-by-platform"}
+
+        @app.post("/api/wecom/webhook")
+        async def wecom_webhook():
+            return {"status": "signed-by-platform"}
+
+        client = TestClient(app)
+
+        feishu = client.post("/api/feishu/webhook")
+        wecom = client.post("/api/wecom/webhook")
+
+        assert feishu.status_code == 200
+        assert wecom.status_code == 200
+
+
 def test_api_key_disabled_allows_all():
     with patch.object(_middleware_mod, "settings") as mock_settings:
         mock_settings.pm_api_key = ""

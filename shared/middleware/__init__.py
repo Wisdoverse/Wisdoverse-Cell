@@ -32,6 +32,8 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         "/docs",
         "/openapi.json",
         "/webhook/feishu",
+        "/api/feishu/webhook",
+        "/api/wecom/webhook",
     }
 
     _auth_disabled_logged: bool = False
