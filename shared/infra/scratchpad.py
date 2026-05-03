@@ -9,7 +9,9 @@ Directory structure:
       decisions/log.md          # Decision history
 """
 import os
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from shared.utils.logger import get_logger
 
@@ -144,8 +146,37 @@ class Scratchpad:
             await self.update_global_status(result.output)
 
     async def update(self, decisions: list) -> None:
-        """Update scratchpad after decisions. Placeholder."""
-        pass
+        """Record coordinator decisions for operator-visible workflow evidence."""
+        for decision in decisions:
+            workflow_id = getattr(decision, "workflow_id", None)
+            entry = self._format_decision_entry(decision)
+            await self.append_decision(entry)
+            if workflow_id:
+                current = await self.read_workflow(workflow_id)
+                content = f"{current.rstrip()}\n\n{entry}" if current.strip() else entry
+                await self.write_workflow(workflow_id, content)
+
+    def _format_decision_entry(self, decision: Any) -> str:
+        timestamp = datetime.now(UTC).isoformat()
+        action = getattr(decision, "action", "")
+        target_agent = getattr(decision, "target_agent", "")
+        task_id = getattr(decision, "task_id", "")
+        workflow_id = getattr(decision, "workflow_id", None) or ""
+        reasoning = getattr(decision, "reasoning", "") or ""
+        instruction = getattr(decision, "instruction", "") or ""
+        lines = [
+            f"- timestamp: {timestamp}",
+            f"  action: {action}",
+            f"  target_agent: {target_agent}",
+            f"  task_id: {task_id}",
+        ]
+        if workflow_id:
+            lines.append(f"  workflow_id: {workflow_id}")
+        if reasoning:
+            lines.append(f"  reasoning: {reasoning}")
+        if instruction:
+            lines.append(f"  instruction: {instruction}")
+        return "\n".join(lines)
 
     async def _write(self, rel_path: str, content: str) -> None:
         path = self._base / rel_path

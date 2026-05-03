@@ -5,6 +5,8 @@ will be added in a later task.
 """
 from datetime import UTC, datetime
 
+from shared.core.ids import IDPrefix, generate_id
+
 from .models import AgentStateRecord, DecisionRecord, WorkflowState
 
 
@@ -39,5 +41,19 @@ class CoordinatorStateStore:
         return list(self._pending_decisions)
 
     async def persist(self, decisions: list) -> None:
-        """Persist decisions. In-memory for now."""
-        pass
+        """Persist coordinator decisions into the in-memory operator state."""
+        for decision in decisions:
+            record = DecisionRecord(
+                decision_id=generate_id(IDPrefix.DECISION),
+                workflow_id=decision.workflow_id,
+                reasoning=decision.reasoning or "",
+                action=decision.action,
+                target_agent=decision.target_agent,
+            )
+            self._pending_decisions.append(record)
+            await self.update_agent_state(
+                decision.target_agent,
+                status="working",
+                current_task=decision.task_id,
+            )
+        self._pending_decisions = self._pending_decisions[-100:]

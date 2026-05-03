@@ -66,3 +66,56 @@ async def test_state_store_get_pending_decisions_empty():
     store = CoordinatorStateStore()
     pending = await store.get_pending_decisions()
     assert pending == []
+
+
+@pytest.mark.asyncio
+async def test_state_store_persists_decisions_and_agent_state():
+    from services.orchestration.coordinator.core.models import Decision
+    from services.orchestration.coordinator.db.state_store import CoordinatorStateStore
+
+    store = CoordinatorStateStore()
+    decision = Decision(
+        target_agent="dev-agent",
+        action="dispatch_task",
+        task_id="task_001",
+        workflow_id="wf_001",
+        instruction="Implement the approved requirement",
+        reasoning="PRD approved",
+    )
+
+    await store.persist([decision])
+
+    pending = await store.get_pending_decisions()
+    assert len(pending) == 1
+    assert pending[0].decision_id.startswith("dec_")
+    assert pending[0].workflow_id == "wf_001"
+    assert pending[0].target_agent == "dev-agent"
+    assert pending[0].action == "dispatch_task"
+    assert pending[0].reasoning == "PRD approved"
+
+    states = await store.get_agent_states()
+    assert states["dev-agent"].status == "working"
+    assert states["dev-agent"].current_task == "task_001"
+
+
+@pytest.mark.asyncio
+async def test_state_store_caps_pending_decisions():
+    from services.orchestration.coordinator.core.models import Decision
+    from services.orchestration.coordinator.db.state_store import CoordinatorStateStore
+
+    store = CoordinatorStateStore()
+    decisions = [
+        Decision(
+            target_agent="dev-agent",
+            action="dispatch_task",
+            task_id=f"task_{index:03d}",
+            instruction="Run task",
+        )
+        for index in range(105)
+    ]
+
+    await store.persist(decisions)
+
+    pending = await store.get_pending_decisions()
+    assert len(pending) == 100
+    assert pending[0].target_agent == "dev-agent"
