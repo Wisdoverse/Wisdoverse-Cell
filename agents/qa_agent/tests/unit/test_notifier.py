@@ -1,9 +1,10 @@
 """Unit tests for QANotifier."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
+from agents.qa_agent.core.config import QACoreConfig
 from agents.qa_agent.core.notifier import QANotifier
 
 
@@ -113,25 +114,21 @@ class TestFeishuNotification:
         assert result["feishu"]["reason"] == "below_threshold"
 
     @pytest.mark.asyncio
-    @patch("agents.qa_agent.core.notifier.settings")
     async def test_sends_feishu_on_l0_fail(
         self,
-        mock_settings,
         mock_bus,
         mock_gitlab,
         mock_feishu_webhook,
     ):
         card_renderer = FakeQualityCardRenderer()
-        mock_settings.qa_feishu_webhook_url = "https://hook.example.com"
-        mock_settings.feishu_webhook_url = ""
-        mock_settings.qa_high_severity_check_list = []
-        mock_settings.gitlab_api_url = ""
-        mock_settings.gitlab_project_id = ""
         notifier = QANotifier(
             bus=mock_bus,
             gitlab=mock_gitlab,
             feishu_webhook=mock_feishu_webhook,
             card_renderer=card_renderer,
+            config=QACoreConfig.from_values(
+                qa_feishu_webhook_url="https://hook.example.com",
+            ),
         )
 
         result = await notifier.notify_all(

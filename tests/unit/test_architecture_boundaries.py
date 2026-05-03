@@ -240,6 +240,15 @@ def test_analysis_core_does_not_read_global_settings() -> None:
             )
 
 
+def test_qa_core_does_not_read_global_settings() -> None:
+    root = Path("agents/qa_agent/core")
+    for path in _python_files(root):
+        for module in _imported_modules(path):
+            assert module != "shared.config", (
+                f"{path} imports global settings; inject explicit QA config"
+            )
+
+
 def test_agent_core_does_not_import_platform_adapters_directly() -> None:
     for agent_root in AGENT_ROOTS:
         root = Path("agents") / agent_root / "core"

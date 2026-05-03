@@ -9,13 +9,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from shared.config import settings
 from shared.core import FeishuWebhookPort, GitLabMergeRequestNotePort
 from shared.infra.event_bus import EventBus, event_bus
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
 from .card_ports import QualityCardRendererPort
+from .config import QACoreConfig
 
 logger = get_logger("qa_agent.notifier")
 
@@ -29,11 +29,13 @@ class QANotifier:
         gitlab: GitLabMergeRequestNotePort | None = None,
         feishu_webhook: FeishuWebhookPort | None = None,
         card_renderer: QualityCardRendererPort | None = None,
+        config: QACoreConfig | None = None,
     ):
         self._bus = bus or event_bus
         self._gitlab = gitlab
         self._feishu_webhook = feishu_webhook
         self._card_renderer = card_renderer
+        self._config = config or QACoreConfig()
 
     async def notify_all(
         self,
@@ -172,7 +174,7 @@ class QANotifier:
             return True
 
         # Notify on configured high-severity L1 checks
-        high_checks = set(settings.qa_high_severity_check_list)
+        high_checks = set(self._config.high_severity_check_list)
         if high_checks:
             for f in findings:
                 if (
@@ -192,7 +194,7 @@ class QANotifier:
         mr_iid: int | None = None,
     ) -> dict:
         """Send Feishu card notification."""
-        webhook = settings.qa_feishu_webhook_url or settings.feishu_webhook_url or ""
+        webhook = self._config.notification_webhook_url
         if not webhook:
             return {"sent": False, "reason": "no_webhook"}
         if not self._feishu_webhook:
@@ -205,8 +207,8 @@ class QANotifier:
             summary=summary,
             findings=findings,
             mr_iid=mr_iid,
-            gitlab_api_url=settings.gitlab_api_url,
-            gitlab_project_id=settings.gitlab_project_id,
+            gitlab_api_url=self._config.gitlab_api_url,
+            gitlab_project_id=self._config.gitlab_project_id,
         )
 
         try:

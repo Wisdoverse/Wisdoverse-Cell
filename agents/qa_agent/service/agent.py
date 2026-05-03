@@ -27,7 +27,7 @@ from ..models.schemas import (
     QARunRequest,
     QARunStats,
 )
-from .notifier_factory import build_qa_notifier
+from .notifier_factory import build_qa_core_config, build_qa_notifier
 
 logger = get_logger("qa_agent.service")
 
@@ -54,8 +54,12 @@ class QAAgent(BaseAgent):
         )
         self._db_manager = db or db_manager
         self._event_bus = bus or event_bus
-        self._runner = runner or AcceptanceRunnerService()
-        self._notifier = notifier or build_qa_notifier(bus=self._event_bus)
+        core_config = build_qa_core_config() if runner is None or notifier is None else None
+        self._runner = runner or AcceptanceRunnerService(config=core_config)
+        self._notifier = notifier or build_qa_notifier(
+            bus=self._event_bus,
+            config=core_config,
+        )
 
     async def startup(self) -> None:
         logger.info("qa_agent_starting")

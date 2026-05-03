@@ -11,8 +11,9 @@ import asyncio
 import json
 from pathlib import Path
 
-from shared.config import settings
 from shared.utils.logger import get_logger
+
+from .config import QACoreConfig
 
 logger = get_logger("qa_agent.runner")
 
@@ -23,8 +24,13 @@ RUNNER_SCRIPT = str(PROJECT_ROOT / ".acceptance" / "runner.py")
 class AcceptanceRunnerService:
     """Runs .acceptance/runner.py via async subprocess."""
 
-    def __init__(self, timeout: int | None = None):
-        self._timeout = timeout or settings.qa_runner_timeout_seconds
+    def __init__(
+        self,
+        timeout: int | None = None,
+        config: QACoreConfig | None = None,
+    ):
+        self._config = config or QACoreConfig()
+        self._timeout = timeout or self._config.runner_timeout_seconds
 
     async def run_json(
         self,
