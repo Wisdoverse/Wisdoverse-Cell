@@ -428,7 +428,11 @@ def test_user_interaction_chat_and_daily_tasks_do_not_read_global_settings() -> 
 
 
 def test_frontend_routes_are_thin() -> None:
-    route_root = Path("frontend/src/app/[locale]/(app)")
+    route_files = [
+        *Path("frontend/src/app/[locale]/(app)").rglob("page.tsx"),
+        Path("frontend/src/app/[locale]/(app)/layout.tsx"),
+        Path("frontend/src/app/[locale]/(auth)/login/page.tsx"),
+    ]
     forbidden = [
         "useState",
         "useMemo",
@@ -436,7 +440,7 @@ def test_frontend_routes_are_thin() -> None:
         "MOCK_",
         "@/lib/hooks",
     ]
-    for path in route_root.rglob("page.tsx"):
+    for path in route_files:
         source = path.read_text()
         line_count = len(source.splitlines())
         assert line_count <= 20, f"{path} has {line_count} lines"
@@ -474,9 +478,13 @@ def test_frontend_fsd_dependency_direction() -> None:
 
 
 def test_frontend_route_pages_compose_widgets_only() -> None:
-    route_root = Path("frontend/src/app/[locale]/(app)")
+    route_files = [
+        *Path("frontend/src/app/[locale]/(app)").rglob("page.tsx"),
+        Path("frontend/src/app/[locale]/(app)/layout.tsx"),
+        Path("frontend/src/app/[locale]/(auth)/login/page.tsx"),
+    ]
     allowed_internal_imports = ("@/widgets",)
-    for path in route_root.rglob("page.tsx"):
+    for path in route_files:
         source = path.read_text()
         for line in source.splitlines():
             if not line.startswith("import ") or '"@/' not in line:

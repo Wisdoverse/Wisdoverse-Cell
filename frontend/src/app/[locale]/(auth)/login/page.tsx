@@ -1,7 +1,7 @@
 "use client";
 
-import { LoginPage } from "@/components/auth/login-page";
+import { LoginPageWidget } from "@/widgets/auth";
 
 export default function LoginRoute() {
-  return <LoginPage />;
+  return <LoginPageWidget />;
 }
