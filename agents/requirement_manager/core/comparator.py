@@ -36,7 +36,7 @@ class RelationType(str, Enum):
 class ComparisonResult(BaseModel):
     """比对结果"""
     relation: RelationType
-    confidence: float = Field(ge=0, le=1, description="判断确信度")
+    confidence: float = Field(ge=0, le=1, description="Decision confidence")
     explanation: str
     suggested_action: str
     related_requirement_id: Optional[str] = None

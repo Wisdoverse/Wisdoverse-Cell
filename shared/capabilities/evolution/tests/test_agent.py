@@ -80,7 +80,7 @@ class TestEvolutionAgentSubscriptions:
         assert agent.agent_id == "evolution-agent"
 
     def test_agent_name(self, agent):
-        assert agent.agent_name == "进化引擎"
+        assert agent.agent_name == "Evolution Capability"
 
 
 class TestEvolutionAgentHandleEvent:
@@ -165,7 +165,7 @@ class TestHandleRequest:
         result = await agent.handle_request({"action": "describe"})
 
         assert result["agent_id"] == "evolution-agent"
-        assert result["agent_name"] == "进化引擎"
+        assert result["agent_name"] == "Evolution Capability"
         assert EventTypes.EVOLUTION_CYCLE_TRIGGERED in result["subscribed_events"]
 
     @pytest.mark.asyncio

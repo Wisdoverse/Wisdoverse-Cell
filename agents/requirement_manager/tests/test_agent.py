@@ -48,7 +48,7 @@ class TestRequirementManagerAgentClass:
 
     def test_agent_name(self):
         """验证 agent_name"""
-        assert agent.agent_name == "需求管理Agent"
+        assert agent.agent_name == "Requirement Manager"
 
     def test_published_events(self):
         """验证发布的事件类型"""
@@ -243,7 +243,7 @@ class TestHandleRequest:
         result = await test_agent.handle_request({"action": "describe"})
 
         assert result["agent_id"] == "requirement-manager"
-        assert result["agent_name"] == "需求管理Agent"
+        assert result["agent_name"] == "Requirement Manager"
 
     @pytest.mark.asyncio
     async def test_ingest_action_calls_ingest_meeting(self):

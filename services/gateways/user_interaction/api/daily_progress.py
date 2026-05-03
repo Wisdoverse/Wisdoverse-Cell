@@ -11,9 +11,9 @@ router = APIRouter(prefix="/api/daily-progress", tags=["daily-progress"])
 
 @router.get("")
 async def get_daily_progress(
-    target_date: date = Query(default=None, description="查询日期，默认今天"),
-    user_id: str = Query(default="", description="按用户过滤"),
-    days: int = Query(default=1, description="查询天数范围"),
+    target_date: date = Query(default=None, description="Target date; defaults to today"),
+    user_id: str = Query(default="", description="Filter by user identifier"),
+    days: int = Query(default=1, description="Date range in days"),
 ):
     """Get daily progress entries for reporting."""
     end = target_date or date.today()

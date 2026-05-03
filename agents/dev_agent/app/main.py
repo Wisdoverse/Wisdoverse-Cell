@@ -35,7 +35,7 @@ _gitlab_client: GitLabClient | None = None
 app = create_agent_app(
     _raw_agent,
     title="Dev Agent",
-    description="研发编排 Agent — PJM 任务到 AgentForge 工作流",
+    description="Development execution agent for PJM-to-AgentForge delivery workflows.",
     routers=[
         (dev_router, [Depends(verify_internal_key)]),
     ],

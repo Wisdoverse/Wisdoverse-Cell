@@ -1,8 +1,4 @@
-"""
-AnalysisAgent - 分析报告 Agent
-
-订阅 sync.completed 事件，生成日报/周报/里程碑检查/质量评估。
-"""
+"""Analysis capability agent for reports, milestone checks, and quality review."""
 from datetime import UTC, datetime
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -42,7 +38,7 @@ class AnalysisAgent(BaseAgent):
     ):
         super().__init__(
             agent_id="analysis-agent",
-            agent_name="分析Agent",
+            agent_name="Analysis Capability",
             subscribed_events=[EventTypes.SYNC_COMPLETED],
             published_events=[
                 EventTypes.REPORT_DAILY_GENERATED,

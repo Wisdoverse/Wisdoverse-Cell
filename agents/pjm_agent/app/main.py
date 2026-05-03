@@ -1,4 +1,4 @@
-"""PMAgent FastAPI 入口"""
+"""PJM Agent FastAPI entry point."""
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -33,7 +33,7 @@ scheduler = AsyncIOScheduler()
 app = create_agent_app(
     _raw_agent,
     title="PJM Agent",
-    description="PJM 预警调度 Agent",
+    description="Project management agent for alerts, decomposition, and reporting.",
     routers=[
         (pm_router, [Depends(verify_internal_key)]),
         (decomposition_router, [Depends(verify_internal_key)]),

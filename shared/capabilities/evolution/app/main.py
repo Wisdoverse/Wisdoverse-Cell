@@ -28,7 +28,7 @@ async def trigger_analysis(days: int = 7):
 app = create_agent_app(
     agent,
     title="Evolution Agent",
-    description="进化引擎 — 全局追踪分析与架构优化建议",
+    description="Evolution capability for global trace analysis and architecture recommendations.",
     routers=[(router, [Depends(verify_internal_key)])],
     evolution_excluded=True,  # No self-evolution
     control_plane_enabled=settings.control_plane_enabled,

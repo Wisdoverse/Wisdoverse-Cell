@@ -33,7 +33,7 @@ class SyncAgent(BaseAgent):
     ):
         super().__init__(
             agent_id="sync-agent",
-            agent_name="同步Agent",
+            agent_name="Sync Capability",
             subscribed_events=[EventTypes.SYNC_TRIGGER],
             published_events=[
                 EventTypes.SYNC_STARTED,

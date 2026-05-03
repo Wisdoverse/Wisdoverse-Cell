@@ -61,7 +61,7 @@ class RequirementManagerAgent(BaseAgent):
 
         super().__init__(
             agent_id="requirement-manager",
-            agent_name="需求管理Agent",
+            agent_name="Requirement Manager",
             subscribed_events=SUBSCRIBED_EVENTS,
             published_events=[
                 EventTypes.REQUIREMENT_EXTRACTED,

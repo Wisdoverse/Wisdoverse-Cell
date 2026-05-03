@@ -1,4 +1,4 @@
-"""ChatAgent FastAPI 入口"""
+"""User interaction gateway FastAPI entry point."""
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -24,7 +24,7 @@ scheduler = AsyncIOScheduler()
 app = create_agent_app(
     _raw_agent,
     title="Chat Agent",
-    description="AI 聊天 Agent（飞书 Webhook + Claude Tool Calling）",
+    description="User interaction gateway for chat, Feishu webhooks, and tool calling.",
     routers=[
         webhook_router,  # No auth (webhook endpoint)
         (bitable_router, [Depends(verify_internal_key)]),

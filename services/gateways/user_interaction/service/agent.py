@@ -35,7 +35,7 @@ class ChatAgent(BaseAgent):
     ):
         super().__init__(
             agent_id="chat-agent",
-            agent_name="聊天Agent",
+            agent_name="User Interaction Gateway",
             subscribed_events=[
                 EventTypes.CHAT_PM_RESPONSE,
                 EventTypes.COORDINATOR_RESPONSE,

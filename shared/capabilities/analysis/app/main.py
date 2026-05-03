@@ -1,4 +1,4 @@
-"""AnalysisAgent FastAPI 入口"""
+"""Analysis capability FastAPI entry point."""
 
 from fastapi import Depends
 
@@ -13,7 +13,7 @@ from ..service.agent import agent as _raw_agent
 app = create_agent_app(
     _raw_agent,
     title="Analysis Agent",
-    description="分析报告 Agent（日报/周报/里程碑/质量评估）",
+    description="Analysis capability for daily reports, weekly reports, milestones, and quality review.",
     routers=[(analysis_router, [Depends(verify_internal_key)])],
     plugins=[InfraHealthPlugin()],
     control_plane_enabled=settings.control_plane_enabled,

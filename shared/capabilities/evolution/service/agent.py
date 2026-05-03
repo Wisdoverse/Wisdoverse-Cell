@@ -37,7 +37,7 @@ class EvolutionAgent(BaseAgent):
     ):
         super().__init__(
             agent_id="evolution-agent",
-            agent_name="进化引擎",
+            agent_name="Evolution Capability",
             subscribed_events=[
                 EventTypes.EVOLUTION_CYCLE_TRIGGERED,
                 EventTypes.EVOLUTION_HUMAN_FEEDBACK,
