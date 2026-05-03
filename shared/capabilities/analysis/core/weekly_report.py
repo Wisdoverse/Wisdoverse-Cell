@@ -1,11 +1,12 @@
-"""周报生成器 - 从 OP + 飞书生成周报"""
+"""Weekly report generator from OpenProject and Feishu task data."""
 import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from shared.config import settings
 from shared.core import BitableTablePort, FeishuMessengerPort, OpenProjectWorkPackagePort
 from shared.utils.logger import get_logger
+
+from .config import AnalysisCoreConfig
 
 logger = get_logger("analysis_agent.weekly_report")
 
@@ -18,10 +19,12 @@ class WeeklyReportGenerator:
         bitable: BitableTablePort,
         messenger: FeishuMessengerPort,
         op_client: OpenProjectWorkPackagePort,
+        config: AnalysisCoreConfig | None = None,
     ):
         self._bitable = bitable
         self._messenger = messenger
         self._op = op_client
+        self._config = config or AnalysisCoreConfig()
 
     async def generate(self) -> dict:
         feishu_tasks = await self._fetch_feishu_tasks()
@@ -33,7 +36,7 @@ class WeeklyReportGenerator:
         return {"content": content, "summary": f"共 {len(feishu_tasks) + len(op_tasks)} 个任务"}
 
     async def push_to_chat(self, content: str) -> bool:
-        chat_id = settings.feishu_report_chat_id
+        chat_id = self._config.feishu_report_chat_id
         if not chat_id:
             return False
         try:
@@ -51,8 +54,8 @@ class WeeklyReportGenerator:
             return False
 
     async def _fetch_feishu_tasks(self) -> list[dict]:
-        app_token = settings.feishu_pm_app_token
-        table_id = settings.feishu_pm_task_table_id
+        app_token = self._config.feishu_pm_app_token
+        table_id = self._config.feishu_pm_task_table_id
         if not app_token or not table_id:
             logger.warning(
                 "fetch_feishu_tasks_missing_config",
@@ -64,11 +67,10 @@ class WeeklyReportGenerator:
         return [r.get("fields", {}) for r in records]
 
     async def _fetch_op_tasks(self) -> list[dict]:
-        if not settings.decompose_project_ids.strip():
+        if not self._config.decompose_project_ids:
             return []
-        project_ids = [p.strip() for p in settings.decompose_project_ids.split(",") if p.strip()]
         wps = []
-        for pid in project_ids:
+        for pid in self._config.decompose_project_ids:
             try:
                 items = await self._op.get_work_packages(project_id=int(pid))
                 wps.extend(items)
@@ -79,12 +81,12 @@ class WeeklyReportGenerator:
     def _format_report(self, feishu_tasks: list[dict], op_tasks: list[dict]) -> str:
         now = datetime.now(_CHINA_TZ).strftime("%Y-%m-%d")
 
-        # 飞书任务分类
+        # Feishu task categories
         fs_completed = [t for t in feishu_tasks if "完成" in t.get("状态", "")]
         fs_in_progress = [t for t in feishu_tasks if "进行中" in t.get("状态", "")]
         fs_blocked = [t for t in feishu_tasks if "阻塞" in t.get("状态", "")]
 
-        # OP 任务分类
+        # OpenProject task categories
         op_completed = [
             t for t in op_tasks
             if t.get("_links", {}).get("status", {})

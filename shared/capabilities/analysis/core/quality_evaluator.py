@@ -8,9 +8,10 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field
 
-from shared.config import settings
 from shared.core import BitableTablePort
 from shared.utils.logger import get_logger
+
+from .config import AnalysisCoreConfig
 
 logger = get_logger("analysis_agent.quality")
 
@@ -24,9 +25,15 @@ class QualityEvaluation(BaseModel):
 
 
 class QualityEvaluator:
-    def __init__(self, bitable: BitableTablePort, llm_gateway: Any | None = None):
+    def __init__(
+        self,
+        bitable: BitableTablePort,
+        llm_gateway: Any | None = None,
+        config: AnalysisCoreConfig | None = None,
+    ):
         self._bitable = bitable
         self._llm = llm_gateway
+        self._config = config or AnalysisCoreConfig()
 
     async def evaluate_all(self) -> list[dict]:
         """Evaluate tasks that have deliverable links and no quality score."""
@@ -46,8 +53,8 @@ class QualityEvaluator:
         return results
 
     async def _fetch_tasks_with_deliverables(self) -> list[dict]:
-        app_token = settings.feishu_pm_app_token
-        table_id = settings.feishu_pm_task_table_id
+        app_token = self._config.feishu_pm_app_token
+        table_id = self._config.feishu_pm_task_table_id
         if not app_token or not table_id:
             return []
         records = await self._bitable.list_all_records(
@@ -147,8 +154,8 @@ class QualityEvaluator:
     async def write_back(self, record_id: str, quality: str, comment: str) -> bool:
         """Write the quality result back to the Feishu task table."""
         try:
-            app_token = settings.feishu_pm_app_token
-            table_id = settings.feishu_pm_task_table_id
+            app_token = self._config.feishu_pm_app_token
+            table_id = self._config.feishu_pm_task_table_id
             await self._bitable.update_record(
                 record_id=record_id,
                 fields={"交付物质量": quality, "质量评语": comment},

@@ -1,24 +1,31 @@
-"""里程碑风险检查器"""
+"""Milestone risk checker."""
 import json
 
-from shared.config import settings
 from shared.core import BitableTablePort, FeishuMessengerPort
 from shared.utils.logger import get_logger
+
+from .config import AnalysisCoreConfig
 
 logger = get_logger("analysis_agent.milestone")
 
 
 class MilestoneChecker:
-    def __init__(self, bitable: BitableTablePort, messenger: FeishuMessengerPort):
+    def __init__(
+        self,
+        bitable: BitableTablePort,
+        messenger: FeishuMessengerPort,
+        config: AnalysisCoreConfig | None = None,
+    ):
         self._bitable = bitable
         self._messenger = messenger
+        self._config = config or AnalysisCoreConfig()
 
     async def check(self) -> list[dict]:
-        """检查里程碑关联的子任务风险，返回风险列表"""
+        """Check milestone-linked subtask risks."""
         tasks = await self._fetch_tasks()
         risks = []
 
-        # 按 Feature ID 分组
+        # Group by Feature ID
         by_feature: dict[str, list[dict]] = {}
         for t in tasks:
             fid = t.get("关联 Feature ID (关键字段)", "")
@@ -41,7 +48,7 @@ class MilestoneChecker:
                 })
 
             if total > 0 and completed / total < 0.3:
-                # 进度不足 30% 的 feature
+                # Feature progress below 30%
                 risks.append({
                     "feature_id": fid,
                     "type": "low_progress",
@@ -52,7 +59,7 @@ class MilestoneChecker:
         return risks
 
     async def push_risks(self, risks: list[dict]) -> bool:
-        if not risks or not settings.feishu_report_chat_id:
+        if not risks or not self._config.feishu_report_chat_id:
             return False
         try:
             lines = ["🚩 里程碑风险预警\n"]
@@ -65,7 +72,7 @@ class MilestoneChecker:
 
             content = json.dumps({"text": "\n".join(lines)}, ensure_ascii=False)
             await self._messenger.send_message(
-                receive_id=settings.feishu_report_chat_id,
+                receive_id=self._config.feishu_report_chat_id,
                 receive_id_type="chat_id", msg_type="text", content=content,
             )
             logger.info("milestone_risks_pushed", count=len(risks))
@@ -75,8 +82,8 @@ class MilestoneChecker:
             return False
 
     async def _fetch_tasks(self) -> list[dict]:
-        app_token = settings.feishu_pm_app_token
-        table_id = settings.feishu_pm_task_table_id
+        app_token = self._config.feishu_pm_app_token
+        table_id = self._config.feishu_pm_task_table_id
         if not app_token or not table_id:
             logger.warning("fetch_tasks_missing_config", has_app_token=bool(app_token), has_table_id=bool(table_id))
             return []

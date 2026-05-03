@@ -1,8 +1,9 @@
 """Tests for deliverable quality evaluation."""
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
+from shared.capabilities.analysis.core.config import AnalysisCoreConfig
 from shared.capabilities.analysis.core.quality_evaluator import QualityEvaluator
 
 
@@ -23,9 +24,17 @@ def llm():
     return gateway
 
 
+@pytest.fixture
+def config():
+    return AnalysisCoreConfig.from_values(
+        feishu_pm_app_token="app",
+        feishu_pm_task_table_id="table",
+    )
+
+
 @pytest.mark.asyncio
-async def test_fetch_tasks_with_deliverables_skips_scored_tasks(bitable):
-    evaluator = QualityEvaluator(bitable)
+async def test_fetch_tasks_with_deliverables_skips_scored_tasks(bitable, config):
+    evaluator = QualityEvaluator(bitable, config=config)
     bitable.list_all_records.return_value = [
         {
             "record_id": "rec_1",
@@ -44,18 +53,15 @@ async def test_fetch_tasks_with_deliverables_skips_scored_tasks(bitable):
         },
     ]
 
-    with patch("shared.capabilities.analysis.core.quality_evaluator.settings") as mock_settings:
-        mock_settings.feishu_pm_app_token = "app"
-        mock_settings.feishu_pm_task_table_id = "table"
-        tasks = await evaluator._fetch_tasks_with_deliverables()
+    tasks = await evaluator._fetch_tasks_with_deliverables()
 
     assert [task["record_id"] for task in tasks] == ["rec_1"]
     assert tasks[0]["name"] == "Prepare PRD"
 
 
 @pytest.mark.asyncio
-async def test_evaluate_all_calls_llm_and_writes_back(bitable, llm):
-    evaluator = QualityEvaluator(bitable, llm_gateway=llm)
+async def test_evaluate_all_calls_llm_and_writes_back(bitable, llm, config):
+    evaluator = QualityEvaluator(bitable, llm_gateway=llm, config=config)
     bitable.list_all_records.return_value = [
         {
             "record_id": "rec_1",
@@ -68,10 +74,7 @@ async def test_evaluate_all_calls_llm_and_writes_back(bitable, llm):
         }
     ]
 
-    with patch("shared.capabilities.analysis.core.quality_evaluator.settings") as mock_settings:
-        mock_settings.feishu_pm_app_token = "app"
-        mock_settings.feishu_pm_task_table_id = "table"
-        result = await evaluator.evaluate_all()
+    result = await evaluator.evaluate_all()
 
     assert result == [
         {
@@ -95,8 +98,8 @@ async def test_evaluate_all_calls_llm_and_writes_back(bitable, llm):
 
 
 @pytest.mark.asyncio
-async def test_evaluate_all_without_llm_degrades_visibly(bitable):
-    evaluator = QualityEvaluator(bitable)
+async def test_evaluate_all_without_llm_degrades_visibly(bitable, config):
+    evaluator = QualityEvaluator(bitable, config=config)
     bitable.list_all_records.return_value = [
         {
             "record_id": "rec_1",
@@ -107,10 +110,7 @@ async def test_evaluate_all_without_llm_degrades_visibly(bitable):
         }
     ]
 
-    with patch("shared.capabilities.analysis.core.quality_evaluator.settings") as mock_settings:
-        mock_settings.feishu_pm_app_token = "app"
-        mock_settings.feishu_pm_task_table_id = "table"
-        result = await evaluator.evaluate_all()
+    result = await evaluator.evaluate_all()
 
     assert result == []
     bitable.update_record.assert_not_awaited()

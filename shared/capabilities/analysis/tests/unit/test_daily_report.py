@@ -1,11 +1,13 @@
 """
 Unit Tests - DailyReportGenerator
 
-测试日报生成逻辑，使用 mock 的 bitable_service。
+Tests daily report generation with a mocked Bitable port.
 """
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
+
+from shared.capabilities.analysis.core.config import AnalysisCoreConfig
 
 
 @pytest.fixture
@@ -32,22 +34,25 @@ def mock_messenger():
 @pytest.fixture
 def generator(mock_bitable, mock_messenger, mock_op):
     from shared.capabilities.analysis.core.daily_report import DailyReportGenerator
+
     return DailyReportGenerator(
         bitable=mock_bitable,
         messenger=mock_messenger,
         op_client=mock_op,
+        config=AnalysisCoreConfig.from_values(
+            feishu_report_chat_id="chat_123",
+            feishu_pm_app_token="token",
+            feishu_pm_task_table_id="table",
+        ),
     )
 
 
 @pytest.mark.asyncio
 async def test_generate_empty(generator, mock_bitable):
-    """无任务数据时应返回空报告"""
+    """No task data should return an empty report."""
     mock_bitable.list_all_records.return_value = []
 
-    with patch("shared.capabilities.analysis.core.daily_report.settings") as mock_settings:
-        mock_settings.feishu_pm_app_token = "token"
-        mock_settings.feishu_pm_task_table_id = "table"
-        result = await generator.generate()
+    result = await generator.generate()
 
     assert result["content"] == "暂无任务数据"
     assert result["summary"] == "无数据"
@@ -56,7 +61,7 @@ async def test_generate_empty(generator, mock_bitable):
 
 @pytest.mark.asyncio
 async def test_generate_with_tasks(generator, mock_bitable):
-    """有任务数据时应生成统计报告"""
+    """Task data should generate a stats report."""
     mock_bitable.list_all_records.return_value = [
         {"fields": {"任务(动宾短语)": "完成设计", "状态": "已完成(Done)"}},
         {"fields": {"任务(动宾短语)": "开发功能A", "状态": "进行中(In Progress)"}},
@@ -64,10 +69,7 @@ async def test_generate_with_tasks(generator, mock_bitable):
         {"fields": {"任务(动宾短语)": "编写文档", "状态": "未开始"}},
     ]
 
-    with patch("shared.capabilities.analysis.core.daily_report.settings") as mock_settings:
-        mock_settings.feishu_pm_app_token = "token"
-        mock_settings.feishu_pm_task_table_id = "table"
-        result = await generator.generate()
+    result = await generator.generate()
 
     stats = result["stats"]
     assert stats["total"] == 4
@@ -79,7 +81,7 @@ async def test_generate_with_tasks(generator, mock_bitable):
 
 @pytest.mark.asyncio
 async def test_generate_report_contains_blocked_details(generator, mock_bitable):
-    """报告内容应包含阻塞任务详情"""
+    """Report content should include blocked task details."""
     mock_bitable.list_all_records.return_value = [
         {"fields": {
             "任务(动宾短语)": "部署服务",
@@ -88,10 +90,7 @@ async def test_generate_report_contains_blocked_details(generator, mock_bitable)
         }},
     ]
 
-    with patch("shared.capabilities.analysis.core.daily_report.settings") as mock_settings:
-        mock_settings.feishu_pm_app_token = "token"
-        mock_settings.feishu_pm_task_table_id = "table"
-        result = await generator.generate()
+    result = await generator.generate()
 
     assert "部署服务" in result["content"]
     assert "服务器未就绪" in result["content"]
@@ -99,12 +98,16 @@ async def test_generate_report_contains_blocked_details(generator, mock_bitable)
 
 
 @pytest.mark.asyncio
-async def test_generate_no_config(generator, mock_bitable):
-    """未配置 app_token 时应返回空"""
-    with patch("shared.capabilities.analysis.core.daily_report.settings") as mock_settings:
-        mock_settings.feishu_pm_app_token = ""
-        mock_settings.feishu_pm_task_table_id = ""
-        result = await generator.generate()
+async def test_generate_no_config(mock_bitable, mock_messenger, mock_op):
+    """Missing app token should return empty data."""
+    from shared.capabilities.analysis.core.daily_report import DailyReportGenerator
+
+    generator = DailyReportGenerator(
+        bitable=mock_bitable,
+        messenger=mock_messenger,
+        op_client=mock_op,
+    )
+    result = await generator.generate()
 
     assert result["content"] == "暂无任务数据"
     mock_bitable.list_all_records.assert_not_called()
@@ -112,40 +115,40 @@ async def test_generate_no_config(generator, mock_bitable):
 
 @pytest.mark.asyncio
 async def test_push_to_chat_success(generator, mock_messenger):
-    """推送日报到飞书群应成功"""
-    with patch("shared.capabilities.analysis.core.daily_report.settings") as mock_settings:
-        mock_settings.feishu_report_chat_id = "chat_123"
-
-        result = await generator.push_to_chat("测试日报内容")
+    """Daily report push should succeed with configured chat ID."""
+    result = await generator.push_to_chat("测试日报内容")
 
     assert result is True
     mock_messenger.send_message.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_push_to_chat_no_chat_id(generator):
-    """未配置 chat_id 时推送应返回 False"""
-    with patch("shared.capabilities.analysis.core.daily_report.settings") as mock_settings:
-        mock_settings.feishu_report_chat_id = ""
-        result = await generator.push_to_chat("内容")
+async def test_push_to_chat_no_chat_id(mock_bitable, mock_messenger, mock_op):
+    """Missing chat ID should make push return False."""
+    from shared.capabilities.analysis.core.daily_report import DailyReportGenerator
+
+    generator = DailyReportGenerator(
+        bitable=mock_bitable,
+        messenger=mock_messenger,
+        op_client=mock_op,
+    )
+    result = await generator.push_to_chat("内容")
 
     assert result is False
 
 
 @pytest.mark.asyncio
 async def test_push_to_chat_error(generator, mock_messenger):
-    """推送失败时应返回 False"""
-    with patch("shared.capabilities.analysis.core.daily_report.settings") as mock_settings:
-        mock_settings.feishu_report_chat_id = "chat_123"
-        mock_messenger.send_message.side_effect = Exception("network error")
+    """Push errors should return False."""
+    mock_messenger.send_message.side_effect = Exception("network error")
 
-        result = await generator.push_to_chat("内容")
+    result = await generator.push_to_chat("内容")
 
     assert result is False
 
 
 def test_compute_stats(generator):
-    """_compute_stats 应正确统计各状态"""
+    """_compute_stats should count each status correctly."""
     tasks = [
         {"状态": "已完成(Done)"},
         {"状态": "已完成(Done)"},

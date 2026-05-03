@@ -13,6 +13,7 @@ from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
+from ..core.config import AnalysisCoreConfig
 from ..core.daily_report import DailyReportGenerator
 from ..core.milestone_checker import MilestoneChecker
 from ..core.quality_evaluator import QualityEvaluator
@@ -66,18 +67,34 @@ class AnalysisAgent(BaseAgent):
 
         messenger = get_feishu_client()
         op_client = get_op_client()
+        core_config = AnalysisCoreConfig.from_values(
+            feishu_report_chat_id=app_settings.feishu_report_chat_id,
+            feishu_pm_app_token=app_settings.feishu_pm_app_token,
+            feishu_pm_task_table_id=app_settings.feishu_pm_task_table_id,
+            decompose_project_ids=app_settings.decompose_project_ids,
+        )
         self._daily = DailyReportGenerator(
             bitable=bitable_service,
             messenger=messenger,
             op_client=op_client,
+            config=core_config,
         )
         self._weekly = WeeklyReportGenerator(
             bitable=bitable_service,
             messenger=messenger,
             op_client=op_client,
+            config=core_config,
         )
-        self._milestone = MilestoneChecker(bitable=bitable_service, messenger=messenger)
-        self._quality = QualityEvaluator(bitable_service, llm_gateway=llm_gateway)
+        self._milestone = MilestoneChecker(
+            bitable=bitable_service,
+            messenger=messenger,
+            config=core_config,
+        )
+        self._quality = QualityEvaluator(
+            bitable_service,
+            llm_gateway=llm_gateway,
+            config=core_config,
+        )
 
         # Event loop is managed by AgentRuntime.start_event_loop()
 

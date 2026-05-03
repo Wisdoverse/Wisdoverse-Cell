@@ -1,7 +1,7 @@
 """
 Integration Tests - AnalysisAgent API
 
-使用 httpx.AsyncClient 测试 analysis_agent 的 HTTP 端点。
+Tests analysis capability HTTP endpoints with httpx.AsyncClient.
 """
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -11,7 +11,7 @@ from httpx import ASGITransport, AsyncClient
 
 @pytest.fixture
 def mock_agent():
-    """模拟 AnalysisAgent 实例"""
+    """Create a mock AnalysisAgent instance."""
     agent = MagicMock()
     agent.agent_id = "analysis-agent-test"
     agent._db_manager = None
@@ -22,9 +22,9 @@ def mock_agent():
 
 @pytest.fixture
 def test_app(mock_agent):
-    """创建不启动 lifespan 的测试 app"""
+    """Create a test app without starting lifespan."""
     with patch("shared.capabilities.analysis.api.analysis.get_agent", return_value=mock_agent), \
-         patch("shared.capabilities.analysis.app.main.agent", mock_agent):
+         patch("shared.capabilities.analysis.app.main._raw_agent", mock_agent):
 
         from fastapi import FastAPI
         from fastapi.responses import JSONResponse
@@ -58,7 +58,7 @@ def test_app(mock_agent):
 
 @pytest.mark.asyncio
 async def test_health_endpoint(test_app):
-    """GET /health 应返回 alive"""
+    """GET /health should return alive."""
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/health")
@@ -69,7 +69,7 @@ async def test_health_endpoint(test_app):
 
 @pytest.mark.asyncio
 async def test_readiness_endpoint(test_app, mock_agent):
-    """GET /health/ready 应返回就绪状态"""
+    """GET /health/ready should return ready status."""
     mock_agent._db_manager = MagicMock()
     mock_agent._event_bus = MagicMock()
 
@@ -84,7 +84,7 @@ async def test_readiness_endpoint(test_app, mock_agent):
 
 @pytest.mark.asyncio
 async def test_readiness_degraded(test_app, mock_agent):
-    """数据库不可用时应返回 degraded"""
+    """Unavailable dependencies should return degraded status."""
     mock_agent._db_manager = None
     mock_agent._event_bus = None
 
@@ -98,7 +98,7 @@ async def test_readiness_degraded(test_app, mock_agent):
 
 @pytest.mark.asyncio
 async def test_generate_daily(test_app, mock_agent):
-    """POST /api/v1/analysis/daily 应触发日报生成"""
+    """POST /api/v1/analysis/daily should trigger daily report generation."""
     mock_agent.handle_request.return_value = {
         "status": "ok",
         "content": "日报内容",
@@ -117,7 +117,7 @@ async def test_generate_daily(test_app, mock_agent):
 
 @pytest.mark.asyncio
 async def test_generate_weekly(test_app, mock_agent):
-    """POST /api/v1/analysis/weekly 应触发周报生成"""
+    """POST /api/v1/analysis/weekly should trigger weekly report generation."""
     mock_agent.handle_request.return_value = {
         "status": "ok",
         "content": "周报内容",
@@ -135,7 +135,7 @@ async def test_generate_weekly(test_app, mock_agent):
 
 @pytest.mark.asyncio
 async def test_check_risks(test_app, mock_agent):
-    """GET /api/v1/analysis/risks 应返回风险列表"""
+    """GET /api/v1/analysis/risks should return the risk list."""
     mock_agent.handle_request.return_value = {
         "risks": [
             {"feature": "#100", "risk_level": "critical", "description": "阻塞", "affected_tasks": ["A"]},
@@ -154,7 +154,7 @@ async def test_check_risks(test_app, mock_agent):
 
 @pytest.mark.asyncio
 async def test_generate_daily_error(test_app, mock_agent):
-    """日报生成失败时应返回 500"""
+    """Daily report generation failure should return 500."""
     mock_agent.handle_request.side_effect = Exception("bitable error")
 
     transport = ASGITransport(app=test_app)
@@ -166,7 +166,7 @@ async def test_generate_daily_error(test_app, mock_agent):
 
 @pytest.mark.asyncio
 async def test_check_risks_empty(test_app, mock_agent):
-    """无风险时应返回空列表"""
+    """No risks should return an empty list."""
     mock_agent.handle_request.return_value = {"risks": []}
 
     transport = ASGITransport(app=test_app)
