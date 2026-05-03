@@ -1,6 +1,10 @@
 """Unit tests for WorkflowPlanner JSON extraction."""
+import pytest
+
+from agents.dev_agent.core.config import DevCoreConfig
 from agents.dev_agent.core.prompts import WORKFLOW_PLANNER_SYSTEM
-from agents.dev_agent.core.workflow_planner import extract_json
+from agents.dev_agent.core.workflow_planner import WorkflowPlanner, extract_json
+from agents.dev_agent.models.schemas import SanitizedTask
 
 
 def test_extract_json_plain():
@@ -37,3 +41,33 @@ def test_workflow_planner_prompt_requires_git_push_acceptance_step():
         "git checkout -B dev/wp-{wp_id} && git add -A && git commit -m "
         '"dev(wp-{wp_id}): auto" && git push --force-with-lease origin dev/wp-{wp_id}'
     ) in WORKFLOW_PLANNER_SYSTEM
+
+
+class FakeLLMGateway:
+    def __init__(self) -> None:
+        self.calls = []
+
+    async def complete(self, **kwargs) -> str:
+        self.calls.append(kwargs)
+        return '{"name": "wf", "nodes": [{"name": "plan", "config": {}}]}'
+
+
+@pytest.mark.asyncio
+async def test_workflow_planner_uses_injected_model():
+    llm = FakeLLMGateway()
+    planner = WorkflowPlanner(
+        llm,
+        config=DevCoreConfig.from_values(decompose_model="planner-model"),
+    )
+
+    plan = await planner.plan(
+        SanitizedTask(
+            title="Implement feature",
+            description="Create a small change",
+            estimated_hours=2,
+            wp_id=123,
+        )
+    )
+
+    assert plan is not None
+    assert llm.calls[0]["model"] == "planner-model"

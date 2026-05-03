@@ -6,12 +6,12 @@ import re
 import time
 from typing import Any
 
-from shared.config import settings
 from shared.infra.llm_gateway import LLMGateway
 from shared.utils.logger import get_logger
 
 from ..app.metrics import LLM_CALL_DURATION, LLM_CALL_ERRORS
 from ..models.schemas import SanitizedTask, WorkflowPlan
+from .config import DevCoreConfig
 from .prompts import WORKFLOW_PLANNER_SYSTEM
 
 logger = get_logger("dev_agent.workflow_planner")
@@ -69,8 +69,13 @@ def inject_project_id(plan: WorkflowPlan, project_id: str) -> WorkflowPlan:
 class WorkflowPlanner:
     """Convert a sanitized task into a WorkflowPlan via LLM."""
 
-    def __init__(self, llm_gateway: LLMGateway) -> None:
+    def __init__(
+        self,
+        llm_gateway: LLMGateway,
+        config: DevCoreConfig | None = None,
+    ) -> None:
         self._llm = llm_gateway
+        self._config = config or DevCoreConfig()
 
     async def plan(self, task: SanitizedTask) -> WorkflowPlan | None:
         """Generate a workflow plan from a task via LLM."""
@@ -88,8 +93,7 @@ class WorkflowPlanner:
                 prompt=user_prompt,
                 agent_id="dev-agent",
                 task_type="workflow_planning",
-                model=getattr(settings, "decompose_model", None)
-                or "claude-sonnet-4-20250514",
+                model=self._config.decompose_model,
                 max_tokens=4096,
                 temperature=0,
                 system_prompt=WORKFLOW_PLANNER_SYSTEM,

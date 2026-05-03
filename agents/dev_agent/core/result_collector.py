@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from shared.config import settings
 from shared.core import GitLabMergeRequestPort
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
 from ..app.metrics import RETRY_COUNT, TASK_DURATION, TASKS_COMPLETED, TASKS_FAILED
+from .config import DevCoreConfig
 from .notifier import DevNotifier
 from .security_scanner import SecurityScanner
 
@@ -32,12 +32,14 @@ class ResultCollector:
         gitlab: GitLabMergeRequestPort,
         notifier: DevNotifier,
         security_scanner: SecurityScanner | None = None,
+        config: DevCoreConfig | None = None,
     ):
         self._repo = repo
         self._log_repo = log_repo
         self._gitlab = gitlab
         self._notifier = notifier
         self._scanner = security_scanner or SecurityScanner()
+        self._config = config or DevCoreConfig()
 
     async def handle_completion(self, task, workflow_status: dict) -> list[Event]:
         """Process workflow completion through the state machine pipeline."""
@@ -108,7 +110,7 @@ class ResultCollector:
                 "agent_name": self._infer_agent_name(task),
                 "level": "all",
                 "mr_iid": mr_iid,
-                "gitlab_project_id": settings.dev_gitlab_project_id,
+                "gitlab_project_id": self._config.gitlab_project_id,
                 "requested_by": "dev-agent",
             },
         )

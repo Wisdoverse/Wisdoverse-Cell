@@ -32,6 +32,7 @@ from ..core.workflow_planner import WorkflowPlanner, inject_project_id
 from ..core.workflow_validator import WorkflowValidator
 from ..db.repository import DevTaskRepository, DevWorkflowLogRepository
 from ..models.schemas import RiskLevel, SanitizedTask, TaskInput
+from .config_factory import build_dev_core_config
 from .notifier_factory import build_dev_notifier
 
 if TYPE_CHECKING:
@@ -62,7 +63,8 @@ class DevAgent(BaseAgent):
         self._risk_assessor = TaskRiskAssessor()
         self._validator = WorkflowValidator()
         self._router = ToolRouter()
-        self._planner = WorkflowPlanner(LLMGateway())
+        self._core_config = build_dev_core_config()
+        self._planner = WorkflowPlanner(LLMGateway(), config=self._core_config)
 
         self._forge: ForgeClient | None = None
         self._db_manager: DatabaseManager | None = None
@@ -655,4 +657,5 @@ class DevAgent(BaseAgent):
             gitlab=self._gitlab_client,
             notifier=self._notifier or build_dev_notifier(),
             security_scanner=self._scanner or SecurityScanner(),
+            config=self._core_config,
         )

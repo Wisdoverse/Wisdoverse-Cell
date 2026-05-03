@@ -21,6 +21,7 @@ from ..core.workflow_planner import inject_project_id
 from ..db.database import db_manager
 from ..db.repository import DevTaskRepository, DevWorkflowLogRepository
 from ..service.agent import DevAgent
+from ..service.config_factory import build_dev_core_config
 from ..service.notifier_factory import build_dev_notifier
 
 logger = get_logger("dev_agent.app")
@@ -240,6 +241,10 @@ async def _reconcile() -> None:
                                 )
                                 # Trigger result collection pipeline
                                 if _gitlab_client:
+                                    core_config = (
+                                        getattr(agent, "_core_config", None)
+                                        or build_dev_core_config()
+                                    )
                                     collector = ResultCollector(
                                         repo=repo,
                                         log_repo=log_repo,
@@ -248,6 +253,7 @@ async def _reconcile() -> None:
                                         or build_dev_notifier(),
                                         security_scanner=getattr(agent, "_scanner", None)
                                         or SecurityScanner(),
+                                        config=core_config,
                                     )
                                     events = await collector.handle_completion(task, status)
                                     # Publish events returned by ResultCollector
