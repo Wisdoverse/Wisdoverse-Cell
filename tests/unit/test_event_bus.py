@@ -46,6 +46,14 @@ def _make_event():
     )
 
 
+def _async_scan(keys):
+    async def _iterator(*args, **kwargs):
+        for key in keys:
+            yield key
+
+    return _iterator
+
+
 # ── _safe_url ────────────────────────────────────────────────────────
 
 def test_safe_url_masks_password(bus):
@@ -335,6 +343,23 @@ async def test_get_dead_letter_count_uses_dlq_stream(bus, mock_redis):
 
     assert result == 2
     mock_redis.xlen.assert_awaited_once_with("projectcell:events:dlq.failed")
+
+
+@pytest.mark.asyncio
+async def test_get_all_queue_lengths_ignores_idempotency_keys(bus, mock_redis):
+    mock_redis.scan_iter = _async_scan(
+        [
+            "projectcell:events:sync.completed",
+            "projectcell:events:processed:qa-agent:evt_1",
+            "projectcell:events:processing:qa-agent:evt_2",
+        ]
+    )
+    mock_redis.xlen = AsyncMock(return_value=3)
+
+    result = await bus.get_all_queue_lengths()
+
+    assert result == {"sync.completed": 3}
+    mock_redis.xlen.assert_awaited_once_with("projectcell:events:sync.completed")
 
 
 @pytest.mark.asyncio

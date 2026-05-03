@@ -475,6 +475,8 @@ class EventBus:
         result = {}
         for key in keys:
             event_type = key.replace(f"{self.queue_prefix}:", "")
+            if event_type.startswith(("processed:", "processing:")):
+                continue
             try:
                 length = await self._redis.xlen(key)
             except Exception:
