@@ -1,9 +1,8 @@
 """Daily task dispatch (9:00) and progress collection (17:30)."""
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from shared.config import settings
 from shared.core import BitableTablePort, FeishuMessengerPort
 from shared.infra.llm_gateway import llm_gateway
 from shared.observability.privacy import hash_identifier
@@ -11,6 +10,7 @@ from shared.utils.logger import get_logger
 
 from ..db.database import db_manager
 from ..db.repository import DailyProgressRepository
+from .config import UserInteractionCoreConfig
 
 logger = get_logger("chat_agent.daily_tasks")
 
@@ -24,6 +24,7 @@ class DailyTaskDependencies:
 
     bitable: BitableTablePort
     messenger: FeishuMessengerPort
+    config: UserInteractionCoreConfig = field(default_factory=UserInteractionCoreConfig)
 
 
 _dependencies: DailyTaskDependencies | None = None
@@ -43,9 +44,10 @@ def _require_dependencies() -> DailyTaskDependencies:
 
 async def _get_members() -> list[dict]:
     """Fetch all members from the member table. Returns list of {open_id, name, record_id}."""
-    result = await _require_dependencies().bitable.list_records(
-        app_token=settings.feishu_bitable_app_token,
-        table_id=settings.feishu_bitable_member_table_id,
+    deps = _require_dependencies()
+    result = await deps.bitable.list_records(
+        app_token=deps.config.feishu_bitable_app_token,
+        table_id=deps.config.feishu_bitable_member_table_id,
         page_size=100,
     )
     members = []
@@ -76,9 +78,10 @@ async def _get_user_tasks(member_record_id: str) -> list[dict]:
 
     DRI field is a linked-record pointing to the member table via record_ids.
     """
-    result = await _require_dependencies().bitable.list_records(
-        app_token=settings.feishu_bitable_app_token,
-        table_id=settings.feishu_bitable_table_id,
+    deps = _require_dependencies()
+    result = await deps.bitable.list_records(
+        app_token=deps.config.feishu_bitable_app_token,
+        table_id=deps.config.feishu_bitable_table_id,
         page_size=50,
     )
     tasks = []
@@ -109,7 +112,7 @@ async def _get_user_tasks(member_record_id: str) -> list[dict]:
     return tasks
 
 
-# Bitable 状态 → DailyProgress 初始状态映射
+# Bitable status to initial DailyProgress status mapping.
 _STATUS_MAP = {
     "待办": "pending",
     "进行中": "in_progress",

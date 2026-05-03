@@ -12,4 +12,7 @@ def build_user_interaction_core_config() -> UserInteractionCoreConfig:
     return UserInteractionCoreConfig.from_values(
         chat_model=app_settings.chat_model,
         summary_model=app_settings.summary_model,
+        feishu_bitable_app_token=app_settings.feishu_bitable_app_token,
+        feishu_bitable_member_table_id=app_settings.feishu_bitable_member_table_id,
+        feishu_bitable_table_id=app_settings.feishu_bitable_table_id,
     )

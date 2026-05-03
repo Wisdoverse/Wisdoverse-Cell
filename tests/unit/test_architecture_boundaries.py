@@ -307,12 +307,16 @@ def test_gateway_core_does_not_import_platform_adapters_directly() -> None:
                     )
 
 
-def test_user_interaction_chat_service_does_not_read_global_settings() -> None:
-    path = Path("services/gateways/user_interaction/core/chat_service.py")
-    for module in _imported_modules(path):
-        assert module != "shared.config", (
-            f"{path} imports global settings; inject explicit gateway config"
-        )
+def test_user_interaction_chat_and_daily_tasks_do_not_read_global_settings() -> None:
+    paths = [
+        Path("services/gateways/user_interaction/core/chat_service.py"),
+        Path("services/gateways/user_interaction/core/daily_tasks.py"),
+    ]
+    for path in paths:
+        for module in _imported_modules(path):
+            assert module != "shared.config", (
+                f"{path} imports global settings; inject explicit gateway config"
+            )
 
 
 def test_frontend_routes_are_thin() -> None:

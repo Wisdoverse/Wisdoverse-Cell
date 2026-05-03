@@ -7,10 +7,16 @@ def test_user_interaction_core_config_preserves_models() -> None:
     config = UserInteractionCoreConfig.from_values(
         chat_model="chat-model",
         summary_model="summary-model",
+        feishu_bitable_app_token="app-token",
+        feishu_bitable_member_table_id="member-table",
+        feishu_bitable_table_id="task-table",
     )
 
     assert config.chat_model == "chat-model"
     assert config.summary_model == "summary-model"
+    assert config.feishu_bitable_app_token == "app-token"
+    assert config.feishu_bitable_member_table_id == "member-table"
+    assert config.feishu_bitable_table_id == "task-table"
 
 
 def test_user_interaction_core_config_uses_model_defaults_when_empty() -> None:

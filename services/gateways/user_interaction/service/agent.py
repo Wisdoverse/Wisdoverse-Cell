@@ -62,6 +62,7 @@ class ChatAgent(BaseAgent):
         await self._event_bus.connect()
         logger.info("event_bus_connected")
 
+        core_config = build_user_interaction_core_config()
         feishu_client = get_feishu_client()
         card_renderer = FeishuToolCardRenderer()
         configure_tool_dependencies(
@@ -77,9 +78,10 @@ class ChatAgent(BaseAgent):
             DailyTaskDependencies(
                 bitable=bitable_service,
                 messenger=feishu_client,
+                config=core_config,
             )
         )
-        self._chat = ChatService(config=build_user_interaction_core_config())
+        self._chat = ChatService(config=core_config)
 
         # Event loop is managed by AgentRuntime.start_event_loop()
 
