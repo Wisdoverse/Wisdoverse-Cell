@@ -1,7 +1,8 @@
 """
-Requirement Analyzer - 需求智能分析
+Requirement analyzer.
 
-提供自动分类、优先级建议、复杂度估算和依赖分析。
+Provides automatic categorization, priority recommendations, complexity
+estimation, and dependency analysis.
 """
 from datetime import UTC, datetime
 from typing import Optional
@@ -15,51 +16,51 @@ logger = get_logger("analyzer")
 
 
 class AnalysisResult(BaseModel):
-    """分析结果"""
+    """Analysis result."""
     model_config = ConfigDict(from_attributes=True)
 
-    # 分类建议
+    # Category recommendation.
     suggested_category: str
     category_confidence: float  # 0-1
 
-    # 优先级建议
+    # Priority recommendation.
     suggested_priority: str  # high/medium/low
     priority_reasons: list[str]
     priority_confidence: float
 
-    # 复杂度估算
+    # Complexity estimate.
     complexity: str  # S/M/L/XL
     complexity_factors: list[str]
     estimated_effort_days: Optional[int] = None
 
-    # 依赖分析
-    dependencies: list[str]  # 依赖的需求ID或描述
-    blockers: list[str]  # 阻塞因素
+    # Dependency analysis.
+    dependencies: list[str]  # Requirement IDs or descriptions this depends on.
+    blockers: list[str]  # Blocking factors.
 
-    # 风险评估
+    # Risk assessment.
     risk_level: str  # low/medium/high
     risk_factors: list[str]
 
-    # 标签建议
+    # Tag recommendations.
     suggested_tags: list[str]
 
-    # 分析时间
+    # Analysis timestamp.
     analyzed_at: datetime
 
 
 class RequirementAnalyzer:
     """
-    需求智能分析器
+    Intelligent requirement analyzer.
 
-    功能:
-    - 自动分类
-    - 优先级建议
-    - 复杂度估算
-    - 依赖检测
-    - 风险评估
+    Capabilities:
+    - Automatic categorization
+    - Priority recommendations
+    - Complexity estimates
+    - Dependency detection
+    - Risk assessment
     """
 
-    # 关键词到优先级的映射
+    # Keyword-to-priority mapping.
     PRIORITY_KEYWORDS = {
         "high": [
             "必须", "一定要", "紧急", "立即", "关键", "核心",
@@ -75,7 +76,7 @@ class RequirementAnalyzer:
         ]
     }
 
-    # 复杂度关键词
+    # Complexity keywords.
     COMPLEXITY_KEYWORDS = {
         "XL": ["重构", "架构", "迁移", "全面", "系统级"],
         "L": ["集成", "多模块", "复杂", "跨团队"],
@@ -83,7 +84,7 @@ class RequirementAnalyzer:
         "S": ["修复", "调整", "优化", "配置", "简单"]
     }
 
-    # 分类关键词
+    # Category keywords.
     CATEGORY_KEYWORDS = {
         "功能": ["功能", "特性", "feature", "支持", "实现"],
         "性能": ["性能", "速度", "延迟", "优化", "performance"],
@@ -101,36 +102,36 @@ class RequirementAnalyzer:
         existing_requirements: Optional[list[dict]] = None
     ) -> AnalysisResult:
         """
-        分析单个需求
+        Analyze a single requirement.
 
         Args:
-            title: 需求标题
-            description: 需求描述
-            source_quote: 原文引用
-            existing_requirements: 已有需求列表 (用于依赖分析)
+            title: Requirement title.
+            description: Requirement description.
+            source_quote: Original source quote.
+            existing_requirements: Existing requirements for dependency analysis.
 
         Returns:
-            AnalysisResult 分析结果
+            The analysis result.
         """
         content = f"{title} {description} {source_quote or ''}"
 
-        # 1. 关键词分析 (快速，无LLM)
+        # 1. Keyword analysis: fast and LLM-free.
         category, cat_conf = self._analyze_category(content)
         priority, pri_reasons, pri_conf = self._analyze_priority(content)
         complexity, comp_factors = self._analyze_complexity(content)
         tags = self._extract_tags(content)
 
-        # 2. 依赖分析 (基于关键词匹配)
+        # 2. Dependency analysis based on keyword matching.
         dependencies, blockers = self._analyze_dependencies(
             content, existing_requirements or []
         )
 
-        # 3. 风险评估
+        # 3. Risk assessment.
         risk_level, risk_factors = self._assess_risk(
             priority, complexity, dependencies, blockers
         )
 
-        # 4. 估算工作量
+        # 4. Effort estimate.
         effort = self._estimate_effort(complexity)
 
         logger.info(
@@ -167,14 +168,14 @@ class RequirementAnalyzer:
         context: Optional[str] = None
     ) -> AnalysisResult:
         """
-        使用LLM进行深度分析 (更准确但更慢)
+        Use the LLM for deeper analysis.
 
-        仅在需要高精度分析时使用
+        Use only when higher precision is worth the extra latency.
         """
-        # 先做基础分析
+        # Run baseline analysis first.
         basic = await self.analyze(title, description, source_quote)
 
-        # 构建LLM prompt
+        # Build the LLM prompt.
         prompt = f"""Analyze the following requirement and provide intelligent recommendations:
 
 **Requirement title**: {title}
@@ -209,7 +210,7 @@ requirement. Output JSON only; do not add any other text."""
                 )
             )
 
-            # 解析LLM响应并合并
+            # Parse and merge the LLM response.
             import json
             cleaned = response.strip()
             if cleaned.startswith("```"):
@@ -220,12 +221,12 @@ requirement. Output JSON only; do not add any other text."""
 
             data = json.loads(cleaned)
 
-            # 用LLM结果更新基础分析
+            # Update the baseline analysis with LLM output.
             return AnalysisResult(
                 suggested_category=self._normalize_category(
                     data.get("category", basic.suggested_category)
                 ),
-                category_confidence=0.9,  # LLM分析置信度更高
+                category_confidence=0.9,  # LLM analysis has higher confidence.
                 suggested_priority=data.get("priority", basic.suggested_priority),
                 priority_reasons=data.get("priority_reasons", basic.priority_reasons),
                 priority_confidence=0.85,
@@ -266,7 +267,7 @@ requirement. Output JSON only; do not add any other text."""
         return category_map.get(category, category_map.get(normalized, "其他"))
 
     def _analyze_category(self, content: str) -> tuple[str, float]:
-        """分析分类"""
+        """Analyze category."""
         content_lower = content.lower()
         scores = {}
 
@@ -276,14 +277,14 @@ requirement. Output JSON only; do not add any other text."""
                 scores[category] = score
 
         if not scores:
-            return "功能", 0.5  # 默认
+            return "功能", 0.5  # Default.
 
         best = max(scores, key=scores.get)
-        confidence = min(scores[best] / 3, 1.0)  # 最多3个关键词达到满置信
+        confidence = min(scores[best] / 3, 1.0)  # Three keywords reach full confidence.
         return best, confidence
 
     def _analyze_priority(self, content: str) -> tuple[str, list[str], float]:
-        """分析优先级"""
+        """Analyze priority."""
         content_lower = content.lower()
         reasons = []
         matched_priority = None
@@ -305,7 +306,7 @@ requirement. Output JSON only; do not add any other text."""
         return matched_priority, reasons, confidence
 
     def _analyze_complexity(self, content: str) -> tuple[str, list[str]]:
-        """分析复杂度"""
+        """Analyze complexity."""
         content_lower = content.lower()
         factors = []
 
@@ -315,7 +316,7 @@ requirement. Output JSON only; do not add any other text."""
                     factors.append(f"涉及 '{kw}'")
                     return complexity, factors
 
-        # 根据描述长度估算
+        # Estimate from description length.
         if len(content) > 500:
             return "L", ["详细描述，可能较复杂"]
         elif len(content) > 200:
@@ -328,20 +329,20 @@ requirement. Output JSON only; do not add any other text."""
         content: str,
         existing: list[dict]
     ) -> tuple[list[str], list[str]]:
-        """分析依赖关系"""
+        """Analyze dependencies."""
         dependencies = []
         blockers = []
 
-        # 查找可能的依赖关键词
+        # Look for potential dependency keywords.
         dep_keywords = ["依赖", "需要先", "基于", "前提", "depends on"]
         for kw in dep_keywords:
             if kw in content.lower():
-                # 找到依赖关键词，尝试匹配已有需求
+                # Match existing requirements after a dependency keyword is found.
                 for req in existing:
                     if req.get("title", "")[:20] in content:
                         dependencies.append(req.get("id", req.get("title", "")))
 
-        # 查找阻塞因素
+        # Look for blocking factors.
         blocker_keywords = ["阻塞", "等待", "blocked", "pending"]
         for kw in blocker_keywords:
             if kw in content.lower():
@@ -356,26 +357,26 @@ requirement. Output JSON only; do not add any other text."""
         dependencies: list[str],
         blockers: list[str]
     ) -> tuple[str, list[str]]:
-        """评估风险"""
+        """Assess risk."""
         risk_factors = []
         risk_score = 0
 
-        # 高优先级高复杂度 = 高风险
+        # High priority plus high complexity means high risk.
         if priority == "high" and complexity in ["L", "XL"]:
             risk_score += 2
             risk_factors.append("高优先级且高复杂度")
 
-        # 有依赖 = 增加风险
+        # Dependencies increase risk.
         if dependencies:
             risk_score += 1
             risk_factors.append(f"有 {len(dependencies)} 个依赖")
 
-        # 有阻塞 = 高风险
+        # Blockers mean high risk.
         if blockers:
             risk_score += 2
             risk_factors.append("存在阻塞因素")
 
-        # XL 复杂度 = 增加风险
+        # XL complexity increases risk.
         if complexity == "XL":
             risk_score += 1
             risk_factors.append("超大复杂度")
@@ -388,7 +389,7 @@ requirement. Output JSON only; do not add any other text."""
             return "low", ["无明显风险因素"]
 
     def _estimate_effort(self, complexity: str) -> int:
-        """估算工作量 (天)"""
+        """Estimate effort in days."""
         effort_map = {
             "S": 1,
             "M": 3,
@@ -398,11 +399,11 @@ requirement. Output JSON only; do not add any other text."""
         return effort_map.get(complexity, 3)
 
     def _extract_tags(self, content: str) -> list[str]:
-        """提取标签"""
+        """Extract tags."""
         tags = []
         content_lower = content.lower()
 
-        # 技术相关标签
+        # Technology-related tags.
         tech_tags = {
             "api": ["api", "接口", "endpoint"],
             "database": ["数据库", "database", "db", "sql"],
@@ -418,8 +419,8 @@ requirement. Output JSON only; do not add any other text."""
             if any(kw in content_lower for kw in keywords):
                 tags.append(tag)
 
-        return tags[:5]  # 最多5个标签
+        return tags[:5]  # At most five tags.
 
 
-# 全局分析器实例
+# Global analyzer instance.
 analyzer = RequirementAnalyzer()
