@@ -1,4 +1,4 @@
-"""Embedder - 需求向量化
+"""Requirement embedding helpers.
 
 Uses the shared TextEmbedder (sentence-transformers, all-MiniLM-L6-v2).
 """
@@ -14,7 +14,7 @@ logger = get_logger("embedder")
 
 
 class EmbeddingResult(BaseModel):
-    """嵌入结果"""
+    """Embedding result."""
 
     text: str
     embedding: list[float]
@@ -22,24 +22,24 @@ class EmbeddingResult(BaseModel):
 
 
 class RequirementEmbedder:
-    """需求向量化器
+    """Requirement embedder.
 
-    将需求文本转换为向量，用于:
-    1. 语义搜索 - 根据自然语言查找相关需求
-    2. 相似度检测 - 找出重复或相关的需求
-    3. 冲突检测 - 识别可能矛盾的需求
+    Converts requirement text into vectors for:
+    1. Semantic search by natural-language query.
+    2. Similarity checks for duplicate or related requirements.
+    3. Conflict checks for potentially contradictory requirements.
 
     Backed by ``shared.infra.embedder.TextEmbedder`` (all-MiniLM-L6-v2, 384 dim).
     """
 
     def embed_text(self, text: str) -> list[float]:
-        """将文本转换为向量 (384维)"""
+        """Convert text to a 384-dimensional embedding."""
         if not text or not text.strip():
             raise ValueError("文本不能为空")
         return _shared_embedder.embed(text)
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        """批量嵌入文本"""
+        """Embed a batch of texts."""
         if not texts:
             return []
         return _shared_embedder.embed_batch(texts)
@@ -50,7 +50,7 @@ class RequirementEmbedder:
         description: str,
         category: Optional[str] = None,
     ) -> str:
-        """格式化需求文本以获得更好的嵌入效果"""
+        """Format requirement text for higher-quality embeddings."""
         parts = [f"需求: {title}"]
         if category:
             parts.append(f"分类: {category}")
@@ -58,5 +58,5 @@ class RequirementEmbedder:
         return "\n".join(parts)
 
 
-# 全局嵌入器实例
+# Global embedder instance.
 embedder = RequirementEmbedder()

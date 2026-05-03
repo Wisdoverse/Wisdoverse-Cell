@@ -1,6 +1,6 @@
-"""Vector Store - Milvus 向量数据库操作
+"""Milvus-backed vector store operations.
 
-提供需求的语义搜索和相似度查询功能。
+Provides semantic search and similarity queries for requirements.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 logger = get_logger("vector_store")
 
-# 集合名称常量
+# Collection-name constants.
 COLLECTION_REQUIREMENTS = "requirements"
 
 
@@ -35,7 +35,7 @@ def _milvus_health_url(milvus_uri: str) -> str:
 
 
 class VectorStore:
-    """向量存储管理器
+    """Vector store manager.
 
     Uses the shared ``BaseVectorStore`` abstraction.  The public API
     (``add_requirement``, ``search``, ``find_similar``, ``delete_*``) is
@@ -82,7 +82,7 @@ class VectorStore:
         return self._available
 
     async def initialize(self) -> None:
-        """显式初始化向量存储 — 在 Agent 启动时调用。"""
+        """Explicitly initialize the vector store during agent startup."""
         await self._store.initialize()
         await self._store.ensure_collection(self._collection, dimension=384)
         self._available = True
@@ -110,7 +110,7 @@ class VectorStore:
         category: Optional[str] = None,
         metadata: Optional[dict[str, Any]] = None,
     ) -> None:
-        """添加需求到向量库"""
+        """Add a requirement to the vector store."""
         if not self.available:
             return
 
@@ -159,7 +159,7 @@ class VectorStore:
         self,
         requirements: list[dict[str, Any]],
     ) -> None:
-        """批量添加需求"""
+        """Add requirements to the vector store in a batch."""
         if not self.available or not requirements:
             return
 
@@ -217,7 +217,7 @@ class VectorStore:
         category_filter: Optional[str] = None,
         min_similarity: float = 0.5,
     ) -> list[dict[str, Any]]:
-        """语义搜索需求"""
+        """Search requirements semantically."""
         if not self.available:
             return []
 
@@ -288,7 +288,7 @@ class VectorStore:
         n_results: int = 5,
         min_similarity: float = 0.7,
     ) -> list[dict[str, Any]]:
-        """查找相似需求
+        """Find similar requirements.
 
         Fetches the document for *requirement_id*, re-embeds it,
         then queries for nearest neighbours.
@@ -356,7 +356,7 @@ class VectorStore:
     # ── Delete ─────────────────────────────────────────────────────────────────
 
     async def delete_requirement(self, requirement_id: str) -> None:
-        """删除需求向量"""
+        """Delete a requirement vector."""
         if not self.available:
             return
         if self._plugin is not None:
@@ -366,7 +366,7 @@ class VectorStore:
         logger.debug("requirement_deleted_from_vector", requirement_id=requirement_id)
 
     async def delete_requirements_batch(self, requirement_ids: list[str]) -> None:
-        """批量删除需求向量"""
+        """Delete requirement vectors in a batch."""
         if not self.available or not requirement_ids:
             return
         if self._plugin is not None:
@@ -378,7 +378,7 @@ class VectorStore:
     # ── Stats ──────────────────────────────────────────────────────────────────
 
     async def get_stats(self) -> dict[str, Any]:
-        """获取向量库统计信息"""
+        """Return vector-store statistics."""
         if not self.available:
             return {"backend": "milvus", "status": "unavailable"}
         if self._plugin is not None:
@@ -394,5 +394,5 @@ class VectorStore:
         }
 
 
-# 全局向量存储实例
+# Global vector store instance.
 vector_store = VectorStore()
