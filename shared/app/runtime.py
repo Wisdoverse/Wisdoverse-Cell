@@ -453,14 +453,25 @@ class AgentRuntime:
     async def health_check(self) -> dict[str, HealthCheckResult]:
         """Readiness check. Aggregates agent + all plugin health concurrently.
 
-        Returns namespaced keys: ``plugin.name.key`` for each plugin check.
-        Timeout / exception produce ``plugin.name._timeout`` / ``plugin.name._error``.
+        Returns ``agent.key`` for agent checks and ``plugin.name.key`` for each
+        plugin check. Timeout / exception produce ``agent._timeout``,
+        ``agent._error``, ``plugin.name._timeout``, or ``plugin.name._error``.
         """
         checks: dict[str, HealthCheckResult] = {}
         checks["agent_started"] = HealthCheckResult(
             "ok" if self._started else "down",
             "" if self._started else "runtime not started",
         )
+
+        try:
+            agent_checks = await asyncio.wait_for(self._agent.health_check(), timeout=5)
+        except asyncio.TimeoutError:
+            checks["agent._timeout"] = HealthCheckResult("down", "health check timeout")
+        except Exception as e:
+            checks["agent._error"] = HealthCheckResult("down", type(e).__name__)
+        else:
+            for key, value in agent_checks.items():
+                checks[f"agent.{key}"] = self._coerce_health_result(value)
 
         async def _safe_check(plugin: RuntimePlugin) -> dict[str, HealthCheckResult]:
             try:
@@ -476,3 +487,13 @@ class AgentRuntime:
                 checks[f"{plugin.name}.{key}"] = result
 
         return checks
+
+    @staticmethod
+    def _coerce_health_result(value: Any) -> HealthCheckResult:
+        if isinstance(value, HealthCheckResult):
+            return value
+        if isinstance(value, bool):
+            return HealthCheckResult("ok" if value else "down")
+        if isinstance(value, str) and value in {"ok", "degraded", "down"}:
+            return HealthCheckResult(value)
+        return HealthCheckResult("ok" if bool(value) else "down")
