@@ -1,13 +1,10 @@
-"""
-Unit Tests - ToolExecutor
-
-测试工具执行器的各个工具处理函数。
-"""
+"""Unit tests for ToolExecutor handlers."""
 import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from services.gateways.user_interaction.core.config import UserInteractionCoreConfig
 from shared.infra import event_bus as _event_bus_mod
 
 
@@ -63,6 +60,14 @@ def tool_dependencies():
             messenger=mock_messenger,
             contact_lookup=mock_contact_lookup,
             card_renderer=card_renderer,
+            config=UserInteractionCoreConfig.from_values(
+                redis_url="redis://redis:6379/2",
+                feishu_bitable_app_token="app-token",
+                feishu_bitable_member_table_id="member-table",
+                feishu_bitable_table_id="task-table",
+                feishu_bitable_category_table_id="category-table",
+                feishu_bitable_report_table_id="report-table",
+            ),
         )
     )
     yield {
@@ -84,7 +89,7 @@ def executor(tool_dependencies):
 
 @pytest.mark.asyncio
 async def test_sync_now_publishes_event(executor):
-    """sync_now 应通过 event_bus 发布 sync.trigger 事件"""
+    """sync_now publishes a sync.trigger event through the EventBus."""
     mock_bus = AsyncMock()
     mock_bus.connect = AsyncMock()
     mock_bus.publish = AsyncMock(return_value=True)
@@ -98,7 +103,6 @@ async def test_sync_now_publishes_event(executor):
     mock_bus.connect.assert_called_once()
     mock_bus.publish.assert_called_once()
 
-    # 验证发布的事件类型
     published_event = mock_bus.publish.call_args[0][0]
     assert published_event.event_type == "sync.trigger"
     assert published_event.source_agent == "chat-agent"
@@ -106,7 +110,7 @@ async def test_sync_now_publishes_event(executor):
 
 @pytest.mark.asyncio
 async def test_sync_now_publish_failure(executor):
-    """event_bus publish 失败时应返回错误"""
+    """EventBus publish failures return an error."""
     mock_bus = AsyncMock()
     mock_bus.connect = AsyncMock()
     mock_bus.publish = AsyncMock(return_value=False)
@@ -116,13 +120,12 @@ async def test_sync_now_publish_failure(executor):
 
     result = json.loads(result_str)
     assert "error" in result or result.get("success") is not True
-    # publish 返回 False 时应返回失败消息
     assert "失败" in result.get("error", result.get("message", ""))
 
 
 @pytest.mark.asyncio
 async def test_execute_unknown_tool(executor):
-    """未知工具名应返回错误响应"""
+    """Unknown tool names return an error response."""
     result_str = await executor.execute("nonexistent_tool", {})
     result = json.loads(result_str)
     assert "error" in result
@@ -131,7 +134,7 @@ async def test_execute_unknown_tool(executor):
 
 @pytest.mark.asyncio
 async def test_get_work_packages(executor, tool_dependencies):
-    """get_work_packages 应调用 OP client 并返回格式化的 JSON"""
+    """get_work_packages calls the OpenProject port and returns formatted JSON."""
     mock_op = tool_dependencies["op"]
     mock_op.get_work_packages = AsyncMock(return_value=[
         {
@@ -171,8 +174,7 @@ async def test_get_work_packages(executor, tool_dependencies):
 
 @pytest.mark.asyncio
 async def test_update_progress_validates_range(executor):
-    """进度超出 0-100 范围应返回错误"""
-    # 测试超过 100
+    """Progress outside 0-100 returns an error."""
     result_str = await executor.execute("update_work_package_progress", {
         "work_package_id": 1,
         "progress": 150,
@@ -225,7 +227,6 @@ async def test_add_bitable_field_allows_explicit_technical_approval(
         table_id="tbl_1",
     )
 
-    # 测试低于 0
     result_str = await executor.execute("update_work_package_progress", {
         "work_package_id": 1,
         "progress": -5,
@@ -233,3 +234,69 @@ async def test_add_bitable_field_allows_explicit_technical_approval(
     result = json.loads(result_str)
     assert "error" in result
     assert "0-100" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_list_bitable_records_uses_injected_primary_table_id(
+    executor,
+    tool_dependencies,
+):
+    """list_bitable_records annotates records with the injected primary table ID."""
+    mock_bitable = tool_dependencies["bitable"]
+    mock_bitable.list_records = AsyncMock(
+        return_value={"items": [{"record_id": "rec_1", "fields": {"Name": "Task"}}]}
+    )
+
+    result_str = await executor.execute("list_bitable_records", {"limit": 5})
+
+    result = json.loads(result_str)
+    assert result["records"][0]["table_id"] == "task-table"
+    mock_bitable.list_records.assert_awaited_once_with(page_size=5)
+
+
+@pytest.mark.asyncio
+async def test_list_member_records_uses_injected_member_table_config(
+    executor,
+    tool_dependencies,
+):
+    """list_member_records uses the injected app token and member table ID."""
+    mock_bitable = tool_dependencies["bitable"]
+    mock_bitable.list_records = AsyncMock(
+        return_value={"items": [{"record_id": "rec_member", "fields": {"Name": "Alice"}}]}
+    )
+
+    result_str = await executor.execute("list_member_records", {"limit": 3})
+
+    result = json.loads(result_str)
+    assert result["records"][0]["table_id"] == "member-table"
+    mock_bitable.list_records.assert_awaited_once_with(
+        app_token="app-token",
+        table_id="member-table",
+        page_size=3,
+    )
+
+
+@pytest.mark.asyncio
+async def test_query_pm_table_uses_injected_report_table_config(
+    executor,
+    tool_dependencies,
+):
+    """query_pm_table uses injected table IDs for PM side tables."""
+    mock_bitable = tool_dependencies["bitable"]
+    mock_bitable.list_records = AsyncMock(
+        return_value={"items": [{"record_id": "rec_report", "fields": {"Week": "W18"}}]}
+    )
+
+    result_str = await executor.execute(
+        "query_pm_table",
+        {"table_name": "weekly_report", "limit": 2},
+    )
+
+    result = json.loads(result_str)
+    assert result["table"] == "weekly_report"
+    assert result["records"][0]["table_id"] == "report-table"
+    mock_bitable.list_records.assert_awaited_once_with(
+        app_token="app-token",
+        table_id="report-table",
+        page_size=2,
+    )

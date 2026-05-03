@@ -2,12 +2,11 @@
 import json
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import redis.asyncio as aioredis
 
-from shared.config import settings
 from shared.core import (
     BitableTablePort,
     FeishuContactLookupPort,
@@ -17,6 +16,7 @@ from shared.core import (
 from shared.utils.logger import get_logger
 
 from .card_ports import ToolCardRendererPort
+from .config import UserInteractionCoreConfig
 from .ops_logger import record_op
 
 # Redis for storing pending operation fields (SEC-103)
@@ -24,10 +24,11 @@ _redis: aioredis.Redis | None = None
 _PENDING_OP_TTL = 1800  # 30 minutes
 
 
-def _get_redis() -> aioredis.Redis:
+def _get_redis(config: UserInteractionCoreConfig | None = None) -> aioredis.Redis:
     global _redis
     if _redis is None:
-        _redis = aioredis.from_url(settings.redis_url, decode_responses=True)
+        redis_url = config.redis_url if config else UserInteractionCoreConfig().redis_url
+        _redis = aioredis.from_url(redis_url, decode_responses=True)
     return _redis
 
 
@@ -59,6 +60,7 @@ class ToolDependencies:
     messenger: FeishuMessengerPort
     contact_lookup: FeishuContactLookupPort
     card_renderer: ToolCardRendererPort
+    config: UserInteractionCoreConfig = field(default_factory=UserInteractionCoreConfig)
 
 
 _tool_dependencies: ToolDependencies | None = None
@@ -436,10 +438,10 @@ async def _handle_update_work_package_progress(work_package_id: int, progress: i
 
 @register_tool("list_bitable_records")
 async def _handle_list_bitable_records(limit: int = 20) -> str:
-    from shared.config import settings as _settings
-    bitable = _require_dependencies().bitable
+    deps = _require_dependencies()
+    bitable = deps.bitable
     result = await bitable.list_records(page_size=limit)
-    table_id = _settings.feishu_bitable_table_id
+    table_id = deps.config.feishu_bitable_table_id
     records = [
         {"record_id": r["record_id"], "table_id": table_id, "fields": r["fields"]}
         for r in result.get("items", [])
@@ -449,11 +451,11 @@ async def _handle_list_bitable_records(limit: int = 20) -> str:
 
 @register_tool("list_member_records")
 async def _handle_list_member_records(limit: int = 20) -> str:
-    from shared.config import settings as _settings
-    table_id = _settings.feishu_bitable_member_table_id
-    bitable = _require_dependencies().bitable
+    deps = _require_dependencies()
+    table_id = deps.config.feishu_bitable_member_table_id
+    bitable = deps.bitable
     result = await bitable.list_records(
-        app_token=_settings.feishu_bitable_app_token,
+        app_token=deps.config.feishu_bitable_app_token,
         table_id=table_id,
         page_size=limit,
     )
@@ -466,17 +468,17 @@ async def _handle_list_member_records(limit: int = 20) -> str:
 
 @register_tool("query_pm_table")
 async def _handle_query_pm_table(table_name: str, limit: int = 20) -> str:
-    from shared.config import settings as _settings
-    bitable = _require_dependencies().bitable
+    deps = _require_dependencies()
+    bitable = deps.bitable
     table_map = {
-        "categories": _settings.feishu_bitable_category_table_id,
-        "weekly_report": _settings.feishu_bitable_report_table_id,
+        "categories": deps.config.feishu_bitable_category_table_id,
+        "weekly_report": deps.config.feishu_bitable_report_table_id,
     }
     table_id = table_map.get(table_name)
     if not table_id:
         return json.dumps({"error": f"未知表名: {table_name}"}, ensure_ascii=False)
     result = await bitable.list_records(
-        app_token=_settings.feishu_bitable_app_token,
+        app_token=deps.config.feishu_bitable_app_token,
         table_id=table_id,
         page_size=limit,
     )

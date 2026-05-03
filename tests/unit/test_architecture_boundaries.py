@@ -311,6 +311,7 @@ def test_user_interaction_chat_and_daily_tasks_do_not_read_global_settings() -> 
     paths = [
         Path("services/gateways/user_interaction/core/chat_service.py"),
         Path("services/gateways/user_interaction/core/daily_tasks.py"),
+        Path("services/gateways/user_interaction/core/tools.py"),
     ]
     for path in paths:
         for module in _imported_modules(path):

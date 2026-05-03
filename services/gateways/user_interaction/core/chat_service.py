@@ -112,7 +112,7 @@ class ChatService:
         self._tool_validator = ToolValidator(
             registered_tools=self._registry.to_anthropic_schemas(),
         )
-        self._denial_tracker = DenialTracker(redis=_get_redis())
+        self._denial_tracker = DenialTracker(redis=_get_redis(self._config))
         self._compressor = ContextCompressor(
             ContextCompressorConfig(
                 l1_threshold_tokens=40_000,

@@ -72,6 +72,7 @@ class ChatAgent(BaseAgent):
                 messenger=feishu_client,
                 contact_lookup=feishu_client,
                 card_renderer=card_renderer,
+                config=core_config,
             )
         )
         configure_daily_task_dependencies(
