@@ -163,6 +163,9 @@ class TestProductionSecretValidation:
             Settings(
                 _env_file=None,
                 app_env="production",
+                postgres_password="",
+                redis_password="",
+                anthropic_api_key="",
                 secret_key="change-me-in-production",
                 pm_api_key="",
                 internal_service_key="",
@@ -175,9 +178,50 @@ class TestProductionSecretValidation:
         settings = Settings(
             _env_file=None,
             app_env="production",
+            postgres_password="pg-secret",
+            redis_password="redis-secret",
+            anthropic_api_key="llm-secret",
             secret_key="secret-key",
             pm_api_key="pm-key",
             internal_service_key="internal-key",
             a2a_jwt_secret="a2a-secret",
         )
         assert settings.app_env == "production"
+
+    def test_production_rejects_enabled_feishu_without_signature_secret(self):
+        from shared.config import Settings
+
+        with pytest.raises(ValidationError, match="FEISHU"):
+            Settings(
+                _env_file=None,
+                app_env="production",
+                postgres_password="pg-secret",
+                redis_password="redis-secret",
+                anthropic_api_key="llm-secret",
+                secret_key="secret-key",
+                pm_api_key="pm-key",
+                internal_service_key="internal-key",
+                a2a_jwt_secret="a2a-secret",
+                feishu_enabled=True,
+                feishu_verify_signature=False,
+                feishu_encrypt_key="",
+            )
+
+    def test_production_rejects_enabled_wecom_without_callback_secrets(self):
+        from shared.config import Settings
+
+        with pytest.raises(ValidationError, match="WECOM"):
+            Settings(
+                _env_file=None,
+                app_env="production",
+                postgres_password="pg-secret",
+                redis_password="redis-secret",
+                anthropic_api_key="llm-secret",
+                secret_key="secret-key",
+                pm_api_key="pm-key",
+                internal_service_key="internal-key",
+                a2a_jwt_secret="a2a-secret",
+                wecom_enabled=True,
+                wecom_token="",
+                wecom_encoding_aes_key="",
+            )

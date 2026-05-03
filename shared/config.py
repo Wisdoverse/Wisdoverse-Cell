@@ -298,7 +298,16 @@ class Settings(BaseSettings):
         if self.app_env.lower() not in {"production", "prod"}:
             return self
 
+        def _empty_secret(value: SecretStr | None) -> bool:
+            return value is None or not value.get_secret_value().strip()
+
         missing: list[str] = []
+        if _empty_secret(self.postgres_password):
+            missing.append("POSTGRES_PASSWORD")
+        if _empty_secret(self.redis_password):
+            missing.append("REDIS_PASSWORD")
+        if _empty_secret(self.anthropic_api_key):
+            missing.append("ANTHROPIC_API_KEY")
         if self.secret_key.get_secret_value() in {
             "",
             "change-me-in-production",
@@ -315,6 +324,16 @@ class Settings(BaseSettings):
             "dev-only-change-in-production",
         }:
             missing.append("A2A_JWT_SECRET")
+        if self.feishu_enabled:
+            if not self.feishu_verify_signature:
+                missing.append("FEISHU_VERIFY_SIGNATURE")
+            if _empty_secret(self.feishu_encrypt_key):
+                missing.append("FEISHU_ENCRYPT_KEY")
+        if self.wecom_enabled:
+            if _empty_secret(self.wecom_token):
+                missing.append("WECOM_TOKEN")
+            if _empty_secret(self.wecom_encoding_aes_key):
+                missing.append("WECOM_ENCODING_AES_KEY")
 
         if missing:
             names = ", ".join(missing)
