@@ -4,6 +4,7 @@ Event Schema - standard format for inter-agent communication.
 All inter-agent communication flows through Event objects. Events are the
 shared language of the system.
 """
+import math
 from datetime import UTC, datetime
 from typing import Any, Optional
 
@@ -48,14 +49,26 @@ class _ReadOnlyList(list):
     __imul__ = _read_only
 
 
-def _freeze_json_value(value: Any) -> Any:
+def _freeze_json_value(value: Any, *, path: str = "payload") -> Any:
     if isinstance(value, dict):
         return _ReadOnlyDict(
-            {str(key): _freeze_json_value(item) for key, item in value.items()}
+            {
+                str(key): _freeze_json_value(item, path=f"{path}.{key}")
+                for key, item in value.items()
+            }
         )
     if isinstance(value, list | tuple):
-        return _ReadOnlyList(_freeze_json_value(item) for item in value)
-    return value
+        return _ReadOnlyList(
+            _freeze_json_value(item, path=f"{path}[{index}]")
+            for index, item in enumerate(value)
+        )
+    if value is None or isinstance(value, str | bool | int):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"{path} must contain only finite JSON numbers")
+        return value
+    raise ValueError(f"{path} contains non-JSON-serializable value {type(value).__name__}")
 
 
 class EventMetadata(BaseModel):

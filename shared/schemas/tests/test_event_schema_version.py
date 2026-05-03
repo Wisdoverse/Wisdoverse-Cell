@@ -92,3 +92,19 @@ class TestEventSchemaVersion:
         assert event.model_dump()["payload"] == {"nested": {"items": [{"value": 1}]}}
         restored = Event.model_validate_json(event.model_dump_json())
         assert restored.model_dump()["payload"] == {"nested": {"items": [{"value": 1}]}}
+
+    def test_event_payload_rejects_non_json_values(self):
+        with pytest.raises(ValidationError, match="non-JSON-serializable"):
+            Event.create(
+                event_type="test.created",
+                source_agent="test-agent",
+                payload={"bad": object()},
+            )
+
+    def test_event_payload_rejects_non_finite_numbers(self):
+        with pytest.raises(ValidationError, match="finite JSON numbers"):
+            Event.create(
+                event_type="test.created",
+                source_agent="test-agent",
+                payload={"bad": float("nan")},
+            )
