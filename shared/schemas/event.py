@@ -17,6 +17,13 @@ _EVENT_TYPE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)
 _AGENT_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
 
+def validate_agent_id(agent_id: str, *, field_name: str = "agent_id") -> str:
+    """Validate stable runtime agent IDs used in events and agent contracts."""
+    if not _AGENT_ID_PATTERN.fullmatch(agent_id):
+        raise ValueError(f"{field_name} must be a stable runtime agent ID")
+    return agent_id
+
+
 class _ReadOnlyDict(dict):
     """dict-compatible read-only mapping for event payloads."""
 
@@ -133,9 +140,7 @@ class Event(BaseModel):
     @classmethod
     def _validate_source_agent(cls, source_agent: str) -> str:
         """Require an explicit publishing agent ID."""
-        if not _AGENT_ID_PATTERN.fullmatch(source_agent):
-            raise ValueError("source_agent must be the publishing agent ID")
-        return source_agent
+        return validate_agent_id(source_agent, field_name="source_agent")
 
     @field_validator("payload", mode="after")
     @classmethod

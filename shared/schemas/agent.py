@@ -8,7 +8,7 @@ class. Optional A2A and MCP protocol extensions are supported.
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from .event import Event
+from .event import Event, validate_agent_id
 
 if TYPE_CHECKING:
     from shared.protocols.a2a.models import AgentCard, Message
@@ -41,7 +41,7 @@ class BaseAgent(ABC):
         a2a_enabled: bool = False,
         mcp_enabled: bool = False,
     ):
-        self.agent_id = agent_id
+        self.agent_id = validate_agent_id(agent_id)
         self.agent_name = agent_name
         self.subscribed_events = subscribed_events or []
         self.published_events = published_events or []
