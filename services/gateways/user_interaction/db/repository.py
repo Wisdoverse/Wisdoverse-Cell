@@ -1,4 +1,5 @@
 """Repository - chat_agent"""
+import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Optional
@@ -17,6 +18,11 @@ logger = get_logger("chat_agent.repository")
 
 # Max serialized conversation size (512 KB)
 MAX_CONVERSATION_BYTES = 512 * 1024
+
+
+def _hash_user_id(user_id: str) -> str:
+    """Return a short one-way identifier for PII-safe logs."""
+    return hashlib.sha256(user_id.encode()).hexdigest()[:12]
 
 
 class ConversationRepository:
@@ -39,7 +45,11 @@ class ConversationRepository:
         while len(serialized.encode("utf-8")) > MAX_CONVERSATION_BYTES and len(messages) > 1:
             messages.pop(0)
             serialized = json.dumps(messages, ensure_ascii=False)
-            logger.warning("conversation_trimmed", user_id=user_id, remaining=len(messages))
+            logger.warning(
+                "conversation_trimmed",
+                user_hash=_hash_user_id(user_id),
+                remaining=len(messages),
+            )
 
         stmt = pg_insert(ConversationHistory).values(
             user_id=user_id,

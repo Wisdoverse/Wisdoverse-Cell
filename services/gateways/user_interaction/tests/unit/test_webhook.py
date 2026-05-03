@@ -158,3 +158,60 @@ def test_feishu_webhook_invalid_json_returns_bad_request_when_signature_disabled
 
     assert response.status_code == 400
     assert response.json() == {"detail": "Invalid JSON"}
+
+
+@pytest.mark.asyncio
+async def test_process_message_logs_user_hash_for_direct_card(monkeypatch):
+    """Message processing logs hashed user identifiers, not raw platform IDs."""
+    import services.gateways.user_interaction.api.webhook as webhook_mod
+
+    feishu_client = MagicMock()
+    feishu_client.add_reaction = AsyncMock()
+    agent = MagicMock()
+    agent.handle_request = AsyncMock(return_value={"reply": ""})
+    logger = MagicMock()
+
+    monkeypatch.setattr(webhook_mod, "get_feishu_client", lambda: feishu_client)
+    monkeypatch.setattr(webhook_mod, "get_agent", lambda: agent)
+    monkeypatch.setattr(webhook_mod, "logger", logger)
+    monkeypatch.setattr(webhook_mod, "_metrics_available", False)
+
+    await webhook_mod._process_message(
+        "ou_raw_user",
+        "hello",
+        {"message_id": "msg_1"},
+        "p2p",
+    )
+
+    card_call = next(call for call in logger.info.call_args_list if call.args[0] == "msg_card_sent")
+    assert card_call.kwargs["user_hash"] == webhook_mod._hash_user_id("ou_raw_user")
+    assert "user_id" not in card_call.kwargs
+
+
+@pytest.mark.asyncio
+async def test_process_message_error_logs_user_hash(monkeypatch):
+    """Error logs must not include raw platform user IDs."""
+    import services.gateways.user_interaction.api.webhook as webhook_mod
+
+    feishu_client = MagicMock()
+    feishu_client.add_reaction = AsyncMock()
+    feishu_client.send_message = AsyncMock()
+    agent = MagicMock()
+    agent.handle_request = AsyncMock(side_effect=RuntimeError("boom"))
+    logger = MagicMock()
+
+    monkeypatch.setattr(webhook_mod, "get_feishu_client", lambda: feishu_client)
+    monkeypatch.setattr(webhook_mod, "get_agent", lambda: agent)
+    monkeypatch.setattr(webhook_mod, "logger", logger)
+    monkeypatch.setattr(webhook_mod, "_metrics_available", False)
+
+    await webhook_mod._process_message(
+        "ou_raw_user",
+        "hello",
+        {"message_id": "msg_1"},
+        "p2p",
+    )
+
+    error_call = next(call for call in logger.error.call_args_list if call.args[0] == "msg_process_error")
+    assert error_call.kwargs["user_hash"] == webhook_mod._hash_user_id("ou_raw_user")
+    assert "user_id" not in error_call.kwargs

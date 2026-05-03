@@ -34,6 +34,11 @@ _redis: aioredis.Redis | None = None
 _DEDUP_TTL = 300  # 5 minutes
 
 
+def _hash_user_id(user_id: str) -> str:
+    """Return a short one-way identifier for PII-safe logs."""
+    return hashlib.sha256(user_id.encode()).hexdigest()[:12]
+
+
 def _get_redis() -> aioredis.Redis:
     global _redis
     if _redis is None:
@@ -114,6 +119,7 @@ async def feishu_webhook(request: Request):
 
     sender = event.get("sender", {}).get("sender_id", {})
     user_id = sender.get("open_id", "unknown")
+    user_hash = _hash_user_id(user_id)
 
     # Get user name (cached in Redis)
     user_name = ""
@@ -134,7 +140,7 @@ async def feishu_webhook(request: Request):
 
     logger.info(
         "msg_received",
-        user_hash=hashlib.sha256(user_id.encode()).hexdigest()[:12],
+        user_hash=user_hash,
         chat_type=chat_type,
     )
 
@@ -172,15 +178,16 @@ async def _process_message(
     user_name: str = "",
     chat_id: str = "",
 ):
-    """处理消息并回复"""
+    """Process the message and send a reply."""
     msg_id = message.get("message_id", "")
     client = get_feishu_client()
+    user_hash = _hash_user_id(user_id)
 
-    # 立即发送 emoji 表情反馈（让用户知道消息已收到）
+    # Send an immediate reaction so the user knows the message was received.
     try:
         await client.add_reaction(msg_id, "OnIt")
     except Exception:
-        pass  # 非关键路径，失败不影响主流程
+        pass  # Non-critical path.
 
     agent = get_agent()
     _start = time.time()
@@ -198,13 +205,13 @@ async def _process_message(
 
         # Card was already sent directly (propose_ tool) — skip reply
         if not reply:
-            logger.info("msg_card_sent", user_id=user_id, elapsed=f"{elapsed:.1f}s")
+            logger.info("msg_card_sent", user_hash=user_hash, elapsed=f"{elapsed:.1f}s")
             if _metrics_available:
                 MESSAGES_REPLIED.labels(status="success").inc()
                 CHAT_LATENCY.observe(elapsed)
             return
 
-        # 构建卡片回复
+        # Build card reply.
         card = _build_reply_card(reply, elapsed)
         card_content = json.dumps(card, ensure_ascii=False)
 
@@ -220,13 +227,13 @@ async def _process_message(
                     content=card_content,
                 )
 
-        logger.info("msg_replied", user_id=user_id, elapsed=f"{elapsed:.1f}s")
+        logger.info("msg_replied", user_hash=user_hash, elapsed=f"{elapsed:.1f}s")
         if _metrics_available:
             MESSAGES_REPLIED.labels(status="success").inc()
             CHAT_LATENCY.observe(elapsed)
 
     except Exception as e:
-        logger.error("msg_process_error", user_id=user_id, error=str(e))
+        logger.error("msg_process_error", user_hash=user_hash, error=str(e))
         # Send error reply to user
         try:
             error_content = json.dumps(
@@ -244,13 +251,13 @@ async def _process_message(
                     content=error_content,
                 )
         except Exception as reply_err:
-            logger.error("error_reply_failed", user_id=user_id, error=str(reply_err))
+            logger.error("error_reply_failed", user_hash=user_hash, error=str(reply_err))
         if _metrics_available:
             MESSAGES_REPLIED.labels(status="error").inc()
 
 
 def _build_reply_card(reply: str, elapsed: float) -> dict:
-    """构建 AI 回复卡片"""
+    """Build an AI reply card."""
     card = (
         CardBuilder()
         .set_header("🤖 项目经理", template="blue")

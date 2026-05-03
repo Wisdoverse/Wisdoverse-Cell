@@ -1,4 +1,5 @@
 """User interaction gateway service for chat and Feishu webhook requests."""
+import hashlib
 from typing import Optional
 
 from shared.config import settings as app_settings
@@ -19,6 +20,11 @@ from ..core.tools import ToolDependencies, configure_tool_dependencies
 from ..db.database import DatabaseManager, db_manager
 
 logger = get_logger("chat_agent.service")
+
+
+def _hash_user_id(user_id: str) -> str:
+    """Return a short one-way identifier for PII-safe logs."""
+    return hashlib.sha256(user_id.encode()).hexdigest()[:12]
 
 
 class ChatAgent(BaseAgent):
@@ -83,7 +89,11 @@ class ChatAgent(BaseAgent):
 
     async def handle_event(self, event: Event) -> list[Event]:
         if event.event_type == EventTypes.CHAT_PM_RESPONSE:
-            logger.info("project_management_response_received", user_id=event.payload.get("user_id"))
+            user_id = str(event.payload.get("user_id", ""))
+            logger.info(
+                "project_management_response_received",
+                user_hash=_hash_user_id(user_id) if user_id else "",
+            )
         elif event.event_type == EventTypes.COORDINATOR_RESPONSE:
             logger.info(
                 "coordinator_response_received",

@@ -3,7 +3,7 @@ Unit Tests - ChatAgent
 
 ChatAgent 的核心逻辑单元测试。
 """
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -32,7 +32,7 @@ async def test_agent_init(mock_event_bus, mock_chat_service):
 @pytest.mark.asyncio
 async def test_handle_event_pm_response(mock_event_bus, mock_chat_service):
     """验证 handle_event 处理 CHAT_PM_RESPONSE 事件，返回空列表"""
-    from services.gateways.user_interaction.service.agent import ChatAgent
+    from services.gateways.user_interaction.service.agent import ChatAgent, _hash_user_id
 
     agent = ChatAgent(db=MagicMock(), bus=mock_event_bus)
 
@@ -42,9 +42,14 @@ async def test_handle_event_pm_response(mock_event_bus, mock_chat_service):
         payload={"user_id": "test_user", "reply": "pm response"},
     )
 
-    result = await agent.handle_event(event)
+    with patch("services.gateways.user_interaction.service.agent.logger") as logger:
+        result = await agent.handle_event(event)
 
     assert result == []
+    log_call = logger.info.call_args
+    assert log_call.args == ("project_management_response_received",)
+    assert log_call.kwargs["user_hash"] == _hash_user_id("test_user")
+    assert "user_id" not in log_call.kwargs
 
 
 @pytest.mark.asyncio
