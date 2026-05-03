@@ -43,18 +43,36 @@ class SyncEngine:
             bitable=bitable,
         )
 
-    async def sync_op_to_feishu(self, project_id: int | None = None) -> dict[str, Any]:
+    async def sync_op_to_feishu(
+        self,
+        project_id: int | None = None,
+        *,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
         """Backward-compatible OpenProject-to-Bitable sync entrypoint."""
-        return await self.openproject.sync_to_bitable(project_id=project_id)
+        return await self.openproject.sync_to_bitable(
+            project_id=project_id,
+            trace_id=trace_id,
+        )
 
-    async def sync_feishu_to_op(self) -> dict[str, Any]:
+    async def sync_feishu_to_op(
+        self,
+        *,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
         """Backward-compatible Bitable-to-OpenProject sync entrypoint."""
+        _ = trace_id
         return await self.feishu_bitable.sync_progress_to_openproject()
 
-    async def full_sync(self, project_id: int | None = None) -> dict[str, Any]:
+    async def full_sync(
+        self,
+        project_id: int | None = None,
+        *,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
         """Run both split sync boundaries and summarize the combined result."""
-        op_result = await self.sync_op_to_feishu(project_id)
-        feishu_result = await self.sync_feishu_to_op()
+        op_result = await self.sync_op_to_feishu(project_id, trace_id=trace_id)
+        feishu_result = await self.sync_feishu_to_op(trace_id=trace_id)
 
         total = op_result.get("processed", 0) + feishu_result.get("processed", 0)
 

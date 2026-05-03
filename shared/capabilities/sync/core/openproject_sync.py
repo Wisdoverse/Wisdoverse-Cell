@@ -55,6 +55,7 @@ class OpenProjectSyncEngine:
         mapping_repo: SyncMappingRepository,
         member_map: dict[str, str],
         parent_ids: set[int],
+        trace_id: str | None,
     ) -> None:
         mapping = await mapping_repo.get_by_op_id(wp_data.op_id)
         fields = data_mapper.work_package_to_feishu_fields(wp_data, member_map)
@@ -70,16 +71,25 @@ class OpenProjectSyncEngine:
                 title=wp_data.title,
             )
 
-        await self._maybe_publish_decompose(wp, wp_data, parent_ids)
+        await self._maybe_publish_decompose(wp, wp_data, parent_ids, trace_id)
 
-    async def sync_to_bitable(self, project_id: int | None = None) -> dict[str, Any]:
+    async def sync_to_bitable(
+        self,
+        project_id: int | None = None,
+        *,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
         """Mirror OpenProject work packages to the Feishu Bitable projection."""
         async with acquire_sync_lock(self._db, "sync_op_to_feishu") as acquired:
             if not acquired:
                 return {"status": "skipped", "reason": "lock_held"}
-            return await self._do_sync_to_bitable(project_id)
+            return await self._do_sync_to_bitable(project_id, trace_id)
 
-    async def _do_sync_to_bitable(self, project_id: int | None) -> dict[str, Any]:
+    async def _do_sync_to_bitable(
+        self,
+        project_id: int | None,
+        trace_id: str | None,
+    ) -> dict[str, Any]:
         async with self._db.session() as session:
             log_repo = SyncLogRepository(session)
             mapping_repo = SyncMappingRepository(session)
@@ -107,7 +117,12 @@ class OpenProjectSyncEngine:
                     try:
                         wp_data = data_mapper.op_to_work_package_data(wp)
                         await self._sync_single_work_package(
-                            wp, wp_data, mapping_repo, member_map, parent_ids,
+                            wp,
+                            wp_data,
+                            mapping_repo,
+                            member_map,
+                            parent_ids,
+                            trace_id,
                         )
                         processed += 1
                     except Exception as e:
@@ -127,6 +142,7 @@ class OpenProjectSyncEngine:
         wp: dict,
         wp_data: Any,
         parent_ids: set[int],
+        trace_id: str | None,
     ) -> None:
         """Publish a decompose event if a work package needs refinement."""
         if not self._event_bus or not self._decompose_filter:
@@ -159,6 +175,7 @@ class OpenProjectSyncEngine:
                 "assignee": wp_data.assignee or "",
                 "assignee_id": assignee_id,
             },
+            trace_id=trace_id,
         )
         await self._event_bus.publish(decompose_event)
         log_event = (

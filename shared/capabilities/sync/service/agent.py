@@ -183,7 +183,7 @@ class SyncAgent(BaseAgent):
             scope="full",
             triggered_by=triggered_by,
             trace_id=trace_id,
-            runner=lambda: self._sync_engine.full_sync(),
+            runner=lambda: self._sync_engine.full_sync(trace_id=trace_id),
         )
 
     async def trigger_openproject_sync(
@@ -196,7 +196,7 @@ class SyncAgent(BaseAgent):
             scope="openproject",
             triggered_by=triggered_by,
             trace_id=trace_id,
-            runner=lambda: self._sync_engine.sync_op_to_feishu(),
+            runner=lambda: self._sync_engine.sync_op_to_feishu(trace_id=trace_id),
         )
 
     async def trigger_feishu_bitable_sync(
@@ -209,7 +209,7 @@ class SyncAgent(BaseAgent):
             scope="feishu_bitable",
             triggered_by=triggered_by,
             trace_id=trace_id,
-            runner=lambda: self._sync_engine.sync_feishu_to_op(),
+            runner=lambda: self._sync_engine.sync_feishu_to_op(trace_id=trace_id),
         )
 
     async def _run_sync_scope(

@@ -114,6 +114,26 @@ async def test_handle_event_sync_trigger_can_run_feishu_bitable_boundary() -> No
 
 
 @pytest.mark.asyncio
+async def test_trigger_openproject_sync_passes_trace_id_to_split_engine() -> None:
+    bus = AsyncMock()
+    bus.publish = AsyncMock()
+    agent = SyncAgent(db=AsyncMock(), bus=bus)
+    agent._sync_engine = SimpleNamespace(
+        sync_op_to_feishu=AsyncMock(return_value={"status": "success", "processed": 0})
+    )
+
+    result = await agent.trigger_openproject_sync(
+        triggered_by="operator",
+        trace_id="trace_openproject",
+    )
+
+    assert result["status"] == "success"
+    agent._sync_engine.sync_op_to_feishu.assert_awaited_once_with(
+        trace_id="trace_openproject",
+    )
+
+
+@pytest.mark.asyncio
 async def test_handle_event_sync_trigger_invalid_payload_returns_failed_event() -> None:
     agent = SyncAgent(db=AsyncMock(), bus=AsyncMock())
 

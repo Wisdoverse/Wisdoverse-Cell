@@ -3,7 +3,7 @@ Unit Tests - SyncEngine
 
 SyncEngine 的核心同步逻辑测试，使用 mock 的 op_client 和 bitable_service。
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -102,6 +102,56 @@ async def test_openproject_sync_creates_mapping(
     assert result["status"] == "success"
     assert result["processed"] == 1
     mock_bitable.create_record.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_openproject_sync_preserves_trace_id_on_decompose_event(
+    mock_db_manager,
+    mock_op_client,
+    mock_bitable,
+):
+    """OpenProject-to-PJM handoff events inherit the sync trigger trace ID."""
+    event_bus = AsyncMock()
+    engine = OpenProjectSyncEngine(
+        db_manager=mock_db_manager,
+        op_client=mock_op_client,
+        bitable=mock_bitable,
+        event_bus=event_bus,
+        decompose_filter=lambda project_id: project_id == 1,
+    )
+    mock_op_client.get_work_packages.return_value = [
+        {
+            "id": 101,
+            "subject": "Feature X",
+            "_links": {
+                "project": {"title": "Project"},
+                "status": {"title": "New"},
+                "type": {"title": "Feature"},
+                "assignee": {"href": "/api/v3/users/7"},
+            },
+            "percentageDone": 0,
+            "description": {"raw": "Description"},
+        }
+    ]
+    mock_bitable.create_record.return_value = "rec_101"
+
+    with patch("shared.capabilities.sync.core.openproject_sync.data_mapper") as mock_mapper:
+        wp_data = MagicMock()
+        wp_data.op_id = 101
+        wp_data.project_id = 1
+        wp_data.title = "Feature X"
+        wp_data.description = "Description"
+        wp_data.parent_id = None
+        wp_data.assignee = "Owner"
+        mock_mapper.op_to_work_package_data.return_value = wp_data
+        mock_mapper.work_package_to_feishu_fields.return_value = {"task": "Feature X"}
+
+        result = await engine.sync_to_bitable(trace_id="trace-sync-op")
+
+    assert result["status"] == "success"
+    published_event = event_bus.publish.await_args.args[0]
+    assert published_event.event_type == "sync.task-needs-decompose"
+    assert published_event.metadata.trace_id == "trace-sync-op"
 
 
 @pytest.mark.asyncio
