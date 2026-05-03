@@ -4,9 +4,9 @@ from __future__ import annotations
 from shared.config import settings as app_settings
 from shared.infra.event_bus import EventBus
 from shared.integrations.feishu import FeishuWebhookClient
-from shared.integrations.feishu.cards import FeishuQualityCardRenderer
 from shared.integrations.gitlab import GitLabClient
 
+from ..adapters.feishu_cards import FeishuQualityCardRenderer
 from ..core.config import QACoreConfig
 from ..core.notifier import QANotifier
 

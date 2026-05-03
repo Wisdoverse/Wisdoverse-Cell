@@ -6,9 +6,9 @@ from pydantic import BaseModel
 
 from shared.infra.denial_tracker import DenialTracker
 from shared.integrations.feishu.bitable import bitable_service
-from shared.integrations.feishu.cards.tools import FeishuToolCardRenderer
 from shared.utils.logger import get_logger
 
+from ..core.card_ports import require_tool_card_renderer
 from ..core.ops_logger import record_op
 from ..core.tools import _format_fields_display, get_pending_op
 
@@ -29,7 +29,6 @@ def get_denial_tracker() -> DenialTracker:
     return _denial_tracker
 
 _background_tasks: set[asyncio.Task] = set()
-_card_renderer = FeishuToolCardRenderer()
 
 router = APIRouter(prefix="/api/bitable", tags=["bitable"])
 
@@ -168,7 +167,9 @@ async def confirm_update(req: ConfirmRequest):
     if req.action_id:
         pending = await get_pending_op(req.action_id)
         if not pending:
-            return _card_renderer.build_bitable_operation_expired(operation="修改")
+            return require_tool_card_renderer().build_bitable_operation_expired(
+                operation="修改",
+            )
         record_id = pending.get("record_id", record_id)
         fields = pending.get("fields", fields)
         table_id = pending.get("table_id", table_id)
@@ -179,7 +180,7 @@ async def confirm_update(req: ConfirmRequest):
         sanitized = await _resolve_duplex_links(sanitized, table_id)
         await bitable_service.update_record(record_id, sanitized, **kwargs)
         field_lines = _format_fields_display(fields)
-        card = _card_renderer.build_bitable_update_success(
+        card = require_tool_card_renderer().build_bitable_update_success(
             record_id=record_id,
             field_lines=field_lines,
         )
@@ -202,7 +203,9 @@ async def confirm_update(req: ConfirmRequest):
         ))
         _background_tasks.add(task)
         task.add_done_callback(_background_tasks.discard)
-        return _card_renderer.build_bitable_update_failure(record_id=record_id)
+        return require_tool_card_renderer().build_bitable_update_failure(
+            record_id=record_id,
+        )
 
 
 class RejectRequest(BaseModel):
@@ -240,7 +243,9 @@ async def reject_operation(req: RejectRequest):
         except Exception as e:
             logger.warning("denial_tracking_failed", error=str(e))
 
-    return _card_renderer.build_bitable_rejection(action_type=req.action_type)
+    return require_tool_card_renderer().build_bitable_rejection(
+        action_type=req.action_type,
+    )
 
 
 @router.post("/create")
@@ -252,7 +257,9 @@ async def create_record(req: CreateRequest):
     if req.action_id:
         pending = await get_pending_op(req.action_id)
         if not pending:
-            return _card_renderer.build_bitable_operation_expired(operation="创建")
+            return require_tool_card_renderer().build_bitable_operation_expired(
+                operation="创建",
+            )
         fields = pending.get("fields", fields)
         table_id = pending.get("table_id", table_id)
 
@@ -262,7 +269,7 @@ async def create_record(req: CreateRequest):
         sanitized = await _resolve_duplex_links(sanitized, table_id)
         record_id = await bitable_service.create_record(sanitized, **kwargs)
         field_lines = _format_fields_display(fields)
-        card = _card_renderer.build_bitable_create_success(
+        card = require_tool_card_renderer().build_bitable_create_success(
             record_id=record_id,
             field_lines=field_lines,
         )
@@ -284,4 +291,4 @@ async def create_record(req: CreateRequest):
         ))
         _background_tasks.add(task)
         task.add_done_callback(_background_tasks.discard)
-        return _card_renderer.build_bitable_create_failure()
+        return require_tool_card_renderer().build_bitable_create_failure()

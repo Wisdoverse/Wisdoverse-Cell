@@ -8,6 +8,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from services.gateways.user_interaction.adapters.feishu_cards import (
+    FeishuToolCardRenderer,
+)
 from services.gateways.user_interaction.api.bitable import (
     ConfirmRequest,
     CreateRequest,
@@ -15,6 +18,17 @@ from services.gateways.user_interaction.api.bitable import (
     confirm_update,
     create_record,
 )
+from services.gateways.user_interaction.core.card_ports import (
+    configure_tool_card_renderer,
+)
+
+
+@pytest.fixture(autouse=True)
+def card_renderer():
+    """Configure the route-level card renderer through the gateway port."""
+    configure_tool_card_renderer(FeishuToolCardRenderer())
+    yield
+    configure_tool_card_renderer(None)
 
 # ---------------------------------------------------------------------------
 # Duplex Link format

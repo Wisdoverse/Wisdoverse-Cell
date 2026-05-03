@@ -175,6 +175,7 @@ def test_feishu_card_renderers_live_in_shared_integrations() -> None:
         Path("agents/requirement_manager/adapters/feishu_cards.py"),
         Path("agents/requirement_manager/integrations/feishu/cards/requirement.py"),
         Path("agents/pjm_agent/adapters/feishu_cards.py"),
+        Path("agents/qa_agent/adapters/feishu_cards.py"),
         Path("services/gateways/user_interaction/adapters/feishu_cards.py"),
     ]
     for path in shim_paths:
@@ -193,6 +194,37 @@ def test_feishu_card_renderers_live_in_shared_integrations() -> None:
             )
 
 
+def test_service_layers_use_local_feishu_card_adapters() -> None:
+    """Service/app/core/API layers must not bind directly to Feishu card implementations."""
+    roots = [
+        Path("agents/requirement_manager/app"),
+        Path("agents/requirement_manager/api"),
+        Path("agents/requirement_manager/core"),
+        Path("agents/requirement_manager/service"),
+        Path("agents/pjm_agent/app"),
+        Path("agents/pjm_agent/api"),
+        Path("agents/pjm_agent/core"),
+        Path("agents/pjm_agent/service"),
+        Path("agents/qa_agent/app"),
+        Path("agents/qa_agent/api"),
+        Path("agents/qa_agent/core"),
+        Path("agents/qa_agent/service"),
+        Path("services/gateways/user_interaction/app"),
+        Path("services/gateways/user_interaction/api"),
+        Path("services/gateways/user_interaction/core"),
+        Path("services/gateways/user_interaction/service"),
+    ]
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in _python_files(root):
+            for module in _imported_modules(path):
+                assert not module.startswith("shared.integrations.feishu.cards"), (
+                    f"{path} imports {module}; service layers should inject "
+                    "Feishu card renderers through local adapter/port wiring"
+                )
+
+
 def test_qa_core_uses_card_renderer_port_for_feishu_payloads() -> None:
     """QA core must not construct concrete Feishu card payloads directly."""
     path = Path("agents/qa_agent/core/notifier.py")
@@ -204,7 +236,7 @@ def test_qa_core_uses_card_renderer_port_for_feishu_payloads() -> None:
 
 
 def test_user_interaction_routes_do_not_build_feishu_cards_directly() -> None:
-    """Gateway route/service code should use the shared Feishu card renderer."""
+    """Gateway route/service code should use a local card-renderer port."""
     roots = [
         Path("services/gateways/user_interaction/api"),
         Path("services/gateways/user_interaction/core"),
@@ -213,14 +245,15 @@ def test_user_interaction_routes_do_not_build_feishu_cards_directly() -> None:
     for root in roots:
         for path in _python_files(root):
             for module in _imported_modules(path):
-                assert module != "shared.integrations.feishu.cards.builder", (
+                assert not module.startswith("shared.integrations.feishu.cards"), (
                     f"{path} imports {module}; route/service layers should use "
-                    "shared.integrations.feishu.cards.tools"
+                    "services.gateways.user_interaction.core.card_ports and "
+                    "inject a concrete renderer from the app/service entry point"
                 )
             text = path.read_text()
             assert "CardBuilder(" not in text, (
                 f"{path} constructs Feishu cards directly; use "
-                "FeishuToolCardRenderer"
+                "the user-interaction card-renderer port"
             )
 
 

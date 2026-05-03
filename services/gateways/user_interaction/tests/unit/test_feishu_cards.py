@@ -1,6 +1,6 @@
 """Tests for user-interaction Feishu card rendering adapters."""
 
-from shared.integrations.feishu.cards.tools import (
+from services.gateways.user_interaction.adapters.feishu_cards import (
     FeishuToolCardRenderer,
 )
 

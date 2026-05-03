@@ -11,6 +11,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 
+class FakeReplyCardRenderer:
+    def build_ai_reply_card(self, *, reply: str, elapsed: float) -> dict:
+        return {"kind": "reply", "reply": reply, "elapsed": elapsed}
+
+
 @pytest.fixture(autouse=True)
 def mock_redis():
     """Mock the Redis client used by _is_duplicate."""
@@ -158,6 +163,24 @@ def test_feishu_webhook_invalid_json_returns_bad_request_when_signature_disabled
 
     assert response.status_code == 400
     assert response.json() == {"detail": "Invalid JSON"}
+
+
+def test_build_reply_card_uses_configured_renderer():
+    """Webhook replies use the injected card-renderer port."""
+    from services.gateways.user_interaction.api.webhook import _build_reply_card
+    from services.gateways.user_interaction.core.card_ports import (
+        configure_tool_card_renderer,
+    )
+
+    configure_tool_card_renderer(FakeReplyCardRenderer())
+    try:
+        assert _build_reply_card("Done", 1.2) == {
+            "kind": "reply",
+            "reply": "Done",
+            "elapsed": 1.2,
+        }
+    finally:
+        configure_tool_card_renderer(None)
 
 
 @pytest.mark.asyncio

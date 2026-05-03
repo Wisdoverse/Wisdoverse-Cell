@@ -9,10 +9,10 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from shared.config import settings
-from shared.integrations.feishu.cards.tools import FeishuToolCardRenderer
 from shared.integrations.feishu.client import get_feishu_client
 from shared.utils.logger import get_logger
 
+from ..core.card_ports import require_tool_card_renderer
 from ..service.agent import get_agent
 from .schemas import ChallengeResponse, WebhookResponse
 
@@ -25,7 +25,6 @@ except ImportError:
 logger = get_logger("chat_agent.webhook")
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
-_card_renderer = FeishuToolCardRenderer()
 
 # Background task strong references (prevent GC of fire-and-forget tasks)
 _background_tasks: set[asyncio.Task] = set()
@@ -259,4 +258,4 @@ async def _process_message(
 
 def _build_reply_card(reply: str, elapsed: float) -> dict:
     """Build an AI reply card."""
-    return _card_renderer.build_ai_reply_card(reply=reply, elapsed=elapsed)
+    return require_tool_card_renderer().build_ai_reply_card(reply=reply, elapsed=elapsed)
