@@ -340,6 +340,8 @@ class ControlPlaneAgentRunner:
         headers = {}
         if settings.internal_service_key:
             headers["X-Internal-Key"] = settings.internal_service_key
+        if request.get("trace_id"):
+            headers["X-Trace-ID"] = str(request["trace_id"])
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(url, json=request, headers=headers)
             response.raise_for_status()
