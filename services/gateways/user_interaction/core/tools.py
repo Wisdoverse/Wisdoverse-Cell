@@ -334,6 +334,7 @@ _tool_registry: dict[str, Callable] = {}
 
 # Tools that always need context forwarded
 _context_tools = {
+    "add_bitable_field",
     "propose_bitable_update",
     "propose_bitable_create",
     "search_feishu_user",
@@ -347,6 +348,14 @@ def register_tool(name: str):
         _tool_registry[name] = func
         return func
     return decorator
+
+
+def _has_sensitive_action_approval(context: dict | None, action: str) -> bool:
+    context = context or {}
+    approved = context.get("approved_sensitive_actions", [])
+    if isinstance(approved, str):
+        approved = [approved]
+    return action in set(approved)
 
 
 class ToolExecutor:
@@ -481,8 +490,17 @@ async def _handle_query_pm_table(table_name: str, limit: int = 20) -> str:
 
 @register_tool("add_bitable_field")
 async def _handle_add_bitable_field(
-    field_name: str, field_type: int = 1, table_id: str = "",
+    field_name: str, field_type: int = 1, table_id: str = "", context: dict | None = None,
 ) -> str:
+    if not _has_sensitive_action_approval(context, "add_bitable_field"):
+        return json.dumps(
+            {
+                "error": (
+                    "此操作会修改飞书多维表格结构，需要技术审批后由受控流程执行。"
+                )
+            },
+            ensure_ascii=False,
+        )
     kwargs = {"table_id": table_id} if table_id else {}
     bitable = _require_dependencies().bitable
     result = await bitable.create_field(field_name, field_type, **kwargs)

@@ -145,6 +145,50 @@ async def test_update_progress_validates_range(executor):
     assert "error" in result
     assert "0-100" in result["error"]
 
+
+@pytest.mark.asyncio
+async def test_add_bitable_field_requires_technical_approval(executor, tool_dependencies):
+    """Bitable schema changes must fail closed without explicit approval context."""
+    mock_bitable = tool_dependencies["bitable"]
+
+    result_str = await executor.execute(
+        "add_bitable_field",
+        {"field_name": "New Field", "field_type": 1},
+        context={"user_id": "user1"},
+    )
+
+    result = json.loads(result_str)
+    assert "error" in result
+    assert "技术审批" in result["error"]
+    mock_bitable.create_field.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_add_bitable_field_allows_explicit_technical_approval(
+    executor, tool_dependencies
+):
+    """Approved control-plane contexts may execute the schema mutation."""
+    mock_bitable = tool_dependencies["bitable"]
+    mock_bitable.create_field = AsyncMock(return_value={"field_id": "fld_1"})
+
+    result_str = await executor.execute(
+        "add_bitable_field",
+        {"field_name": "New Field", "field_type": 1, "table_id": "tbl_1"},
+        context={
+            "user_id": "operator",
+            "approved_sensitive_actions": ["add_bitable_field"],
+        },
+    )
+
+    result = json.loads(result_str)
+    assert result["success"] is True
+    assert result["field_id"] == "fld_1"
+    mock_bitable.create_field.assert_awaited_once_with(
+        "New Field",
+        1,
+        table_id="tbl_1",
+    )
+
     # 测试低于 0
     result_str = await executor.execute("update_work_package_progress", {
         "work_package_id": 1,
