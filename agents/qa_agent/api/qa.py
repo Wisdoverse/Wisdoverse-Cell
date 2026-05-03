@@ -67,10 +67,10 @@ async def trigger_run(request: QARunTriggerRequest):
         )
     except asyncio.TimeoutError:
         logger.error("api_run_timeout", agent_name=request.agent_name)
-        raise HTTPException(status_code=504, detail="验收运行超时")
+        raise HTTPException(status_code=504, detail="QA acceptance run timed out")
     except Exception as e:
         logger.error("api_run_error", error=str(e))
-        raise HTTPException(status_code=500, detail=f"验收运行失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"QA acceptance run failed: {str(e)}")
 
 
 @router.get(
@@ -112,7 +112,7 @@ async def list_runs(
         return QARunListResponse(total=len(items), items=items)
     except Exception as e:
         logger.error("api_list_runs_error", error=str(e))
-        raise HTTPException(status_code=500, detail="获取运行列表失败")
+        raise HTTPException(status_code=500, detail="Failed to list QA acceptance runs")
 
 
 @router.get(
@@ -125,7 +125,7 @@ async def get_run_detail(run_id: str):
     try:
         run = await agent.get_run(run_id)
         if not run:
-            raise HTTPException(status_code=404, detail="验收记录不存在")
+            raise HTTPException(status_code=404, detail="QA acceptance run not found")
 
         return QARunDetailResponse(
             run_id=run["id"],
@@ -146,7 +146,7 @@ async def get_run_detail(run_id: str):
         raise
     except Exception as e:
         logger.error("api_get_run_detail_error", run_id=run_id, error=str(e))
-        raise HTTPException(status_code=500, detail="获取运行详情失败")
+        raise HTTPException(status_code=500, detail="Failed to get QA acceptance run details")
 
 
 @router.get(
@@ -175,4 +175,4 @@ async def get_stats(
         )
     except Exception as e:
         logger.error("api_get_stats_error", error=str(e))
-        raise HTTPException(status_code=500, detail="获取统计数据失败")
+        raise HTTPException(status_code=500, detail="Failed to get QA acceptance statistics")

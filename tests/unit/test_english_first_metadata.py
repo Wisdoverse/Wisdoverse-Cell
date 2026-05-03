@@ -1,5 +1,6 @@
 """Static checks for English-first runtime metadata."""
 
+import ast
 import re
 from pathlib import Path
 
@@ -29,6 +30,28 @@ def _candidate_files() -> list[Path]:
     ]
 
 
+def _api_route_files() -> list[Path]:
+    return [
+        path
+        for path in API_FILES
+        if "tests" not in path.parts
+        and ".venv" not in path.parts
+        and "node_modules" not in path.parts
+    ]
+
+
+def _literal_parts(node: ast.AST) -> list[str]:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return [node.value]
+    if isinstance(node, ast.JoinedStr):
+        return [
+            value.value
+            for value in node.values
+            if isinstance(value, ast.Constant) and isinstance(value.value, str)
+        ]
+    return []
+
+
 def test_runtime_metadata_is_english_first() -> None:
     offenders: list[str] = []
     for path in _candidate_files():
@@ -50,5 +73,21 @@ def test_docs_and_docker_guidance_are_english_first() -> None:
         for path in files:
             if HAN.search(path.read_text(encoding="utf-8")):
                 offenders.append(str(path))
+
+    assert offenders == []
+
+
+def test_api_error_details_are_english_first() -> None:
+    offenders: list[str] = []
+    for path in _api_route_files():
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            for keyword in node.keywords:
+                if keyword.arg != "detail":
+                    continue
+                if any(HAN.search(part) for part in _literal_parts(keyword.value)):
+                    offenders.append(f"{path}:{keyword.value.lineno}")
 
     assert offenders == []

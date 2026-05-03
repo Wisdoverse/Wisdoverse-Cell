@@ -27,7 +27,7 @@ async def get_config():
         return PMConfigResponse(**result)
     except Exception as e:
         logger.error("config_api_error", error=str(e))
-        raise HTTPException(status_code=500, detail="获取配置失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="Failed to get PM configuration. Please retry later.")
 
 
 @router.post("/config/refresh", response_model=ConfigRefreshResponse)
@@ -39,7 +39,7 @@ async def refresh_config():
         return ConfigRefreshResponse(**result)
     except Exception as e:
         logger.error("config_refresh_api_error", error=str(e))
-        raise HTTPException(status_code=500, detail="刷新配置失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="Failed to refresh PM configuration. Please retry later.")
 
 
 @router.get("/alerts", response_model=AlertListResponse)
@@ -52,7 +52,7 @@ async def get_alerts():
         return AlertListResponse(total=len(alerts), alerts=alerts)
     except Exception as e:
         logger.error("alerts_api_error", error=str(e))
-        raise HTTPException(status_code=500, detail="获取预警失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="Failed to get PM alerts. Please retry later.")
 
 
 @router.post("/report/daily")
@@ -91,7 +91,7 @@ async def get_decomposition(wp_id: int):
     agent = get_agent()
     result = await agent.handle_request({"action": "get_decompose", "wp_id": wp_id})
     if not result:
-        raise HTTPException(status_code=404, detail="记录不存在")
+        raise HTTPException(status_code=404, detail="Record not found")
     return DecomposeStatusResponse(**result)
 
 
@@ -101,12 +101,12 @@ async def approve_decomposition(wp_id: int, body: DecomposeActionRequest):
     agent = get_agent()
     result = await agent.approve_decomposition(wp_id, approved_by=body.operator or "api")
     if result is None:
-        raise HTTPException(status_code=400, detail="记录不存在或状态不是 pending")
+        raise HTTPException(status_code=400, detail="Record not found or status is not pending")
     return DecomposeActionResponse(
         success=True,
         wp_id=wp_id,
         action="approve",
-        message=f"已写入 OP: {result.get('story_count', 0)} US, {result.get('task_count', 0)} Task",
+        message=f"Written to OP: {result.get('story_count', 0)} US, {result.get('task_count', 0)} Task",
         subject=result.get("subject", ""),
         story_count=result.get("story_count", 0),
         task_count=result.get("task_count", 0),
@@ -119,11 +119,11 @@ async def reject_decomposition(wp_id: int, body: DecomposeActionRequest):
     agent = get_agent()
     result = await agent.reject_decomposition(wp_id, rejected_by=body.operator or "api")
     if result is None:
-        raise HTTPException(status_code=400, detail="记录不存在或状态不是 pending")
+        raise HTTPException(status_code=400, detail="Record not found or status is not pending")
     return DecomposeActionResponse(
         success=True,
         wp_id=wp_id,
         action="reject",
-        message="已拒绝",
+        message="Rejected",
         subject=result.get("subject", ""),
     )

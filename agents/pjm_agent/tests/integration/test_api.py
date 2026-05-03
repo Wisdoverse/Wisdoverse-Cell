@@ -152,7 +152,7 @@ async def test_config_endpoint_error(test_app, mock_agent):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/api/v1/pm/config")
     assert resp.status_code == 500
-    assert "获取配置失败" in resp.json()["detail"]
+    assert "Failed to get PM configuration" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio

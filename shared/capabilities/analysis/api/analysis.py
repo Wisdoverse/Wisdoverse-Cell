@@ -19,7 +19,7 @@ async def generate_daily():
         return DailyReportResponse(**result)
     except Exception as e:
         logger.error("daily_report_api_error", error=str(e))
-        raise HTTPException(status_code=500, detail="日报生成失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="Daily report generation failed. Please retry later.")
 
 
 @router.post("/weekly", response_model=WeeklyReportResponse)
@@ -31,7 +31,7 @@ async def generate_weekly():
         return WeeklyReportResponse(**result)
     except Exception as e:
         logger.error("weekly_report_api_error", error=str(e))
-        raise HTTPException(status_code=500, detail="周报生成失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="Weekly report generation failed. Please retry later.")
 
 
 @router.get("/risks", response_model=RiskCheckResponse)
@@ -44,4 +44,4 @@ async def check_risks():
         return RiskCheckResponse(total=len(risks), risks=risks)
     except Exception as e:
         logger.error("risk_check_api_error", error=str(e))
-        raise HTTPException(status_code=500, detail="风险检查失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="Risk check failed. Please retry later.")

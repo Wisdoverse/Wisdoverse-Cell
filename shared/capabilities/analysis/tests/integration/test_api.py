@@ -161,7 +161,7 @@ async def test_generate_daily_error(test_app, mock_agent):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post("/api/v1/analysis/daily")
     assert resp.status_code == 500
-    assert "日报生成失败" in resp.json()["detail"]
+    assert "Daily report generation failed" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio
