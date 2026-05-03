@@ -162,7 +162,7 @@ class TestCardHandler:
         result = await handler.handle_action(data)
 
         assert result["toast"]["type"] == "error"
-        assert "db down" in result["toast"]["content"]
+        assert result["toast"]["content"] == "操作失败，请稍后重试"
 
     # ── missing req_id ──
 

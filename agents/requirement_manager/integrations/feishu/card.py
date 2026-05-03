@@ -112,7 +112,7 @@ class CardHandler:
             return {
                 "toast": {
                     "type": "error",
-                    "content": f"操作失败: {str(e)}"
+                    "content": "操作失败，请稍后重试"
                 }
             }
 

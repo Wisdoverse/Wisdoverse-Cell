@@ -226,15 +226,13 @@ func (h *FeishuHandler) executeSkill(c *gin.Context, match *service.SkillMatch, 
 	switch match.SkillName {
 	case "list":
 		// Get page from params or default to 1
-		page := 1
+		page := int32(1)
 		if p, ok := match.Parameters["page"]; ok {
-			if pInt, err := parseInt(p); err == nil {
-				page = pInt
-			}
+			page = parsePageParam(p)
 		}
 
 		// List pending requirements
-		resp, err := h.reqClient.ListRequirements(ctx, "PENDING", int32(page), 5)
+		resp, err := h.reqClient.ListRequirements(ctx, "PENDING", page, 5)
 		if err != nil {
 			h.logger.Error("list requirements failed", zap.Error(err))
 			c.JSON(http.StatusOK, gin.H{"code": 0})
@@ -260,7 +258,7 @@ func (h *FeishuHandler) executeSkill(c *gin.Context, match *service.SkillMatch, 
 		}
 
 		// Build and send card
-		card := feishu.BuildRequirementsListCard(requirements, page, int(resp.TotalPages), int(resp.Total))
+		card := feishu.BuildRequirementsListCard(requirements, int(page), int(resp.TotalPages), int(resp.Total))
 		if err := h.feishuClient.SendCard(ctx, "chat_id", chatID, card); err != nil {
 			h.logger.Error("send card failed", zap.Error(err))
 		}
@@ -501,11 +499,8 @@ func (h *FeishuHandler) dispatchCardAction(c *gin.Context, actx *cardActionConte
 			c.JSON(http.StatusOK, gin.H{"code": 0})
 			return
 		}
-		page := 1
-		if p, ok := actx.actionValue["page"].(float64); ok {
-			page = int(p)
-		}
-		resp, err := h.reqClient.ListRequirements(reqCtx, "PENDING", int32(page), 5)
+		page := parsePageActionValue(actx.actionValue["page"])
+		resp, err := h.reqClient.ListRequirements(reqCtx, "PENDING", page, 5)
 		if err != nil {
 			h.logger.Error("list page failed", zap.Error(err))
 			c.JSON(http.StatusOK, gin.H{"code": 0})
@@ -518,7 +513,7 @@ func (h *FeishuHandler) dispatchCardAction(c *gin.Context, actx *cardActionConte
 				Status: r.Status, Priority: r.Priority, Category: r.Category,
 			}
 		}
-		card := feishu.BuildRequirementsListCard(requirements, page, int(resp.TotalPages), int(resp.Total))
+		card := feishu.BuildRequirementsListCard(requirements, int(page), int(resp.TotalPages), int(resp.Total))
 		respond(c, card)
 
 	case "confirm_bitable_update":

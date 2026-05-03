@@ -108,7 +108,16 @@ async def feishu_webhook(
     if data.get("type") == "card_action" or "action" in data:
         logger.info("feishu_card_action")
         if card_handler and settings.feishu_card_enabled:
-            result = await card_handler.handle_action(data)
+            try:
+                result = await card_handler.handle_action(data)
+            except Exception as exc:
+                logger.error("feishu_card_handler_error", error=str(exc))
+                return {
+                    "toast": {
+                        "type": "error",
+                        "content": "操作失败，请稍后重试",
+                    }
+                }
             if "card" in result:
                 result["card"] = {"type": "raw", "data": result["card"]}
             return result

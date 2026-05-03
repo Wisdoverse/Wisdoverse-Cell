@@ -255,6 +255,52 @@ func TestParseInt(t *testing.T) {
 	}
 }
 
+func TestParsePageParam(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  int32
+	}{
+		{"valid", "2", 2},
+		{"zero", "0", 1},
+		{"negative", "-1", 1},
+		{"invalid", "abc", 1},
+		{"overflow", "2147483648", 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parsePageParam(tt.input)
+			if got != tt.want {
+				t.Errorf("parsePageParam(%q) = %d, want %d", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParsePageActionValue(t *testing.T) {
+	tests := []struct {
+		name  string
+		input any
+		want  int32
+	}{
+		{"valid", float64(3), 3},
+		{"zero", float64(0), 1},
+		{"fractional", 2.5, 1},
+		{"overflow", float64(2147483648), 1},
+		{"wrong_type", "3", 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parsePageActionValue(tt.input)
+			if got != tt.want {
+				t.Errorf("parsePageActionValue(%v) = %d, want %d", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFeishuHandler_MessageEvent_InvalidJSON(t *testing.T) {
 	h := newTestHandler(t, "")
 

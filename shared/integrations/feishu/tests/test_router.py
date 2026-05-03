@@ -449,6 +449,25 @@ class TestCardActionRouting:
         assert response.status_code == 200
         handler.handle_action.assert_not_awaited()
 
+    def test_post__card_handler_raises__returns_generic_error_toast(
+        self, client, mock_settings
+    ):
+        handler = MagicMock()
+        handler.handle_action = AsyncMock(side_effect=RuntimeError("db down"))
+        init_handlers(card_h=handler)
+
+        payload = {"type": "card_action", **make_card_action()}
+
+        response = client.post("/api/feishu/webhook", json=payload)
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "toast": {
+                "type": "error",
+                "content": "操作失败，请稍后重试",
+            }
+        }
+
 
 class TestHealthCheck:
     """GET /health endpoint."""

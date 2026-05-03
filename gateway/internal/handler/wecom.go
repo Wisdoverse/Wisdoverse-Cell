@@ -236,14 +236,12 @@ func (h *WecomHandler) executeSkill(c *gin.Context, match *service.SkillMatch, m
 
 	switch match.SkillName {
 	case "list":
-		page := 1
+		page := int32(1)
 		if p, ok := match.Parameters["page"]; ok {
-			if pInt, err := strconv.Atoi(p); err == nil {
-				page = pInt
-			}
+			page = parsePageParam(p)
 		}
 
-		resp, err := h.reqClient.ListRequirements(ctx, "PENDING", int32(page), 5)
+		resp, err := h.reqClient.ListRequirements(ctx, "PENDING", page, 5)
 		if err != nil {
 			h.logger.Error("list requirements failed", zap.Error(err))
 			h.sendErrorMessage(ctx, userID, "获取需求列表失败")
