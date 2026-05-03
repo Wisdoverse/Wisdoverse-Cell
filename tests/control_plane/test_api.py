@@ -2,6 +2,7 @@
 
 import sys
 from contextlib import asynccontextmanager
+from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.control_plane.api import create_control_plane_router
 from shared.control_plane.models import (
+    AgentRole,
     AgentRun,
     AgentRunStatus,
     ApprovalCategory,
@@ -22,6 +24,7 @@ from shared.control_plane.models import (
     CompanyContext,
 )
 from shared.control_plane.repository import ControlPlaneRepository
+from shared.middleware import internal_auth as _internal_auth_mod
 from shared.schemas.event import EventTypes
 
 
@@ -712,6 +715,55 @@ async def test_control_plane_api_wakes_process_agent_definition(
     assert {"audit_event"}.issubset(
         {item["type"] for item in timeline.json()["timeline"]}
     )
+
+
+@pytest.mark.asyncio
+async def test_control_plane_service_actions_require_internal_key(
+    db_session: AsyncSession,
+):
+    repo = ControlPlaneRepository(db_session)
+    await repo.create_company(CompanyContext(company_id="cmp_internal", name="Internal"))
+    await repo.create_agent_role(
+        AgentRole(
+            company_id="cmp_internal",
+            agent_id="internal-runner",
+            display_name="Internal Runner",
+            adapter_type="builtin",
+        )
+    )
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    with patch.object(_internal_auth_mod, "settings") as mock_settings:
+        mock_settings.internal_service_key = "secret-key"
+        mock_settings.app_env = "development"
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            missing_wake = await client.post(
+                "/api/v1/control-plane/agents/internal-runner/wake",
+                json={"company_id": "cmp_internal"},
+            )
+            missing_scheduler = await client.post(
+                "/api/v1/control-plane/scheduler/heartbeats/run-once",
+                json={"company_id": "cmp_internal"},
+            )
+            allowed_wake = await client.post(
+                "/api/v1/control-plane/agents/internal-runner/wake",
+                json={"company_id": "cmp_internal"},
+                headers={"X-Internal-Key": "secret-key"},
+            )
+            allowed_scheduler = await client.post(
+                "/api/v1/control-plane/scheduler/heartbeats/run-once",
+                json={"company_id": "cmp_internal"},
+                headers={"X-Internal-Key": "secret-key"},
+            )
+
+    assert missing_wake.status_code == 401
+    assert missing_scheduler.status_code == 401
+    assert allowed_wake.status_code == 200
+    assert allowed_scheduler.status_code == 200
 
 
 @pytest.mark.asyncio

@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.config import settings
+from shared.middleware.internal_auth import verify_internal_key
 from shared.schemas.event import EventTypes
 
 from .adapter_registry import DEFAULT_ADAPTER_REGISTRY
@@ -1395,7 +1396,7 @@ def create_control_plane_router(
         )
         return _row_to_dict(row)
 
-    @router.post("/agents/{agent_id}/wake")
+    @router.post("/agents/{agent_id}/wake", dependencies=[Depends(verify_internal_key)])
     async def wake_agent(
         agent_id: str,
         body: AgentWakeupRequest,
@@ -1426,7 +1427,10 @@ def create_control_plane_router(
             "output": result.output,
         }
 
-    @router.post("/scheduler/heartbeats/run-once")
+    @router.post(
+        "/scheduler/heartbeats/run-once",
+        dependencies=[Depends(verify_internal_key)],
+    )
     async def run_heartbeat_scheduler_once(
         body: HeartbeatRunRequest,
         session: AsyncSession = Depends(get_session),
