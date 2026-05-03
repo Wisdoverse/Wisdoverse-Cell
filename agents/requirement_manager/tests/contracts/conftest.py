@@ -1,10 +1,10 @@
 """
-契约测试 Fixtures
+Contract test fixtures.
 """
 import sys
 from pathlib import Path
 
-# 确保项目根目录在 Python 路径中（必须在其他导入之前）
+# Ensure the project root is on the Python path before other imports.
 _project_root = Path(__file__).parent.parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -18,7 +18,7 @@ from agents.requirement_manager.service.agent import RequirementManagerAgent
 
 @pytest.fixture
 def mock_dependencies():
-    """创建 mock 依赖"""
+    """Create mock dependencies."""
     return {
         "db": MagicMock(),
         "bus": MagicMock(),
@@ -28,14 +28,14 @@ def mock_dependencies():
 
 @pytest.fixture
 def test_agent(mock_dependencies):
-    """创建测试用 Agent"""
+    """Create a test agent."""
     agent = RequirementManagerAgent(
         db=mock_dependencies["db"],
         bus=mock_dependencies["bus"],
         vectors=mock_dependencies["vectors"]
     )
 
-    # Mock 异步方法
+    # Mock async methods.
     mock_dependencies["bus"].publish = AsyncMock(return_value=True)
     mock_dependencies["bus"].connect = AsyncMock()
     mock_dependencies["bus"].disconnect = AsyncMock()
@@ -45,7 +45,7 @@ def test_agent(mock_dependencies):
 
 @pytest.fixture
 def captured_events(mock_dependencies):
-    """捕获发布的事件"""
+    """Capture published events."""
     events = []
 
     async def capture_publish(event):

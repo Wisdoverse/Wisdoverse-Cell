@@ -1,21 +1,21 @@
 """
-E2E 测试 Fixtures
+E2E test fixtures.
 
-提供:
-- 测试数据库（PostgreSQL）
-- 测试 Redis（事件总线）
-- FastAPI 测试客户端
-- Mock/Real LLM 切换
+Provides:
+- Test database (PostgreSQL)
+- Test Redis (EventBus)
+- FastAPI test client
+- Mock/real LLM switching
 
-设计原则:
-- 每个测试函数使用独立的 DB session 和 EventBus（function scope）
-- Agent 生命周期由测试管理，不触发 FastAPI lifespan
-- 所有非关键外部依赖在测试中被隔离
+Design principles:
+- Each test function gets an isolated DB session and EventBus (function scope)
+- Agent lifecycle is managed by tests instead of FastAPI lifespan
+- All non-critical external dependencies are isolated in tests
 """
 import sys
 from pathlib import Path
 
-# 确保项目根目录在 Python 路径中（必须在其他导入之前）
+# Ensure the project root is on the Python path before other imports.
 _project_root = Path(__file__).parent.parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -29,8 +29,9 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-# 测试环境配置（在导入 app 之前设置）
-# 本地开发使用非标准端口避免与生产冲突，CI 使用标准端口
+# Test environment configuration, set before importing the app.
+# Local development uses non-standard ports to avoid production conflicts;
+# CI may override these defaults with standard ports.
 os.environ.setdefault("POSTGRES_HOST", "localhost")
 os.environ.setdefault("POSTGRES_PORT", "5433")
 os.environ.setdefault("POSTGRES_DB", "projectcell_test")
@@ -39,9 +40,9 @@ os.environ.setdefault("POSTGRES_PASSWORD", "test")
 os.environ.setdefault("REDIS_HOST", "localhost")
 os.environ.setdefault("REDIS_PORT", "6380")
 os.environ.setdefault("MILVUS_URI", "http://localhost:19531")
-os.environ["FEISHU_ENABLED"] = "false"  # 测试时禁用飞书通知
+os.environ["FEISHU_ENABLED"] = "false"  # Disable Feishu notifications during tests.
 
-# 读取实际配置值（CI 会覆盖默认值）
+# Read effective configuration values; CI can override the defaults.
 _POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "localhost")
 _POSTGRES_PORT = os.environ.get("POSTGRES_PORT", "5433")
 _POSTGRES_DB = os.environ.get("POSTGRES_DB", "projectcell_test")
@@ -62,29 +63,29 @@ from shared.schemas.event import Event
 
 logger = logging.getLogger(__name__)
 
-# Fixtures 目录
+# Fixtures directory.
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "llm_responses"
 
-# E2E smoke 测试默认超时（秒）
+# Default E2E smoke-test timeout, in seconds.
 E2E_TIMEOUT = 30
 
 
-# ============ 数据库 Fixtures ============
+# ============ Database Fixtures ============
 
 @pytest_asyncio.fixture(scope="function")
 async def test_db() -> AsyncGenerator[DatabaseManager, None]:
-    """测试数据库，每个测试前清空"""
+    """Test database, reset before each test."""
     db = DatabaseManager(
         database_url=f"postgresql+asyncpg://{_POSTGRES_USER}:{_POSTGRES_PASSWORD}@{_POSTGRES_HOST}:{_POSTGRES_PORT}/{_POSTGRES_DB}"
     )
 
-    # 重建表
+    # Recreate tables.
     await db.drop_tables()
     await db.create_tables()
 
     yield db
 
-    # 清理
+    # Cleanup.
     await db.drop_tables()
     await db.close()
 
@@ -93,14 +94,14 @@ async def test_db() -> AsyncGenerator[DatabaseManager, None]:
 
 @pytest_asyncio.fixture(scope="function")
 async def test_event_bus() -> AsyncGenerator[EventBus, None]:
-    """测试事件总线"""
+    """Test EventBus."""
     bus = EventBus(
         redis_url=f"redis://{_REDIS_HOST}:{_REDIS_PORT}/0",
         queue_prefix="projectcell_test:events"
     )
     await bus.connect()
 
-    # 清空测试队列
+    # Clear test queues.
     if bus._redis:
         keys = await bus._redis.keys("projectcell_test:events:*")
         if keys:
@@ -108,7 +109,7 @@ async def test_event_bus() -> AsyncGenerator[EventBus, None]:
 
     yield bus
 
-    # 清理
+    # Cleanup.
     if bus._redis:
         keys = await bus._redis.keys("projectcell_test:events:*")
         if keys:
@@ -196,8 +197,9 @@ async def get_published_events(test_event_bus: EventBus):
 async def client(test_db, test_event_bus) -> AsyncGenerator[AsyncClient, None]:
     """FastAPI test client with isolated Agent instance per test.
 
-    Agent 生命周期由此 fixture 管理（不依赖 FastAPI lifespan）。
-    teardown 时先关闭 consumer task 和 event bus，再让 test_db fixture 自行清理 DB。
+    This fixture manages the agent lifecycle without relying on FastAPI
+    lifespan. During teardown it closes the consumer task and EventBus first,
+    then lets the test_db fixture clean up the database.
     """
     from agents.requirement_manager.db.database import get_db
 
@@ -221,8 +223,8 @@ async def client(test_db, test_event_bus) -> AsyncGenerator[AsyncClient, None]:
 
     app.dependency_overrides.clear()
 
-    # 安全关闭 agent：只关闭 consumer task 和 event bus，
-    # 不关闭 db_manager（由 test_db fixture 自行管理）
+    # Safely shut down the agent: close only the consumer task and EventBus.
+    # Do not close db_manager; the test_db fixture owns that lifecycle.
     await _safe_shutdown_agent(test_agent)
 
 
@@ -230,7 +232,7 @@ async def client(test_db, test_event_bus) -> AsyncGenerator[AsyncClient, None]:
 
 @pytest.fixture
 def mock_llm():
-    """Mock LLM Gateway，返回预录响应"""
+    """Mock LLM Gateway that returns recorded responses."""
 
     def load_fixture(name: str) -> str:
         fixture_path = FIXTURES_DIR / f"{name}.json"
@@ -241,7 +243,7 @@ def mock_llm():
         raise FileNotFoundError(msg)
 
     async def mock_call(prompt: str, **kwargs):
-        # 根据 prompt 内容返回不同的 fixture
+        # Return different fixtures based on prompt content.
         prompt_lower = prompt.lower()
 
         if "提取" in prompt or "extract" in prompt_lower:
@@ -261,16 +263,16 @@ def mock_llm():
 
 @pytest.fixture
 def real_llm():
-    """真实 LLM（Full E2E 使用）"""
-    # 不做 mock，使用真实服务
+    """Real LLM for full E2E runs."""
+    # No mock: use the real service.
     yield
 
 
-# ============ 辅助函数 ============
+# ============ Helper Functions ============
 
 @pytest.fixture
 def sample_meeting_content() -> str:
-    """示例会议内容"""
+    """Sample meeting content."""
     return """
     今天的会议讨论了录音分析项目的需求。
 
@@ -392,8 +394,9 @@ async def _create_test_agent(
 ) -> RequirementManagerAgent:
     """Create and initialize a test agent instance.
 
-    注意: 不启动 event consumer task (避免后台任务干扰测试)。
-    如果测试需要事件消费，应使用 get_published_events fixture 手动读取。
+    Note: do not start the event consumer task, to avoid background tasks
+    interfering with tests. Tests that need consumed events should read them
+    manually through the get_published_events fixture.
     """
     agent = RequirementManagerAgent(
         db=test_db,
@@ -401,7 +404,8 @@ async def _create_test_agent(
         vectors=_create_vector_store(),
     )
 
-    # 手动初始化而非调用 startup()，避免启动 event consumer 后台任务
+    # Initialize manually instead of calling startup(), avoiding the background
+    # event-consumer task.
     await test_event_bus.connect()
     try:
         await agent._vector_store.initialize()
@@ -413,10 +417,10 @@ async def _create_test_agent(
 
 
 async def _safe_shutdown_agent(agent: RequirementManagerAgent) -> None:
-    """安全关闭 test agent，不关闭 db（由 test_db fixture 管理）。"""
+    """Safely shut down the test agent without closing the test DB."""
     import asyncio
 
-    # 停止事件消费 task（如果有的话）
+    # Stop the event-consumer task, if present.
     consumer = getattr(agent, "_consumer_task", None)
     if consumer:
         consumer.cancel()
@@ -425,11 +429,11 @@ async def _safe_shutdown_agent(agent: RequirementManagerAgent) -> None:
         except asyncio.CancelledError:
             pass
 
-    # 关闭向量库连接
+    # Close the vector-store connection.
     await agent._vector_store.close()
 
-    # 不调用 agent._event_bus.disconnect() — 由 test_event_bus fixture 管理
-    # 不调用 agent._db_manager.close() — 由 test_db fixture 管理
+    # Do not call agent._event_bus.disconnect(); test_event_bus owns it.
+    # Do not call agent._db_manager.close(); test_db owns it.
 
 
 def _setup_otel_instrumentation(tracer) -> None:
