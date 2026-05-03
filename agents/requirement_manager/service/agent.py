@@ -11,6 +11,7 @@ from typing import Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.config import settings as app_settings
+from shared.core import FeishuMessengerPort
 from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.notification import NotificationChannel, notification_service
 from shared.observability.privacy import hash_identifier
@@ -56,6 +57,7 @@ class RequirementManagerAgent(BaseAgent):
         db: Optional[DatabaseManager] = None,
         bus: Optional[EventBus] = None,
         vectors: Optional[VectorStore] = None,
+        messenger: Optional[FeishuMessengerPort] = None,
     ):
         # 导入订阅事件列表
         from .event_handlers import SUBSCRIBED_EVENTS
@@ -75,6 +77,11 @@ class RequirementManagerAgent(BaseAgent):
         self._db_manager = db or db_manager
         self._event_bus = bus or event_bus
         self._vector_store = vectors or vector_store
+        self._messenger = messenger
+
+    def configure_messenger(self, messenger: FeishuMessengerPort | None) -> None:
+        """Wire the outbound messaging adapter at the service entry point."""
+        self._messenger = messenger
 
     # ========== 生命周期 ==========
 
@@ -802,9 +809,6 @@ class RequirementManagerAgent(BaseAgent):
             from agents.requirement_manager.integrations.feishu.cards.requirement import (
                 build_requirement_extracted_card,
             )
-            from shared.integrations.feishu import feishu_client
-
-            client = feishu_client()
 
             # Build card with requirements
             card = build_requirement_extracted_card(
@@ -817,7 +821,16 @@ class RequirementManagerAgent(BaseAgent):
                 ),
             )
 
-            await client.send_card(
+            if self._messenger is None:
+                logger.warning(
+                    "session_extraction_card_skipped",
+                    reason="messenger_port_not_configured",
+                    chat_hash=hash_identifier(chat_id),
+                    session_id=session_id,
+                )
+                return
+
+            await self._messenger.send_card(
                 receive_id=chat_id,
                 receive_id_type="chat_id",
                 card=card,

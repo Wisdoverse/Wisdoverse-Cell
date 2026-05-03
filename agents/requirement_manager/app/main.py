@@ -5,6 +5,7 @@ from shared.app import AgentRuntime, create_agent_app
 from shared.app.plugins.infra_health import InfraHealthPlugin
 from shared.app.plugins.vector_store import VectorCollection, VectorStorePlugin
 from shared.config import settings
+from shared.integrations.feishu.client import get_feishu_client
 from shared.integrations.feishu.router import router as feishu_router
 from shared.integrations.wecom.router import router as wecom_router
 from shared.middleware.internal_auth import verify_internal_key
@@ -26,6 +27,8 @@ from .plugins import (
     SessionTimeoutPlugin,
 )
 from .routes import api_info_router, api_v1_redirect_router
+
+agent.configure_messenger(get_feishu_client())
 
 
 async def _on_startup(runtime: AgentRuntime) -> None:

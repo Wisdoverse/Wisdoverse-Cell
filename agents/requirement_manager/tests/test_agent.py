@@ -27,7 +27,6 @@ from agents.requirement_manager.service.agent import (
     agent,
 )
 from agents.requirement_manager.service.event_handlers import dispatch_event
-from shared.integrations import feishu as _feishu_mod
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 
@@ -586,10 +585,13 @@ class TestSendSessionExtractionCard:
     @pytest.mark.asyncio
     async def test_send_card_success(self):
         """验证成功发送卡片"""
+        mock_client = MagicMock()
+        mock_client.send_card = AsyncMock()
         test_agent = RequirementManagerAgent(
             db=MagicMock(),
             bus=MagicMock(),
-            vectors=MagicMock()
+            vectors=MagicMock(),
+            messenger=mock_client,
         )
 
         mock_result = IngestResult(
@@ -599,12 +601,7 @@ class TestSendSessionExtractionCard:
             requirement_ids=["req_1", "req_2"]
         )
 
-        with patch.object(_feishu_mod, "feishu_client") as mock_client_fn, \
-             patch.object(_req_cards_mod, "build_requirement_extracted_card") as mock_build:
-
-            mock_client = MagicMock()
-            mock_client.send_card = AsyncMock()
-            mock_client_fn.return_value = mock_client
+        with patch.object(_req_cards_mod, "build_requirement_extracted_card") as mock_build:
             mock_build.return_value = {"card": "data"}
 
             await test_agent._send_session_extraction_card("chat_456", mock_result, "ses_abc123")
@@ -619,10 +616,13 @@ class TestSendSessionExtractionCard:
     @pytest.mark.asyncio
     async def test_send_card_handles_error(self):
         """验证卡片发送失败时不抛出异常"""
+        mock_client = MagicMock()
+        mock_client.send_card = AsyncMock(side_effect=Exception("Connection error"))
         test_agent = RequirementManagerAgent(
             db=MagicMock(),
             bus=MagicMock(),
-            vectors=MagicMock()
+            vectors=MagicMock(),
+            messenger=mock_client,
         )
 
         mock_result = IngestResult(
@@ -632,8 +632,5 @@ class TestSendSessionExtractionCard:
             requirement_ids=["req_1"]
         )
 
-        with patch.object(_feishu_mod, "feishu_client") as mock_client_fn:
-            mock_client_fn.side_effect = Exception("Connection error")
-
-            # Should not raise
-            await test_agent._send_session_extraction_card("chat_456", mock_result, "ses_abc123")
+        # Should not raise
+        await test_agent._send_session_extraction_card("chat_456", mock_result, "ses_abc123")
