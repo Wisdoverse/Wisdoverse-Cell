@@ -120,6 +120,14 @@ class Event(BaseModel):
             raise ValueError("event_type must use {domain}.{action} naming")
         return event_type
 
+    @field_validator("source_agent")
+    @classmethod
+    def _validate_source_agent(cls, source_agent: str) -> str:
+        """Require an explicit publishing agent ID."""
+        if not source_agent.strip():
+            raise ValueError("source_agent must be the publishing agent ID")
+        return source_agent
+
     @field_validator("payload", mode="after")
     @classmethod
     def _freeze_payload(cls, payload: dict[str, Any]) -> dict[str, Any]:
