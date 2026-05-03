@@ -1,12 +1,4 @@
-"""
-Feishu Webhook 统一入口
-
-所有飞书回调都走这一个端点，内部根据类型分发：
-- URL 验证（首次配置）
-- 事件订阅
-- Bot 消息
-- 卡片回调
-"""
+"""Unified Feishu webhook entry point."""
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException, Request
@@ -20,7 +12,7 @@ logger = get_logger("feishu.router")
 
 router = APIRouter(prefix="/api/feishu", tags=["feishu"])
 
-# Handlers will be initialized later
+# Handlers are initialized by the owning capability at startup.
 event_handler = None
 bot_handler = None
 card_handler = None
@@ -33,6 +25,32 @@ def _secret_value(value) -> str:
     return str(value or "")
 
 
+def _verify_signature_if_required(
+    *,
+    timestamp: str,
+    nonce: str,
+    body: bytes,
+    signature: str,
+) -> None:
+    """Fail closed before parsing untrusted Feishu webhook bodies."""
+    if not settings.feishu_verify_signature:
+        return
+
+    if not _secret_value(settings.feishu_encrypt_key):
+        logger.error("feishu_signature_verification_misconfigured", reason="encrypt_key_not_configured")
+        raise HTTPException(status_code=401, detail="Signature verification key is not configured")
+
+    client = feishu_client()
+    if not client.verify_signature(
+        timestamp=timestamp,
+        nonce=nonce,
+        body=body,
+        signature=signature,
+    ):
+        logger.warning("feishu_signature_invalid")
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+
 @router.post("/webhook")
 async def feishu_webhook(
     request: Request,
@@ -40,44 +58,30 @@ async def feishu_webhook(
     x_lark_request_nonce: Optional[str] = Header(None),
     x_lark_signature: Optional[str] = Header(None),
 ):
-    """
-    飞书统一回调入口
-
-    处理类型：
-    1. url_verification - 首次验证
-    2. event_callback - 事件订阅
-    3. card_action - 卡片回调
-    """
+    """Dispatch URL verification, events, bot messages, and card callbacks."""
     body = await request.body()
-    data = await request.json()
+    _verify_signature_if_required(
+        timestamp=x_lark_request_timestamp or "",
+        nonce=x_lark_request_nonce or "",
+        body=body,
+        signature=x_lark_signature or "",
+    )
+    try:
+        data = await request.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON") from exc
 
-    # 1. URL 验证（配置 Webhook 时飞书发送）
+    # URL verification.
     if data.get("type") == "url_verification":
         logger.info("feishu_url_verification")
         return {"challenge": data["challenge"]}
 
-    # 2. 签名验证（生产环境须同时配置 feishu_encrypt_key）
-    if settings.feishu_verify_signature:
-        if not _secret_value(settings.feishu_encrypt_key):
-            logger.error("feishu_signature_verification_misconfigured", reason="encrypt_key_not_configured")
-            raise HTTPException(status_code=401, detail="Signature verification key is not configured")
-
-        client = feishu_client()
-        if not client.verify_signature(
-            timestamp=x_lark_request_timestamp or "",
-            nonce=x_lark_request_nonce or "",
-            body=body,
-            signature=x_lark_signature or "",
-        ):
-            logger.warning("feishu_signature_invalid")
-            raise HTTPException(status_code=401, detail="Invalid signature")
-
-    # 3. 事件回调
+    # Event callback.
     if data.get("type") == "event_callback":
         event_type = data.get("header", {}).get("event_type", "")
         logger.info("feishu_event_received", event_type=event_type)
 
-        # 消息事件 → MessageRecorder + BotHandler
+        # Message events go through MessageRecorder and BotHandler.
         if event_type == "im.message.receive_v1":
             event_data = data["event"]
 
@@ -94,13 +98,13 @@ async def feishu_webhook(
 
             return {"code": 0}
 
-        # 其他事件 → EventHandler
+        # Other events go through EventHandler.
         if event_handler and settings.feishu_event_enabled:
             return await event_handler.dispatch(event_type, data)
 
         return {"code": 0}
 
-    # 4. 卡片回调
+    # Card callback.
     if data.get("type") == "card_action" or "action" in data:
         logger.info("feishu_card_action")
         if card_handler and settings.feishu_card_enabled:
@@ -116,14 +120,14 @@ async def feishu_webhook(
 
 @router.get("/health")
 async def feishu_health():
-    """飞书集成健康检查"""
+    """Return Feishu integration health."""
     if not settings.feishu_enabled:
         return {
             "status": "disabled",
             "feishu_enabled": False,
         }
 
-    # Check token validity
+    # Check token validity.
     try:
         client = feishu_client()
         token = await client.get_access_token()
