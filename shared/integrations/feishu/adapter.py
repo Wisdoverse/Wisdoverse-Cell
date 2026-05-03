@@ -1,4 +1,4 @@
-# shared/services/feishu/adapter.py
+# shared/integrations/feishu/adapter.py
 """
 FeishuChannelAdapter - 飞书渠道适配器
 

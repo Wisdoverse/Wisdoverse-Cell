@@ -1,0 +1,85 @@
+"""
+Unit Test Fixtures
+
+提供单元测试所需的数据库会话和其他 fixtures。
+"""
+import sys
+from pathlib import Path
+
+# 确保项目根目录在 Python 路径中（必须在其他导入之前）
+_project_root = Path(__file__).parent.parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
+import os
+from typing import AsyncGenerator
+
+import pytest
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+# 测试环境配置
+os.environ.setdefault("POSTGRES_HOST", "localhost")
+os.environ.setdefault("POSTGRES_PORT", "5433")
+os.environ.setdefault("POSTGRES_DB", "projectcell_test")
+os.environ.setdefault("POSTGRES_USER", "test")
+os.environ.setdefault("POSTGRES_PASSWORD", "test")
+
+# 导入所有 model 以便 SQLAlchemy 注册它们
+from agents.requirement_manager.models import (
+    Base,
+)
+
+
+@pytest_asyncio.fixture
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    测试用数据库会话
+
+    每个测试使用独立的事务，测试结束后回滚。
+    """
+    # 创建测试数据库引擎
+    pg_host = os.environ.get("POSTGRES_HOST", "localhost")
+    pg_port = os.environ.get("POSTGRES_PORT", "5433")
+    pg_db = os.environ.get("POSTGRES_DB", "projectcell_test")
+    pg_user = os.environ.get("POSTGRES_USER", "test")
+    pg_password = os.environ.get("POSTGRES_PASSWORD", "test")
+    database_url = f"postgresql+asyncpg://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
+    engine = create_async_engine(database_url, echo=False)
+
+    # 创建表
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    # 创建会话
+    async_session = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False
+    )
+
+    async with async_session() as session:
+        yield session
+        # 测试后回滚
+        await session.rollback()
+
+    # 清理表
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    await engine.dispose()
+
+
+@pytest.fixture
+def sample_usage_data():
+    """示例 LLM 使用数据"""
+    return {
+        "agent_id": "requirement-manager",
+        "task_type": "extraction",
+        "model": "claude-sonnet-4-20250514",
+        "input_tokens": 1000,
+        "output_tokens": 500,
+        "cost_usd": 0.0105,
+        "latency_ms": 1200,
+        "success": True
+    }

@@ -5,4 +5,5 @@ export * from "./model/types";
 export * from "./model/use-control-plane-agents";
 export { AgentAvatar } from "./ui/agent-avatar";
 export { AgentCard } from "./ui/agent-card";
+export { AgentDomainBadge } from "./ui/agent-domain-badge";
 export { AgentStatusDot } from "./ui/agent-status-dot";

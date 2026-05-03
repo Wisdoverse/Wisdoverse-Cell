@@ -1,4 +1,4 @@
-# shared/services/wecom/handlers/bot.py
+# shared/integrations/wecom/handlers/bot.py
 """WecomBotHandler - 处理企微 Bot 消息"""
 import re
 import xml.etree.ElementTree as ET

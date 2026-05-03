@@ -28,7 +28,7 @@ SUBJECT_PREFIX = "events"
 class NATSEventBus:
     """NATS JetStream EventBus implementation."""
 
-    def __init__(self, nats_url: str, consumer_name: str = "requirement-manager"):
+    def __init__(self, nats_url: str, consumer_name: str = "projectcell"):
         self._nats_url = nats_url
         self._consumer_name = consumer_name
         self._nc: nats.NATS | None = None
@@ -235,3 +235,11 @@ class NATSEventBus:
                 error=str(e),
             )
             return -1
+
+    async def get_dead_letter_count(self) -> int:
+        """NATS uses native redelivery; no Redis-style DLQ stream is exposed."""
+        return 0
+
+    async def list_dead_letters(self, limit: int = 50) -> list[Event]:
+        """NATS uses native redelivery; no Redis-style DLQ stream is exposed."""
+        return []

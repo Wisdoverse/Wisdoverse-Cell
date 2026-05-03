@@ -1,4 +1,4 @@
-# shared/services/wecom/adapter.py
+# shared/integrations/wecom/adapter.py
 """WecomChannelAdapter - 企微渠道适配器"""
 from typing import TYPE_CHECKING
 

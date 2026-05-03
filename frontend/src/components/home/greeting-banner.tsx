@@ -2,8 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import { StatCard } from "@/components/shared/stat-card";
-import { useAgents } from "@/lib/hooks/use-agents";
-import { useApprovals } from "@/lib/hooks/use-approvals";
+import { useAgents } from "@/entities/agent/model/use-agents";
+import { useApprovals } from "@/entities/approval/model/use-approvals";
 
 function getGreetingKey(): "morning" | "afternoon" | "evening" {
   const hour = new Date().getHours();

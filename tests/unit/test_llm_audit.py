@@ -6,6 +6,7 @@ import pytest
 
 from shared.infra.audit_log import AuditAction
 from shared.infra.llm_gateway import LLMGateway
+from tests.helpers.provider_errors import anthropic_like as anthropic
 
 
 @pytest.fixture
@@ -73,8 +74,6 @@ class TestCostCapExceededEmitsAudit:
 class TestFailedLLMCallNoAudit:
     @pytest.mark.asyncio
     async def test_failed_llm_call_no_audit(self, gateway):
-        import anthropic
-
         with (
             patch.object(
                 gateway.async_client.messages,

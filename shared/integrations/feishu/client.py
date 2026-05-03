@@ -6,6 +6,7 @@ FeishuClient - 飞书 API 客户端
 2. 请求签名验证
 3. API 调用封装
 """
+import asyncio
 import hashlib
 import hmac
 import json
@@ -16,7 +17,11 @@ from lark_oapi.api.auth.v3 import (
     InternalTenantAccessTokenRequest,
     InternalTenantAccessTokenRequestBody,
 )
-from lark_oapi.api.contact.v3 import GetUserRequest
+from lark_oapi.api.contact.v3 import (
+    BatchGetIdUserRequest,
+    BatchGetIdUserRequestBody,
+    GetUserRequest,
+)
 from lark_oapi.api.im.v1 import (
     CreateMessageRequest,
     CreateMessageRequestBody,
@@ -339,6 +344,34 @@ class FeishuClient:
         except Exception as e:
             logger.warning("feishu_get_user_error", error=str(e), open_id=open_id)
             return {"name": "Unknown", "open_id": open_id}
+
+    async def lookup_user_ids(
+        self,
+        *,
+        emails: list[str] | None = None,
+        mobiles: list[str] | None = None,
+    ) -> list[dict[str, str]]:
+        """Resolve emails or mobile numbers into Feishu open IDs."""
+        request = (
+            BatchGetIdUserRequest.builder()
+            .user_id_type("open_id")
+            .request_body(
+                BatchGetIdUserRequestBody.builder()
+                .emails(emails or [])
+                .mobiles(mobiles or [])
+                .include_resigned(False)
+                .build()
+            )
+            .build()
+        )
+        response = await asyncio.to_thread(self._sdk.contact.v3.user.batch_get_id, request)
+        if not response.success() or not response.data:
+            return []
+        return [
+            {"user_id": user.user_id}
+            for user in (response.data.user_list or [])
+            if user.user_id
+        ]
 
     def _check_response(self, response, operation: str) -> None:
         """统一检查 SDK 响应"""

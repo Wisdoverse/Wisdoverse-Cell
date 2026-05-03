@@ -1,6 +1,7 @@
 """
-gRPC module for Python AI Core service.
+Shared gRPC compatibility namespace.
 
-This module provides the gRPC server that exposes RequirementService
-for the Go Gateway to consume.
+The requirement manager agent owns the active RequirementService runtime under
+``agents.requirement_manager.grpc``. Shared gRPC files are retained only
+for protocol compatibility and deprecation guidance.
 """

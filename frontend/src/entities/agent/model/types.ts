@@ -8,6 +8,12 @@ export type AgentKind =
 
 export type AgentInteractionMode = "direct" | "routed" | "internal" | "none";
 
+export type AgentRuntimeBoundary =
+  | "root_agent"
+  | "gateway"
+  | "orchestration"
+  | "capability";
+
 export type AgentDomain =
   | "product"
   | "engineering"
@@ -39,10 +45,15 @@ export interface AgentMeta {
   title?: string;
   agentKind?: AgentKind;
   interactionMode?: AgentInteractionMode;
+  runtimeBoundary?: AgentRuntimeBoundary;
+  implemented?: boolean;
+  businessAgent?: boolean;
   adapterType?: string;
   reportsTo?: string;
   contextSources?: string[];
   capabilities?: string[];
+  subscribedEvents?: string[];
+  publishedEvents?: string[];
   source?: "builtin" | "control-plane";
   customWidgets?: string[];
   approvalTypes?: ApprovalType[];
@@ -82,6 +93,8 @@ export interface ControlPlaneAgentDefinition {
   context_sources: string[];
   capabilities: string[];
   responsibilities: string[];
+  subscribed_events: string[];
+  published_events: string[];
   permissions: string[];
   budget_policy_id: string | null;
   escalation_policy: Record<string, unknown>;
@@ -111,9 +124,21 @@ export interface CreateControlPlaneAgentRequest {
   context_sources?: string[];
   capabilities?: string[];
   responsibilities?: string[];
+  subscribed_events?: string[];
+  published_events?: string[];
   permissions?: string[];
   created_by?: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface OrganizationRoleTemplate {
+  agentId: string;
+  displayName: string;
+  role: string;
+  title: string;
+  domain: AgentDomain;
+  agentKind: "organization_role";
+  interactionMode: "routed";
 }
 
 export interface WakeControlPlaneAgentRequest {

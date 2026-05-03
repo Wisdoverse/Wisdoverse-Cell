@@ -34,7 +34,7 @@ pip install -r requirements.txt
 
 # Copy environment template and fill in required values
 cp .env.example .env
-# Edit .env — at minimum set ANTHROPIC_API_KEY
+# Edit .env — set POSTGRES_PASSWORD, AUTH_SECRET, and provider keys for the selected LiteLLM models
 ```
 
 ### 1.2 Start Infrastructure
@@ -84,22 +84,30 @@ Goal: understand the architecture, read the key documents, and run each agent lo
 
 | Order | Document | Why |
 |:-----:|----------|-----|
-| 1 | [`CLAUDE.md`](../../CLAUDE.md) | Supreme law of the repo — coding standards, event format, lessons learned |
+| 1 | [`AGENTS.md`](../../AGENTS.md) | Supreme law of the repo — architecture boundaries, coding standards, workflow, and operational commands |
 | 2 | [`docs/INDEX.md`](../INDEX.md) | Navigation hub for all documentation — ADRs, PRDs, design docs |
 | 3 | [`docs/guides/event-catalog.md`](../guides/event-catalog.md) | All 46+ event types, payload schemas, producer/consumer matrix |
 | 4 | [`docs/guides/agent-development.md`](../guides/agent-development.md) | How to build an Agent — BaseAgent, create_agent_app, plugins, tests |
 
-### 2.2 Key Concept: Event-Driven Agent Architecture
+### 2.2 Key Concept: Control Plane and Agent Service Boundaries
 
-Wisdoverse Cell is an AI Native OS — 2 humans + 26 Agents. Every Agent is an independent FastAPI microservice that:
+Wisdoverse Cell is a control plane for AI-native company operations. Real
+business runtime agents are independently deployed FastAPI services under
+`agents/`; support capabilities and gateways live outside that tree.
 
-1. **Subscribes** to events via Redis Streams (EventBus)
-2. **Processes** business logic (often involving LLM calls via `LLMGateway`)
-3. **Publishes** new events back to the bus
+Each deployed agent service:
 
-Agents never import each other's Python code. Communication is either:
-- **Async**: EventBus (fire-and-forget, broadcast/fanout)
-- **Sync**: HTTP via `AgentClient` (request-response, when a return value is needed)
+1. Subscribes to events through Redis Streams or NATS-compatible EventBus ports.
+2. Processes business logic through its own service boundary.
+3. Calls models only through `shared.infra.llm_gateway.LLMGateway`, which uses
+   LiteLLM as the provider boundary.
+4. Publishes new events or returns HTTP responses through documented contracts.
+
+Agents never import another independently deployed agent's internal Python code.
+Communication is either:
+
+- Async: EventBus events.
+- Sync: HTTP via typed clients or `AgentClient`.
 
 ### 2.3 Key Concept: BaseAgent, EvolvedAgent, and create_agent_app
 
@@ -119,29 +127,29 @@ BaseAgent (you write this)
 ### 2.4 Run Each Agent Locally
 
 ```bash
-# Requirement Manager (default for `make dev`)
+# Requirement manager agent (default for `make dev`)
 make dev                                                      # port 8000
 
-# Sync Agent
-uvicorn agents.capabilities.sync.app.main:app --reload --port 8010
+# Sync support capability
+uvicorn shared.capabilities.sync.app.main:app --reload --port 8010
 
-# Analysis Agent
-uvicorn agents.capabilities.analysis.app.main:app --reload --port 8011
+# Analysis support capability
+uvicorn shared.capabilities.analysis.app.main:app --reload --port 8011
 
 # PJM Agent
-uvicorn agents.capabilities.project_management.app.main:app --reload --port 8012
+uvicorn agents.pjm_agent.app.main:app --reload --port 8012
 
-# Chat Agent
-uvicorn agents.gateways.user_interaction.app.main:app --reload --port 8013
+# User interaction gateway
+uvicorn services.gateways.user_interaction.app.main:app --reload --port 8013
 
 # QA Agent
-uvicorn agents.capabilities.quality.app.main:app --reload --port 8014
+uvicorn agents.qa_agent.app.main:app --reload --port 8014
 
 # Dev Agent
-uvicorn agents.capabilities.development.app.main:app --reload --port 8015
+uvicorn agents.dev_agent.app.main:app --reload --port 8015
 
-# Evolution Agent (standalone; choose a free local port)
-uvicorn agents.capabilities.evolution.app.main:app --reload --port 8016
+# Evolution support capability (standalone; choose a free local port)
+uvicorn shared.capabilities.evolution.app.main:app --reload --port 8016
 ```
 
 For each agent, verify:
@@ -158,7 +166,7 @@ Use the EventBus directly to publish a test event and watch an agent react:
 ```python
 # In a Python shell with the venv active
 import asyncio
-from shared.services.event_bus import event_bus
+from shared.infra.event_bus import event_bus
 from shared.schemas.event import Event
 
 async def send_test():
@@ -180,16 +188,18 @@ Watch the pjm-agent or analysis-agent logs to see the event processed.
 
 ## 3. First Week
 
-Goal: make your first contribution — add a tool to Chat Agent or create a minimal new Agent.
+Goal: make your first contribution — add a tool to the user interaction gateway
+or create a minimal new agent service.
 
-### 3.1 Tutorial: Add a New Tool to Chat Agent
+### 3.1 Tutorial: Add a New Tool to the User Interaction Gateway
 
-Chat Agent uses Claude Tool Calling. To add a new tool:
+The user interaction gateway uses LiteLLM-mediated tool calling. To add a new
+tool:
 
 **Step 1**: Define the tool schema.
 
 ```python
-# agents/gateways/user_interaction/core/tools/my_tool.py
+# services/gateways/user_interaction/core/tools/my_tool.py
 from shared.utils.logger import get_logger
 
 logger = get_logger("chat_agent.tools.my_tool")
@@ -219,9 +229,9 @@ async def handle_my_tool(params: dict) -> str:
 **Step 3**: Write tests.
 
 ```python
-# agents/gateways/user_interaction/tests/test_my_tool.py
+# services/gateways/user_interaction/tests/test_my_tool.py
 import pytest
-from agents.gateways.user_interaction.core.tools.my_tool import handle_my_tool
+from services.gateways.user_interaction.core.tools.my_tool import handle_my_tool
 
 @pytest.mark.asyncio
 async def test_my_tool_returns_result():
@@ -233,7 +243,7 @@ async def test_my_tool_returns_result():
 
 ```bash
 make test
-ruff check agents/gateways/user_interaction/
+ruff check services/gateways/user_interaction/
 # Create MR from feature branch
 ```
 
@@ -242,7 +252,7 @@ ruff check agents/gateways/user_interaction/
 **Step 1**: Create the directory structure.
 
 ```
-agents/capabilities/hello_capability/
+shared/capabilities/hello_capability/
 ├── __init__.py
 ├── app/
 │   ├── __init__.py
@@ -255,7 +265,7 @@ agents/capabilities/hello_capability/
     └── test_agent.py
 ```
 
-**Step 2**: Implement the agent (`agents/capabilities/hello_capability/service/agent.py`).
+**Step 2**: Implement the agent (`shared/capabilities/hello_capability/service/agent.py`).
 
 ```python
 from shared.schemas.agent import BaseAgent
@@ -291,7 +301,7 @@ class HelloAgent(BaseAgent):
 agent = HelloAgent()
 ```
 
-**Step 3**: Create the FastAPI app (`agents/capabilities/hello_capability/app/main.py`).
+**Step 3**: Create the FastAPI app (`shared/capabilities/hello_capability/app/main.py`).
 
 ```python
 from shared.app import create_agent_app
@@ -306,11 +316,11 @@ app = create_agent_app(
 
 That is it. `create_agent_app` provides `/health`, `/health/ready`, middleware, metrics, and evolution wrapping automatically.
 
-**Step 4**: Write tests (`agents/capabilities/hello_capability/tests/test_agent.py`).
+**Step 4**: Write tests (`shared/capabilities/hello_capability/tests/test_agent.py`).
 
 ```python
 from shared.schemas.agent import BaseAgent
-from agents.capabilities.hello_capability.service.agent import HelloAgent
+from shared.capabilities.hello_capability.service.agent import HelloAgent
 
 
 class TestHelloAgent:
@@ -340,14 +350,14 @@ class TestHelloAgent:
 
 ```bash
 # Run tests
-.venv/bin/python -m pytest agents/capabilities/hello_capability/tests/ -v
+.venv/bin/python -m pytest shared/capabilities/hello_capability/tests/ -v
 
 # Lint
-ruff check agents/capabilities/hello_capability/
+ruff check shared/capabilities/hello_capability/
 
 # Create feature branch and MR
 git checkout -b feat/hello-agent
-git add agents/capabilities/hello_capability/
+git add shared/capabilities/hello_capability/
 git commit -m "feat: add hello-agent minimal example"
 git push -u origin feat/hello-agent
 ```
@@ -371,7 +381,7 @@ graph LR
     end
 
     subgraph Agent Layer
-        RM[Requirement Manager]
+        RM[requirement manager agent]
         CA[Chat Agent]
         SA[Sync Agent]
         PM[PJM Agent]
@@ -516,18 +526,18 @@ now = datetime.now(UTC)
 now = datetime.utcnow()
 ```
 
-### Rule 3: Never Import anthropic Directly
+### Rule 3: Never Import Provider SDKs Directly
 
 All LLM calls go through `LLMGateway`, which provides circuit breaking, cost tracking, and retry logic.
 
 ```python
 # Correct
-from shared.services.llm_gateway import llm_gateway
+from shared.infra.llm_gateway import llm_gateway
 result = await llm_gateway.chat(messages=messages, model=model)
 
 # Wrong — bypasses cost tracking and circuit breaker
-import anthropic
-client = anthropic.Anthropic()
+from openai import AsyncOpenAI
+client = AsyncOpenAI()
 ```
 
 ### Rule 4: Use `create_agent_app()` Not Manual Lifespan
@@ -583,11 +593,11 @@ event_type = "requirement_confirmed"
 ```python
 # Correct
 from shared.integrations.feishu import FeishuClient
-from shared.messaging.outbound import DeliveryService
+from shared.messaging.outbound.delivery_service import DeliveryService
 from shared.infra.agent_client import AgentClient
 
 # Wrong — deprecated paths blocked by CI
-from shared.services.feishu_client import FeishuClient
+from shared.services.feishu import FeishuClient
 ```
 
 ### Rule 9: Never Log Secrets
@@ -662,12 +672,12 @@ Create `.vscode/launch.json` (gitignored):
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug: Requirement Manager",
+            "name": "Debug: Requirement manager agent",
             "type": "debugpy",
             "request": "launch",
             "module": "uvicorn",
             "args": [
-                "agents.capabilities.requirements.app.main:app",
+                "agents.requirement_manager.app.main:app",
                 "--reload",
                 "--port", "8000"
             ],
@@ -680,7 +690,7 @@ Create `.vscode/launch.json` (gitignored):
             "request": "launch",
             "module": "uvicorn",
             "args": [
-                "agents.capabilities.project_management.app.main:app",
+                "agents.pjm_agent.app.main:app",
                 "--reload",
                 "--port", "8012"
             ],
@@ -693,9 +703,9 @@ Create `.vscode/launch.json` (gitignored):
             "request": "launch",
             "module": "uvicorn",
             "args": [
-                "agents.gateways.user_interaction.app.main:app",
+                "services.gateways.user_interaction.app.main:app",
                 "--reload",
-                "--port", "8011"
+                "--port", "8013"
             ],
             "envFile": "${workspaceFolder}/.env",
             "cwd": "${workspaceFolder}"
@@ -778,11 +788,11 @@ return [self.create_event(
 
 ```python
 # Wrong — breaks if module moves
-with patch("shared.services.llm_gateway.llm_gateway.chat"):
+with patch("shared.infra.llm_gateway.llm_gateway.chat"):
     ...
 
 # Correct — resilient to directory moves
-from shared.services import llm_gateway as llm_mod
+import shared.infra.llm_gateway as llm_mod
 with patch.object(llm_mod.llm_gateway, "chat"):
     ...
 ```
@@ -797,13 +807,15 @@ with patch.object(llm_mod.llm_gateway, "chat"):
 
 | Old (deprecated) | New (canonical) |
 |-------------------|-----------------|
-| `shared.services.feishu_client` | `shared.integrations.feishu` |
+| `shared.services.feishu` | `shared.integrations.feishu` |
+| `shared.services.event_bus` | `shared.infra.event_bus` |
+| `shared.services.llm_gateway` | `shared.infra.llm_gateway` |
 | `shared.services.channel_gateway` | `shared.messaging.outbound` / `shared.messaging.inbound` |
 | `shared.services.agent_client` | `shared.infra.agent_client` |
 
 ### Pitfall 5: Not Handling LLM Failures
 
-**Symptom**: Agent crashes or returns 500 when Anthropic API is down or rate-limited.
+**Symptom**: Agent crashes or returns 500 when the LiteLLM proxy or active provider is down or rate-limited.
 
 **Cause**: Missing try/except around `llm_gateway.chat()` calls.
 

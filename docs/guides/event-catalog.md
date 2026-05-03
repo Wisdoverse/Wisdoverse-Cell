@@ -1,6 +1,6 @@
 # Wisdoverse Cell Event Catalog
 
-Last updated: 2026-05-02
+Last updated: 2026-05-03
 
 This catalog documents event names, producers, consumers, and payload
 expectations. English is the primary documentation language. Event names remain
@@ -35,11 +35,16 @@ actions only when the event intentionally requests work, such as `sync.trigger`.
 
 | Event type | Producer | Consumers | Purpose |
 |------------|----------|-----------|---------|
-| `requirement.extracted` | requirements capability | Event observers | Requirements were extracted from source content |
-| `requirement.confirmed` | requirements capability | Event observers | Requirement was confirmed |
-| `requirement.rejected` | requirements capability | Event observers | Requirement was rejected |
-| `requirement.changed` | requirements capability | Event observers | Requirement fields changed |
-| `requirement.deleted` | requirements capability | Event observers | Requirement was deleted |
+| `requirement.extracted` | requirement manager agent | Event observers | Requirements were extracted from source content |
+| `requirement.confirmed` | requirement manager agent | Event observers | Requirement was confirmed |
+| `requirement.rejected` | requirement manager agent | Event observers | Requirement was rejected |
+| `requirement.changed` | requirement manager agent | Event observers | Requirement fields changed |
+| `requirement.deleted` | requirement manager agent | Event observers | Requirement was deleted |
+| `project.created` | external project system or gateway | requirement manager agent | Project context became available for requirement association |
+| `project.updated` | external project system or gateway | requirement manager agent | Project context changed |
+| `sprint.started` | external project system or gateway | requirement manager agent | Sprint context started |
+| `sprint.completed` | external project system or gateway | requirement manager agent | Sprint context completed |
+| `meeting.uploaded` | external meeting source or gateway | requirement manager agent | Meeting content is ready for requirement ingestion |
 | `sync.started` | sync capability | Event observers | Synchronization started |
 | `sync.completed` | sync capability | project management, analysis | Synchronization completed |
 | `sync.failed` | sync capability | Event observers | Synchronization failed |
@@ -51,13 +56,13 @@ actions only when the event intentionally requests work, such as `sync.trigger`.
 | `analysis.quality-evaluated` | analysis capability | Event observers | Quality evaluation completed |
 | `pm.alert-triggered` | project management | Event observers | Project-management alert created |
 | `pm.decompose-completed` | project management | Event observers | Decomposition completed |
-| `pm.decomposition_failed` | project management | Event observers | Decomposition failed |
-| `pm.approval_timeout` | project management | Event observers | Decomposition approval timed out |
+| `pm.decomposition-failed` | project management | Event observers | Decomposition failed |
+| `pm.approval-timeout` | project management | Event observers | Decomposition approval timed out |
 | `chat.pm-query` | user interaction gateway | project management | User asked a PM-related question |
 | `chat.pm-response` | project management | user interaction gateway | PM query answer produced |
 | `channel.message.inbound` | channel gateway | Event observers | External message received |
-| `channel.message.outbound` | channel gateway | Event observers | External message sent |
-| `channel.message.delivered` | channel gateway | Event observers | Message delivered |
+| `channel.message.outbound` | agents or services | channel gateway | Request delivery to an external channel |
+| `channel.message.delivered` | channel gateway | Event observers | Message delivery result recorded |
 | `channel.message.edited` | channel gateway | Event observers | Message edited |
 | `channel.message.deleted` | channel gateway | Event observers | Message deleted |
 | `channel.reaction.added` | channel gateway | Event observers | Reaction added |
@@ -70,9 +75,14 @@ actions only when the event intentionally requests work, such as `sync.trigger`.
 Control-plane events connect the durable ledger with independently deployed
 agents. They should include `company_id`, `trace_id`, and the most specific
 available IDs among `goal_id`, `work_item_id`, and `run_id`.
+Each persisted `AgentRole` should declare `subscribed_events` and
+`published_events` so the control plane can review cross-agent communication
+without coupling runtime packages.
 
 | Event type | Producer | Consumer | Purpose |
 |------------|----------|----------|---------|
+| `company.created` | control-plane API | operator console | Company context created |
+| `company.updated` | control-plane API | operator console | Company context metadata changed |
 | `goal.created` | control-plane API | operator console | Durable company goal created |
 | `goal.updated` | control-plane API | operator console | Goal status or progress changed |
 | `work_item.created` | control-plane API | operator console | Durable work item created |
@@ -89,6 +99,9 @@ available IDs among `goal_id`, `work_item_id`, and `run_id`.
 | `budget.usage-recorded` | BudgetGuard or LLM gateway | operator console | Budget usage appended |
 | `artifact.created` | agents | operator console | Artifact produced |
 | `audit.event-recorded` | control-plane ledger | operator console | Audit event appended |
+| `evolution_proposal.created` | evolution capability or control-plane API | operator console | Self-evolution proposal created |
+| `evolution_proposal.updated` | control-plane API or approval gate | operator console | Proposal approval or rollout state changed |
+| `dlq.failed` | EventBus or agent runtime | operator console / operations | Failed or malformed event was moved to the dead letter queue |
 
 Example `agent.wakeup-requested` payload:
 
@@ -122,6 +135,115 @@ Example `agent_run.failed` payload:
 }
 ```
 
+## 3.1 Channel Gateway Domain
+
+`channel.message.outbound` is a delivery command event. Producers publish a
+`MessageOutboundPayload` with an `OutboundMessage`; `channel-gateway` resolves
+the registered adapter by `message.channel_id`, calls the adapter boundary, and
+publishes one `channel.message.delivered` event with a `DeliveryResult`.
+Missing adapters and adapter exceptions are represented as failed delivery
+results so operators can inspect the failed step without losing the event
+chain.
+
+Example `channel.message.outbound` payload:
+
+```json
+{
+  "message": {
+    "message_id": "msg_...",
+    "channel_id": "feishu",
+    "target_chat_id": "oc_...",
+    "content": "Requirement review is ready.",
+    "attachments": [],
+    "reply_to_platform_message_id": null,
+    "parse_mode": "plain",
+    "silent": false,
+    "trace_id": "trace_..."
+  }
+}
+```
+
+## 3.2 Requirement Context Events
+
+`project.*`, `sprint.*`, and `meeting.uploaded` are external work-context
+events consumed by the requirement manager agent. Producers may be the Go
+gateway, a platform webhook gateway, a scheduler, or another deployed service
+that has crossed a documented HTTP or EventBus boundary.
+
+The requirement manager consumes these events without importing producer
+internals. `meeting.uploaded` can also be invoked through the authenticated
+`POST /agent/request` boundary with `{"action": "ingest", ...}` when a
+deployed caller needs synchronous ingestion.
+
+Example `meeting.uploaded` payload:
+
+```json
+{
+  "content": "Discuss login requirements and acceptance criteria.",
+  "source": "feishu",
+  "title": "Sprint planning",
+  "meeting_date": "2026-05-03T10:30:00Z",
+  "participants": ["Alice", "Bob"],
+  "context": "Auth workstream",
+  "source_id": "meeting_001"
+}
+```
+
+Example `channel.message.delivered` payload:
+
+```json
+{
+  "message_id": "msg_...",
+  "channel_id": "feishu",
+  "result": {
+    "success": true,
+    "platform_message_id": "om_...",
+    "error_code": null,
+    "error_message": null,
+    "delivered_at": null
+  }
+}
+```
+
+## 3.3 Sync Capability Events
+
+`sync.trigger` is a command event consumed by the sync runtime. Its payload may
+include `scope=full`, `scope=openproject`, or `scope=feishu_bitable`; the
+hyphenated alias `feishu-bitable` is accepted only for inbound compatibility.
+If no scope is provided, the sync runtime runs the compatibility full sync.
+
+`sync.started`, `sync.completed`, and `sync.failed` always include the resolved
+`scope` so project-management and analysis consumers can tell whether the event
+came from the full sync, the OpenProject projection, or the Feishu Bitable
+progress sync.
+
+Example `sync.trigger` payload:
+
+```json
+{
+  "triggered_by": "chat_tool",
+  "scope": "openproject"
+}
+```
+
+## 3.4 Analysis and Project Management Events
+
+`analysis.quality-evaluated` carries a compact list of quality evaluation
+records in `evaluations`. `pm.decomposition-failed` and `pm.approval-timeout`
+are failure-evidence events; both should keep the workflow trace when one is
+available so the Coordinator and operator surfaces can connect the failure to
+the original work.
+
+Example `pm.decomposition-failed` payload:
+
+```json
+{
+  "error": "LLM timeout",
+  "requirement_title": "Login flow",
+  "trace_id": "trace_..."
+}
+```
+
 ## 4. Payload Guidelines
 
 Payloads should be small, versioned, and reconstructable from durable storage.
@@ -142,36 +264,38 @@ Required or recommended fields:
 
 | Agent/module | Publishes | Subscribes |
 |--------------|-----------|------------|
-| requirements capability | `requirement.*` | project/sprint/meeting events when enabled |
-| sync capability | `sync.*` | scheduler/API trigger paths |
+| requirement manager agent | `requirement.*` | `project.*`, `sprint.*`, `meeting.uploaded`, `coordinator.dispatch` |
+| sync runtime | `sync.*` with `scope=full`, `openproject`, or `feishu_bitable` | `sync.trigger`, scheduler/API trigger paths |
 | analysis capability | `report.*`, `analysis.*` | `sync.completed` |
-| project management capability | `pm.*`, `chat.pm-response` | `sync.completed`, `sync.task-needs-decompose`, `analysis.risk-detected`, `chat.pm-query` |
+| PJM agent | `pm.*`, `chat.pm-response` | `sync.completed`, `sync.task-needs-decompose`, `analysis.risk-detected`, `chat.pm-query` |
 | user interaction gateway | `chat.pm-query`, `sync.trigger` | `chat.pm-response` |
-| channel gateway | `channel.*` | adapter-specific platform callbacks |
-| quality capability | `qa.*` | code or CI events when enabled |
-| development capability | development workflow events | decomposed work items when enabled |
-| evolution capability | `evolution.*` | execution traces and feedback |
+| channel gateway | `channel.message.inbound`, `channel.message.delivered`, `channel.adapter.status` | `channel.message.outbound`, adapter-specific platform callbacks |
+| QA agent | `qa.*` | code or CI events when enabled |
+| Dev agent | development workflow events | decomposed work items when enabled |
+| evolution capability | `evolution.*` | `evolution.cycle-triggered`, `evolution.human-feedback`, `evolution.pattern-approved`; reads persisted execution traces |
 | control plane | `goal.*`, `work_item.*`, `agent_run.*`, `audit.*` | runtime evidence and operator actions |
 
 ## 6. Evolution Events
 
+Execution traces are currently persisted by the runtime wrapper and read by the
+evolution capability from storage. Do not document `execution.traced` as an
+active EventBus contract until a publisher and consumer are wired.
+
 | Event type | Producer | Consumer | Purpose |
 |------------|----------|----------|---------|
-| `execution.traced` | evolved-agent wrapper | evolution capability | Execution trace recorded |
 | `evolution.cycle-triggered` | scheduler/API | evolution capability | Start global analysis cycle |
 | `evolution.skill-proposed` | evolution capability | human review | Skill optimization proposal |
 | `evolution.human-feedback` | gateway/admin UI | evolution capability | Human feedback on proposal |
 | `evolution.pattern-proposed` | evolution capability | human review | Collaboration pattern proposal |
 | `evolution.pattern-approved` | gateway/admin UI | evolution capability | Pattern approved |
-| `evolution.pattern-shadow-complete` | shadow runner | evolution capability | Shadow run completed |
 
 ## 7. QA Events
 
 | Event type | Producer | Consumer | Purpose |
 |------------|----------|----------|---------|
-| `code.committed` | CI pipeline or GitLab webhook | quality capability | Code commit available for acceptance |
-| `qa.acceptance_completed` | quality capability | project management | Acceptance run completed |
-| `qa.acceptance_failed` | quality capability | project management | Acceptance run failed with failure details |
+| `code.committed` | CI pipeline or GitLab webhook | QA agent | Code commit available for acceptance |
+| `qa.acceptance-completed` | QA agent | project management and dev agent | Acceptance run completed |
+| `qa.gate-failed` | QA agent | project management | Acceptance gate failed with failure details |
 
 ## 8. Reserved Events
 
@@ -189,18 +313,21 @@ different meaning.
 | `deal` | `deal.won` |
 | `ticket` | `ticket.created` |
 | `approval` | `approval.requested`, `approval.granted`, `approval.rejected` |
+| `evolution` | `execution.traced`, `evolution.pattern-shadow-complete` |
 
-## 9. Subscription Gaps
+## 9. External Producer Boundaries
 
-These subscriptions exist or are planned, but producers are not fully wired yet:
+These events are consumed by the repository runtime, but their producers are
+external systems, gateways, schedulers, or deployment-specific integration
+services. Wire producers only through HTTP or EventBus boundaries.
 
 | Event type | Subscriber | Status |
 |------------|------------|--------|
-| `project.created` | requirements capability | Planned |
-| `project.updated` | requirements capability | Planned |
-| `sprint.started` | requirements capability | Planned |
-| `sprint.completed` | requirements capability | Planned |
-| `meeting.uploaded` | requirements capability | Planned |
+| `project.created` | requirement manager agent | Consumer implemented; producer is external or deployment-specific |
+| `project.updated` | requirement manager agent | Consumer implemented; producer is external or deployment-specific |
+| `sprint.started` | requirement manager agent | Consumer implemented; producer is external or deployment-specific |
+| `sprint.completed` | requirement manager agent | Consumer implemented; producer is external or deployment-specific |
+| `meeting.uploaded` | requirement manager agent | Consumer implemented; can also use `/agent/request` ingest |
 
-When implementing a reserved or gap event, update this catalog, add payload
-tests, and include migration notes if any consumer behavior changes.
+When implementing a new producer for these events, update this catalog, add
+payload tests, and include migration notes if consumer behavior changes.

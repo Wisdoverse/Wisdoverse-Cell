@@ -77,6 +77,7 @@ export function AgentFleetPage() {
   const t = useTranslations("agents");
   const [filters, setFilters] = useState<AgentFleetFiltersState>({
     status: "all",
+    agentKind: "all",
     search: "",
   });
   const {

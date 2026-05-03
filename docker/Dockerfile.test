@@ -48,4 +48,4 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 
 # Smoke test: verify critical packages are importable
-RUN python -c "import fastapi, sqlalchemy, anthropic, pytest, torch; print('image OK')"
+RUN python -c "import fastapi, sqlalchemy, litellm, pytest, torch; print('image OK')"

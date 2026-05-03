@@ -99,6 +99,7 @@ cython_debug/
 .coverage.*
 htmlcov/
 .pytest_cache/
+.ruff_cache/
 .tox/
 .nox/
 coverage.xml
@@ -107,6 +108,7 @@ coverage.xml
 .hypothesis/
 nosetests.xml
 test-results/
+playwright-report/
 junit*.xml
 
 # ------------------------------------------------------------------------------
@@ -225,6 +227,9 @@ docs/archive/
 
 # Claude Code
 .claude/
+
+# Local browser automation traces
+.playwright-mcp/
 
 # Git Worktrees (isolated development)
 .worktrees/

@@ -13,6 +13,7 @@ def mock_redis():
     r.xadd = AsyncMock(return_value="1234567890-0")
     r.xlen = AsyncMock(return_value=0)
     r.xpending = AsyncMock(return_value={"pending": 0})
+    r.xrevrange = AsyncMock(return_value=[])
     r.close = AsyncMock()
     return r
 
@@ -95,6 +96,78 @@ async def test_publish_returns_false_on_error(bus, mock_redis):
     result = await bus.publish(event)
 
     assert result is False
+
+
+# ── dead letter queue ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_publish_dlq_writes_observable_failed_event(bus, mock_redis):
+    event = _make_event()
+    event.metadata.trace_id = "trace_dlq"
+
+    await bus.publish_dlq(event, "handler exploded", "analysis-agent")
+
+    mock_redis.xadd.assert_awaited_once()
+    call_args = mock_redis.xadd.call_args
+    assert call_args.args[0] == "projectcell:events:dlq.failed"
+
+    from shared.schemas.event import Event
+
+    dlq_event = Event.model_validate_json(call_args.args[1]["data"])
+    assert dlq_event.event_type == "dlq.failed"
+    assert dlq_event.source_agent == "analysis-agent"
+    assert dlq_event.metadata.trace_id == "trace_dlq"
+    assert dlq_event.payload["original_event_id"] == event.event_id
+    assert dlq_event.payload["failed_by_agent"] == "analysis-agent"
+    assert dlq_event.payload["failure_stage"] == "handler"
+    assert dlq_event.payload["error"] == "handler exploded"
+
+
+@pytest.mark.asyncio
+async def test_publish_raw_dlq_writes_validation_failure(bus, mock_redis):
+    await bus.publish_raw_dlq(
+        raw_event_data="{bad-json",
+        error="validation failed",
+        agent_id="requirement-manager",
+    )
+
+    call_args = mock_redis.xadd.call_args
+    assert call_args.args[0] == "projectcell:events:dlq.failed"
+
+    from shared.schemas.event import Event
+
+    dlq_event = Event.model_validate_json(call_args.args[1]["data"])
+    assert dlq_event.payload["original_event_id"] is None
+    assert dlq_event.payload["failure_stage"] == "validation"
+    assert dlq_event.payload["original_payload"] == {"raw_event_data": "{bad-json"}
+
+
+@pytest.mark.asyncio
+async def test_get_dead_letter_count_uses_dlq_stream(bus, mock_redis):
+    mock_redis.xlen = AsyncMock(return_value=2)
+
+    result = await bus.get_dead_letter_count()
+
+    assert result == 2
+    mock_redis.xlen.assert_awaited_once_with("projectcell:events:dlq.failed")
+
+
+@pytest.mark.asyncio
+async def test_list_dead_letters_returns_recent_events(bus, mock_redis):
+    event = _make_event()
+    await bus.publish_dlq(event, "timeout", "qa-agent")
+    dlq_data = mock_redis.xadd.call_args.args[1]["data"]
+    mock_redis.xrevrange = AsyncMock(return_value=[("123-0", {"data": dlq_data})])
+
+    events = await bus.list_dead_letters(limit=25)
+
+    assert len(events) == 1
+    assert events[0].event_type == "dlq.failed"
+    assert events[0].payload["failed_by_agent"] == "qa-agent"
+    mock_redis.xrevrange.assert_awaited_once_with(
+        "projectcell:events:dlq.failed",
+        count=25,
+    )
 
 
 # ── disconnect ───────────────────────────────────────────────────────

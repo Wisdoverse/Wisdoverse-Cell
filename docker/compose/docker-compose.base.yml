@@ -106,7 +106,7 @@ services:
   # PgBouncer — Connection Pool
   # ===========================================================================
   pgbouncer:
-    image: edoburu/pgbouncer:1.22.0
+    image: edoburu/pgbouncer:v1.25.1-p0
     container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-pgbouncer
     hostname: pgbouncer
     environment:

@@ -1,4 +1,4 @@
-# shared/services/wecom/router.py
+# shared/integrations/wecom/router.py
 """WeCom Webhook 统一入口"""
 
 import base64

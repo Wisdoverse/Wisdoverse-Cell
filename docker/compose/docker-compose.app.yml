@@ -1,7 +1,8 @@
 # =============================================================================
 # Cloud-Native Application Layer
 # =============================================================================
-# Gateway (Go) + AI Core (Python) with Traefik service discovery labels
+# Gateway (Go) + requirement manager agent with Traefik service discovery labels.
+# The ai-core service id is kept for runtime compatibility.
 # =============================================================================
 
 x-logging: &default-logging
@@ -16,9 +17,21 @@ x-python-mirror-args: &python-mirror-args
   PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
   APT_MIRROR: ${APT_MIRROR:-}
 
+x-llm-env: &llm-env
+  LLM_PROVIDER: ${LLM_PROVIDER:-litellm}
+  DEFAULT_MODEL: ${DEFAULT_MODEL:-anthropic/claude-sonnet-4-20250514}
+  CHAT_MODEL: ${CHAT_MODEL:-anthropic/claude-sonnet-4-20250514}
+  SUMMARY_MODEL: ${SUMMARY_MODEL:-anthropic/claude-haiku-4-5-20251001}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  LITELLM_API_BASE: ${LITELLM_API_BASE:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+
 services:
   # ===========================================================================
-  # AI Core — Python FastAPI (Requirement Manager)
+# Requirement manager agent (HTTP + gRPC), using the ai-core runtime service id.
   # ===========================================================================
   ai-core:
     build:
@@ -44,6 +57,7 @@ services:
       # NATS / Event Bus
       NATS_URL: nats://nats-1:4222,nats://nats-2:4222,nats://nats-3:4222
       EVENT_BUS_BACKEND: ${EVENT_BUS_BACKEND:-redis}
+      EVENT_BUS_CONSUMER_NAME: requirement-manager
       # Database Read Replica (optional, for read/write split)
       DB_READ_HOST: ${DB_READ_HOST:-}
       DB_READ_PORT: ${DB_READ_PORT:-5432}
@@ -55,7 +69,7 @@ services:
       API_HOST: "0.0.0.0"
       API_PORT: "8000"
       # LLM
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      <<: *llm-env
       # Application
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
@@ -124,7 +138,7 @@ services:
       GATEWAY_SERVER_MODE: ${GATEWAY_MODE:-release}
       GATEWAY_SERVER_READ_TIMEOUT: 30s
       GATEWAY_SERVER_WRITE_TIMEOUT: 30s
-      # gRPC to AI Core
+      # gRPC to requirement manager agent
       GATEWAY_GRPC_AI_SERVICE_ADDR: ai-core:50051
       GATEWAY_GRPC_TIMEOUT: 30s
       GATEWAY_GRPC_MAX_RETRIES: 3

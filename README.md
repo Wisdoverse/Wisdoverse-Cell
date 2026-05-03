@@ -22,17 +22,16 @@ code:
 | Read first | Use for |
 |------------|---------|
 | [SPEC.md](./SPEC.md) | Root service contract, domain model, and implementation requirements |
-| [AGENTS.md](./AGENTS.md) | Repository workflow, coding rules, architecture boundaries, and agent behavior |
 | [docs/INDEX.md](./docs/INDEX.md) | Documentation map for product, architecture, specs, guides, and ADRs |
 | [docs/guides/agent-development.md](./docs/guides/agent-development.md) | New-agent service pattern, tests, and deployment checklist |
 
 Concise continuation prompt:
 
-> Continue Wisdoverse Cell from the current repository state. Read `SPEC.md`,
-> `AGENTS.md`, and `docs/INDEX.md` first. Preserve the `SPEC.md` contract,
-> keep runtime identifiers such as `projectcell`, `project-cell`, and
-> `project_cell` stable unless a migration is explicitly planned, and verify
-> changes with the narrowest relevant tests.
+> Continue Wisdoverse Cell from the current repository state. Read `SPEC.md`
+> and `docs/INDEX.md` first. Preserve the `SPEC.md` contract, keep runtime
+> identifiers such as `projectcell`, `project-cell`, and `project_cell` stable
+> unless a migration is explicitly planned, and verify changes with the
+> narrowest relevant tests.
 
 ### Frontend Console Direction
 
@@ -50,7 +49,7 @@ chat alone.
 
 - Docker and Docker Compose for local infrastructure.
 - Python 3.11+, Go 1.25, and Node.js/npm for local development.
-- A Claude API key and other secrets configured in `.env`.
+- LiteLLM provider keys and other secrets configured in `.env`.
 
 ### Option 1. Docker Compose stack
 
@@ -58,16 +57,17 @@ chat alone.
 git clone https://github.com/Wisdoverse/project-cell.git
 cd project-cell
 cp .env.example .env
-# Fill in ANTHROPIC_API_KEY and required service secrets.
+# Fill in POSTGRES_PASSWORD, AUTH_SECRET, and provider keys for the selected LiteLLM models.
 make up-dev
 ```
 
 Default local endpoints:
 
-- Frontend: <http://localhost:3000>
-- API docs: <http://localhost:8000/docs>
-- Traefik dashboard: <http://localhost:8080>
-- Grafana: <http://localhost:3001>
+- Compose ingress and frontend: <http://localhost>
+- Compose API docs: <http://localhost/docs> when `DEBUG=true`
+- Traefik dashboard: <http://localhost:8081/dashboard/>
+- Local frontend dev server: <http://localhost:3000> when running `make frontend-dev`
+- Grafana: <http://localhost:3001> when running `make monitoring-up`
 
 ### Option 2. Local development
 
@@ -89,13 +89,17 @@ make frontend-dev
 
 ## What Is Included
 
-- `agents/`: independently deployed AI agent services.
+- `agents/`: real business runtime agents: requirement manager, PJM, QA, and Dev.
+- `services/`: non-agent gateways and orchestration workers.
 - `shared/`: runtime, schemas, integrations, messaging, observability, and
-  infra clients.
+  infra clients, plus support capabilities that are not business agents.
 - `gateway/`: Go API gateway and webhook entry points.
 - `frontend/`: Next.js console for operators.
 - `docs/`: product model, architecture, guides, ADRs, and specs.
 - `docker/`: Compose assets for local and production-style deployments.
+
+See [Project layout](./docs/overview/project-layout.md) for the full source
+root map, structure cleanup roadmap, and local-only file policy.
 
 ## Documentation
 

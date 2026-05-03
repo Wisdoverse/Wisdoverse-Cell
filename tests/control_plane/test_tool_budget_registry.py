@@ -5,10 +5,12 @@ from contextlib import asynccontextmanager
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.control_plane.approval_gate import ApprovalGate, ApprovalRequiredError
 from shared.control_plane.budget_guard import BudgetExceededError
 from shared.control_plane.models import (
     AgentRun,
     AgentRunStatus,
+    ApprovalCategory,
     BudgetPeriod,
     BudgetPolicy,
     BudgetScope,
@@ -130,6 +132,63 @@ async def test_expensive_tool_budget_blocks_before_handler(
     assert calls == 0
     assert updated is not None
     assert updated.cost_usd == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
+async def test_destructive_tool_requires_approved_control_plane_approval(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        "shared.infra.tool_registry.settings.control_plane_approval_enforced",
+        True,
+    )
+    repo = ControlPlaneRepository(db_session)
+    company = await repo.create_company(
+        CompanyContext(company_id="cmp_tool_approval", name="Tool Approval Test")
+    )
+    calls = 0
+
+    async def handler(_input: dict, _context: ToolContext) -> ToolResult:
+        nonlocal calls
+        calls += 1
+        return ToolResult(success=True, data={"approved": True})
+
+    tool = build_tool(
+        name="agentforge_deploy",
+        description="Run a production deployment workflow",
+        handler=handler,
+        is_destructive=True,
+    )
+    context = ToolContext(
+        agent_id="dev-agent",
+        company_id=company.company_id,
+        control_plane_session_provider=_session_provider(db_session),
+    )
+
+    with pytest.raises(ApprovalRequiredError, match="control_plane_approval_required"):
+        await tool.execute({}, context)
+
+    approval = await ApprovalGate(repo).request_approval(
+        company_id=company.company_id,
+        category=ApprovalCategory.TECHNICAL,
+        requested_by="agent:dev-agent",
+        source_agent_id="dev-agent",
+        proposed_action="Run production deployment workflow",
+        reason="Operator requested deployment",
+        risk="Production behavior may change",
+        rollback_note="Cancel workflow or revert deployment",
+        affected_resources=["agentforge:workflow", "production"],
+    )
+    await ApprovalGate(repo).approve(approval.approval_id, resolved_by="human:cto")
+
+    result = await tool.execute(
+        {},
+        context.model_copy(update={"approval_id": approval.approval_id}),
+    )
+
+    assert result.success is True
+    assert calls == 1
 
 
 @pytest.mark.asyncio

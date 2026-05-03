@@ -110,7 +110,7 @@ Agent receives Event
               CanaryRouter deploys as candidate (A/B test)
 ```
 
-The `evolution-agent` (L2) runs on a separate schedule, analyzing traces across all agents to propose architectural improvements. See `agents/capabilities/evolution/README.md`.
+The `evolution-agent` (L2) runs on a separate schedule, analyzing traces across all agents to propose architectural improvements. See `shared/capabilities/evolution/README.md`.
 
 ---
 

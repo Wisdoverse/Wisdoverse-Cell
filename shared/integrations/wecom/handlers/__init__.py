@@ -1,4 +1,4 @@
-# shared/services/wecom/handlers/__init__.py
+# shared/integrations/wecom/handlers/__init__.py
 """WeCom message handlers."""
 from .bot import WecomBotHandler
 

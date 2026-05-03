@@ -213,8 +213,8 @@ curl -s 'http://localhost:9090/api/v1/query?query=llm_daily_cost_dollars' | jq '
 # Check circuit breaker state in agent logs
 docker compose -f docker/compose/docker-compose.app.yml logs --tail=100 ai-core | grep -i "circuit\|rate.limit\|429"
 
-# Check Anthropic API status
-# Visit: https://status.anthropic.com
+# Check LiteLLM proxy and provider status
+# Visit the active provider status page if the proxy is healthy.
 ```
 
 **Fix**:
@@ -230,7 +230,7 @@ docker compose -f docker/compose/docker-compose.app.yml logs --tail=50 ai-core |
 # Step 3: If circuit breaker is stuck open, restart the agent to reset
 docker compose -f docker/compose/docker-compose.app.yml restart ai-core
 
-# Step 4: If Anthropic API is down, wait for recovery. Agents should use fallback logic.
+# Step 4: If the provider is down, wait for recovery. Agents should use fallback logic.
 # Verify fallback is working:
 curl -f http://localhost:8000/health/ready
 ```

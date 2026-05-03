@@ -75,6 +75,13 @@ class EventTypes:
     REQUIREMENT_REJECTED = "requirement.rejected"
     REQUIREMENT_DELETED = "requirement.deleted"
 
+    # External work context consumed by requirement manager
+    PROJECT_CREATED = "project.created"
+    PROJECT_UPDATED = "project.updated"
+    SPRINT_STARTED = "sprint.started"
+    SPRINT_COMPLETED = "sprint.completed"
+    MEETING_UPLOADED = "meeting.uploaded"
+
     # Development
     CODE_COMMITTED = "code.committed"
     CODE_REVIEWED = "code.reviewed"
@@ -104,6 +111,8 @@ class EventTypes:
     APPROVAL_REJECTED = "approval.rejected"
 
     # Control-plane ledger
+    COMPANY_CREATED = "company.created"
+    COMPANY_UPDATED = "company.updated"
     GOAL_CREATED = "goal.created"
     GOAL_UPDATED = "goal.updated"
     WORK_ITEM_CREATED = "work_item.created"
@@ -120,6 +129,8 @@ class EventTypes:
     BUDGET_USAGE_RECORDED = "budget.usage-recorded"
     ARTIFACT_CREATED = "artifact.created"
     AUDIT_EVENT_RECORDED = "audit.event-recorded"
+    EVOLUTION_PROPOSAL_CREATED = "evolution_proposal.created"
+    EVOLUTION_PROPOSAL_UPDATED = "evolution_proposal.updated"
 
     # PM sync
     SYNC_STARTED = "sync.started"

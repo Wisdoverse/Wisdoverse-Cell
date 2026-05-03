@@ -85,7 +85,7 @@ Code -> Push -> CI Pipeline -> Code Review -> Merge
 
 ## 4. Code Standards
 
-See [`CLAUDE.md` Part 4: Coding Standards](../CLAUDE.md) for the canonical rules.
+See [`AGENTS.md` Part 4: Coding Standards](../AGENTS.md) for the canonical rules.
 
 Core points:
 
@@ -96,11 +96,11 @@ Core points:
 
 ```python
 # Correct
-from shared.integrations.feishu import FeishuAdapter
-from shared.messaging.outbound import DeliveryService
+from shared.integrations.feishu import FeishuPlatformAdapter
+from shared.messaging.outbound.delivery_service import DeliveryService
 
 # Deprecated
-from shared.services.feishu_service import FeishuService
+from shared.services.feishu import FeishuClient
 ```
 
 ---
@@ -110,7 +110,7 @@ from shared.services.feishu_service import FeishuService
 Human contributors and AI agents follow the same engineering workflow and quality gates.
 
 - `AGENTS.md` is the canonical agent-rules file.
-- `CLAUDE.md`, `GEMINI.md`, `.cursorrules`, and `.github/copilot-instructions.md` are symlinks to `AGENTS.md`.
+- Compatibility files such as `CLAUDE.md`, `GEMINI.md`, `.cursorrules`, and `.github/copilot-instructions.md` point back to `AGENTS.md`.
 - AI-generated code must pass the same CI pipeline as human-written code.
 - AI agents must not push directly to `main`; changes must go through the PR/MR workflow.
 - AI agents must treat `intern-archive` as read-only historical context, not as a development base.

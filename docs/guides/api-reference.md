@@ -20,6 +20,11 @@ Internal key comparison must use constant-time comparison. Development
 environments may skip the check only when `internal_service_key` is not
 configured.
 
+Feishu webhook handlers must verify the raw request body before parsing
+untrusted JSON when signature verification is enabled. Missing keys, missing
+headers, or mismatched signatures fail closed before URL verification,
+event dispatch, card action handling, or message processing.
+
 ## Common Service Endpoints
 
 Services created through `create_agent_app()` expose:
@@ -92,6 +97,10 @@ Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.
 
 | Method | Path | Purpose |
 |--------|------|---------|
+| `GET` | `/companies` | List company contexts |
+| `POST` | `/companies` | Create a company context |
+| `GET` | `/companies/{company_id}` | Read one company context |
+| `PATCH` | `/companies/{company_id}` | Update company name, mission, or metadata |
 | `GET` | `/goals` | List durable company goals |
 | `POST` | `/goals` | Create a goal |
 | `GET` | `/goals/{goal_id}` | Read one goal |
@@ -107,6 +116,10 @@ Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.
 | `GET` | `/artifacts` | List artifacts |
 | `POST` | `/artifacts` | Create an artifact |
 | `GET` | `/artifacts/{artifact_id}` | Read one artifact |
+| `GET` | `/evolution-proposals` | List self-evolution proposals |
+| `POST` | `/evolution-proposals` | Create a proposal and optional technical approval |
+| `GET` | `/evolution-proposals/{proposal_id}` | Read one proposal |
+| `PATCH` | `/evolution-proposals/{proposal_id}/status` | Update approval or rollout state |
 | `GET` | `/runs` | List agent runs |
 | `GET` | `/runs/{run_id}` | Read one run |
 | `GET` | `/agents` | List `AgentRole` records |
@@ -125,7 +138,12 @@ Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.
 Creation endpoints validate that referenced company, goal, work item, and run
 IDs belong to the same company context.
 
-## Requirements Capability API
+`AgentRole` create/list/read payloads include the event-boundary contract:
+`subscribed_events` and `published_events`. These fields document how an agent
+participates in EventBus communication without importing another agent's
+internal implementation.
+
+## Requirement Manager API
 
 Primary prefix: `/api/v1`.
 
@@ -156,8 +174,8 @@ Primary prefix: `/api/v1`.
 | `GET` | `/stats/enhanced` | Extended statistics and trend data |
 | `GET` | `/export/prd` | Export PRD JSON payload |
 | `GET` | `/export/prd/download` | Download generated PRD |
-| `GET` | `/export/questions` | Export open questions |
-| `GET` | `/export/questions/download` | Download open questions |
+| `GET` | `/export/questions` | Export questions; `status=open`, `answered`, or `all` |
+| `GET` | `/export/questions/download` | Download questions; `status=open`, `answered`, or `all` |
 | `GET` | `/messages/search` | Search message/session content |
 | `GET` | `/messages/session/{session_id}` | Read a message session |
 | `GET` | `/admin/llm-usage` | LLM usage summary |
@@ -197,7 +215,9 @@ Primary prefix: `/api/v1`.
 | Analysis | `POST` | `/api/v1/analysis/daily` | Generate daily report |
 | Analysis | `POST` | `/api/v1/analysis/weekly` | Generate weekly report |
 | Analysis | `GET` | `/api/v1/analysis/risks` | Check project risks |
-| Sync | `POST` | `/api/v1/sync/trigger` | Trigger synchronization |
+| Sync | `POST` | `/api/v1/sync/trigger` | Trigger compatibility full synchronization |
+| Sync | `POST` | `/api/v1/sync/openproject/trigger` | Trigger OpenProject-to-Bitable projection sync |
+| Sync | `POST` | `/api/v1/sync/feishu-bitable/trigger` | Trigger Feishu Bitable-to-OpenProject progress sync |
 | Sync | `GET` | `/api/v1/sync/status` | Read sync status |
 | Sync | `GET` | `/api/v1/sync/mappings` | List sync mappings |
 | QA | `POST` | `/api/v1/qa/run` | Start QA acceptance |
@@ -223,6 +243,10 @@ Primary prefix: `/api/v1`.
 | WeCom integration | `GET` | `/api/wecom/webhook` | WeCom verification |
 | WeCom integration | `POST` | `/api/wecom/webhook` | WeCom event callback |
 | WeCom integration | `GET` | `/api/wecom/health` | WeCom integration health |
+| Channel Gateway | `GET` | `/health` | Public liveness |
+| Channel Gateway | `GET` | `/health/adapters` | Internal-key adapter health |
+| Channel Gateway | `GET` | `/api/admin/adapters` | Internal-key adapter inventory |
+| Channel Gateway | `GET` | `/api/admin/adapters/{channel_id}` | Internal-key adapter detail |
 
 ## DSAR Endpoints
 

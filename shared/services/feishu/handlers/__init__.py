@@ -1,2 +1,3 @@
-"""Deprecated: use shared.integrations.feishu.handlers"""
-from shared.integrations.feishu.handlers import *  # noqa: F401,F403
+"""Deprecated Feishu handler compatibility namespace."""
+
+__all__: list[str] = []

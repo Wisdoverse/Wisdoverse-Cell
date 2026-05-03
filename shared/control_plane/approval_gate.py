@@ -229,6 +229,20 @@ class ApprovalGateService:
             gate = ApprovalGate(ControlPlaneRepository(session))
             return await gate.reject(approval_id, resolved_by=resolved_by)
 
+    async def ensure_approved_for_sensitive_action(
+        self,
+        approval_id: str | None,
+    ) -> ApprovalDecision | None:
+        if not self.enabled:
+            return None
+        if not approval_id:
+            if self.enforced:
+                raise ApprovalRequiredError("control_plane_approval_required")
+            return None
+        async with self._resolve_session_provider()() as session:
+            gate = ApprovalGate(ControlPlaneRepository(session))
+            return await gate.ensure_approved(approval_id)
+
     def _resolve_session_provider(self) -> SessionProvider:
         if self._session_provider is not None:
             return self._session_provider

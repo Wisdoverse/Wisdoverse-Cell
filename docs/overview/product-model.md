@@ -72,7 +72,7 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 | Capability | Implemented Foundation | Public Product Direction |
 |------------|------------------------|--------------------------|
 | Goal alignment | Requirement extraction, PRD generation, PJM decomposition, durable goals | Goal tree with richer metrics and progress rollups |
-| Org chart | Persisted `AgentRole` definitions separate CEO/CTO-style organization roles from sync/QA/dev capability modules | Scoped permissions and reusable policy templates |
+| Org chart | Persisted `AgentRole` definitions separate CEO/CTO-style organization roles, root business runtime agents, and support capability modules | Scoped permissions and reusable policy templates |
 | Task system | OpenProject and Feishu sync plus native work-item ledger | Deeper dependency, blocker, label, comment, and artifact workflow |
 | Heartbeats | Runtime hooks, manual control-plane wakeup, authenticated `/agent/request`, scheduler tick endpoint | Production scheduler ownership and run retry policies |
 | Governance | Human approval callbacks, internal service auth, control-plane approval ledger | First-class pause, resume, terminate, and rollback controls |
@@ -87,10 +87,12 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 
 | Surface | Current State | Primary Docs |
 |---------|---------------|--------------|
+| Company context | `/api/v1/control-plane/companies` exposes durable company name, mission, metadata, and audit evidence | [API Reference](../guides/api-reference.md#control-plane-api) |
 | Workbench | `/[locale]/workflows` uses Feature-Sliced Design slices for goals, agents, approvals, budgets, runs, and timeline evidence | [API Reference](../guides/api-reference.md#control-plane-api), [Operations](../guides/operations.md#9-control-plane-operations) |
-| Agent creation | Operators can create `AgentRole` records with kind, interaction mode, context sources, reporting line, adapter type/config, capabilities, responsibilities, permissions, and status | [API Reference](../guides/api-reference.md#post-apiv1control-planeagents) |
+| Agent creation | Operators can create `AgentRole` records with kind, interaction mode, context sources, reporting line, adapter type/config, capabilities, responsibilities, subscribed/published events, permissions, and status | [API Reference](../guides/api-reference.md#post-apiv1control-planeagents) |
 | Agent execution | Manual wakeup and heartbeat ticks create normal `AgentRun` records through the adapter registry | [Operations](../guides/operations.md#9-control-plane-operations) |
 | Governance | Approval and budget gates append durable evidence before or during sensitive execution | [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
+| Evolution proposals | L1/L2/L3 self-evolution proposals are durable records with approval and rollout state; approval gates synchronize linked proposal state | [API Reference](../guides/api-reference.md#control-plane-api) |
 | Audit | Timeline combines run, budget, approval, artifact, and audit events by trace or run | [API Reference](../guides/api-reference.md#control-plane-api) |
 
 ---

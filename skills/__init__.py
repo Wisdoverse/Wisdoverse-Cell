@@ -1,5 +1,5 @@
-"""Deprecated: use agents.capabilities.requirements.skills"""
-from agents.capabilities.requirements.skills import (
+"""Deprecated: use agents.requirement_manager.skills"""
+from agents.requirement_manager.skills import (
     BatchConfirmSkill,
     BatchRejectSkill,
     ConfirmSkill,

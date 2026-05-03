@@ -1,4 +1,4 @@
-# shared/services/wecom/platform_adapter.py
+# shared/integrations/wecom/platform_adapter.py
 """
 WecomPlatformAdapter - 企业微信平台适配器
 

@@ -1,9 +1,14 @@
 """Admin endpoints for channel gateway."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from shared.messaging.outbound.core.registry import AdapterRegistry
+from shared.middleware.internal_auth import verify_internal_key
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+router = APIRouter(
+    prefix="/api/admin",
+    tags=["admin"],
+    dependencies=[Depends(verify_internal_key)],
+)
 
 
 @router.get("/adapters")

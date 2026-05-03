@@ -2,7 +2,7 @@
 """
 Tests for SkillMatcher - command, pattern, and LLM matching.
 """
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -266,7 +266,7 @@ class TestNoMatch:
 
 
 class TestLLMMatching:
-    """Test LLM-based matching (Phase 2 placeholder)."""
+    """Test LLM-based matching."""
 
     @pytest.mark.asyncio
     async def test_llm_matching_without_client(self, registry: SkillRegistry):
@@ -278,13 +278,58 @@ class TestLLMMatching:
         assert match is None
 
     @pytest.mark.asyncio
-    async def test_llm_matching_with_client_placeholder(self, registry: SkillRegistry):
-        """With LLM client, currently returns None (Phase 2)."""
-        mock_llm = MagicMock()
+    async def test_llm_matching_with_client(self, registry: SkillRegistry):
+        """With LLM client, unmatched natural language can map to a skill."""
+        mock_llm = AsyncMock()
+        mock_llm.complete = AsyncMock(
+            return_value=(
+                '{"skill_name":"export_prd","confidence":0.86,'
+                '"parameters":{"req_id":"REQ123","ignored":"x"}}'
+            )
+        )
         matcher = SkillMatcher(registry=registry, llm_client=mock_llm)
 
-        # Currently _match_with_llm returns None as placeholder
+        match = await matcher.match("please prepare the PRD package for REQ123")
+
+        assert match is not None
+        assert match.skill.name == "export_prd"
+        assert match.confidence == 0.86
+        assert match.parameters == {"req_id": "REQ123", "format": "md"}
+        assert match.match_type == "llm"
+
+    @pytest.mark.asyncio
+    async def test_llm_matching_rejects_low_confidence(self, registry: SkillRegistry):
+        """Low-confidence LLM matches do not trigger a skill."""
+        mock_llm = AsyncMock()
+        mock_llm.complete = AsyncMock(
+            return_value='{"skill_name":"export_prd","confidence":0.2,"parameters":{}}'
+        )
+        matcher = SkillMatcher(registry=registry, llm_client=mock_llm)
+
+        match = await matcher.match("maybe something with docs")
+
+        assert match is None
+
+    @pytest.mark.asyncio
+    async def test_llm_matching_rejects_unknown_skill(self, registry: SkillRegistry):
+        """Unknown skill names from the LLM are ignored."""
+        mock_llm = AsyncMock()
+        mock_llm.complete = AsyncMock(
+            return_value='{"skill_name":"unknown","confidence":0.9,"parameters":{}}'
+        )
+        matcher = SkillMatcher(registry=registry, llm_client=mock_llm)
+
         match = await matcher.match("complex intent that needs LLM")
 
-        # In Phase 2, this would return a SkillMatch with match_type="llm"
+        assert match is None
+
+    @pytest.mark.asyncio
+    async def test_llm_matching_rejects_invalid_json(self, registry: SkillRegistry):
+        """Invalid LLM output degrades to no match."""
+        mock_llm = AsyncMock()
+        mock_llm.complete = AsyncMock(return_value="not json")
+        matcher = SkillMatcher(registry=registry, llm_client=mock_llm)
+
+        match = await matcher.match("complex intent that needs LLM")
+
         assert match is None

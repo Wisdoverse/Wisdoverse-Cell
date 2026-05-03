@@ -9,7 +9,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # Import all models so metadata is populated
-from agents.capabilities.requirements.models import (  # noqa: F401
+from agents.requirement_manager.models import (  # noqa: F401
     Base,
     ChatMessage,
     FeedbackRecord,

@@ -53,6 +53,8 @@ class EventBusProtocol(Protocol):
     async def get_queue_length(self, event_type: str) -> int: ...
     async def get_all_queue_lengths(self) -> dict[str, int]: ...
     async def get_pending_count(self, event_type: str, group: str) -> int: ...
+    async def get_dead_letter_count(self) -> int: ...
+    async def list_dead_letters(self, limit: int = 50) -> list[Event]: ...
 
     @property
     def is_connected(self) -> bool: ...
@@ -240,6 +242,11 @@ class EventBus:
                                 error=str(ve),
                                 raw_event_data=raw_preview,
                             )
+                            await self.publish_raw_dlq(
+                                raw_event_data=raw_preview,
+                                error=str(ve),
+                                agent_id=group or "default",
+                            )
                             # ACK invalid messages to prevent infinite redelivery
                             await self._redis.xack(stream_key, group or "default", message_id)
                             continue
@@ -305,12 +312,14 @@ class EventBus:
                 "original_event_type": event.event_type,
                 "original_source": event.source_agent,
                 "original_payload": event.payload,
+                "failed_by_agent": agent_id,
+                "failure_stage": "handler",
                 "error": error[:2000],
             },
             trace_id=event.metadata.trace_id,
         )
         try:
-            key = self._get_stream_key("dlq.failed")
+            key = self._get_stream_key(EventTypes.DLQ_FAILED)
             await self._redis.xadd(
                 key, {"data": dlq_event.model_dump_json()}, maxlen=10_000,
             )
@@ -325,6 +334,82 @@ class EventBus:
                 event_id=event.event_id,
                 error=str(exc),
             )
+
+    async def publish_raw_dlq(
+        self,
+        *,
+        raw_event_data: str,
+        error: str,
+        agent_id: str,
+    ) -> None:
+        """Publish an invalid/raw event payload to DLQ before acknowledging it."""
+        await self.connect()
+        dlq_event = Event.create(
+            event_type=EventTypes.DLQ_FAILED,
+            source_agent=agent_id,
+            payload={
+                "original_event_id": None,
+                "original_event_type": None,
+                "original_source": None,
+                "original_payload": {"raw_event_data": raw_event_data},
+                "failed_by_agent": agent_id,
+                "failure_stage": "validation",
+                "error": error[:2000],
+            },
+        )
+        try:
+            key = self._get_stream_key(EventTypes.DLQ_FAILED)
+            await self._redis.xadd(
+                key, {"data": dlq_event.model_dump_json()}, maxlen=10_000,
+            )
+            logger.info(
+                "dlq_raw_event_published",
+                failure_stage="validation",
+                agent_id=agent_id,
+            )
+        except Exception as exc:
+            logger.error(
+                "dlq_raw_publish_failed",
+                agent_id=agent_id,
+                error=str(exc),
+            )
+
+    async def get_dead_letter_count(self) -> int:
+        """Return count of events in the dead letter queue stream."""
+        await self.connect()
+        try:
+            return await self._redis.xlen(self._get_stream_key(EventTypes.DLQ_FAILED))
+        except Exception:
+            return 0
+
+    async def list_dead_letters(self, limit: int = 50) -> list[Event]:
+        """Return recent dead letter events, newest first."""
+        await self.connect()
+        bounded_limit = max(1, min(limit, 500))
+        try:
+            rows = await self._redis.xrevrange(
+                self._get_stream_key(EventTypes.DLQ_FAILED),
+                count=bounded_limit,
+            )
+        except Exception:
+            return []
+
+        events: list[Event] = []
+        for _, fields in rows:
+            event_data = fields.get("data", "")
+            try:
+                events.append(Event.model_validate_json(event_data))
+            except ValidationError as exc:
+                logger.error(
+                    "dlq_event_validation_failed",
+                    error=str(exc),
+                    raw_event_data=(
+                        event_data[:200] + "..."
+                        if len(event_data) > 200
+                        else event_data
+                    ),
+                )
+        return events
 
     async def get_pending_count(self, event_type: str, group: str) -> int:
         """Get count of unacknowledged messages for a consumer group."""
@@ -351,13 +436,19 @@ def create_event_bus(backend: str | None = None) -> EventBusProtocol:
                 "nats-py package required for NATS event bus backend. "
                 "Install with: pip install nats-py"
             )
-        logger.info("event_bus_backend_selected", backend="nats")
-        # TODO: consumer_name is hardcoded; make configurable via
-        # settings (e.g. settings.otel_service_name) so each agent
-        # gets its own NATS consumer identity.
+        consumer_name = (
+            settings.event_bus_consumer_name.strip()
+            or settings.otel_service_name.strip()
+            or "projectcell"
+        )
+        logger.info(
+            "event_bus_backend_selected",
+            backend="nats",
+            consumer_name=consumer_name,
+        )
         return NATSEventBus(
             nats_url=settings.nats_url,
-            consumer_name="requirement-manager",
+            consumer_name=consumer_name,
         )
     elif chosen == "redis":
         logger.info("event_bus_backend_selected", backend="redis")

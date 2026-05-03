@@ -50,6 +50,7 @@ class ToolContext(BaseModel):
     """Execution context passed to tools."""
 
     agent_id: str
+    approval_id: str | None = None
     task_id: str | None = None
     workflow_id: str | None = None
     trace_id: str | None = None
@@ -89,6 +90,7 @@ class _FunctionalTool(Tool):
         self._handler = handler
 
     async def execute(self, input: dict, context: ToolContext) -> ToolResult:
+        await _ensure_tool_approval(self.meta, context)
         reservation = await _check_tool_budget(self.meta, context)
         result = await self._handler(input, context)
         if result.success:
@@ -126,6 +128,47 @@ def build_tool(
 
 def _tool_budget_enforced() -> bool:
     return getattr(settings, "control_plane_tool_budget_enforced", False) is True
+
+
+def _approval_enforced() -> bool:
+    return getattr(settings, "control_plane_approval_enforced", False) is True
+
+
+def _tool_requires_approval(meta: ToolMeta) -> bool:
+    return meta.requires_approval or meta.is_destructive
+
+
+async def _ensure_tool_approval(meta: ToolMeta, context: ToolContext) -> None:
+    if not _tool_requires_approval(meta):
+        return
+    if not (settings.control_plane_enabled or _approval_enforced()):
+        return
+
+    try:
+        from shared.control_plane.approval_gate import ApprovalGateService
+
+        current = get_current_run_context()
+        service = ApprovalGateService(
+            source_agent_id=context.agent_id,
+            session_provider=context.control_plane_session_provider,
+            default_company_id=(
+                context.company_id
+                or (current.company_id if current is not None else None)
+                or settings.control_plane_company_id
+            ),
+            enabled=True,
+            enforced=_approval_enforced(),
+        )
+        await service.ensure_approved_for_sensitive_action(context.approval_id)
+    except Exception:
+        if _approval_enforced():
+            raise
+        logger.warning(
+            "tool_approval_check_failed",
+            tool_name=meta.name,
+            agent_id=context.agent_id,
+            exc_info=True,
+        )
 
 
 def _resolve_budget_scope_id(scope: str, context: ToolContext) -> str | None:

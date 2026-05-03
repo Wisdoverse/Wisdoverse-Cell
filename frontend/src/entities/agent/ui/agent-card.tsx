@@ -29,11 +29,16 @@ const kindLabels: Record<string, string> = {
 };
 
 export function AgentCard({ meta, runtime, onClick, className }: AgentCardProps) {
-  const kindLabel = meta.agentKind
-    ? (kindLabels[meta.agentKind] ?? meta.agentKind)
-    : meta.source === "control-plane"
-      ? "Role"
-      : "Module";
+  const kindLabel =
+    meta.implemented === false
+      ? "Reserved"
+      : meta.businessAgent
+        ? "Agent"
+        : meta.agentKind
+          ? (kindLabels[meta.agentKind] ?? meta.agentKind)
+          : meta.source === "control-plane"
+            ? "Role"
+            : "Module";
 
   return (
     <button

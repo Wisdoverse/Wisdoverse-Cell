@@ -1,0 +1,142 @@
+"""Repository architecture boundary checks."""
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+
+from shared.schemas.event import EventTypes
+
+AGENT_ROOTS = {
+    "dev_agent",
+    "pjm_agent",
+    "qa_agent",
+    "requirement_manager",
+}
+
+
+def _python_files(root: Path) -> list[Path]:
+    return [
+        path
+        for path in root.rglob("*.py")
+        if "tests" not in path.parts
+        and not path.name.endswith("_pb2.py")
+        and not path.name.endswith("_pb2_grpc.py")
+    ]
+
+
+def _imported_modules(path: Path) -> list[str]:
+    tree = ast.parse(path.read_text())
+    modules: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            modules.append(node.module)
+    return modules
+
+
+def test_agents_do_not_import_other_agent_internals() -> None:
+    for agent_root in AGENT_ROOTS:
+        root = Path("agents") / agent_root
+        if not root.exists():
+            continue
+        for path in _python_files(root):
+            for module in _imported_modules(path):
+                if not module.startswith("agents."):
+                    continue
+                parts = module.split(".")
+                if len(parts) < 2 or parts[1] == agent_root:
+                    continue
+                raise AssertionError(f"{path} imports cross-agent module {module}")
+
+
+def test_services_and_shared_code_do_not_import_agent_internals() -> None:
+    roots = [Path("services"), Path("shared/capabilities"), Path("shared/control_plane")]
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in _python_files(root):
+            for module in _imported_modules(path):
+                if module.startswith("agents."):
+                    raise AssertionError(f"{path} imports agent module {module}")
+
+
+def test_runtime_code_does_not_import_llm_provider_sdks_directly() -> None:
+    roots = [Path("agents"), Path("services"), Path("shared")]
+    provider_modules = {"anthropic", "openai"}
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in _python_files(root):
+            if "tests" in path.parts:
+                continue
+            for module in _imported_modules(path):
+                root_module = module.split(".", 1)[0]
+                assert root_module not in provider_modules, (
+                    f"{path} imports provider SDK module {module}; use LLMGateway"
+                )
+
+
+def test_runtime_code_uses_canonical_shared_paths() -> None:
+    roots = [Path("agents"), Path("services"), Path("shared")]
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in _python_files(root):
+            if path.parts[:2] == ("shared", "services"):
+                continue
+            for module in _imported_modules(path):
+                assert not module.startswith("shared.services"), (
+                    f"{path} imports deprecated module {module}; use canonical shared paths"
+                )
+
+
+def test_frontend_routes_are_thin() -> None:
+    route_root = Path("frontend/src/app/[locale]/(app)")
+    forbidden = [
+        "useState",
+        "useMemo",
+        "useCallback",
+        "MOCK_",
+        "@/lib/hooks",
+    ]
+    for path in route_root.rglob("page.tsx"):
+        source = path.read_text()
+        line_count = len(source.splitlines())
+        assert line_count <= 20, f"{path} has {line_count} lines"
+        for token in forbidden:
+            assert token not in source, f"{path} contains {token}"
+
+
+def test_frontend_domain_hooks_are_imported_from_entities() -> None:
+    frontend_root = Path("frontend/src")
+    for path in frontend_root.rglob("*.ts*"):
+        if path.parts[-3:-1] == ("lib", "hooks"):
+            continue
+        if "__tests__" in path.parts:
+            continue
+        source = path.read_text()
+        assert "@/lib/hooks" not in source, f"{path} imports legacy hooks"
+
+
+def test_event_catalog_uses_canonical_runtime_event_names() -> None:
+    catalog = Path("docs/guides/event-catalog.md").read_text()
+    expected = {
+        EventTypes.PM_DECOMPOSITION_FAILED,
+        EventTypes.PM_APPROVAL_TIMEOUT,
+        EventTypes.QA_ACCEPTANCE_COMPLETED,
+        EventTypes.QA_GATE_FAILED,
+        "channel.message.outbound",
+        "channel.message.delivered",
+    }
+    stale = {
+        "pm.decomposition_failed",
+        "pm.approval_timeout",
+        "qa.acceptance_completed",
+        "qa.acceptance_failed",
+    }
+
+    for event_type in expected:
+        assert event_type in catalog
+    for event_type in stale:
+        assert event_type not in catalog

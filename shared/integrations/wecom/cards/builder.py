@@ -1,4 +1,4 @@
-# shared/services/wecom/cards/builder.py
+# shared/integrations/wecom/cards/builder.py
 """
 WecomCardBuilder - 企业微信模板卡片构建器
 

@@ -8,6 +8,8 @@ import { getAgentsByDomain, getAllAgents } from "@/lib/registry/agents";
 import { AgentCard } from "@/components/shared/agent-card";
 import type { AgentRuntimeStatus, AgentMeta } from "@/lib/api/types";
 
+const MOCK_RUNTIME_LAST_ACTIVE_AT = "2026-05-03T02:00:00.000Z";
+
 function seedRandom(seed: number): number {
   const x = Math.sin(seed) * 10000;
   return x - Math.floor(x);
@@ -24,7 +26,7 @@ function createMockRuntimes(agents: AgentMeta[]): Record<string, AgentRuntimeSta
       pending_count: Math.floor(seedRandom(i + 20) * 10),
       error_count: Math.floor(seedRandom(i + 30) * 3),
       uptime_seconds: 259200,
-      last_active_at: new Date().toISOString(),
+      last_active_at: MOCK_RUNTIME_LAST_ACTIVE_AT,
     };
   });
   return runtimes;

@@ -2,19 +2,19 @@
 # Wisdoverse Cell - Docker Compose (Base Configuration)
 # =============================================================================
 #
-# 大厂标准配置:
-# - 环境变量外部化 (.env)
-# - 资源限制 (CPU/Memory)
-# - 健康检查
-# - 日志配置
-# - 网络隔离
-# - 安全最佳实践
+# Production-grade defaults:
+# - Externalized environment variables (.env)
+# - CPU and memory limits
+# - Health checks
+# - Structured log rotation
+# - Network isolation
+# - Security-oriented defaults
 #
 # Usage:
-#   docker compose up -d                     # 启动所有服务
-#   docker compose --profile monitoring up   # 启动监控组件
-#   docker compose logs -f gateway           # 查看日志
-#   docker compose down -v                   # 停止并清理
+#   docker compose up -d                     # Start all services
+#   docker compose --profile monitoring up   # Start monitoring stack
+#   docker compose logs -f gateway           # Follow gateway logs
+#   docker compose down -v                   # Stop and remove volumes
 #
 # =============================================================================
 
@@ -30,6 +30,18 @@ x-python-mirror-args: &python-mirror-args
   PIP_INDEX_URL: ${PIP_INDEX_URL:-}
   PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
   APT_MIRROR: ${APT_MIRROR:-}
+
+x-llm-env: &llm-env
+  LLM_PROVIDER: ${LLM_PROVIDER:-litellm}
+  DEFAULT_MODEL: ${DEFAULT_MODEL:-anthropic/claude-sonnet-4-20250514}
+  CHAT_MODEL: ${CHAT_MODEL:-anthropic/claude-sonnet-4-20250514}
+  SUMMARY_MODEL: ${SUMMARY_MODEL:-anthropic/claude-haiku-4-5-20251001}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  LITELLM_API_BASE: ${LITELLM_API_BASE:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
 
 x-healthcheck-defaults: &healthcheck-defaults
   interval: 30s
@@ -88,14 +100,18 @@ services:
     image: redis:8-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-redis
     hostname: redis
-    command: >
-      redis-server
-      --appendonly yes
-      --maxmemory 256mb
-      --maxmemory-policy noeviction
-      --requirepass ${REDIS_PASSWORD:-}
-      --tcp-keepalive 60
-      --timeout 0
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        REDIS_ARGS="--appendonly yes --maxmemory 256mb --maxmemory-policy noeviction --tcp-keepalive 60 --timeout 0"
+        if [ -n "$$REDIS_PASSWORD" ]; then
+          exec redis-server $$REDIS_ARGS --requirepass "$$REDIS_PASSWORD"
+        fi
+        exec redis-server $$REDIS_ARGS
     volumes:
       - redis_data:/data
     ports:
@@ -104,7 +120,7 @@ services:
       - backend
     healthcheck:
       <<: *healthcheck-defaults
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "if [ -n \"$${REDIS_PASSWORD:-}\" ]; then redis-cli -a \"$${REDIS_PASSWORD}\" ping; else redis-cli ping; fi"]
       interval: 10s
     deploy:
       <<: *deploy-defaults
@@ -188,7 +204,7 @@ services:
       API_HOST: "0.0.0.0"
       API_PORT: "8000"
       # LLM
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      <<: *llm-env
       # Application
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
@@ -197,6 +213,7 @@ services:
       # Tracing (optional)
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-}
       OTEL_SERVICE_NAME: ai-core
+      EVENT_BUS_CONSUMER_NAME: requirement-manager
       # Inter-service communication
       PM_AGENT_URL: http://pjm-agent:8012
     ports:
@@ -304,7 +321,7 @@ services:
       - "com.projectcell.version=${VERSION:-dev}"
 
   # ===========================================================================
-  # PM System Agents
+  # Business runtime agents and support services
   # ===========================================================================
 
   sync-agent:
@@ -450,12 +467,13 @@ services:
       FEISHU_REPORT_CHAT_ID: ${FEISHU_REPORT_CHAT_ID:-}
       OPENPROJECT_URL: ${OPENPROJECT_URL:-}
       OPENPROJECT_API_KEY: ${OPENPROJECT_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      <<: *llm-env
       DECOMPOSE_PROJECT_IDS: ${DECOMPOSE_PROJECT_IDS:-}
       DECOMPOSE_NOTIFY_OPEN_ID: ${DECOMPOSE_NOTIFY_OPEN_ID:-}
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: pjm-agent
+      EVENT_BUS_CONSUMER_NAME: pjm-agent
     ports:
       - "${PM_AGENT_PORT:-8012}:8012"
     networks:
@@ -509,13 +527,14 @@ services:
       GITLAB_QA_TOKEN: ${GITLAB_QA_TOKEN:-}
       QA_FEISHU_WEBHOOK_URL: ${QA_FEISHU_WEBHOOK_URL:-}
       QA_HIGH_SEVERITY_CHECKS: ${QA_HIGH_SEVERITY_CHECKS:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      <<: *llm-env
       FEISHU_APP_ID: ${FEISHU_APP_ID:-}
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
       FEISHU_WEBHOOK_URL: ${FEISHU_WEBHOOK_URL:-}
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: qa-agent
+      EVENT_BUS_CONSUMER_NAME: qa-agent
     ports:
       - "${QA_AGENT_PORT:-8014}:8014"
     networks:
@@ -564,8 +583,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "6"
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      <<: *llm-env
       DEV_GITLAB_API_URL: ${GITLAB_API_URL:-}
       DEV_GITLAB_PROJECT_ID: ${GITLAB_PROJECT_ID:-0}
       DEV_GITLAB_TOKEN: ${GITLAB_DEV_TOKEN:-}
@@ -573,6 +591,8 @@ services:
       AGENTFORGE_TOKEN: ${AGENTFORGE_TOKEN:-}
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: dev-agent
+      EVENT_BUS_CONSUMER_NAME: dev-agent
     ports:
       - "${DEV_AGENT_PORT:-8015}:8015"
     networks:
@@ -624,8 +644,7 @@ services:
       FEISHU_APP_ID: ${FEISHU_APP_ID:-}
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
       FEISHU_VERIFY_SIGNATURE: "false"  # Gateway handles verification
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      <<: *llm-env
       OPENPROJECT_URL: ${OPENPROJECT_URL:-}
       OPENPROJECT_API_KEY: ${OPENPROJECT_API_KEY:-}
       FEISHU_BITABLE_APP_TOKEN: ${FEISHU_BITABLE_APP_TOKEN:-}

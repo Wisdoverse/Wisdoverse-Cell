@@ -92,11 +92,13 @@ class Settings(BaseSettings):
     chroma_port: int = 8000
 
     # ============ LLM Configuration ============
+    llm_provider: str = "litellm"  # Deprecated switch; LiteLLM is the only runtime path.
     anthropic_api_key: SecretStr = SecretStr("")
     default_model: str = "claude-opus-4-6"
     chat_model: str = "claude-sonnet-4-20250514"  # Conversations: $3/$15 per MTok
     decompose_model: str = "claude-opus-4-20250514"  # Complex decomposition: $15/$75
     summary_model: str = "claude-haiku-4-5-20251001"  # Summaries/reports: $1/$5
+    litellm_api_base: str = ""  # Optional LiteLLM/provider proxy base URL
 
     # Cost controls
     llm_daily_budget_usd: float = 10.0  # daily budget
@@ -257,6 +259,7 @@ class Settings(BaseSettings):
     use_new_delivery_service: bool = False  # gray-release outbound DeliveryService
 
     # ============ Event Bus Configuration ============
+    event_bus_consumer_name: str = ""  # NATS durable consumer name; defaults to OTEL_SERVICE_NAME
     event_bus_queue_max_length: int = 10_000  # Max events per consumer-group queue
     event_bus_queue_ttl_seconds: int = 86_400  # Queue key expiry (24h)
     event_loop_max_backoff_seconds: int = 60  # Max retry backoff for agent event loops
@@ -285,9 +288,10 @@ class Settings(BaseSettings):
     sync_agent_port: int = 8010
     pjm_agent_url: str = "http://pjm-agent:8012"
 
-    # ============ Claude API (OneAPI Proxy) ============
+    # ============ Deprecated provider-specific proxy settings ============
+    # Kept only so old .env files keep loading. Use LITELLM_API_BASE instead.
     anthropic_base_url: str = ""
-    require_anthropic_proxy: bool = False  # Set True in production for data residency
+    require_anthropic_proxy: bool = False
 
     @model_validator(mode="after")
     def _fail_closed_for_production_secrets(self) -> "Settings":

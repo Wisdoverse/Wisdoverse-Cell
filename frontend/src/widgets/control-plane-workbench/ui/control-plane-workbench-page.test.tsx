@@ -107,6 +107,23 @@ function buildWorkbenchState(): ControlPlaneWorkbenchState {
       },
     ],
     budgetUsage: [],
+    evolutionProposals: [
+      {
+        proposal_id: "proposal_alpha",
+        company_id: "company_1",
+        tier: "L2" as const,
+        scope: "control-plane workbench",
+        evidence: {},
+        expected_benefit: "Operators can review proposed architecture changes",
+        risk: "Requires technical approval before rollout",
+        approval_state: "pending" as const,
+        rollout_state: "proposed" as const,
+        approval_id: "approval_alpha",
+        metadata: {},
+        created_at: "2026-05-01T10:13:00Z",
+        updated_at: "2026-05-01T10:13:00Z",
+      },
+    ],
     timeline: [
       {
         type: "agent_run",
@@ -138,6 +155,7 @@ function buildWorkbenchState(): ControlPlaneWorkbenchState {
     },
     isLoading: false,
     isEvidenceLoading: false,
+    isEvolutionLoading: false,
     error: undefined,
     approvalActionId: undefined,
   };
@@ -155,6 +173,8 @@ describe("ControlPlaneWorkbenchPage", () => {
     expect(screen.getAllByText("Work Alpha").length).toBeGreaterThan(0);
     expect(screen.getAllByText("run_alpha").length).toBeGreaterThan(0);
     expect(screen.getAllByText("succeeded").length).toBeGreaterThan(0);
+    expect(screen.getByText("control-plane workbench")).toBeInTheDocument();
+    expect(screen.getAllByText("pending").length).toBeGreaterThan(0);
   });
 
   it("exposes durable approval actions from the evidence panel", async () => {

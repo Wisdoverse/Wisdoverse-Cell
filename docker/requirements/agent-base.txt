@@ -1,0 +1,37 @@
+# Shared runtime dependencies for Python agent/service Docker images.
+#
+# Keep this file production-runtime only. Do not add pytest, ruff, black,
+# grpcio-tools, or other test/build-time tooling here.
+
+# Web runtime
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+gunicorn>=23.0.0
+
+# Persistence and messaging
+sqlalchemy[asyncio]>=2.0.40
+asyncpg>=0.30.0
+alembic>=1.15.0
+redis>=5.2.0
+nats-py>=2.9.0
+
+# Configuration and contracts
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
+python-ulid>=3.0.0
+
+# HTTP, security, and platform safety
+httpx>=0.28.0
+cryptography>=46.0.0
+defusedxml>=0.7.1
+PyJWT>=2.10.0
+
+# Logging, metrics, and tracing
+structlog>=25.1.0
+prometheus-client>=0.21.0
+prometheus-fastapi-instrumentator>=7.0.0
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-httpx
+opentelemetry-exporter-otlp-proto-grpc

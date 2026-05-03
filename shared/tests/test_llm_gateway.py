@@ -9,12 +9,14 @@ LLM Gateway 单元测试
 """
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-import anthropic
 import pytest
-from anthropic import APIStatusError, RateLimitError
 
 from shared.infra.circuit_breaker import CircuitBreakerError, CircuitState
 from shared.infra.llm_gateway import RETRYABLE_STATUS_CODES, LLMGateway
+from tests.helpers.provider_errors import anthropic_like as anthropic
+
+APIStatusError = anthropic.APIStatusError
+RateLimitError = anthropic.RateLimitError
 
 
 class MockResponse:
@@ -31,7 +33,7 @@ class TestLLMGatewayBasic:
     @pytest.fixture
     def gateway(self):
         """创建测试用 gateway"""
-        with patch('shared.services.llm_gateway.settings') as mock_settings:
+        with patch('shared.infra.llm_gateway.settings') as mock_settings:
             mock_settings.anthropic_api_key = "test-key"
             mock_settings.default_model = "claude-sonnet-4-20250514"
             mock_settings.anthropic_base_url = ""
@@ -84,8 +86,8 @@ class TestLLMGatewayRetry:
     @pytest.fixture
     def gateway(self):
         mock_logger = MagicMock()
-        with patch('shared.services.llm_gateway.settings') as mock_settings, \
-             patch('shared.services.llm_gateway.logger', mock_logger):
+        with patch('shared.infra.llm_gateway.settings') as mock_settings, \
+             patch('shared.infra.llm_gateway.logger', mock_logger):
             mock_settings.anthropic_api_key = "test-key"
             mock_settings.default_model = "claude-sonnet-4-20250514"
             mock_settings.anthropic_base_url = ""
@@ -170,8 +172,8 @@ class TestLLMGatewayCircuitBreaker:
     @pytest.fixture
     def gateway(self):
         mock_logger = MagicMock()
-        with patch('shared.services.llm_gateway.settings') as mock_settings, \
-             patch('shared.services.llm_gateway.logger', mock_logger):
+        with patch('shared.infra.llm_gateway.settings') as mock_settings, \
+             patch('shared.infra.llm_gateway.logger', mock_logger):
             mock_settings.anthropic_api_key = "test-key"
             mock_settings.default_model = "claude-sonnet-4-20250514"
             mock_settings.anthropic_base_url = ""

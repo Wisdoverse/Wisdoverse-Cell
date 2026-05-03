@@ -384,9 +384,25 @@ class TestEventBusFactory:
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.event_bus_backend = "nats"
             mock_settings.nats_url = "nats://localhost:4222"
+            mock_settings.event_bus_consumer_name = ""
+            mock_settings.otel_service_name = "ai-core"
 
             bus = create_event_bus()
             assert isinstance(bus, NATSEventBus)
+            assert bus._consumer_name == "ai-core"
+
+    def test_factory_uses_configured_nats_consumer_name(self):
+        from shared.services.event_bus import create_event_bus
+
+        with patch.object(_config_mod, "settings") as mock_settings:
+            mock_settings.event_bus_backend = "nats"
+            mock_settings.nats_url = "nats://localhost:4222"
+            mock_settings.event_bus_consumer_name = "qa-agent"
+            mock_settings.otel_service_name = "ai-core"
+
+            bus = create_event_bus()
+            assert isinstance(bus, NATSEventBus)
+            assert bus._consumer_name == "qa-agent"
 
     def test_factory_override_backend_parameter(self):
         from shared.services.event_bus import create_event_bus
@@ -394,9 +410,12 @@ class TestEventBusFactory:
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.event_bus_backend = "redis"
             mock_settings.nats_url = "nats://localhost:4222"
+            mock_settings.event_bus_consumer_name = ""
+            mock_settings.otel_service_name = "pjm-agent"
 
             bus = create_event_bus(backend="nats")
             assert isinstance(bus, NATSEventBus)
+            assert bus._consumer_name == "pjm-agent"
 
     def test_factory_raises_on_unknown_backend(self):
         from shared.services.event_bus import create_event_bus
@@ -411,6 +430,8 @@ class TestEventBusFactory:
 
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.nats_url = "nats://localhost:4222"
+            mock_settings.event_bus_consumer_name = ""
+            mock_settings.otel_service_name = "ai-core"
 
             bus = create_event_bus(backend=" NATS ")
             assert isinstance(bus, NATSEventBus)

@@ -12,34 +12,41 @@ Wisdoverse Cell separates organization-role agents from service modules:
 | Kind | Meaning | Examples |
 |------|---------|----------|
 | `organization_role` | Business role that owns intent, tradeoffs, escalation, and user interaction policy | CEO, CTO, CPO, COO, PM |
-| `capability_module` | Deployed service that performs bounded work | requirements, sync, analysis, quality, development, evolution |
+| `capability_module` | Deployed support boundary that performs bounded work | sync, analysis, evolution |
 | `integration_gateway` | User or platform traffic gateway | user interaction gateway, channel gateway |
 | `system_worker` | Internal orchestration worker | coordinator |
 
-Capability modules are not organization-role agents. They are invoked by role
-agents, gateways, scheduler jobs, or control-plane work items.
+Real business runtime agents such as requirement manager, PJM, QA, and Dev
+live under `agents/`. Support capabilities live under `shared/capabilities/`.
+Gateways and orchestration workers live under `services/`.
 
 ## 2. Package Layout
 
-New deployable modules should follow the current categorized `agents/` layout:
+New real business agents should live directly under `agents/`. New shared
+support capabilities should live under `shared/capabilities/`.
 
 ```text
 agents/
-  gateways/
-    user_interaction/
-    channel/
-  orchestration/
-    coordinator/
-  capabilities/
-    my_capability/
-      app/
-      api/
-      core/
-      service/
-      models/
-      db/
-      tests/
-      Dockerfile
+  my_agent/
+    app/
+    api/
+    core/
+    service/
+    models/
+    db/
+    tests/
+    Dockerfile
+
+shared/capabilities/
+  my_capability/
+    app/
+    api/
+    core/
+    service/
+    models/
+    db/
+    tests/
+    Dockerfile
 ```
 
 Recommended module structure:
@@ -128,7 +135,7 @@ middleware, lifecycle behavior, DSAR routes, and the authenticated
 ```python
 from shared.app import create_agent_app
 
-from agents.capabilities.my_capability.service.agent import MyCapabilityAgent
+from shared.capabilities.my_capability.service.agent import MyCapabilityAgent
 
 agent = MyCapabilityAgent()
 app = create_agent_app(agent=agent)

@@ -1,0 +1,15 @@
+# Requirement manager agent runtime dependencies.
+#
+# Shared FastAPI/runtime/database/EventBus dependencies come from
+# docker/requirements/agent-base.txt in Docker builds.
+
+# External platform adapters used by local Feishu/WeCom routes.
+lark-oapi>=1.5.3
+
+# Central LLM Gateway provider boundary.
+litellm==1.83.14
+
+# Requirement manager gRPC endpoint for the Go gateway.
+grpcio>=1.70.0
+grpcio-reflection>=1.70.0
+protobuf>=5.29.0

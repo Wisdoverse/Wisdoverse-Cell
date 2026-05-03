@@ -1,0 +1,8 @@
+# Optional requirement manager vector-search dependencies.
+#
+# These are intentionally not installed in the default production image because
+# local sentence-transformers pulls a large torch stack. Build ai-core with
+# INSTALL_VECTOR_DEPS=true only when local Milvus semantic indexing is required.
+
+pymilvus>=2.5.0
+sentence-transformers>=3.0.0

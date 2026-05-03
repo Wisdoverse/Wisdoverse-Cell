@@ -13,7 +13,7 @@ const MOCK_EVENTS: ActivityEvent[] = [
     event_type: "requirement.extracted",
     description: "extracted requirement REQ-042 from meeting notes",
     payload: {},
-    timestamp: new Date(Date.now() - 2 * 60000).toISOString(),
+    timestamp: "2026-05-03T01:58:00.000Z",
   },
   {
     id: "evt-002",
@@ -21,7 +21,7 @@ const MOCK_EVENTS: ActivityEvent[] = [
     event_type: "requirement.confirmed",
     description: "confirmed requirement REQ-038",
     payload: {},
-    timestamp: new Date(Date.now() - 5 * 60000).toISOString(),
+    timestamp: "2026-05-03T01:55:00.000Z",
   },
   {
     id: "evt-003",
@@ -29,7 +29,7 @@ const MOCK_EVENTS: ActivityEvent[] = [
     event_type: "requirement.extracted",
     description: "extracted requirement REQ-043 from Slack thread",
     payload: {},
-    timestamp: new Date(Date.now() - 12 * 60000).toISOString(),
+    timestamp: "2026-05-03T01:48:00.000Z",
   },
   {
     id: "evt-004",
@@ -37,7 +37,7 @@ const MOCK_EVENTS: ActivityEvent[] = [
     event_type: "requirement.changed",
     description: "updated priority of REQ-031 to high",
     payload: {},
-    timestamp: new Date(Date.now() - 25 * 60000).toISOString(),
+    timestamp: "2026-05-03T01:35:00.000Z",
   },
   {
     id: "evt-005",
@@ -45,7 +45,7 @@ const MOCK_EVENTS: ActivityEvent[] = [
     event_type: "requirement.extracted",
     description: "extracted requirement REQ-044 from customer call",
     payload: {},
-    timestamp: new Date(Date.now() - 40 * 60000).toISOString(),
+    timestamp: "2026-05-03T01:20:00.000Z",
   },
 ];
 

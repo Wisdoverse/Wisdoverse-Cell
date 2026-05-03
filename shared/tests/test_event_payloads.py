@@ -13,6 +13,9 @@ from pydantic import ValidationError
 from shared.schemas.event import EventTypes
 from shared.schemas.event_payloads import (
     EVENT_PAYLOAD_MODELS,
+    AgentProgress,
+    AgentRoleCreatedPayload,
+    AgentRoleStatusUpdatedPayload,
     AgentRunLifecyclePayload,
     AgentWakeupCompletedPayload,
     AgentWakeupRequestedPayload,
@@ -20,6 +23,10 @@ from shared.schemas.event_payloads import (
     ArtifactEventPayload,
     AuditEventRecordedPayload,
     BudgetUsageRecordedPayload,
+    CompanyEventPayload,
+    CoordinatorCommand,
+    CoordinatorDispatchPayload,
+    CoordinatorResponse,
     DecisionEventPayload,
     DevMRCreatedPayload,
     DevTaskCompletedPayload,
@@ -27,8 +34,29 @@ from shared.schemas.event_payloads import (
     DevTaskInfo,
     DevWorkflowCompletedPayload,
     DevWorkflowCreatedPayload,
+    DLQFailedPayload,
+    EvolutionCycleTriggeredPayload,
+    EvolutionHumanFeedbackPayload,
+    EvolutionPatternApprovedPayload,
+    EvolutionPatternProposedPayload,
+    EvolutionProposalEventPayload,
+    EvolutionSkillProposedPayload,
     GoalEventPayload,
+    MeetingUploadedPayload,
+    PMApprovalTimeoutPayload,
+    PMDecomposeCompletedPayload,
+    PMDecompositionFailedPayload,
     PMTasksReadyForDevPayload,
+    ProjectEventPayload,
+    QualityEvaluatedPayload,
+    RiskDetectedPayload,
+    SprintCompletedPayload,
+    SprintStartedPayload,
+    SyncCompletedPayload,
+    SyncFailedPayload,
+    SyncStartedPayload,
+    SyncTriggerPayload,
+    TaskNotification,
     WorkItemEventPayload,
     validate_event_payload,
 )
@@ -64,6 +92,8 @@ class TestEventTypes:
         assert EventTypes.AGENT_RUN_FAILED == "agent_run.failed"
 
     def test_control_plane_goal_and_work_item(self):
+        assert EventTypes.COMPANY_CREATED == "company.created"
+        assert EventTypes.COMPANY_UPDATED == "company.updated"
         assert EventTypes.GOAL_CREATED == "goal.created"
         assert EventTypes.GOAL_UPDATED == "goal.updated"
         assert EventTypes.WORK_ITEM_CREATED == "work_item.created"
@@ -78,8 +108,24 @@ class TestEventTypes:
         assert EventTypes.APPROVAL_REQUESTED == "approval.requested"
         assert EventTypes.APPROVAL_GRANTED == "approval.granted"
         assert EventTypes.APPROVAL_REJECTED == "approval.rejected"
+        assert EventTypes.EVOLUTION_PROPOSAL_CREATED == "evolution_proposal.created"
+        assert EventTypes.EVOLUTION_PROPOSAL_UPDATED == "evolution_proposal.updated"
+        assert EventTypes.DLQ_FAILED == "dlq.failed"
         assert EventTypes.BUDGET_USAGE_RECORDED == "budget.usage-recorded"
         assert EventTypes.AUDIT_EVENT_RECORDED == "audit.event-recorded"
+
+    def test_external_work_context_events(self):
+        assert EventTypes.PROJECT_CREATED == "project.created"
+        assert EventTypes.PROJECT_UPDATED == "project.updated"
+        assert EventTypes.SPRINT_STARTED == "sprint.started"
+        assert EventTypes.SPRINT_COMPLETED == "sprint.completed"
+        assert EventTypes.MEETING_UPLOADED == "meeting.uploaded"
+
+    def test_sync_events(self):
+        assert EventTypes.SYNC_TRIGGER == "sync.trigger"
+        assert EventTypes.SYNC_STARTED == "sync.started"
+        assert EventTypes.SYNC_COMPLETED == "sync.completed"
+        assert EventTypes.SYNC_FAILED == "sync.failed"
 
 
 # ============ DevTaskInfo ============
@@ -96,11 +142,11 @@ class TestDevTaskInfo:
         info = DevTaskInfo(
             id=2, title="Write tests", description="Add unit tests",
             estimated_hours=4.0, parent_story="US-1",
-            related_files=["agents/gateways/user_interaction/"],
+            related_files=["services/gateways/user_interaction/"],
         )
         assert info.estimated_hours == 4.0
         assert info.parent_story == "US-1"
-        assert info.related_files == ["agents/gateways/user_interaction/"]
+        assert info.related_files == ["services/gateways/user_interaction/"]
 
     def test_negative_estimated_hours_rejected(self):
         with pytest.raises(ValidationError):
@@ -243,6 +289,8 @@ class TestEventPayloadModelsRegistration:
             ("dev.mr-created", DevMRCreatedPayload),
             ("dev.task-completed", DevTaskCompletedPayload),
             ("dev.task-failed", DevTaskFailedPayload),
+            ("company.created", CompanyEventPayload),
+            ("company.updated", CompanyEventPayload),
             ("goal.created", GoalEventPayload),
             ("goal.updated", GoalEventPayload),
             ("work_item.created", WorkItemEventPayload),
@@ -255,11 +303,36 @@ class TestEventPayloadModelsRegistration:
             ("agent_run.started", AgentRunLifecyclePayload),
             ("agent_run.succeeded", AgentRunLifecyclePayload),
             ("agent_run.failed", AgentRunLifecyclePayload),
+            ("agent_role.created", AgentRoleCreatedPayload),
+            ("agent_role.status-updated", AgentRoleStatusUpdatedPayload),
             ("approval.requested", ApprovalEventPayload),
             ("approval.granted", ApprovalEventPayload),
             ("approval.rejected", ApprovalEventPayload),
             ("budget.usage-recorded", BudgetUsageRecordedPayload),
             ("audit.event-recorded", AuditEventRecordedPayload),
+            ("evolution_proposal.created", EvolutionProposalEventPayload),
+            ("evolution_proposal.updated", EvolutionProposalEventPayload),
+            ("evolution.cycle-triggered", EvolutionCycleTriggeredPayload),
+            ("evolution.skill-proposed", EvolutionSkillProposedPayload),
+            ("evolution.human-feedback", EvolutionHumanFeedbackPayload),
+            ("evolution.pattern-proposed", EvolutionPatternProposedPayload),
+            ("evolution.pattern-approved", EvolutionPatternApprovedPayload),
+            ("dlq.failed", DLQFailedPayload),
+            ("project.created", ProjectEventPayload),
+            ("project.updated", ProjectEventPayload),
+            ("sprint.started", SprintStartedPayload),
+            ("sprint.completed", SprintCompletedPayload),
+            ("meeting.uploaded", MeetingUploadedPayload),
+            ("analysis.risk-detected", RiskDetectedPayload),
+            ("analysis.quality-evaluated", QualityEvaluatedPayload),
+            ("pm.decompose-completed", PMDecomposeCompletedPayload),
+            ("pm.decomposition-failed", PMDecompositionFailedPayload),
+            ("pm.approval-timeout", PMApprovalTimeoutPayload),
+            ("coordinator.command", CoordinatorCommand),
+            ("coordinator.response", CoordinatorResponse),
+            ("coordinator.dispatch", CoordinatorDispatchPayload),
+            ("task.notification", TaskNotification),
+            ("task.progress", AgentProgress),
         ],
     )
     def test_registered(self, event_type, model_cls):
@@ -276,6 +349,17 @@ class TestEventPayloadModelsRegistration:
             },
         )
         assert isinstance(result, AgentWakeupRequestedPayload)
+
+    def test_validate_control_plane_company_payload(self):
+        result = validate_event_payload(
+            "company.created",
+            {
+                "company_id": "cmp_test",
+                "name": "Wisdoverse Cell",
+                "mission": "Operate with agents",
+            },
+        )
+        assert isinstance(result, CompanyEventPayload)
 
     def test_validate_control_plane_goal_payload(self):
         result = validate_event_payload(
@@ -315,6 +399,88 @@ class TestEventPayloadModelsRegistration:
             },
         )
         assert isinstance(result, DecisionEventPayload)
+
+    def test_validate_control_plane_evolution_proposal_payload(self):
+        result = validate_event_payload(
+            "evolution_proposal.created",
+            {
+                "company_id": "cmp_test",
+                "proposal_id": "evo_001",
+                "tier": "L2",
+                "scope": "agent-routing",
+                "approval_state": "pending",
+                "rollout_state": "proposed",
+                "approval_id": "appr_001",
+            },
+        )
+        assert isinstance(result, EvolutionProposalEventPayload)
+
+    def test_validate_control_plane_agent_role_created_payload(self):
+        result = validate_event_payload(
+            "agent_role.created",
+            {
+                "company_id": "cmp_test",
+                "agent_id": "requirement-manager",
+                "role_id": "role_001",
+                "agent_kind": "business_runtime",
+                "interaction_mode": "routed",
+                "role": "requirements",
+                "adapter_type": "http",
+            },
+        )
+        assert isinstance(result, AgentRoleCreatedPayload)
+
+    def test_validate_control_plane_agent_role_status_payload(self):
+        result = validate_event_payload(
+            "agent_role.status-updated",
+            {
+                "company_id": "cmp_test",
+                "agent_id": "requirement-manager",
+                "status": "active",
+                "actor_id": "human:operator",
+            },
+        )
+        assert isinstance(result, AgentRoleStatusUpdatedPayload)
+
+    def test_validate_dlq_failed_payload(self):
+        result = validate_event_payload(
+            "dlq.failed",
+            {
+                "original_event_id": "evt_001",
+                "original_event_type": "work.execute",
+                "original_source": "coordinator",
+                "original_payload": {"work_item_id": "work_001"},
+                "failed_by_agent": "dev-agent",
+                "failure_stage": "handler",
+                "error": "timeout",
+            },
+        )
+        assert isinstance(result, DLQFailedPayload)
+
+    def test_validate_meeting_uploaded_payload(self):
+        result = validate_event_payload(
+            "meeting.uploaded",
+            {
+                "content": "Discuss login requirements.",
+                "source": "feishu",
+                "title": "Planning",
+                "participants": ["Alice"],
+                "source_id": "meeting_001",
+            },
+        )
+        assert isinstance(result, MeetingUploadedPayload)
+
+    def test_validate_sprint_started_payload(self):
+        result = validate_event_payload(
+            "sprint.started",
+            {
+                "sprint_id": "spr_001",
+                "name": "Sprint 1",
+                "requirement_ids": ["req_1"],
+                "start_date": "2026-05-03",
+            },
+        )
+        assert isinstance(result, SprintStartedPayload)
 
     def test_validate_control_plane_artifact_payload(self):
         result = validate_event_payload(
@@ -393,3 +559,180 @@ class TestEventPayloadModelsRegistration:
     def test_validate_event_payload_invalid(self):
         with pytest.raises(ValidationError):
             validate_event_payload("dev.task-failed", {"wp_id": 1})  # missing error
+
+
+class TestSyncPayloadContracts:
+    def test_validate_sync_trigger_payload(self):
+        result = validate_event_payload(
+            "sync.trigger",
+            {"triggered_by": "chat_tool", "scope": "feishu-bitable"},
+        )
+        assert isinstance(result, SyncTriggerPayload)
+        assert result.scope == "feishu-bitable"
+
+    def test_validate_sync_started_payload(self):
+        result = validate_event_payload(
+            "sync.started",
+            {"triggered_by": "scheduler", "scope": "openproject"},
+        )
+        assert isinstance(result, SyncStartedPayload)
+
+    def test_validate_sync_completed_payload(self):
+        result = validate_event_payload(
+            "sync.completed",
+            {"synced_count": 3, "scope": "feishu_bitable", "errors": []},
+        )
+        assert isinstance(result, SyncCompletedPayload)
+
+    def test_validate_sync_failed_payload(self):
+        result = validate_event_payload(
+            "sync.failed",
+            {"error": "upstream timeout", "scope": "openproject"},
+        )
+        assert isinstance(result, SyncFailedPayload)
+
+
+class TestPMAndAnalysisPayloadContracts:
+    def test_validate_quality_evaluated_payload(self):
+        result = validate_event_payload(
+            "analysis.quality-evaluated",
+            {"evaluations": [{"task": "T1", "quality": "pass"}]},
+        )
+        assert isinstance(result, QualityEvaluatedPayload)
+
+    def test_validate_pm_decomposition_failed_payload(self):
+        result = validate_event_payload(
+            "pm.decomposition-failed",
+            {
+                "error": "LLM timeout",
+                "requirement_title": "Login flow",
+                "trace_id": "trace_001",
+            },
+        )
+        assert isinstance(result, PMDecompositionFailedPayload)
+
+    def test_validate_pm_approval_timeout_payload(self):
+        result = validate_event_payload(
+            "pm.approval-timeout",
+            {"record_id": "dec_001", "age_hours": 24.5},
+        )
+        assert isinstance(result, PMApprovalTimeoutPayload)
+
+
+class TestEvolutionPayloadContracts:
+    def test_validate_evolution_cycle_triggered_payload(self):
+        result = validate_event_payload(
+            "evolution.cycle-triggered",
+            {"days": 14},
+        )
+        assert isinstance(result, EvolutionCycleTriggeredPayload)
+
+    def test_validate_evolution_skill_proposed_payload(self):
+        result = validate_event_payload(
+            "evolution.skill-proposed",
+            {
+                "operation": "add_skill",
+                "target_agent": "pjm-agent",
+                "target_skill": "decompose",
+                "confidence": 0.8,
+                "control_plane_approval_id": "appr_001",
+            },
+        )
+        assert isinstance(result, EvolutionSkillProposedPayload)
+
+    def test_validate_evolution_human_feedback_payload(self):
+        result = validate_event_payload(
+            "evolution.human-feedback",
+            {
+                "approved": True,
+                "control_plane_approval_id": "appr_001",
+                "user_id": "human:operator",
+            },
+        )
+        assert isinstance(result, EvolutionHumanFeedbackPayload)
+
+    def test_validate_evolution_pattern_proposed_payload(self):
+        result = validate_event_payload(
+            "evolution.pattern-proposed",
+            {
+                "pattern_id": "pat_001",
+                "name": "QA after dev",
+                "trigger_event": "dev.mr-created",
+                "steps": [{"agent_id": "qa-agent"}],
+            },
+        )
+        assert isinstance(result, EvolutionPatternProposedPayload)
+
+    def test_validate_evolution_pattern_approved_payload(self):
+        result = validate_event_payload(
+            "evolution.pattern-approved",
+            {
+                "pattern_id": "pat_001",
+                "approved": True,
+                "user_id": "human:operator",
+            },
+        )
+        assert isinstance(result, EvolutionPatternApprovedPayload)
+
+
+class TestCoordinatorPayloadContracts:
+    def test_validate_coordinator_command_payload(self):
+        result = validate_event_payload(
+            "coordinator.command",
+            {
+                "command_id": "cmd_001",
+                "intent": "decompose",
+                "original_message": "Break this into tasks",
+                "user_id": "ou_001",
+                "user_name": "Operator",
+            },
+        )
+        assert isinstance(result, CoordinatorCommand)
+
+    def test_validate_coordinator_response_payload(self):
+        result = validate_event_payload(
+            "coordinator.response",
+            {
+                "command_id": "cmd_001",
+                "status": "completed",
+                "summary": "Done",
+            },
+        )
+        assert isinstance(result, CoordinatorResponse)
+
+    def test_validate_coordinator_dispatch_payload(self):
+        result = validate_event_payload(
+            "coordinator.dispatch",
+            {
+                "target_agent": "requirement-manager",
+                "task_id": "task_001",
+                "instruction": "Draft PRD",
+                "workflow_id": "wf_001",
+                "scratchpad_ref": "scratchpad/workflows/wf_001.md",
+            },
+        )
+        assert isinstance(result, CoordinatorDispatchPayload)
+
+    def test_validate_task_notification_payload(self):
+        result = validate_event_payload(
+            "task.notification",
+            {
+                "task_id": "task_001",
+                "agent_id": "pjm-agent",
+                "status": "completed",
+                "summary": "Decomposed",
+            },
+        )
+        assert isinstance(result, TaskNotification)
+
+    def test_validate_task_progress_payload(self):
+        result = validate_event_payload(
+            "task.progress",
+            {
+                "task_id": "task_001",
+                "agent_id": "dev-agent",
+                "tool_use_count": 2,
+                "llm_token_count": 300,
+            },
+        )
+        assert isinstance(result, AgentProgress)

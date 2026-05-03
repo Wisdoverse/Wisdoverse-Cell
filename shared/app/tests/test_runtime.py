@@ -221,6 +221,18 @@ class TestEvolutionPlugin:
         result = plugin.wrap_agent(agent)
         assert result is agent
 
+    def test_enabled_wraps_agent_with_self_reflector(self, monkeypatch):
+        from shared.evolution.config import evolution_settings
+        from shared.evolution.evolved_agent import EvolvedAgent
+
+        monkeypatch.setattr(evolution_settings, "enabled", True)
+
+        agent = FakeAgent()
+        result = EvolutionPlugin().wrap_agent(agent)
+
+        assert isinstance(result, EvolvedAgent)
+        assert result.agent_id == agent.agent_id
+
 
 class TestHealthCheck:
     @pytest.mark.asyncio

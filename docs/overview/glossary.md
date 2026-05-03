@@ -16,9 +16,9 @@ This glossary defines the core terms used across Wisdoverse Cell. English defini
 
 **EventBus** — Redis Streams based event bus for asynchronous agent communication. Producers use `XADD`; consumers use `XREADGROUP`.
 
-**Circuit Breaker** — Failure-isolation pattern that opens after downstream failures pass a threshold. Used in LLMGateway to protect Claude API calls.
+**Circuit Breaker** — Failure-isolation pattern that opens after downstream failures pass a threshold. Used in LLMGateway to protect provider calls.
 
-**LLMGateway** — Unified Claude API gateway with circuit breaking, budget control, and tiered model selection.
+**LLMGateway** — Unified model access gateway with circuit breaking, budget control, tiered model selection, and optional LiteLLM routing for multiple providers.
 
 **Gateway** — Go HTTP gateway that handles external webhook routing and signature verification for Feishu, WeCom, and related platforms.
 
@@ -106,7 +106,7 @@ This glossary defines the core terms used across Wisdoverse Cell. English defini
 
 ## LLM
 
-**Claude** — Anthropic large language model family used as the main reasoning engine.
+**Claude** — Anthropic large language model family that may be accessed through LiteLLM.
 
 **Opus / Sonnet / Haiku** — Claude model tiers for complex reasoning, balanced work, and lightweight extraction/classification.
 

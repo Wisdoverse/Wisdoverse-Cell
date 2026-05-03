@@ -2,7 +2,7 @@
 Seed SkillConfig entries extracted from the user interaction gateway prompts.
 
 Source files:
-  - agents/gateways/user_interaction/core/chat_service.py
+  - services/gateways/user_interaction/core/chat_service.py
 
 These seeds represent the v1 baseline for self-evolution tracking.
 The Chat Agent code itself is NOT modified — these are read-only copies.
@@ -13,7 +13,7 @@ from shared.evolution.models import SkillConfig, SkillStatus
 # ---------------------------------------------------------------------------
 # Skill 1: User Assistant Chat
 # ---------------------------------------------------------------------------
-# Extracted from: agents/gateways/user_interaction/core/chat_service.py
+# Extracted from: services/gateways/user_interaction/core/chat_service.py
 
 CHAT_USER_ASSISTANT_SKILL = SkillConfig(
     skill_id="chat-agent:user-assistant",
@@ -45,7 +45,7 @@ CHAT_USER_ASSISTANT_SKILL = SkillConfig(
 # ---------------------------------------------------------------------------
 # Skill 2: Default Chat
 # ---------------------------------------------------------------------------
-# Extracted from: agents/gateways/user_interaction/core/chat_service.py
+# Extracted from: services/gateways/user_interaction/core/chat_service.py
 
 CHAT_DEFAULT_SKILL = SkillConfig(
     skill_id="chat-agent:default-chat",
@@ -67,7 +67,7 @@ CHAT_DEFAULT_SKILL = SkillConfig(
 # ---------------------------------------------------------------------------
 # Skill 3: Conversation Summarization
 # ---------------------------------------------------------------------------
-# Extracted from: agents/gateways/user_interaction/core/chat_service.py
+# Extracted from: services/gateways/user_interaction/core/chat_service.py
 
 CHAT_SUMMARIZE_SKILL = SkillConfig(
     skill_id="chat-agent:summarize",

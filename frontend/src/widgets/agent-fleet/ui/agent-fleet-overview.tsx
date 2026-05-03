@@ -44,6 +44,9 @@ export function AgentFleetOverview({
     if (filters.status !== "all" && runtime?.status !== filters.status) {
       return false;
     }
+    if (filters.agentKind !== "all" && agent.agentKind !== filters.agentKind) {
+      return false;
+    }
 
     const query = filters.search.trim().toLowerCase();
     if (!query) return true;

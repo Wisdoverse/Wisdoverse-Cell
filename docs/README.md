@@ -38,13 +38,13 @@ graph TD
     end
 
     subgraph Agents["Agent Layer"]
-        RM["requirements capability :8000"]
+        RM["requirement manager agent :8000"]
         SA["sync capability :8010"]
         AA["analysis capability :8011"]
-        PM["project management capability :8012"]
+        PM["PJM agent :8012"]
         CA["user interaction gateway :8013"]
-        QA["quality capability :8014"]
-        DA["development capability :8015"]
+        QA["QA agent :8014"]
+        DA["Dev agent :8015"]
         EA["evolution capability"]
     end
 
@@ -52,7 +52,7 @@ graph TD
         CP["Control Plane Ledger"]
         RUN["Agent Runner + Adapter Registry"]
         EB["EventBus (Redis 8)"]
-        LLM["LLM Gateway (Claude API)"]
+        LLM["LLM Gateway (LiteLLM)"]
         VS["VectorStore (Milvus)"]
     end
 
@@ -101,22 +101,22 @@ explicit allowlist has been reviewed.
 
 ## Agent Matrix
 
-This table lists deployed service modules and gateways. CEO/CTO/CPO/COO-style
-company roles are persisted `AgentRole` records in the control plane, not the
-same thing as these service modules.
+This table lists deployed runtime agents, support services, and gateways.
+CEO/CTO/CPO/COO-style company roles are persisted `AgentRole` records in the
+control plane, not Python packages.
 
 | Runtime Package | Kind | Description | Default Boundary | Status |
 |-----------------|------|-------------|------------------|--------|
-| `agents.capabilities.requirements` | Capability module | Requirement extraction, confirmation, and PRD generation | HTTP `:8000` | Active |
-| `agents.capabilities.sync` | Capability module | Bidirectional context sync between OpenProject and Feishu | HTTP `:8010` | Active |
-| `agents.capabilities.analysis` | Capability module | Risk detection and data analysis | HTTP `:8011` | Active |
-| `agents.capabilities.project_management` | Capability module | Task breakdown, approval preparation, alerts, and reports | HTTP `:8012` | Active |
-| `agents.gateways.user_interaction` | Integration gateway | User-facing reception and routing surface | HTTP `:8013` | Active |
-| `agents.capabilities.quality` | Capability module | Automated code quality and acceptance checks | HTTP `:8014` | Active |
-| `agents.capabilities.development` | Capability module | AgentForge-backed software delivery workflow execution | HTTP `:8015` | Active |
-| `agents.orchestration.coordinator` | System worker | Event routing and decision synthesis | `create_agent_app()` service boundary | Active |
-| `agents.capabilities.evolution` | Capability module | Self-evolution analysis and recommendations | Standalone `create_agent_app()` service boundary | Active |
-| `agents.gateways.channel` | Integration gateway | Multi-channel inbound/outbound messaging adapter layer | EventBus and adapter boundary | Active |
+| `agents.requirement_manager` | Business runtime agent | Requirement extraction, confirmation, and PRD generation | HTTP `:8000` | Active |
+| `shared.capabilities.sync` | Capability module | Compatibility runtime for separate OpenProject and Feishu Bitable sync boundaries | HTTP `:8010` | Active |
+| `shared.capabilities.analysis` | Capability module | Risk detection and data analysis | HTTP `:8011` | Active |
+| `agents.pjm_agent` | Business runtime agent | Task breakdown, approval preparation, alerts, and reports | HTTP `:8012` | Active |
+| `services.gateways.user_interaction` | Integration gateway | User-facing reception and routing surface | HTTP `:8013` | Active |
+| `agents.qa_agent` | Business runtime agent | Automated code quality and acceptance checks | HTTP `:8014` | Active |
+| `agents.dev_agent` | Business runtime agent | AgentForge-backed software delivery workflow execution | HTTP `:8015` | Active |
+| `services.orchestration.coordinator` | System worker | Event routing and decision synthesis | `create_agent_app()` service boundary | Active |
+| `shared.capabilities.evolution` | Capability module | Self-evolution analysis and recommendations | Standalone `create_agent_app()` service boundary | Active |
+| `services.gateways.channel` | Integration gateway | Multi-channel messaging gateway; reusable messaging primitives live under `shared.messaging` and `shared.integrations` | EventBus and adapter boundary | Implemented; not in default Compose |
 
 ---
 
@@ -137,7 +137,7 @@ same thing as these service modules.
 | Frontend | Next.js 16, React 19 | Web UI |
 | Gateway | Go, Gin, Traefik v3 | API routing and load balancing |
 | Agents | Python, FastAPI | Async agent runtime |
-| LLM | Claude API | Reasoning engine |
+| LLM | LiteLLM | Provider routing and reasoning engine |
 | Messaging | Redis 8, NATS JetStream | EventBus and async messaging |
 | Vector DB | Milvus | Embedding storage and retrieval |
 | Database | PostgreSQL 18 | Persistent storage |
@@ -148,6 +148,8 @@ same thing as these service modules.
 ## Documentation Index
 
 See [docs/INDEX.md](INDEX.md) for the full documentation map.
+For repository file ownership, cleanup phases, and local-only paths, see
+[Project Layout](overview/project-layout.md).
 
 ---
 

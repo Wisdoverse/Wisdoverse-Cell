@@ -83,6 +83,48 @@ class ControlPlaneRepository:
         )
         return result.scalar_one_or_none()
 
+    async def list_companies(
+        self,
+        *,
+        search: str | None = None,
+        limit: int = 100,
+    ) -> list[CompanyContextTable]:
+        query = select(CompanyContextTable)
+        if search:
+            pattern = f"%{search}%"
+            query = query.where(
+                or_(
+                    CompanyContextTable.company_id.ilike(pattern),
+                    CompanyContextTable.name.ilike(pattern),
+                    CompanyContextTable.mission.ilike(pattern),
+                )
+            )
+        result = await self.session.execute(
+            query.order_by(CompanyContextTable.created_at.desc()).limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def update_company_context(
+        self,
+        company_id: str,
+        *,
+        name: str | None = None,
+        mission: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> CompanyContextTable | None:
+        row = await self.get_company(company_id)
+        if row is None:
+            return None
+        if name is not None:
+            row.name = name
+        if mission is not None:
+            row.mission = mission
+        if metadata is not None:
+            row.metadata_json = _to_db_value(metadata)
+        row.updated_at = _now()
+        await self.session.flush()
+        return row
+
     async def create_goal(self, goal: Goal) -> GoalTable:
         row = GoalTable(**_model_values(goal))
         self.session.add(row)
@@ -652,5 +694,86 @@ class ControlPlaneRepository:
     ) -> EvolutionProposalTable:
         row = EvolutionProposalTable(**_model_values(proposal))
         self.session.add(row)
+        await self.session.flush()
+        return row
+
+    async def get_evolution_proposal(
+        self, proposal_id: str
+    ) -> EvolutionProposalTable | None:
+        result = await self.session.execute(
+            select(EvolutionProposalTable).where(
+                EvolutionProposalTable.proposal_id == proposal_id
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def list_evolution_proposals(
+        self,
+        *,
+        company_id: str,
+        tier: str | None = None,
+        approval_state: str | None = None,
+        rollout_state: str | None = None,
+        scope: str | None = None,
+        limit: int = 100,
+    ) -> list[EvolutionProposalTable]:
+        query = select(EvolutionProposalTable).where(
+            EvolutionProposalTable.company_id == company_id
+        )
+        if tier:
+            query = query.where(EvolutionProposalTable.tier == tier)
+        if approval_state:
+            query = query.where(
+                EvolutionProposalTable.approval_state == approval_state
+            )
+        if rollout_state:
+            query = query.where(EvolutionProposalTable.rollout_state == rollout_state)
+        if scope:
+            query = query.where(EvolutionProposalTable.scope.ilike(f"%{scope}%"))
+        result = await self.session.execute(
+            query.order_by(EvolutionProposalTable.created_at.desc()).limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def update_evolution_proposal_status(
+        self,
+        proposal_id: str,
+        *,
+        approval_state: str | None = None,
+        rollout_state: str | None = None,
+        approval_id: str | None = None,
+    ) -> EvolutionProposalTable | None:
+        row = await self.get_evolution_proposal(proposal_id)
+        if row is None:
+            return None
+        if approval_state is not None:
+            row.approval_state = approval_state
+        if rollout_state is not None:
+            row.rollout_state = rollout_state
+        if approval_id is not None:
+            row.approval_id = approval_id
+        row.updated_at = _now()
+        await self.session.flush()
+        return row
+
+    async def update_evolution_proposal_approval_state_by_approval(
+        self,
+        approval_id: str,
+        *,
+        approval_state: str,
+        rollout_state: str | None = None,
+    ) -> EvolutionProposalTable | None:
+        result = await self.session.execute(
+            select(EvolutionProposalTable).where(
+                EvolutionProposalTable.approval_id == approval_id
+            )
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            return None
+        row.approval_state = approval_state
+        if rollout_state is not None:
+            row.rollout_state = rollout_state
+        row.updated_at = _now()
         await self.session.flush()
         return row

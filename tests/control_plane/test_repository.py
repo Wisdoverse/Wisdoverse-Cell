@@ -16,10 +16,40 @@ from shared.control_plane.models import (
     BudgetScope,
     BudgetUsage,
     CompanyContext,
+    EvolutionProposal,
+    EvolutionRolloutState,
+    EvolutionTier,
     Goal,
     WorkItem,
 )
 from shared.control_plane.repository import ControlPlaneRepository
+
+
+@pytest.mark.asyncio
+async def test_company_context_can_be_listed_and_updated(db_session: AsyncSession):
+    repo = ControlPlaneRepository(db_session)
+    company = await repo.create_company(
+        CompanyContext(
+            company_id="cmp_wisdoverse",
+            name="Wisdoverse Cell",
+            mission="Operate with agents",
+            metadata={"region": "global"},
+        )
+    )
+
+    rows = await repo.list_companies(search="wisdoverse")
+    updated = await repo.update_company_context(
+        company.company_id,
+        name="Wisdoverse Cell Public",
+        mission="Run AI-native operations",
+        metadata={"region": "global", "stage": "public"},
+    )
+
+    assert rows[0].company_id == "cmp_wisdoverse"
+    assert updated is not None
+    assert updated.name == "Wisdoverse Cell Public"
+    assert updated.mission == "Run AI-native operations"
+    assert updated.metadata_json == {"region": "global", "stage": "public"}
 
 
 @pytest.mark.asyncio
@@ -71,6 +101,8 @@ async def test_agent_role_can_store_frontend_created_definition(db_session: Asyn
             context_sources=["control_plane", "feishu"],
             capabilities=["market analysis", "competitor monitoring"],
             responsibilities=["Find market signals"],
+            subscribed_events=["work_item.created", "market.signal-requested"],
+            published_events=["market.signal-detected"],
             permissions=["work_items:create"],
             created_by="human:board",
         )
@@ -95,6 +127,11 @@ async def test_agent_role_can_store_frontend_created_definition(db_session: Asyn
     assert fetched.adapter_config["cwd"] == "/workspaces/growth"
     assert fetched.context_sources == ["control_plane", "feishu"]
     assert fetched.capabilities == ["market analysis", "competitor monitoring"]
+    assert fetched.subscribed_events == [
+        "work_item.created",
+        "market.signal-requested",
+    ]
+    assert fetched.published_events == ["market.signal-detected"]
     assert rows[0].agent_id == "growth-researcher"
 
 
@@ -205,6 +242,55 @@ async def test_audit_append_is_idempotent_by_key(db_session: AsyncSession):
     second = await repo.append_audit_event(event)
 
     assert first.audit_event_id == second.audit_event_id
+
+
+@pytest.mark.asyncio
+async def test_evolution_proposal_lifecycle(db_session: AsyncSession):
+    repo = ControlPlaneRepository(db_session)
+    company = await repo.create_company(CompanyContext(name="Wisdoverse Cell"))
+    approval = await repo.request_approval(
+        ApprovalRequest(
+            company_id=company.company_id,
+            category=ApprovalCategory.TECHNICAL,
+            requested_by="agent:evolution-agent",
+            source_agent_id="evolution-agent",
+            proposed_action="Review L2 evolution proposal",
+            reason="Reduce routing latency",
+            risk="May change coordination behavior",
+            rollback_note="Keep current routing",
+        )
+    )
+    proposal = await repo.create_evolution_proposal(
+        EvolutionProposal(
+            company_id=company.company_id,
+            tier=EvolutionTier.L2,
+            scope="agent-routing",
+            evidence={"p95_latency_ms": 1200},
+            expected_benefit="Reduce routing latency",
+            risk="May change coordination behavior",
+            approval_id=approval.approval_id,
+        )
+    )
+
+    rows = await repo.list_evolution_proposals(
+        company_id=company.company_id,
+        tier=EvolutionTier.L2.value,
+        approval_state=ApprovalStatus.PENDING.value,
+    )
+    updated = await repo.update_evolution_proposal_status(
+        proposal.proposal_id,
+        rollout_state=EvolutionRolloutState.SHADOW.value,
+    )
+    synced = await repo.update_evolution_proposal_approval_state_by_approval(
+        approval.approval_id,
+        approval_state=ApprovalStatus.APPROVED.value,
+    )
+
+    assert rows[0].proposal_id == proposal.proposal_id
+    assert updated is not None
+    assert updated.rollout_state == EvolutionRolloutState.SHADOW.value
+    assert synced is not None
+    assert synced.approval_state == ApprovalStatus.APPROVED.value
 
 
 @pytest.mark.asyncio

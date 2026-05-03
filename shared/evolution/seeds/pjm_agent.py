@@ -2,8 +2,8 @@
 Seed SkillConfig entries extracted from Project Management capability prompts.
 
 Source files:
-  - agents/capabilities/project_management/core/prompts.py  (DECOMPOSE_SYSTEM_PROMPT, TASK_CHECK_SYSTEM_PROMPT)
-  - agents/capabilities/project_management/core/decompose.py (LLM call parameters)
+  - agents/pjm_agent/core/prompts.py  (DECOMPOSE_SYSTEM_PROMPT, TASK_CHECK_SYSTEM_PROMPT)
+  - agents/pjm_agent/core/decompose.py (LLM call parameters)
 
 These seeds represent the v1 baseline for self-evolution tracking.
 The Project Management capability code itself is NOT modified here — these are
@@ -15,8 +15,8 @@ from shared.evolution.models import SkillConfig, SkillStatus
 # ---------------------------------------------------------------------------
 # Skill 1: Task Decomposition (WBS)
 # ---------------------------------------------------------------------------
-# Extracted from: agents/capabilities/project_management/core/prompts.py  DECOMPOSE_SYSTEM_PROMPT
-# LLM params from: agents/capabilities/project_management/core/decompose.py  DecomposeService.decompose()
+# Extracted from: agents/pjm_agent/core/prompts.py  DECOMPOSE_SYSTEM_PROMPT
+# LLM params from: agents/pjm_agent/core/decompose.py  DecomposeService.decompose()
 
 PM_DECOMPOSE_SKILL = SkillConfig(
     skill_id="pjm-agent:decompose",
@@ -74,8 +74,8 @@ PM_DECOMPOSE_SKILL = SkillConfig(
 # ---------------------------------------------------------------------------
 # Skill 2: Task Granularity Check
 # ---------------------------------------------------------------------------
-# Extracted from: agents/capabilities/project_management/core/prompts.py  TASK_CHECK_SYSTEM_PROMPT
-# LLM params from: agents/capabilities/project_management/core/decompose.py  DecomposeService.check_task_detail()
+# Extracted from: agents/pjm_agent/core/prompts.py  TASK_CHECK_SYSTEM_PROMPT
+# LLM params from: agents/pjm_agent/core/decompose.py  DecomposeService.check_task_detail()
 
 PM_TASK_CHECK_SKILL = SkillConfig(
     skill_id="pjm-agent:task-check",

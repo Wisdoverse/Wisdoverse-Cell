@@ -24,6 +24,7 @@ import {
   type ControlPlaneApproval,
   type ControlPlaneArtifact,
   type ControlPlaneDecision,
+  type ControlPlaneEvolutionProposal,
   type ControlPlaneGoal,
   type ControlPlaneTimelineItem,
   type ControlPlaneWorkbenchState,
@@ -62,6 +63,8 @@ const priorityClass: Record<WorkItemPriority, string> = {
 
 const statusClass: Record<string, string> = {
   active: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-300",
+  approved:
+    "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-300",
   running:
     "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/70 dark:bg-sky-950/30 dark:text-sky-300",
   succeeded:
@@ -70,11 +73,21 @@ const statusClass: Record<string, string> = {
     "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-300",
   proposed:
     "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/70 dark:bg-violet-950/30 dark:text-violet-300",
+  pending:
+    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300",
+  shadow:
+    "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/70 dark:bg-sky-950/30 dark:text-sky-300",
+  canary:
+    "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900/70 dark:bg-indigo-950/30 dark:text-indigo-300",
   awaiting_approval:
     "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300",
   blocked:
     "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300",
   failed:
+    "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300",
+  rejected:
+    "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300",
+  rolled_back:
     "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300",
   cancelled:
     "border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-300",
@@ -727,6 +740,94 @@ function ArtifactList({
   );
 }
 
+function EvolutionProposalPanel({ workbench }: { workbench: Workbench }) {
+  const t = useTranslations("controlPlane");
+  const locale = useLocale();
+
+  return (
+    <section className="rounded-lg border border-white/70 bg-white/80 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/50 dark:shadow-none">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex size-7 items-center justify-center rounded-md bg-zinc-950 text-white dark:bg-white dark:text-zinc-950">
+            <Sparkles className="size-3.5" />
+          </div>
+          <h2 className="truncate text-sm font-semibold">
+            {t("evolutionProposals")}
+          </h2>
+        </div>
+        <Badge variant="outline" className="h-6 rounded-md px-2 text-[11px]">
+          {workbench.evolutionProposals.length}
+        </Badge>
+      </div>
+
+      {workbench.isEvolutionLoading ? (
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton
+              key={index}
+              className="h-28 rounded-lg bg-white/60 dark:bg-white/10"
+            />
+          ))}
+        </div>
+      ) : workbench.evolutionProposals.length === 0 ? (
+        <EmptyState message={t("noEvolutionProposals")} />
+      ) : (
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {workbench.evolutionProposals.slice(0, 6).map((proposal) => (
+            <EvolutionProposalItem
+              key={proposal.proposal_id}
+              proposal={proposal}
+              locale={locale}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function EvolutionProposalItem({
+  proposal,
+  locale,
+}: {
+  proposal: ControlPlaneEvolutionProposal;
+  locale: string;
+}) {
+  const t = useTranslations("controlPlane");
+
+  return (
+    <div className="rounded-lg border border-zinc-200/80 bg-white/75 px-3 py-3 shadow-[0_1px_1px_rgba(15,23,42,0.03)] dark:border-white/10 dark:bg-white/[0.035]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-semibold leading-5">
+            {proposal.scope}
+          </div>
+          <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+            {proposal.expected_benefit}
+          </div>
+        </div>
+        <Badge variant="outline" className="h-6 rounded-md px-2 text-[11px]">
+          {proposal.tier}
+        </Badge>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <StatusBadge value={proposal.approval_state} />
+        <StatusBadge value={proposal.rollout_state} />
+      </div>
+
+      <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+        <div className="min-w-0 truncate">
+          {t("tier")}: {proposal.tier}
+        </div>
+        <div className="min-w-0 truncate sm:text-right">
+          {t("updated")}: {formatDate(proposal.updated_at, locale)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ListSkeleton() {
   return (
     <div className="space-y-2">
@@ -825,6 +926,8 @@ export function ControlPlaneWorkbenchPage() {
         </div>
 
         {workbench.error && <WorkbenchError onRetry={workbench.refresh} />}
+
+        <EvolutionProposalPanel workbench={workbench} />
 
         <div className="grid gap-4 xl:grid-cols-[minmax(260px,0.85fr)_minmax(300px,1.05fr)_minmax(420px,1.55fr)]">
           <ColumnShell title={t("goals")} icon={CheckCircle2}>

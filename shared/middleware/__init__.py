@@ -1,7 +1,8 @@
 """
 Production middleware stack — Security, Tracing, Access Logging, Rate Limiting.
 
-Shared across all agents. Copied from requirement_manager pattern.
+Shared across all agent services. Extracted from the requirement manager agent
+middleware pattern.
 """
 
 import time

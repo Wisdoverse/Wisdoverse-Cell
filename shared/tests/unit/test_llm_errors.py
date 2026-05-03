@@ -6,8 +6,6 @@ Written test-first per TDD: these tests must FAIL before llm_errors.py exists.
 """
 from unittest.mock import Mock
 
-import anthropic
-
 from shared.infra.llm_errors import (
     ContentSizeError,
     LLMErrorCategory,
@@ -15,6 +13,7 @@ from shared.infra.llm_errors import (
     classify_error,
     default_retry_config,
 )
+from tests.helpers.provider_errors import anthropic_like as anthropic
 
 
 class TestLLMErrorCategory:
@@ -35,7 +34,7 @@ class TestLLMErrorCategory:
 
 
 class TestClassifyError:
-    """classify_error() maps Anthropic SDK exceptions to categories."""
+    """classify_error() maps provider-style exceptions to categories."""
 
     def test_rate_limit_error(self):
         exc = anthropic.RateLimitError(
@@ -82,7 +81,7 @@ class TestClassifyError:
         assert classify_error(exc) == LLMErrorCategory.AUTH
 
     def test_content_size_prompt_too_long(self):
-        """Anthropic returns HTTP 400 (BadRequestError) for prompt-too-long."""
+        """Provider 400 BadRequest can indicate prompt-too-long."""
         exc = anthropic.BadRequestError(
             "prompt is too long: 210000 tokens > 200000 maximum",
             response=Mock(status_code=400),
@@ -137,7 +136,7 @@ class TestContentSizeError:
         assert isinstance(err, Exception)
 
     def test_not_api_status_error(self):
-        """ContentSizeError should NOT inherit from APIStatusError (P0 finding)."""
+        """ContentSizeError should not inherit from provider SDK APIStatusError."""
         err = ContentSizeError("prompt too long")
         assert not isinstance(err, anthropic.APIStatusError)
 

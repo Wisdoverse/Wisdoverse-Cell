@@ -1,47 +1,88 @@
-# Python AI Core - gRPC Server
-FROM python:3.13-slim
+# syntax=docker/dockerfile:1
+# Requirement manager gRPC server image.
+#
+# The canonical full service image is docker/Dockerfile.agents --target ai-core.
+# This Dockerfile is kept for the standalone gRPC server path and uses the same
+# runtime-only dependency split.
+
+FROM python:3.13-slim AS builder
+
+ARG PIP_DISABLE_PIP_VERSION_CHECK=1
+ARG PIP_INDEX_URL=https://pypi.org/simple
+ARG APT_MIRROR
+ARG INSTALL_VECTOR_DEPS=false
+
+WORKDIR /build
+
+# hadolint ignore=SC2086
+RUN if [ -n "$APT_MIRROR" ]; then \
+      sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+    fi && \
+    apt-get update && apt-get install -y --no-install-recommends \
+      gcc libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY docker/requirements/agent-base.txt /build/requirements-base.txt
+COPY agents/requirement_manager/requirements.txt /build/requirements-agent.txt
+COPY agents/requirement_manager/requirements-vector.txt /build/requirements-vector.txt
+
+# hadolint ignore=DL3042
+RUN --mount=type=cache,target=/root/.cache/pip \
+    if [ -n "$PIP_INDEX_URL" ]; then \
+      pip install -i "$PIP_INDEX_URL" \
+        -r requirements-base.txt \
+        -r requirements-agent.txt; \
+    else \
+      pip install \
+        -r requirements-base.txt \
+        -r requirements-agent.txt; \
+    fi && \
+    if [ "$INSTALL_VECTOR_DEPS" = "true" ]; then \
+      if [ -n "$PIP_INDEX_URL" ]; then \
+        pip install -i "$PIP_INDEX_URL" -r requirements-vector.txt; \
+      else \
+        pip install -r requirements-vector.txt; \
+      fi; \
+    fi
+
+
+FROM python:3.13-slim AS runtime
+
+ARG APT_MIRROR
+
+# hadolint ignore=SC2086
+RUN if [ -n "$APT_MIRROR" ]; then \
+      sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+    fi && \
+    apt-get update && apt-get install -y --no-install-recommends \
+      libpq5 tini \
+    && rm -rf /var/lib/apt/lists/* && apt-get clean
+
+RUN groupadd --gid 1000 appgroup \
+    && useradd --uid 1000 --gid appgroup --shell /bin/bash --create-home appuser
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+ENV PYTHONPATH=/app \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    APP_ENV=production \
+    DEBUG=false
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY --from=builder /opt/venv /opt/venv
+COPY --chown=appuser:appgroup shared/ /app/shared/
+COPY --chown=appuser:appgroup agents/requirement_manager/ /app/agents/requirement_manager/
 
-# Copy application code
-COPY shared/ ./shared/
-COPY agents/ ./agents/
-COPY conftest.py .
-
-# Generate gRPC code
-COPY shared/grpc/proto/ ./shared/grpc/proto/
-RUN mkdir -p shared/grpc/generated && \
-    touch shared/grpc/generated/__init__.py && \
-    python -m grpc_tools.protoc \
-    -I shared/grpc/proto \
-    --python_out=shared/grpc/generated \
-    --grpc_python_out=shared/grpc/generated \
-    shared/grpc/proto/requirement.proto && \
-    # Fix relative import in generated gRPC file
-    sed -i 's/^import requirement_pb2/from . import requirement_pb2/' shared/grpc/generated/requirement_pb2_grpc.py && \
-    ls -la shared/grpc/generated/
-
-# Create non-root user
-RUN useradd -m -s /bin/bash appuser
 USER appuser
-
-# Expose gRPC port
 EXPOSE 50051
 
-# Health check
+ENTRYPOINT ["/usr/bin/tini", "--"]
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD python -c "import grpc; channel = grpc.insecure_channel('localhost:50051'); grpc.channel_ready_future(channel).result(timeout=5)" || exit 1
 
-# Run gRPC server
-CMD ["python", "-m", "shared.grpc.server"]
+CMD ["python", "-m", "agents.requirement_manager.grpc.server"]

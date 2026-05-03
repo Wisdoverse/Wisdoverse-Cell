@@ -182,6 +182,8 @@ class AgentRole(ControlPlaneModel):
     context_sources: list[str] = Field(default_factory=list)
     capabilities: list[str] = Field(default_factory=list)
     responsibilities: list[str] = Field(default_factory=list)
+    subscribed_events: list[str] = Field(default_factory=list)
+    published_events: list[str] = Field(default_factory=list)
     permissions: list[str] = Field(default_factory=list)
     budget_policy_id: str | None = None
     escalation_policy: dict[str, Any] = Field(default_factory=dict)

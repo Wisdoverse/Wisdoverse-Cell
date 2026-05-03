@@ -100,6 +100,134 @@ async def _seed(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_control_plane_api_manages_company_contexts(db_session: AsyncSession):
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        created = await client.post(
+            "/api/v1/control-plane/companies",
+            json={
+                "company_id": "cmp_public",
+                "name": "Wisdoverse Cell",
+                "mission": "Operate with agents",
+                "metadata": {"stage": "public"},
+                "created_by": "human:operator",
+            },
+        )
+        duplicate = await client.post(
+            "/api/v1/control-plane/companies",
+            json={
+                "company_id": "cmp_public",
+                "name": "Wisdoverse Cell",
+            },
+        )
+        listed = await client.get(
+            "/api/v1/control-plane/companies",
+            params={"search": "wisdoverse"},
+        )
+        fetched = await client.get("/api/v1/control-plane/companies/cmp_public")
+        updated = await client.patch(
+            "/api/v1/control-plane/companies/cmp_public",
+            json={
+                "mission": "Run AI-native operations",
+                "metadata": {"stage": "public", "region": "global"},
+                "actor_id": "human:operator",
+            },
+        )
+        missing = await client.get("/api/v1/control-plane/companies/cmp_missing")
+        audit = await client.get(
+            "/api/v1/control-plane/audit-events",
+            params={"company_id": "cmp_public", "target_type": "company"},
+        )
+
+    assert created.status_code == 201
+    assert created.json()["company_id"] == "cmp_public"
+    assert created.json()["metadata"] == {"stage": "public"}
+    assert duplicate.status_code == 409
+    assert listed.status_code == 200
+    assert listed.json()["total"] == 1
+    assert fetched.status_code == 200
+    assert fetched.json()["name"] == "Wisdoverse Cell"
+    assert updated.status_code == 200
+    assert updated.json()["mission"] == "Run AI-native operations"
+    assert updated.json()["metadata"] == {"stage": "public", "region": "global"}
+    assert missing.status_code == 404
+    assert audit.status_code == 200
+    assert [event["action"] for event in audit.json()["audit_events"]] == [
+        EventTypes.COMPANY_UPDATED,
+        EventTypes.COMPANY_CREATED,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_control_plane_api_manages_evolution_proposals(
+    db_session: AsyncSession,
+):
+    repo = ControlPlaneRepository(db_session)
+    await repo.create_company(CompanyContext(company_id="cmp_evolution", name="Evolution"))
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        created = await client.post(
+            "/api/v1/control-plane/evolution-proposals",
+            json={
+                "company_id": "cmp_evolution",
+                "tier": "L2",
+                "scope": "agent-routing",
+                "evidence": {"p95_latency_ms": 1200},
+                "expected_benefit": "Reduce routing latency",
+                "risk": "May change coordinator dispatch behavior",
+                "proposed_by": "evolution-agent",
+            },
+        )
+        proposal = created.json()
+        listed = await client.get(
+            "/api/v1/control-plane/evolution-proposals",
+            params={"company_id": "cmp_evolution", "tier": "L2"},
+        )
+        blocked = await client.patch(
+            f"/api/v1/control-plane/evolution-proposals/{proposal['proposal_id']}/status",
+            params={"company_id": "cmp_evolution"},
+            json={"rollout_state": "active", "actor_id": "human:architect"},
+        )
+        approved = await client.post(
+            f"/api/v1/control-plane/approvals/{proposal['approval_id']}/approve",
+            json={"resolved_by": "human:architect"},
+        )
+        fetched_after_approval = await client.get(
+            f"/api/v1/control-plane/evolution-proposals/{proposal['proposal_id']}",
+            params={"company_id": "cmp_evolution"},
+        )
+        activated = await client.patch(
+            f"/api/v1/control-plane/evolution-proposals/{proposal['proposal_id']}/status",
+            params={"company_id": "cmp_evolution"},
+            json={"rollout_state": "active", "actor_id": "human:architect"},
+        )
+
+    assert created.status_code == 201
+    assert proposal["approval_state"] == "pending"
+    assert proposal["rollout_state"] == "proposed"
+    assert proposal["approval_id"]
+    assert listed.status_code == 200
+    assert listed.json()["total"] == 1
+    assert blocked.status_code == 400
+    assert blocked.json()["detail"] == "approval_required"
+    assert approved.status_code == 200
+    assert fetched_after_approval.status_code == 200
+    assert fetched_after_approval.json()["approval_state"] == "approved"
+    assert activated.status_code == 200
+    assert activated.json()["rollout_state"] == "active"
+
+
+@pytest.mark.asyncio
 async def test_control_plane_api_lists_approves_and_builds_timeline(
     db_session: AsyncSession,
 ):
@@ -381,6 +509,11 @@ async def test_control_plane_api_creates_frontend_agent_definition(
                 "context_sources": ["control_plane", "feishu"],
                 "capabilities": ["market analysis"],
                 "responsibilities": ["Find market signals"],
+                "subscribed_events": [
+                    "work_item.created",
+                    "market.signal-requested",
+                ],
+                "published_events": ["market.signal-detected"],
                 "permissions": ["work_items:create"],
                 "created_by": "human:board",
             },
@@ -409,10 +542,19 @@ async def test_control_plane_api_creates_frontend_agent_definition(
     assert created.json()["interaction_mode"] == "direct"
     assert created.json()["adapter_type"] == "codex_local"
     assert created.json()["context_sources"] == ["control_plane", "feishu"]
+    assert created.json()["subscribed_events"] == [
+        "work_item.created",
+        "market.signal-requested",
+    ]
+    assert created.json()["published_events"] == ["market.signal-detected"]
     assert duplicate.status_code == 409
     assert listed.status_code == 200
     assert listed.json()["total"] == 1
     assert listed.json()["agents"][0]["reports_to_agent_id"] == "ceo"
+    assert listed.json()["agents"][0]["subscribed_events"] == [
+        "work_item.created",
+        "market.signal-requested",
+    ]
     assert status.status_code == 200
     assert status.json()["status"] == "paused"
 

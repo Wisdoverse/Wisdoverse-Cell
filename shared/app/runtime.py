@@ -121,7 +121,7 @@ class EvolutionPlugin(RuntimePlugin):
 
             db = EvolutionDatabaseManager()
             evaluator = Evaluator()
-            reflector = SelfReflector(llm=_llm)
+            reflector = SelfReflector(llm_gateway=_llm)
             scanner = PromptSafetyScanner()
             memory = AgentMemory(agent_id=agent.agent_id)
             canary = CanaryRouter(db_manager=db)

@@ -1,4 +1,4 @@
-# shared/services/wecom/config.py
+# shared/integrations/wecom/config.py
 """
 WecomConfig - 企业微信配置
 

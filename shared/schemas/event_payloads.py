@@ -8,6 +8,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .coordinator import (
+    AgentProgress,
+    CoordinatorCommand,
+    CoordinatorResponse,
+    TaskNotification,
+)
+
 # ============ Requirement Events ============
 
 class RequirementSummary(BaseModel):
@@ -91,7 +98,70 @@ class RequirementDeletedPayload(BaseModel):
     deleted_at: str = Field(..., description="Deletion time (ISO format)")
 
 
+# ============ External work context events ============
+
+class ProjectEventPayload(BaseModel):
+    """project.created / project.updated event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    project_id: str | int
+    name: str = ""
+    keywords: list[str] = Field(default_factory=list)
+    changes: dict = Field(default_factory=dict)
+    source_system: str = "external"
+    source_id: str | None = None
+
+
+class SprintStartedPayload(BaseModel):
+    """sprint.started event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    sprint_id: str | int
+    name: str = ""
+    requirement_ids: list[str] = Field(default_factory=list)
+    start_date: str | None = None
+    end_date: str | None = None
+
+
+class SprintCompletedPayload(BaseModel):
+    """sprint.completed event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    sprint_id: str | int
+    completed_requirement_ids: list[str] = Field(default_factory=list)
+    incomplete_requirement_ids: list[str] = Field(default_factory=list)
+    summary: str = ""
+
+
+class MeetingUploadedPayload(BaseModel):
+    """meeting.uploaded event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    content: str = Field(..., min_length=1)
+    source: str = "event"
+    title: str | None = None
+    meeting_date: str | None = None
+    participants: list[str] = Field(default_factory=list)
+    context: str | None = None
+    source_id: str | None = None
+
+
 # ============ Control-plane ledger events ============
+
+class CompanyEventPayload(BaseModel):
+    """company.created / company.updated event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    company_id: str
+    trace_id: str | None = None
+    name: str
+    mission: str = ""
+
 
 class ControlPlaneReferencePayload(BaseModel):
     """Shared references for control-plane events."""
@@ -197,6 +267,26 @@ class AgentRunLifecyclePayload(ControlPlaneReferencePayload):
     error_message: str | None = None
 
 
+class AgentRoleCreatedPayload(ControlPlaneReferencePayload):
+    """agent_role.created event payload."""
+
+    agent_id: str
+    role_id: str | None = None
+    agent_kind: str
+    interaction_mode: str
+    role: str = ""
+    adapter_type: str | None = None
+    reports_to_agent_id: str | None = None
+
+
+class AgentRoleStatusUpdatedPayload(ControlPlaneReferencePayload):
+    """agent_role.status-updated event payload."""
+
+    agent_id: str
+    status: str
+    actor_id: str | None = None
+
+
 class ApprovalEventPayload(ControlPlaneReferencePayload):
     """approval.requested/granted/rejected event payload."""
 
@@ -237,17 +327,142 @@ class AuditEventRecordedPayload(ControlPlaneReferencePayload):
     detail: dict = Field(default_factory=dict)
 
 
+class EvolutionProposalEventPayload(ControlPlaneReferencePayload):
+    """evolution_proposal.created / updated event payload."""
+
+    proposal_id: str
+    tier: Literal["L1", "L2", "L3"]
+    scope: str
+    approval_state: Literal[
+        "pending",
+        "approved",
+        "rejected",
+        "expired",
+        "cancelled",
+    ]
+    rollout_state: Literal[
+        "proposed",
+        "shadow",
+        "canary",
+        "active",
+        "rolled_back",
+        "rejected",
+    ]
+    approval_id: str | None = None
+
+
+class EvolutionCycleTriggeredPayload(BaseModel):
+    """evolution.cycle-triggered event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    days: int = Field(default=7, ge=1)
+
+
+class EvolutionSkillProposedPayload(BaseModel):
+    """evolution.skill-proposed event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    operation: str
+    target_agent: str
+    target_skill: str | None = None
+    description: str = ""
+    rationale: str = ""
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    control_plane_approval_id: str | None = None
+
+
+class EvolutionHumanFeedbackPayload(BaseModel):
+    """evolution.human-feedback event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    approved: bool = False
+    approval_id: str | None = None
+    control_plane_approval_id: str | None = None
+    user_id: str | None = None
+    resolved_by: str | None = None
+
+
+class EvolutionPatternProposedPayload(BaseModel):
+    """evolution.pattern-proposed event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    pattern_id: str
+    name: str
+    trigger_event: str
+    steps: list[dict] = Field(default_factory=list)
+    control_plane_approval_id: str | None = None
+
+
+class EvolutionPatternApprovedPayload(BaseModel):
+    """evolution.pattern-approved event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    pattern_id: str
+    approved: bool = False
+    user_id: str | None = None
+    approval_id: str | None = None
+    control_plane_approval_id: str | None = None
+
+
+class DLQFailedPayload(BaseModel):
+    """dlq.failed payload for failed or malformed events."""
+
+    original_event_id: str | None = None
+    original_event_type: str | None = None
+    original_source: str | None = None
+    original_payload: dict = Field(default_factory=dict)
+    failed_by_agent: str
+    failure_stage: Literal["handler", "validation"]
+    error: str
+
+
 # ============ PM Sync Events ============
+
+SyncScope = Literal["full", "openproject", "feishu_bitable"]
+SyncTriggerScope = Literal["full", "openproject", "feishu_bitable", "feishu-bitable"]
+
+
+class SyncTriggerPayload(BaseModel):
+    """sync.trigger event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    triggered_by: str = "event"
+    scope: SyncTriggerScope | None = None
+    target: SyncTriggerScope | None = None
+
+
+class SyncStartedPayload(BaseModel):
+    """sync.started event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    triggered_by: str
+    scope: SyncScope = "full"
+
 
 class SyncCompletedPayload(BaseModel):
     """sync.completed event payload."""
-    synced_count: int = 0
-    errors: list[str] = []
+
+    model_config = ConfigDict(strict=True)
+
+    synced_count: int = Field(default=0, ge=0)
+    scope: SyncScope = "full"
+    errors: list[str] = Field(default_factory=list)
 
 
 class SyncFailedPayload(BaseModel):
     """sync.failed event payload."""
+
+    model_config = ConfigDict(strict=True)
+
     error: str
+    scope: str = "unknown"
 
 
 # ============ Analysis Report Events ============
@@ -261,6 +476,14 @@ class ReportGeneratedPayload(BaseModel):
 class RiskDetectedPayload(BaseModel):
     """analysis.risk-detected event payload."""
     risks: list[dict] = []
+
+
+class QualityEvaluatedPayload(BaseModel):
+    """analysis.quality-evaluated event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    evaluations: list[dict] = Field(default_factory=list)
 
 
 # ============ PM Alert Events ============
@@ -286,6 +509,21 @@ class ChatPmResponsePayload(BaseModel):
     response: dict = {}
 
 
+# ============ Coordinator Events ============
+
+class CoordinatorDispatchPayload(BaseModel):
+    """coordinator.dispatch event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    target_agent: str
+    task_id: str | None = None
+    instruction: str = ""
+    workflow_id: str | None = None
+    scratchpad_ref: str | None = None
+    permissions: dict = Field(default_factory=dict)
+
+
 # ============ PM Task Decomposition Events ============
 
 class SyncTaskNeedsDecomposePayload(BaseModel):
@@ -306,6 +544,25 @@ class PMDecomposeCompletedPayload(BaseModel):
     status: str
     user_story_count: int = 0
     task_count: int = 0
+
+
+class PMDecompositionFailedPayload(BaseModel):
+    """pm.decomposition-failed event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    error: str
+    requirement_title: str = ""
+    trace_id: str | None = None
+
+
+class PMApprovalTimeoutPayload(BaseModel):
+    """pm.approval-timeout event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    record_id: str
+    age_hours: float = Field(..., ge=0)
 
 
 # ============ QA Acceptance Events ============
@@ -483,6 +740,13 @@ EVENT_PAYLOAD_MODELS = {
     "requirement.rejected": RequirementRejectedPayload,
     "requirement.changed": RequirementChangedPayload,
     "requirement.deleted": RequirementDeletedPayload,
+    "project.created": ProjectEventPayload,
+    "project.updated": ProjectEventPayload,
+    "sprint.started": SprintStartedPayload,
+    "sprint.completed": SprintCompletedPayload,
+    "meeting.uploaded": MeetingUploadedPayload,
+    "company.created": CompanyEventPayload,
+    "company.updated": CompanyEventPayload,
     "goal.created": GoalEventPayload,
     "goal.updated": GoalEventPayload,
     "work_item.created": WorkItemEventPayload,
@@ -495,21 +759,41 @@ EVENT_PAYLOAD_MODELS = {
     "agent_run.started": AgentRunLifecyclePayload,
     "agent_run.succeeded": AgentRunLifecyclePayload,
     "agent_run.failed": AgentRunLifecyclePayload,
+    "agent_role.created": AgentRoleCreatedPayload,
+    "agent_role.status-updated": AgentRoleStatusUpdatedPayload,
     "approval.requested": ApprovalEventPayload,
     "approval.granted": ApprovalEventPayload,
     "approval.rejected": ApprovalEventPayload,
     "budget.usage-recorded": BudgetUsageRecordedPayload,
     "audit.event-recorded": AuditEventRecordedPayload,
+    "evolution_proposal.created": EvolutionProposalEventPayload,
+    "evolution_proposal.updated": EvolutionProposalEventPayload,
+    "evolution.cycle-triggered": EvolutionCycleTriggeredPayload,
+    "evolution.skill-proposed": EvolutionSkillProposedPayload,
+    "evolution.human-feedback": EvolutionHumanFeedbackPayload,
+    "evolution.pattern-proposed": EvolutionPatternProposedPayload,
+    "evolution.pattern-approved": EvolutionPatternApprovedPayload,
+    "dlq.failed": DLQFailedPayload,
+    "sync.trigger": SyncTriggerPayload,
+    "sync.started": SyncStartedPayload,
     "sync.completed": SyncCompletedPayload,
     "sync.failed": SyncFailedPayload,
     "report.daily-generated": ReportGeneratedPayload,
     "report.weekly-generated": ReportGeneratedPayload,
     "analysis.risk-detected": RiskDetectedPayload,
+    "analysis.quality-evaluated": QualityEvaluatedPayload,
     "pm.alert-triggered": AlertTriggeredPayload,
     "chat.pm-query": ChatPmQueryPayload,
     "chat.pm-response": ChatPmResponsePayload,
+    "coordinator.command": CoordinatorCommand,
+    "coordinator.response": CoordinatorResponse,
+    "coordinator.dispatch": CoordinatorDispatchPayload,
+    "task.notification": TaskNotification,
+    "task.progress": AgentProgress,
     "sync.task-needs-decompose": SyncTaskNeedsDecomposePayload,
     "pm.decompose-completed": PMDecomposeCompletedPayload,
+    "pm.decomposition-failed": PMDecompositionFailedPayload,
+    "pm.approval-timeout": PMApprovalTimeoutPayload,
     "code.committed": CodeCommittedPayload,
     "qa.run-requested": QARunRequestedPayload,
     "qa.acceptance-completed": QAAcceptanceCompletedPayload,

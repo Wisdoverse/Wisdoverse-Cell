@@ -1,7 +1,3 @@
-"""Deprecated: use shared.integrations.feishu.handlers.event"""
-import importlib
-import sys
+"""Deprecated: Feishu event handling is owned by the requirement manager agent."""
 
-_real = importlib.import_module("shared.integrations.feishu.handlers.event")
-sys.modules[__name__] = _real
-sys.modules["shared.services.feishu.handlers.event"] = _real
+__all__: list[str] = []

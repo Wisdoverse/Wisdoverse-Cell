@@ -1,4 +1,4 @@
-# shared/services/wecom/client.py
+# shared/integrations/wecom/client.py
 """
 WecomClient - 企业微信 API 客户端
 

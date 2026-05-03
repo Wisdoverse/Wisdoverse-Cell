@@ -8,13 +8,13 @@ Written test-first per TDD.
 """
 from unittest.mock import AsyncMock, Mock, patch
 
-import anthropic
 import pytest
 
 from shared.infra.llm_errors import (
     ContentSizeError,
 )
 from shared.infra.llm_gateway import LLMGateway
+from tests.helpers.provider_errors import anthropic_like as anthropic
 
 
 class MockResponse:

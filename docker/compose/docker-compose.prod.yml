@@ -93,10 +93,20 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   redis-master:
-    command: >
-      redis-server /usr/local/etc/redis/redis.conf
-      --maxmemory 512mb
-      --requirepass ${REDIS_PASSWORD:-}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        REDIS_ARGS="/usr/local/etc/redis/redis.conf --maxmemory 512mb"
+        if [ -n "$$REDIS_PASSWORD" ]; then
+          exec redis-server $$REDIS_ARGS --requirepass "$$REDIS_PASSWORD"
+        fi
+        exec redis-server $$REDIS_ARGS
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -n \"$${REDIS_PASSWORD:-}\" ]; then redis-cli -a \"$${REDIS_PASSWORD}\" ping; else redis-cli ping; fi"]
     deploy:
       resources:
         limits:

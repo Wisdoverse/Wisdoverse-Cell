@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useTheme } from "next-themes";
@@ -78,16 +79,18 @@ export function TopBar() {
               const isLast = index === pathSegments.length - 1;
 
               return isLast ? (
-                <BreadcrumbItem key={segment}>
+                <BreadcrumbItem key={`${segment}-${index}`}>
                   <BreadcrumbPage>{label}</BreadcrumbPage>
                 </BreadcrumbItem>
               ) : (
-                <BreadcrumbItem key={segment}>
-                  <BreadcrumbLink asChild>
-                    <Link href={href}>{label}</Link>
-                  </BreadcrumbLink>
+                <Fragment key={`${segment}-${index}`}>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink asChild>
+                      <Link href={href}>{label}</Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
                   <BreadcrumbSeparator />
-                </BreadcrumbItem>
+                </Fragment>
               );
             })}
           </BreadcrumbList>

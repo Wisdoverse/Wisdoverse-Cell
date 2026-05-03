@@ -1,8 +1,3 @@
-"""Deprecated: use shared.integrations.feishu.handlers.message"""
-import importlib
-import sys
+"""Deprecated: Feishu message recording is owned by the requirement manager agent."""
 
-_real = importlib.import_module("shared.integrations.feishu.handlers.message")
-sys.modules[__name__] = _real
-# Also register under the old path so patches target the same object
-sys.modules["shared.services.feishu.handlers.message"] = _real
+__all__: list[str] = []

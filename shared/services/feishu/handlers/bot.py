@@ -1,7 +1,3 @@
-"""Deprecated: use shared.integrations.feishu.handlers.bot"""
-import importlib
-import sys
+"""Deprecated: Feishu bot handling is owned by the requirement manager agent."""
 
-_real = importlib.import_module("shared.integrations.feishu.handlers.bot")
-sys.modules[__name__] = _real
-sys.modules["shared.services.feishu.handlers.bot"] = _real
+__all__: list[str] = []

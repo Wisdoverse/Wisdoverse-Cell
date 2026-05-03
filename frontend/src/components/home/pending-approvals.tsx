@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowRight, InboxIcon } from "lucide-react";
 import { ApprovalCard } from "@/components/shared/approval-card";
-import { useApprovals } from "@/lib/hooks/use-approvals";
+import { useApprovals } from "@/entities/approval/model/use-approvals";
 
 export function PendingApprovals() {
   const t = useTranslations("home");

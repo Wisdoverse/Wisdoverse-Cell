@@ -1,4 +1,4 @@
-# shared/services/wecom/cards/__init__.py
+# shared/integrations/wecom/cards/__init__.py
 """WeCom card templates."""
 from .builder import WecomCardBuilder
 
