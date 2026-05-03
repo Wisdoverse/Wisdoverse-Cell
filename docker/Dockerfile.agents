@@ -12,6 +12,7 @@
 #   ai-core          - requirement manager agent (port 8000 + gRPC 50051)
 #   sync-agent       - sync support capability (port 8010)
 #   analysis-agent   - analysis support capability (port 8011)
+#   evolution-agent  - self-evolution support capability (port 8016)
 #   pjm-agent        - PJM business runtime agent (port 8012)
 #   chat-agent       - user interaction gateway runtime id (port 8013)
 #   qa-agent         - QA business runtime agent (port 8014)
@@ -105,6 +106,18 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 FROM builder-base AS analysis-builder
 ARG PIP_INDEX_URL=https://pypi.org/simple
 COPY shared/capabilities/analysis/requirements.txt .
+# hadolint ignore=DL3042
+RUN --mount=type=cache,target=/root/.cache/pip \
+    if [ -n "$PIP_INDEX_URL" ]; then \
+      pip install -i "$PIP_INDEX_URL" -r requirements.txt; \
+    else \
+      pip install -r requirements.txt; \
+    fi
+
+# --- evolution-agent ---------------------------------------------------------
+FROM builder-base AS evolution-builder
+ARG PIP_INDEX_URL=https://pypi.org/simple
+COPY shared/capabilities/evolution/requirements.txt .
 # hadolint ignore=DL3042
 RUN --mount=type=cache,target=/root/.cache/pip \
     if [ -n "$PIP_INDEX_URL" ]; then \
@@ -325,6 +338,50 @@ CMD ["gunicorn", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--workers", "1", \
      "--bind", "0.0.0.0:8011", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--keep-alive", "5", \
+     "--access-logfile", "-", \
+     "--access-logformat", "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s %(D)s"]
+
+
+# =============================================================================
+# evolution-agent
+# =============================================================================
+FROM runtime-base AS evolution-agent
+
+ARG VERSION=dev
+ARG BUILD_DATE
+ARG GIT_COMMIT
+
+LABEL org.opencontainers.image.title="Evolution Capability" \
+      org.opencontainers.image.description="Self-evolution analysis and recommendation capability" \
+      org.opencontainers.image.vendor="Wisdoverse Cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${GIT_COMMIT}"
+
+COPY --from=evolution-builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    API_HOST=0.0.0.0 \
+    API_PORT=8016
+
+COPY --chown=appuser:appgroup shared/ /app/shared/
+COPY --chown=appuser:appgroup shared/capabilities/evolution/ /app/shared/capabilities/evolution/
+
+USER appuser
+EXPOSE 8016
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl --fail --silent http://localhost:8016/health/ready || exit 1
+
+CMD ["gunicorn", \
+     "shared.capabilities.evolution.app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "1", \
+     "--bind", "0.0.0.0:8016", \
      "--timeout", "120", \
      "--graceful-timeout", "30", \
      "--keep-alive", "5", \

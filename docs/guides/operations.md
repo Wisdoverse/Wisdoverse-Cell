@@ -131,6 +131,7 @@ anchor when a new provider is promoted to production use.
 | User interaction gateway | `8013` | Chat/webhook gateway |
 | QA agent | `8014` | Acceptance checks |
 | Dev agent | `8015` | AgentForge-backed delivery |
+| Evolution support capability | `8016` | Self-evolution analysis and recommendations |
 | Go gateway | `8080` | API gateway and webhook entry points |
 | Web | `3000` | Next.js frontend |
 | Traefik | `80`, `443`, `8081` | Ingress and dashboard |
@@ -162,6 +163,7 @@ Python service images use a runtime-only dependency split:
 | `ai-core` | `agents.requirement_manager` | Requirements business runtime agent, using the historical `ai-core` service id |
 | `sync-agent` | `shared.capabilities.sync` | Support capability |
 | `analysis-agent` | `shared.capabilities.analysis` | Support capability |
+| `evolution-agent` | `shared.capabilities.evolution` | Support capability |
 | `pjm-agent` | `agents.pjm_agent` | Business runtime agent |
 | `chat-agent` | `services.gateways.user_interaction` | User interaction gateway runtime id |
 | `qa-agent` | `agents.qa_agent` | Business runtime agent |

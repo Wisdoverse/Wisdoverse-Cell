@@ -45,7 +45,7 @@ graph TD
         CA["user interaction gateway :8013"]
         QA["QA agent :8014"]
         DA["Dev agent :8015"]
-        EA["evolution capability"]
+        EA["evolution capability :8016"]
     end
 
     subgraph Shared["Shared Infrastructure"]
@@ -115,7 +115,7 @@ control plane, not Python packages.
 | `agents.qa_agent` | Business runtime agent | Automated code quality and acceptance checks | HTTP `:8014` | Active |
 | `agents.dev_agent` | Business runtime agent | AgentForge-backed software delivery workflow execution | HTTP `:8015` | Active |
 | `services.orchestration.coordinator` | System worker | Event routing and decision synthesis | `create_agent_app()` service boundary | Active |
-| `shared.capabilities.evolution` | Capability module | Self-evolution analysis and recommendations | Standalone `create_agent_app()` service boundary | Active |
+| `shared.capabilities.evolution` | Capability module | Self-evolution analysis and recommendations | HTTP `:8016` | Active |
 | `services.gateways.channel` | Integration gateway | Multi-channel messaging gateway; reusable messaging primitives live under `shared.messaging` and `shared.integrations` | EventBus and adapter boundary | Implemented; not in default Compose |
 
 ---

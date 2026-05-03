@@ -65,7 +65,7 @@ graph TB
         AA[analysis capability]
         PM[PJM agent]
         CA[user interaction gateway]
-        EA[evolution capability]
+        EA[evolution capability :8016]
         QA[QA agent]
         DA[Dev agent]
     end
@@ -279,5 +279,6 @@ Traefik :443/:80
   ├── /agent/chat/* -> user interaction gateway :8013
   ├── /agent/qa/*   -> QA agent :8014
   ├── /agent/dev/*  -> Dev agent :8015
+  ├── /agent/evolution/* -> evolution capability :8016
   └── ...           -> other deployed agents
 ```

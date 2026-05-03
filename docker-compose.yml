@@ -449,6 +449,60 @@ services:
       - "com.projectcell.service=analysis-agent"
       - "com.projectcell.tier=application"
 
+  evolution-agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agents
+      target: evolution-agent
+      args:
+        <<: *python-mirror-args
+        VERSION: ${VERSION:-dev}
+        BUILD_DATE: ${BUILD_DATE:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    image: ${REGISTRY:-}projectcell/evolution-agent:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-evolution-agent
+    hostname: evolution-agent
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_USER: ${EVOLUTION_AGENT_DB_USER:-evolution_agent}
+      POSTGRES_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:-evolution_agent_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "7"
+      <<: [*llm-env, *app-security-env]
+      EVOLUTION_ENABLED: ${EVOLUTION_ENABLED:-true}
+      EVOLUTION_COLLABORATION_ENABLED: ${EVOLUTION_COLLABORATION_ENABLED:-false}
+      APP_ENV: ${APP_ENV:-development}
+      DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: evolution-agent
+      EVENT_BUS_CONSUMER_NAME: evolution-agent
+    ports:
+      - "${EVOLUTION_AGENT_PORT:-8016}:8016"
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "curl", "-f", "http://localhost:8016/health/ready"]
+    deploy:
+      <<: *deploy-defaults
+      update_config:
+        order: start-first
+        failure_action: rollback
+        parallelism: 1
+    logging: *default-logging
+    restart: unless-stopped
+    stop_grace_period: 35s
+    labels:
+      - "com.projectcell.service=evolution-agent"
+      - "com.projectcell.tier=application"
+
   pjm-agent:
     build:
       context: .

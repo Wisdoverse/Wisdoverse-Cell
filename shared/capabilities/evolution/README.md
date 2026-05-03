@@ -31,7 +31,8 @@ The Evolution Agent is the L2 (Architecture) component of the self-evolution sys
 
 ## API Endpoints
 
-All endpoints are served on the Evolution Agent's port. Standard health checks are provided by `create_agent_app()`.
+All endpoints are served on the Evolution Agent's default port, `8016`.
+Standard health checks are provided by `create_agent_app()`.
 
 ### `GET /health`
 
@@ -71,7 +72,7 @@ All endpoints are served on the Evolution Agent's port. Standard health checks a
 - **Example**:
 ```bash
 curl -X POST -H "X-Internal-Key: $KEY" \
-  "http://localhost:<port>/analyze?days=14"
+  "http://localhost:8016/analyze?days=14"
 ```
 
 ---

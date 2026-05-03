@@ -11,6 +11,7 @@ RUNTIME_REQUIREMENTS = {
         "services/gateways/user_interaction/requirements.txt"
     ),
     Path("shared/capabilities/analysis"): Path("shared/capabilities/analysis/requirements.txt"),
+    Path("shared/capabilities/evolution"): Path("shared/capabilities/evolution/requirements.txt"),
 }
 
 
@@ -42,3 +43,17 @@ def test_docker_runtime_units_that_use_llm_gateway_install_litellm() -> None:
             f"{root} imports shared.infra.llm_gateway but {requirements_path} "
             "does not install litellm for its Docker runtime target"
         )
+
+
+def test_evolution_capability_has_docker_runtime_boundary() -> None:
+    """The evolution support capability must be independently deployable."""
+    dockerfile = Path("docker/Dockerfile.agents").read_text(encoding="utf-8")
+    compose = Path("docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "FROM builder-base AS evolution-builder" in dockerfile
+    assert "FROM runtime-base AS evolution-agent" in dockerfile
+    assert "shared.capabilities.evolution.app.main:app" in dockerfile
+
+    assert "  evolution-agent:" in compose
+    assert "target: evolution-agent" in compose
+    assert "${EVOLUTION_AGENT_PORT:-8016}:8016" in compose
