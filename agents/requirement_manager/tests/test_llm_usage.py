@@ -4,7 +4,7 @@ LLM Usage Model & Repository Tests
 import sys
 from pathlib import Path
 
-# 确保项目根目录在 Python 路径中
+# Ensure the project root is on the Python path.
 _project_root = Path(__file__).parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -19,10 +19,10 @@ from shared.core.ids import generate_ulid
 
 
 class TestLLMUsageModel:
-    """LLMUsage 模型测试"""
+    """LLMUsage model tests."""
 
     def test_create_usage_record(self):
-        """测试创建使用记录"""
+        """Create a usage record."""
         usage = LLMUsage(
             id=generate_ulid(),
             agent_id="requirement-manager",
@@ -42,7 +42,7 @@ class TestLLMUsageModel:
         assert usage.success is True
 
     def test_create_failed_record(self):
-        """测试创建失败记录"""
+        """Create a failed usage record."""
         usage = LLMUsage(
             id=generate_ulid(),
             agent_id="requirement-manager",
@@ -60,7 +60,7 @@ class TestLLMUsageModel:
         assert usage.error_message == "Rate limit exceeded"
 
     def test_repr(self):
-        """测试字符串表示"""
+        """Render the string representation."""
         usage = LLMUsage(
             id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             agent_id="test-agent",
@@ -80,10 +80,10 @@ class TestLLMUsageModel:
 
 @pytest.mark.asyncio
 class TestLLMUsageRepository:
-    """LLMUsageRepository 测试"""
+    """LLMUsageRepository tests."""
 
     async def test_create_usage(self, db_session):
-        """测试创建使用记录"""
+        """Create a usage record."""
         repo = LLMUsageRepository(db_session)
 
         usage = LLMUsage(
@@ -102,7 +102,7 @@ class TestLLMUsageRepository:
         assert created.id == usage.id
 
     async def test_get_daily_summary_empty(self, db_session):
-        """测试获取空的每日汇总"""
+        """Get an empty daily summary."""
         repo = LLMUsageRepository(db_session)
 
         summary = await repo.get_daily_summary("2026-01-01")
@@ -112,11 +112,11 @@ class TestLLMUsageRepository:
         assert summary["total_cost_usd"] == 0.0
 
     async def test_get_daily_summary_with_data(self, db_session):
-        """测试获取有数据的每日汇总"""
+        """Get a daily summary with data."""
         repo = LLMUsageRepository(db_session)
         today = datetime.now(UTC).strftime("%Y-%m-%d")
 
-        # 创建测试数据
+        # Create test data.
         for i in range(3):
             usage = LLMUsage(
                 id=generate_ulid(),
@@ -131,7 +131,7 @@ class TestLLMUsageRepository:
             )
             await repo.create(usage)
 
-        # 添加一条失败记录
+        # Add one failed record.
         failed_usage = LLMUsage(
             id=generate_ulid(),
             agent_id="requirement-manager",
@@ -146,7 +146,7 @@ class TestLLMUsageRepository:
         )
         await repo.create(failed_usage)
 
-        # 获取汇总
+        # Get summary.
         summary = await repo.get_daily_summary(today)
 
         assert summary["total_calls"] == 4
@@ -160,11 +160,11 @@ class TestLLMUsageRepository:
         assert "generation" in summary["by_task_type"]
 
     async def test_get_daily_summary_filtered_by_agent(self, db_session):
-        """测试按 Agent 过滤的每日汇总"""
+        """Get a daily summary filtered by Agent."""
         repo = LLMUsageRepository(db_session)
         today = datetime.now(UTC).strftime("%Y-%m-%d")
 
-        # 创建不同 Agent 的数据
+        # Create data for different Agents.
         for agent in ["agent-a", "agent-b"]:
             usage = LLMUsage(
                 id=generate_ulid(),
@@ -179,7 +179,7 @@ class TestLLMUsageRepository:
             )
             await repo.create(usage)
 
-        # 按 Agent 过滤
+        # Filter by Agent.
         summary = await repo.get_daily_summary(today, agent_id="agent-a")
 
         assert summary["total_calls"] == 1
@@ -187,11 +187,11 @@ class TestLLMUsageRepository:
         assert "agent-b" not in summary["by_agent"]
 
     async def test_get_usage_by_agent(self, db_session):
-        """测试获取某个 Agent 的使用记录"""
+        """Get usage records for one Agent."""
         repo = LLMUsageRepository(db_session)
         today = datetime.now(UTC).strftime("%Y-%m-%d")
 
-        # 创建测试数据
+        # Create test data.
         for i in range(5):
             usage = LLMUsage(
                 id=generate_ulid(),
@@ -206,7 +206,7 @@ class TestLLMUsageRepository:
             )
             await repo.create(usage)
 
-        # 创建其他 Agent 的数据
+        # Create data for another Agent.
         other_usage = LLMUsage(
             id=generate_ulid(),
             agent_id="other-agent",
@@ -220,17 +220,17 @@ class TestLLMUsageRepository:
         )
         await repo.create(other_usage)
 
-        # 查询
+        # Query records.
         records = await repo.get_usage_by_agent("target-agent", today, today)
 
         assert len(records) == 5
         assert all(r.agent_id == "target-agent" for r in records)
 
     async def test_get_recent_failures(self, db_session):
-        """测试获取最近的失败记录"""
+        """Get recent failed usage records."""
         repo = LLMUsageRepository(db_session)
 
-        # 创建成功记录
+        # Create a successful record.
         success_usage = LLMUsage(
             id=generate_ulid(),
             agent_id="test-agent",
@@ -244,7 +244,7 @@ class TestLLMUsageRepository:
         )
         await repo.create(success_usage)
 
-        # 创建失败记录
+        # Create failed records.
         for i in range(3):
             failed_usage = LLMUsage(
                 id=generate_ulid(),
@@ -260,7 +260,7 @@ class TestLLMUsageRepository:
             )
             await repo.create(failed_usage)
 
-        # 查询失败记录
+        # Query failed records.
         failures = await repo.get_recent_failures(limit=10)
 
         assert len(failures) == 3

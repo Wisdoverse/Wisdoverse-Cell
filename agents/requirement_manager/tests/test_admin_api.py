@@ -4,7 +4,7 @@ Admin API Tests
 import sys
 from pathlib import Path
 
-# 确保项目根目录在 Python 路径中
+# Ensure the project root is on the Python path.
 _project_root = Path(__file__).parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -17,11 +17,11 @@ from httpx import ASGITransport, AsyncClient
 
 
 class TestLLMUsageAPI:
-    """测试 LLM 使用量 API"""
+    """LLM usage API tests."""
 
     @pytest.mark.asyncio
     async def test_get_llm_usage_default_date(self):
-        """测试获取今日 LLM 使用量"""
+        """Get LLM usage for the current date."""
         from agents.requirement_manager.app.main import app
 
         mock_summary = {
@@ -73,7 +73,7 @@ class TestLLMUsageAPI:
 
     @pytest.mark.asyncio
     async def test_get_llm_usage_specific_date(self):
-        """测试获取指定日期的 LLM 使用量"""
+        """Get LLM usage for a specific date."""
         from agents.requirement_manager.app.main import app
 
         mock_summary = {
@@ -112,7 +112,7 @@ class TestLLMUsageAPI:
 
     @pytest.mark.asyncio
     async def test_get_llm_usage_filtered_by_agent(self):
-        """测试按 Agent 过滤的 LLM 使用量"""
+        """Get LLM usage filtered by Agent."""
         from agents.requirement_manager.app.main import app
 
         mock_summary = {
@@ -158,11 +158,11 @@ class TestLLMUsageAPI:
 
 
 class TestCircuitBreakerAPI:
-    """测试断路器 API"""
+    """Circuit breaker API tests."""
 
     @pytest.mark.asyncio
     async def test_get_circuit_breaker_status(self):
-        """测试获取断路器状态"""
+        """Get circuit breaker status."""
         from agents.requirement_manager.app.main import app
 
         mock_stats = {
@@ -194,7 +194,7 @@ class TestCircuitBreakerAPI:
 
     @pytest.mark.asyncio
     async def test_get_circuit_breaker_status_open(self):
-        """测试断路器打开状态"""
+        """Get open circuit breaker status."""
         from agents.requirement_manager.app.main import app
 
         mock_stats = {
@@ -226,7 +226,7 @@ class TestCircuitBreakerAPI:
 
     @pytest.mark.asyncio
     async def test_reset_circuit_breaker(self):
-        """测试重置断路器"""
+        """Reset the circuit breaker."""
         from agents.requirement_manager.app.main import app
 
         with patch("agents.requirement_manager.app.main.agent") as mock_main_agent, \

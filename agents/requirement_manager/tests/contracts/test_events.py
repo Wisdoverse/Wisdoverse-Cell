@@ -1,13 +1,13 @@
 """
-契约测试 - 验证事件格式符合约定
+Contract tests for event format.
 
-确保 Agent 发布的事件符合 Pydantic 模型定义，
-其他 Agent 订阅时可以正确解析。
+Ensures events published by the Agent match the Pydantic model definitions so
+other Agents can parse them correctly when subscribed.
 """
 import sys
 from pathlib import Path
 
-# 确保项目根目录在 Python 路径中
+# Ensure the project root is on the Python path.
 _project_root = Path(__file__).parent.parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -30,10 +30,10 @@ from shared.schemas.event_payloads import (
 
 
 class TestEventPayloadModels:
-    """测试事件 Payload 模型定义"""
+    """Event payload model tests."""
 
     def test_requirement_extracted_payload_valid(self):
-        """验证 requirement.extracted payload 模型"""
+        """Validate requirement.extracted payload model."""
         payload = RequirementExtractedPayload(
             meeting_id="mtg_123",
             requirement_ids=["req_1", "req_2"],
@@ -59,17 +59,17 @@ class TestEventPayloadModels:
         assert len(payload.requirements) == 2
 
     def test_requirement_extracted_payload_invalid_count(self):
-        """验证 count 必须 >= 1"""
+        """Require count to be at least 1."""
         with pytest.raises(ValidationError):
             RequirementExtractedPayload(
                 meeting_id="mtg_123",
                 requirement_ids=[],
-                count=0,  # 无效
+                count=0,  # Invalid
                 requirements=[]
             )
 
     def test_requirement_confirmed_payload_valid(self):
-        """验证 requirement.confirmed payload 模型"""
+        """Validate requirement.confirmed payload model."""
         payload = RequirementConfirmedPayload(
             requirement_id="req_123",
             title="离线录音功能",
@@ -83,16 +83,16 @@ class TestEventPayloadModels:
         assert payload.confirmed_by == "张三"
 
     def test_requirement_confirmed_payload_missing_field(self):
-        """验证必填字段"""
+        """Validate required fields."""
         with pytest.raises(ValidationError):
             RequirementConfirmedPayload(
                 requirement_id="req_123",
                 title="离线录音功能",
-                # 缺少 priority, category, confirmed_by, confirmed_at
+                # Missing priority, category, confirmed_by, and confirmed_at.
             )
 
     def test_requirement_rejected_payload_valid(self):
-        """验证 requirement.rejected payload 模型"""
+        """Validate requirement.rejected payload model."""
         payload = RequirementRejectedPayload(
             requirement_id="req_123",
             title="某需求",
@@ -103,7 +103,7 @@ class TestEventPayloadModels:
         assert payload.reason == "不符合产品方向"
 
     def test_requirement_deleted_payload_valid(self):
-        """验证 requirement.deleted payload 模型"""
+        """Validate requirement.deleted payload model."""
         payload = RequirementDeletedPayload(
             requirement_id="req_123",
             title="被删除的需求",
@@ -115,20 +115,20 @@ class TestEventPayloadModels:
         assert payload.deleted_by == "管理员"
 
     def test_requirement_deleted_payload_missing_field(self):
-        """验证 deleted payload 必填字段"""
+        """Validate required fields for deleted payload."""
         with pytest.raises(ValidationError):
             RequirementDeletedPayload(
                 requirement_id="req_123",
                 title="测试",
-                # 缺少 deleted_by, deleted_at
+                # Missing deleted_by and deleted_at.
             )
 
 
 class TestValidateEventPayload:
-    """测试 validate_event_payload 函数"""
+    """validate_event_payload function tests."""
 
     def test_validate_known_event_type(self):
-        """验证已知事件类型"""
+        """Validate a known event type."""
         payload = {
             "requirement_id": "req_123",
             "title": "测试",
@@ -146,12 +146,12 @@ class TestValidateEventPayload:
         assert isinstance(result, RequirementConfirmedPayload)
 
     def test_validate_unknown_event_type(self):
-        """验证未知事件类型抛出异常"""
+        """Raise for an unknown event type."""
         with pytest.raises(KeyError):
             validate_event_payload("unknown.event", {})
 
     def test_validate_invalid_payload(self):
-        """验证无效 payload 抛出异常"""
+        """Raise for an invalid payload."""
         with pytest.raises(ValidationError):
             validate_event_payload(
                 EventTypes.REQUIREMENT_CONFIRMED,
@@ -160,10 +160,10 @@ class TestValidateEventPayload:
 
 
 class TestAgentEventContracts:
-    """测试 Agent 发布的事件符合契约"""
+    """Agent event contract tests."""
 
     def test_create_event_sets_source_agent(self, test_agent):
-        """验证 create_event 设置正确的 source_agent"""
+        """create_event sets the correct source_agent."""
         event = test_agent.create_event(
             event_type=EventTypes.REQUIREMENT_CONFIRMED,
             payload={"test": "data"}
@@ -173,7 +173,7 @@ class TestAgentEventContracts:
         assert event.event_type == EventTypes.REQUIREMENT_CONFIRMED
 
     def test_create_event_generates_valid_id(self, test_agent):
-        """验证 event_id 格式"""
+        """create_event generates a valid event_id."""
         event = test_agent.create_event(
             event_type=EventTypes.REQUIREMENT_CONFIRMED,
             payload={}
@@ -188,7 +188,7 @@ class TestAgentEventContracts:
         mock_dependencies,
         captured_events
     ):
-        """验证确认需求时发布的事件符合契约"""
+        """Confirming a requirement publishes a contract-compliant event."""
         from agents.requirement_manager.db.repository import RequirementRepository
         from agents.requirement_manager.models import Requirement
 
@@ -214,13 +214,13 @@ class TestAgentEventContracts:
                 session=mock_session
             )
 
-        # 验证事件
+        # Validate event.
         assert len(captured_events) == 1
         event = captured_events[0]
 
         assert event.event_type == EventTypes.REQUIREMENT_CONFIRMED
 
-        # 验证 payload 符合契约
+        # Validate payload contract.
         payload = RequirementConfirmedPayload.model_validate(event.payload)
         assert payload.requirement_id == "req_123"
         assert payload.confirmed_by == "测试用户"
@@ -233,7 +233,7 @@ class TestAgentEventContracts:
         mock_dependencies,
         captured_events
     ):
-        """验证拒绝需求时发布的事件符合契约"""
+        """Rejecting a requirement publishes a contract-compliant event."""
         from agents.requirement_manager.db.repository import RequirementRepository
         from agents.requirement_manager.models import Requirement
 
@@ -257,13 +257,13 @@ class TestAgentEventContracts:
                 session=mock_session
             )
 
-        # 验证事件
+        # Validate event.
         assert len(captured_events) == 1
         event = captured_events[0]
 
         assert event.event_type == EventTypes.REQUIREMENT_REJECTED
 
-        # 验证 payload 符合契约
+        # Validate payload contract.
         payload = RequirementRejectedPayload.model_validate(event.payload)
         assert payload.requirement_id == "req_456"
         assert payload.reason == "不符合产品方向"
@@ -275,7 +275,7 @@ class TestAgentEventContracts:
         mock_dependencies,
         captured_events
     ):
-        """验证删除需求时发布的事件符合契约"""
+        """Deleting a requirement publishes a contract-compliant event."""
         from agents.requirement_manager.db.repository import RequirementRepository
         from agents.requirement_manager.models import Requirement
 
@@ -298,13 +298,13 @@ class TestAgentEventContracts:
                 session=mock_session
             )
 
-        # 验证事件
+        # Validate event.
         assert len(captured_events) == 1
         event = captured_events[0]
 
         assert event.event_type == EventTypes.REQUIREMENT_DELETED
 
-        # 验证 payload 符合契约
+        # Validate payload contract.
         payload = RequirementDeletedPayload.model_validate(event.payload)
         assert payload.requirement_id == "req_789"
         assert payload.deleted_by == "管理员"
@@ -312,10 +312,10 @@ class TestAgentEventContracts:
 
 
 class TestEventPayloadCoverage:
-    """确保所有发布的事件类型都有契约定义"""
+    """Ensure every published event type has a contract."""
 
     def test_all_published_events_have_contracts(self, test_agent):
-        """验证 Agent 声明的所有发布事件都有对应的 Payload 模型"""
+        """Each declared published event has a corresponding payload model."""
         for event_type in test_agent.published_events:
             assert event_type in EVENT_PAYLOAD_MODELS, \
                 f"Event type '{event_type}' has no payload model defined"
