@@ -16,12 +16,11 @@ import pytest
 @pytest.fixture
 def chat_svc():
     with patch("services.gateways.user_interaction.core.chat_service.llm_gateway") as mock_gw:
-        with patch("services.gateways.user_interaction.core.chat_service.settings") as mock_settings:
-            mock_settings.default_model = "claude-sonnet-4-20250514"
-            from services.gateways.user_interaction.core.chat_service import ChatService
-            svc = ChatService()
-            svc._llm = mock_gw
-            return svc
+        from services.gateways.user_interaction.core.chat_service import ChatService
+
+        svc = ChatService()
+        svc._llm = mock_gw
+        return svc
 
 
 # ---------------------------------------------------------------------------
@@ -188,17 +187,18 @@ async def test_tool_search_loads_full_schema_for_next_llm_call(chat_svc):
 
 @pytest.mark.asyncio
 async def test_model_uses_chat_model_not_default(chat_svc):
-    """Chat should use settings.chat_model, not default_model."""
+    """Chat should use the injected chat model."""
     chat_svc._get_history = AsyncMock(return_value=[])
     chat_svc._save_history = AsyncMock()
 
     text_response = _make_text_response("ok")
     chat_svc._llm.create_messages = AsyncMock(return_value=text_response)
+    from services.gateways.user_interaction.core.config import UserInteractionCoreConfig
 
-    with patch("services.gateways.user_interaction.core.chat_service.settings") as mock_s:
-        mock_s.chat_model = "claude-sonnet-4-20250514"
-        mock_s.default_model = "claude-opus-4-6"
-        await chat_svc.chat("hi", user_id="u1")
+    chat_svc._config = UserInteractionCoreConfig.from_values(
+        chat_model="claude-sonnet-4-20250514",
+    )
+    await chat_svc.chat("hi", user_id="u1")
 
     call_kwargs = chat_svc._llm.create_messages.call_args.kwargs
     assert call_kwargs["model"] == "claude-sonnet-4-20250514"

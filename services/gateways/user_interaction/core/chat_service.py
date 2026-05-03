@@ -2,7 +2,6 @@
 
 import json
 
-from shared.config import settings
 from shared.infra.audit_log import AuditAction, audit_log
 from shared.infra.context_compressor import ContextCompressor, ContextCompressorConfig
 from shared.infra.conversation_engine import (
@@ -19,6 +18,7 @@ from shared.utils.logger import get_logger
 from ..app.metrics import TOOL_CALLS
 from ..db.database import db_manager
 from ..db.repository import ConversationRepository, DailyProgressRepository
+from .config import UserInteractionCoreConfig
 from .tools import TOOLS, ToolExecutor, _get_redis, _tool_registry
 
 logger = get_logger("chat_agent.chat")
@@ -102,9 +102,10 @@ def _build_tool_registry() -> ToolRegistry:
 
 
 class ChatService:
-    """Claude chat service with tool calling support."""
+    """LLM chat service with tool calling support."""
 
-    def __init__(self):
+    def __init__(self, config: UserInteractionCoreConfig | None = None):
+        self._config = config or UserInteractionCoreConfig()
         self._llm = llm_gateway
         self._max_history = MAX_HISTORY
         self._registry = _build_tool_registry()
@@ -118,7 +119,7 @@ class ChatService:
                 l2_threshold_tokens=70_000,
                 keep_recent_messages=10,
                 keep_recent_tool_results=5,
-                summary_model=settings.summary_model,
+                summary_model=self._config.summary_model,
                 agent_id="chat-agent",
             ),
             llm=self._llm,
@@ -144,7 +145,7 @@ class ChatService:
         system_prompt: str | None = None,
         context: dict | None = None,
     ) -> str:
-        """发送消息并获取回复，支持 Tool Calling via ConversationEngine."""
+        """Send a message and return the ConversationEngine response."""
         history = await self._get_history(user_id)
 
         # Token-aware context compression (MicroCompact + L1 + L2)
@@ -229,7 +230,7 @@ class ChatService:
 
         try:
             config = ConversationConfig(
-                model=settings.chat_model,
+                model=self._config.chat_model,
                 system_prompt=system_prompt or default_system,
                 tools=lambda: self._registry.to_anthropic_schemas(active_deferred),
                 max_tool_calls=MAX_TOOL_CALLS,

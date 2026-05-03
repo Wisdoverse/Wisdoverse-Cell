@@ -307,6 +307,14 @@ def test_gateway_core_does_not_import_platform_adapters_directly() -> None:
                     )
 
 
+def test_user_interaction_chat_service_does_not_read_global_settings() -> None:
+    path = Path("services/gateways/user_interaction/core/chat_service.py")
+    for module in _imported_modules(path):
+        assert module != "shared.config", (
+            f"{path} imports global settings; inject explicit gateway config"
+        )
+
+
 def test_frontend_routes_are_thin() -> None:
     route_root = Path("frontend/src/app/[locale]/(app)")
     forbidden = [

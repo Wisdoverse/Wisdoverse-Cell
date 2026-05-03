@@ -19,6 +19,7 @@ from ..core.daily_tasks import (
 )
 from ..core.tools import ToolDependencies, configure_tool_dependencies
 from ..db.database import DatabaseManager, db_manager
+from .config_factory import build_user_interaction_core_config
 
 logger = get_logger("chat_agent.service")
 
@@ -78,7 +79,7 @@ class ChatAgent(BaseAgent):
                 messenger=feishu_client,
             )
         )
-        self._chat = ChatService()
+        self._chat = ChatService(config=build_user_interaction_core_config())
 
         # Event loop is managed by AgentRuntime.start_event_loop()
 

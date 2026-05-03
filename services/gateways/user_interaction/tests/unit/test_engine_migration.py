@@ -12,14 +12,11 @@ import pytest
 @pytest.fixture
 def chat_svc():
     with patch("services.gateways.user_interaction.core.chat_service.llm_gateway") as mock_gw:
-        with patch("services.gateways.user_interaction.core.chat_service.settings") as mock_settings:
-            mock_settings.default_model = "claude-sonnet-4-20250514"
-            mock_settings.chat_model = "claude-sonnet-4-20250514"
-            mock_settings.summary_model = "claude-haiku-4-5-20251001"
-            from services.gateways.user_interaction.core.chat_service import ChatService
-            svc = ChatService()
-            svc._llm = mock_gw
-            return svc
+        from services.gateways.user_interaction.core.chat_service import ChatService
+
+        svc = ChatService()
+        svc._llm = mock_gw
+        return svc
 
 
 def _text_resp(text="done"):
