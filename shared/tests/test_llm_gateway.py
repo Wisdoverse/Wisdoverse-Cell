@@ -1,11 +1,11 @@
 """
-LLM Gateway 单元测试
+LLM Gateway unit tests.
 
-测试覆盖:
-1. 重试机制 - 指数退避
-2. 断路器集成
-3. 可重试/不可重试错误
-4. 成本追踪
+Coverage:
+1. Retry mechanism with exponential backoff
+2. Circuit breaker integration
+3. Retryable and non-retryable errors
+4. Cost tracking
 """
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -20,7 +20,7 @@ RateLimitError = anthropic.RateLimitError
 
 
 class MockResponse:
-    """模拟 Anthropic API 响应"""
+    """Mock Anthropic API response."""
 
     def __init__(self, text: str = "Test response", input_tokens: int = 10, output_tokens: int = 20):
         self.content = [Mock(text=text)]
@@ -28,11 +28,11 @@ class MockResponse:
 
 
 class TestLLMGatewayBasic:
-    """基础功能测试"""
+    """Basic behavior tests."""
 
     @pytest.fixture
     def gateway(self):
-        """创建测试用 gateway"""
+        """Create a gateway for tests."""
         with patch('shared.infra.llm_gateway.settings') as mock_settings:
             mock_settings.anthropic_api_key = "test-key"
             mock_settings.default_model = "claude-sonnet-4-20250514"
@@ -43,7 +43,7 @@ class TestLLMGatewayBasic:
 
     @pytest.mark.asyncio
     async def test_successful_call(self, gateway):
-        """成功调用应返回响应"""
+        """Successful call returns the response."""
         gateway.async_client.messages.create = AsyncMock(return_value=MockResponse("Hello"))
 
         result = await gateway.complete(
@@ -56,7 +56,7 @@ class TestLLMGatewayBasic:
 
     @pytest.mark.asyncio
     async def test_tracks_usage(self, gateway):
-        """应追踪使用量"""
+        """Usage is tracked."""
         gateway.async_client.messages.create = AsyncMock(
             return_value=MockResponse(input_tokens=100, output_tokens=50)
         )
@@ -69,7 +69,7 @@ class TestLLMGatewayBasic:
         assert usage["calls"] == 1
 
     def test_estimate_cost(self, gateway):
-        """应正确估算成本"""
+        """Cost is estimated correctly."""
         # claude-sonnet-4: $3/M input, $15/M output
         cost = gateway.estimate_cost(
             input_tokens=1_000_000,
@@ -81,7 +81,7 @@ class TestLLMGatewayBasic:
 
 
 class TestLLMGatewayRetry:
-    """重试机制测试"""
+    """Retry behavior tests."""
 
     @pytest.fixture
     def gateway(self):
@@ -97,8 +97,8 @@ class TestLLMGatewayRetry:
 
     @pytest.mark.asyncio
     async def test_retries_on_rate_limit(self, gateway):
-        """429 错误应重试"""
-        # 前两次失败，第三次成功
+        """429 errors are retried."""
+        # First two calls fail, third call succeeds.
         gateway.async_client.messages.create = AsyncMock(
             side_effect=[
                 RateLimitError("Rate limited", response=Mock(status_code=429), body={}),
@@ -114,7 +114,7 @@ class TestLLMGatewayRetry:
 
     @pytest.mark.asyncio
     async def test_retries_on_500_error(self, gateway):
-        """500 错误应重试"""
+        """500 errors are retried."""
         error_response = Mock(status_code=500)
         gateway.async_client.messages.create = AsyncMock(
             side_effect=[
@@ -130,7 +130,7 @@ class TestLLMGatewayRetry:
 
     @pytest.mark.asyncio
     async def test_no_retry_on_400_error(self, gateway):
-        """400 错误不应重试"""
+        """400 errors are not retried."""
         error_response = Mock(status_code=400)
         gateway.async_client.messages.create = AsyncMock(
             side_effect=APIStatusError(
@@ -143,12 +143,12 @@ class TestLLMGatewayRetry:
         with pytest.raises(APIStatusError):
             await gateway.complete(prompt="Test", agent_id="test-agent")
 
-        # 只调用一次，没有重试
+        # Called once with no retry.
         assert gateway.async_client.messages.create.call_count == 1
 
     @pytest.mark.asyncio
     async def test_max_retries_exceeded(self, gateway):
-        """超过最大重试次数应抛出异常"""
+        """Exceeding max retries raises the original error."""
         gateway.async_client.messages.create = AsyncMock(
             side_effect=RateLimitError(
                 "Rate limited",
@@ -162,12 +162,12 @@ class TestLLMGatewayRetry:
             with pytest.raises(RateLimitError):
                 await gateway.complete(prompt="Test", agent_id="test-agent")
 
-        # rate_limit 分类默认总共尝试 6 次
+        # rate_limit classification defaults to 6 total attempts.
         assert gateway.async_client.messages.create.call_count == 6
 
 
 class TestLLMGatewayCircuitBreaker:
-    """断路器集成测试"""
+    """Circuit breaker integration tests."""
 
     @pytest.fixture
     def gateway(self):
@@ -178,7 +178,7 @@ class TestLLMGatewayCircuitBreaker:
             mock_settings.default_model = "claude-sonnet-4-20250514"
             mock_settings.anthropic_base_url = ""
             mock_settings.require_anthropic_proxy = False
-            # 低阈值便于测试
+            # Low threshold for tests.
             gateway = LLMGateway(
                 api_key="test-key",
                 failure_threshold=2,
@@ -188,46 +188,47 @@ class TestLLMGatewayCircuitBreaker:
 
     @pytest.mark.asyncio
     async def test_circuit_opens_after_failures(self, gateway):
-        """连续失败后断路器应打开"""
-        # 使用 InternalServerError 代替 APIConnectionError，因为后者构造函数签名变化
+        """Circuit opens after repeated failures."""
+        # Use InternalServerError instead of APIConnectionError because the
+        # latter has changed constructor signatures across SDK versions.
         error_response = Mock(status_code=500)
         gateway.async_client.messages.create = AsyncMock(
             side_effect=anthropic.InternalServerError("Server error", response=error_response, body={})
         )
 
-        # 触发失败（需要多次因为有重试机制，每次调用会重试4次）
+        # Trigger failures. Each call retries internally.
         for _ in range(2):
             try:
                 await gateway.complete(prompt="Test", agent_id="test-agent")
             except Exception:
                 pass
 
-        # 断路器应该打开
+        # Circuit should be open.
         stats = gateway.get_circuit_breaker_stats()
         assert stats["state"] == "open"
 
     @pytest.mark.asyncio
     async def test_rejects_when_circuit_open(self, gateway):
-        """断路器打开时应拒绝请求"""
+        """Open circuit rejects requests."""
         error_response = Mock(status_code=500)
         gateway.async_client.messages.create = AsyncMock(
             side_effect=anthropic.InternalServerError("Server error", response=error_response, body={})
         )
 
-        # 触发断路器打开
+        # Trigger open circuit.
         for _ in range(2):
             try:
                 await gateway.complete(prompt="Test", agent_id="test-agent")
             except Exception:
                 pass
 
-        # 后续请求应被拒绝
+        # Subsequent request should be rejected.
         with pytest.raises(CircuitBreakerError):
             await gateway.complete(prompt="Test", agent_id="test-agent")
 
     @pytest.mark.asyncio
     async def test_circuit_closes_on_success(self, gateway):
-        """成功后断路器应关闭"""
+        """Circuit closes after success."""
         gateway.async_client.messages.create = AsyncMock(return_value=MockResponse("Success"))
 
         await gateway.complete(prompt="Test", agent_id="test-agent")
@@ -237,8 +238,8 @@ class TestLLMGatewayCircuitBreaker:
         assert stats["failure_count"] == 0
 
     def test_reset_circuit_breaker(self, gateway):
-        """应能手动重置断路器"""
-        # 模拟断路器打开
+        """Circuit breaker can be reset manually."""
+        # Simulate open circuit.
         gateway._circuit_breaker._state = CircuitState.OPEN
         gateway._circuit_breaker._failure_count = 5
 
@@ -250,10 +251,10 @@ class TestLLMGatewayCircuitBreaker:
 
 
 class TestRetryableStatusCodes:
-    """可重试状态码测试"""
+    """Retryable status code tests."""
 
     def test_retryable_codes(self):
-        """验证可重试状态码列表"""
+        """Validate retryable status codes."""
         assert 429 in RETRYABLE_STATUS_CODES  # Rate limit
         assert 500 in RETRYABLE_STATUS_CODES  # Internal server error
         assert 502 in RETRYABLE_STATUS_CODES  # Bad gateway
@@ -261,7 +262,7 @@ class TestRetryableStatusCodes:
         assert 529 in RETRYABLE_STATUS_CODES  # Overloaded
 
     def test_non_retryable_codes(self):
-        """验证不可重试状态码"""
+        """Validate non-retryable status codes."""
         assert 400 not in RETRYABLE_STATUS_CODES  # Bad request
         assert 401 not in RETRYABLE_STATUS_CODES  # Unauthorized
         assert 403 not in RETRYABLE_STATUS_CODES  # Forbidden
