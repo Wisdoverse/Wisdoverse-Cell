@@ -11,6 +11,10 @@ from shared.infra import event_bus as _event_bus_mod
 def mock_redis():
     r = AsyncMock()
     r.xadd = AsyncMock(return_value="1234567890-0")
+    r.xack = AsyncMock(return_value=1)
+    r.xautoclaim = AsyncMock(return_value=("0-0", [], []))
+    r.xgroup_create = AsyncMock()
+    r.xreadgroup = AsyncMock(return_value=[])
     r.xlen = AsyncMock(return_value=0)
     r.xpending = AsyncMock(return_value={"pending": 0})
     r.xrevrange = AsyncMock(return_value=[])
@@ -58,6 +62,85 @@ def test_get_stream_key(bus):
     """Stream key is always {prefix}:{event_type} — no group suffix."""
     result = bus._get_stream_key("sync.completed")
     assert result == "projectcell:events:sync.completed"
+
+
+# ── subscribe / pending replay ───────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_subscribe_claims_pending_before_reading_new_messages(bus, mock_redis):
+    pending_event = _make_event()
+    new_event = _make_event()
+    stream_key = bus._get_stream_key("sync.completed")
+
+    mock_redis.xautoclaim.side_effect = [
+        ("0-0", [("100-0", {"data": pending_event.model_dump_json()})], []),
+        ("0-0", [], []),
+    ]
+    mock_redis.xreadgroup = AsyncMock(
+        return_value=[(stream_key, [("101-0", {"data": new_event.model_dump_json()})])]
+    )
+
+    subscription = bus.subscribe(["sync.completed"], timeout=1, group="qa-agent")
+    first = await anext(subscription)
+    second = await anext(subscription)
+    await subscription.aclose()
+
+    assert first.event_id == pending_event.event_id
+    assert second.event_id == new_event.event_id
+    mock_redis.xautoclaim.assert_any_await(
+        stream_key,
+        "qa-agent",
+        mock_redis.xreadgroup.call_args.kwargs["consumername"],
+        min_idle_time=60_000,
+        start_id="0-0",
+        count=10,
+    )
+    mock_redis.xack.assert_any_await(stream_key, "qa-agent", "100-0")
+
+
+@pytest.mark.asyncio
+async def test_subscribe_invalid_pending_message_goes_to_dlq(bus, mock_redis):
+    stream_key = bus._get_stream_key("sync.completed")
+    valid_event = _make_event()
+    mock_redis.xautoclaim.side_effect = [
+        ("0-0", [("100-0", {"data": "{bad-json"})], []),
+        ("0-0", [], []),
+    ]
+    mock_redis.xreadgroup = AsyncMock(
+        return_value=[(stream_key, [("101-0", {"data": valid_event.model_dump_json()})])]
+    )
+
+    subscription = bus.subscribe(["sync.completed"], timeout=1, group="qa-agent")
+    received = await anext(subscription)
+    await subscription.aclose()
+
+    assert received.event_id == valid_event.event_id
+    mock_redis.xack.assert_any_await(stream_key, "qa-agent", "100-0")
+    dlq_call = mock_redis.xadd.call_args
+    assert dlq_call.args[0] == "projectcell:events:dlq.failed"
+
+
+@pytest.mark.asyncio
+async def test_subscribe_creates_default_group_when_group_not_supplied(bus, mock_redis):
+    stream_key = bus._get_stream_key("sync.completed")
+    event = _make_event()
+    mock_redis.xautoclaim = AsyncMock(return_value=("0-0", [], []))
+    mock_redis.xreadgroup = AsyncMock(
+        return_value=[(stream_key, [("101-0", {"data": event.model_dump_json()})])]
+    )
+
+    subscription = bus.subscribe(["sync.completed"], timeout=1)
+    received = await anext(subscription)
+    await subscription.aclose()
+
+    assert received.event_id == event.event_id
+    mock_redis.xgroup_create.assert_awaited_once_with(
+        stream_key,
+        "default",
+        id="0",
+        mkstream=True,
+    )
+    assert mock_redis.xreadgroup.call_args.kwargs["groupname"] == "default"
 
 
 # ── publish ──────────────────────────────────────────────────────────

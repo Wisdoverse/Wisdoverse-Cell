@@ -27,7 +27,7 @@ Usage:
 import asyncio
 import os
 import socket
-from typing import AsyncGenerator, Optional, Protocol, runtime_checkable
+from typing import Any, AsyncGenerator, Optional, Protocol, runtime_checkable
 from urllib.parse import urlparse, urlunparse
 
 import redis.asyncio as redis
@@ -136,6 +136,106 @@ class EventBus:
             else:
                 raise
 
+    def _decode_xautoclaim_response(self, response: Any) -> list[tuple[str, list]]:
+        """Normalize redis-py XAUTOCLAIM responses to stream result tuples."""
+        if not response:
+            return []
+
+        messages: list = []
+        if isinstance(response, (list, tuple)):
+            # redis-py returns (next_start_id, [(message_id, fields), ...], deleted_ids).
+            if len(response) >= 2 and isinstance(response[1], list):
+                messages = response[1]
+            # Some clients return [(message_id, fields), ...] directly.
+            elif response and all(isinstance(item, (list, tuple)) for item in response):
+                messages = list(response)
+
+        return messages
+
+    async def _claim_pending(
+        self,
+        *,
+        stream_keys: list[str],
+        group: str,
+        consumer: str,
+    ) -> list[tuple[str, list]]:
+        """Claim idle pending entries so consumer restarts preserve at-least-once delivery."""
+        claimed: list[tuple[str, list]] = []
+        idle_ms = max(1, settings.event_bus_pending_claim_idle_ms)
+        count = max(1, settings.event_bus_pending_claim_count)
+
+        for stream_key in stream_keys:
+            try:
+                response = await self._redis.xautoclaim(
+                    stream_key,
+                    group,
+                    consumer,
+                    min_idle_time=idle_ms,
+                    start_id="0-0",
+                    count=count,
+                )
+            except AttributeError:
+                logger.warning("event_pending_claim_unavailable")
+                return []
+            except Exception as exc:
+                logger.warning(
+                    "event_pending_claim_failed",
+                    stream=stream_key,
+                    group=group,
+                    error=str(exc),
+                )
+                continue
+
+            messages = self._decode_xautoclaim_response(response)
+            if messages:
+                claimed.append((stream_key, messages))
+
+        return claimed
+
+    async def _yield_stream_results(
+        self,
+        results: list[tuple[str, list]],
+        *,
+        group: str,
+    ) -> AsyncGenerator[Event, None]:
+        """Validate, yield, and acknowledge Redis Stream messages."""
+        for stream_key, messages in results:
+            for message_id, fields in messages:
+                event_data = fields.get("data", "")
+                try:
+                    event = Event.model_validate_json(event_data)
+                except ValidationError as ve:
+                    raw_preview = (
+                        event_data[:200] + "..."
+                        if len(event_data) > 200
+                        else event_data
+                    )
+                    logger.error(
+                        "event_validation_failed",
+                        error=str(ve),
+                        raw_event_data_length=len(event_data),
+                    )
+                    await self.publish_raw_dlq(
+                        raw_event_data=raw_preview,
+                        error=str(ve),
+                        agent_id=group,
+                    )
+                    # ACK invalid messages to prevent infinite redelivery.
+                    await self._redis.xack(stream_key, group, message_id)
+                    continue
+
+                logger.debug(
+                    "event_received",
+                    event_id=event.event_id,
+                    event_type=event.event_type,
+                    message_id=message_id,
+                )
+
+                yield event
+
+                # ACK after successful processing by the async-for consumer.
+                await self._redis.xack(stream_key, group, message_id)
+
     async def publish(self, event: Event) -> bool:
         """
         Publish an event to a Redis Stream.
@@ -199,18 +299,18 @@ class EventBus:
         await self.connect()
 
         consumer = self._consumer_name()
+        group_name = group or "default"
         # Build stream keys and ensure consumer groups exist
         streams: dict[str, str] = {}
         for et in event_types:
             stream_key = self._get_stream_key(et)
-            if group:
-                await self._ensure_consumer_group(stream_key, group)
+            await self._ensure_consumer_group(stream_key, group_name)
             streams[stream_key] = ">"  # read only new messages
 
         logger.info(
             "event_subscribed",
             event_types=event_types,
-            group=group,
+            group=group_name,
             consumer=consumer,
         )
 
@@ -219,8 +319,18 @@ class EventBus:
 
         while True:
             try:
+                claimed = await self._claim_pending(
+                    stream_keys=list(streams.keys()),
+                    group=group_name,
+                    consumer=consumer,
+                )
+                if claimed:
+                    async for event in self._yield_stream_results(claimed, group=group_name):
+                        yield event
+                    continue
+
                 results = await self._redis.xreadgroup(
-                    groupname=group or "default",
+                    groupname=group_name,
                     consumername=consumer,
                     streams=streams,
                     count=1,
@@ -230,38 +340,8 @@ class EventBus:
                 if not results:
                     continue
 
-                for stream_key, messages in results:
-                    for message_id, fields in messages:
-                        event_data = fields.get("data", "")
-                        try:
-                            event = Event.model_validate_json(event_data)
-                        except ValidationError as ve:
-                            raw_preview = (event_data[:200] + "...") if len(event_data) > 200 else event_data
-                            logger.error(
-                                "event_validation_failed",
-                                error=str(ve),
-                                raw_event_data_length=len(event_data),
-                            )
-                            await self.publish_raw_dlq(
-                                raw_event_data=raw_preview,
-                                error=str(ve),
-                                agent_id=group or "default",
-                            )
-                            # ACK invalid messages to prevent infinite redelivery
-                            await self._redis.xack(stream_key, group or "default", message_id)
-                            continue
-
-                        logger.debug(
-                            "event_received",
-                            event_id=event.event_id,
-                            event_type=event.event_type,
-                            message_id=message_id,
-                        )
-
-                        yield event
-
-                        # ACK after successful processing
-                        await self._redis.xack(stream_key, group or "default", message_id)
+                async for event in self._yield_stream_results(results, group=group_name):
+                    yield event
 
             except asyncio.CancelledError:
                 # Don't ACK — message will be re-delivered to another consumer

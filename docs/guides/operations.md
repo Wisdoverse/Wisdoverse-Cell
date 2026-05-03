@@ -209,6 +209,25 @@ curl -f http://localhost:8080/health
 curl -f http://localhost:8080/ready
 ```
 
+### 5.1 EventBus Pending Replay
+
+Redis EventBus consumers use Redis Streams consumer groups. A service normally
+reads new messages with `XREADGROUP` and acknowledges them with `XACK` after the
+handler returns. If a consumer exits before acknowledging a message, the next
+consumer pass reclaims idle pending messages with `XAUTOCLAIM` before reading
+new messages.
+
+Relevant settings:
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `EVENT_BUS_PENDING_CLAIM_IDLE_MS` | `60000` | Minimum pending idle time before another consumer may reclaim a message |
+| `EVENT_BUS_PENDING_CLAIM_COUNT` | `10` | Maximum pending messages to reclaim from one stream per poll |
+
+Pending replay preserves at-least-once delivery. Event handlers must still be
+idempotent by `event_id` or a domain-level idempotency key before creating
+irreversible side effects.
+
 ## 6. Scaling
 
 Common scaling commands:
