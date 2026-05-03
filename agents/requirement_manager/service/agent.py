@@ -1,8 +1,8 @@
 """
-RequirementManagerAgent - 需求管理 Agent 核心
+RequirementManagerAgent core.
 
-继承 BaseAgent，实现标准 Agent 接口。
-所有业务逻辑通过此类协调，FastAPI 只是 HTTP 适配器。
+Inherits BaseAgent and implements the standard Agent interface. All business
+logic is coordinated through this class; FastAPI is only the HTTP adapter.
 """
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -37,7 +37,7 @@ logger = get_logger("requirement-manager.agent")
 
 @dataclass
 class IngestResult:
-    """导入会议的结果"""
+    """Meeting ingestion result."""
     meeting_id: str
     requirements_extracted: int
     questions_generated: int
@@ -46,12 +46,12 @@ class IngestResult:
 
 class RequirementManagerAgent(BaseAgent):
     """
-    需求管理 Agent
+    Requirement management agent.
 
-    职责：
-    - 从会议记录中提取需求
-    - 管理需求的生命周期（待确认 -> 已确认/已拒绝）
-    - 发布需求相关事件供其他 Agent 消费
+    Responsibilities:
+    - Extract requirements from meeting records.
+    - Manage the requirement lifecycle from pending to confirmed or rejected.
+    - Publish requirement events for other agents to consume.
     """
 
     def __init__(
@@ -62,7 +62,7 @@ class RequirementManagerAgent(BaseAgent):
         messenger: Optional[FeishuMessengerPort] = None,
         card_renderer: Optional[RequirementCardRendererPort] = None,
     ):
-        # 导入订阅事件列表
+        # Import subscribed event list.
         from .event_handlers import SUBSCRIBED_EVENTS
 
         super().__init__(
@@ -76,7 +76,7 @@ class RequirementManagerAgent(BaseAgent):
                 EventTypes.REQUIREMENT_DELETED,
             ]
         )
-        # 依赖注入，支持测试时替换
+        # Dependency injection supports replacement during tests.
         self._db_manager = db or db_manager
         self._event_bus = bus or event_bus
         self._vector_store = vectors or vector_store
@@ -94,20 +94,20 @@ class RequirementManagerAgent(BaseAgent):
         """Wire the outbound card renderer at the service entry point."""
         self._card_renderer = card_renderer
 
-    # ========== 生命周期 ==========
+    # ========== Lifecycle ==========
 
     async def startup(self):
-        """Agent 启动时初始化资源"""
+        """Initialize resources when the agent starts."""
         logger.info("agent_starting", agent_id=self.agent_id)
 
-        # 初始化数据库表 (production uses Alembic)
+        # Initialize database tables (production uses Alembic).
         if app_settings.app_env == "development":
             await self._db_manager.create_tables()
             logger.info("database_initialized")
         else:
             logger.info("schema_managed_by_alembic")
 
-        # 连接事件总线
+        # Connect EventBus.
         await self._event_bus.connect()
         logger.info("event_bus_connected")
 
@@ -120,7 +120,7 @@ class RequirementManagerAgent(BaseAgent):
         logger.info("agent_started", agent_id=self.agent_id)
 
     async def shutdown(self):
-        """Agent 关闭时清理资源"""
+        """Clean up resources when the agent stops."""
         logger.info("agent_stopping", agent_id=self.agent_id)
 
         await self._event_bus.disconnect()
@@ -128,27 +128,28 @@ class RequirementManagerAgent(BaseAgent):
         # Vector store lifecycle is now managed by VectorStorePlugin.
         # Shutdown is handled via the on_shutdown callback in main.py.
 
-        # 关闭数据库连接
+        # Close database connections.
         await self._db_manager.close()
 
         logger.info("agent_stopped", agent_id=self.agent_id)
 
-    # ========== 事件处理 ==========
+    # ========== Event Handling ==========
 
     async def handle_event(self, event: Event) -> list[Event]:
         """
-        处理接收到的事件
+        Handle a received event.
 
-        委托给 event_handlers 模块处理。
+        Delegates handling to the event_handlers module.
         """
         from .event_handlers import dispatch_event
         return await dispatch_event(self, event)
 
     async def handle_request(self, request: dict) -> dict:
         """
-        处理 API 请求
+        Handle an API request.
 
-        此方法供未来扩展使用，当前通过 FastAPI 路由直接调用业务方法。
+        This method is reserved for future extensions. Current FastAPI routes
+        call business methods directly.
         """
         standard_response = await self.handle_standard_request(request)
         if standard_response is not None:
@@ -234,7 +235,7 @@ class RequirementManagerAgent(BaseAgent):
             return [str(item) for item in value if item is not None]
         return [str(value)]
 
-    # ========== 业务方法 ==========
+    # ========== Business Methods ==========
 
     async def ingest_meeting(
         self,
@@ -248,26 +249,26 @@ class RequirementManagerAgent(BaseAgent):
         source_id: Optional[str] = None,
     ) -> IngestResult:
         """
-        导入会议内容，提取需求
+        Ingest meeting content and extract requirements.
 
         Args:
-            content: 会议原始内容
-            source: 来源（upload/feishu/wechat）
-            session: 数据库会话
-            title: 会议标题
-            meeting_date: 会议日期
-            participants: 参与者列表
-            context: 额外上下文
-            source_id: 来源系统的ID（用于去重）
+            content: Raw meeting content.
+            source: Source channel (upload/feishu/wechat).
+            session: Database session.
+            title: Meeting title.
+            meeting_date: Meeting date.
+            participants: Participant list.
+            context: Additional context.
+            source_id: Source-system ID for deduplication.
 
         Returns:
-            IngestResult 包含提取的需求和问题数量
+            IngestResult with extracted requirement and question counts.
         """
         meeting_repo = MeetingRepository(session)
         requirement_repo = RequirementRepository(session)
         question_repo = QuestionRepository(session)
 
-        # 创建会议记录
+        # Create meeting record.
         meeting = Meeting(
             source=source,
             source_id=source_id,
@@ -286,7 +287,7 @@ class RequirementManagerAgent(BaseAgent):
             content_length=len(content)
         )
 
-        # 提取需求
+        # Extract requirements.
         result = await extractor.extract(
             content=content,
             source=source,
@@ -295,7 +296,7 @@ class RequirementManagerAgent(BaseAgent):
             context=context
         )
 
-        # 保存需求
+        # Save requirements.
         requirements: list[Requirement] = []
         for req in result.requirements:
             requirement = Requirement(
@@ -311,7 +312,7 @@ class RequirementManagerAgent(BaseAgent):
         if requirements:
             await requirement_repo.create_batch(requirements)
 
-            # 同步添加到向量库（非关键路径，失败不阻塞主流程）
+            # Add to vector store synchronously; non-critical failure does not block the main flow.
             try:
                 vector_docs = [
                     {
@@ -332,7 +333,7 @@ class RequirementManagerAgent(BaseAgent):
                     error=str(e),
                 )
 
-        # 保存问题
+        # Save questions.
         questions: list[OpenQuestion] = []
         for q in result.open_questions:
             req_id = requirements[0].id if requirements else None
@@ -347,16 +348,16 @@ class RequirementManagerAgent(BaseAgent):
         if questions:
             await question_repo.create_batch(questions)
 
-        # 标记会议为已处理
+        # Mark meeting as processed.
         await meeting_repo.mark_processed(meeting.id)
 
-        # 发布事件
+        # Publish event.
         await self._publish_requirements_extracted(
             requirements=requirements,
             meeting_id=meeting.id
         )
 
-        # 发送通知（非关键路径，失败不阻塞主流程）
+        # Send notification; non-critical failure does not block the main flow.
         if requirements:
             try:
                 await notification_service.send(
@@ -388,15 +389,15 @@ class RequirementManagerAgent(BaseAgent):
         session: AsyncSession,
     ) -> Optional[Requirement]:
         """
-        确认需求
+        Confirm a requirement.
 
         Args:
-            requirement_id: 需求ID
-            confirmed_by: 确认人
-            session: 数据库会话
+            requirement_id: Requirement ID.
+            confirmed_by: Confirmer.
+            session: Database session.
 
         Returns:
-            确认后的需求，如果不存在返回 None
+            Confirmed requirement, or None if it does not exist.
         """
         repo = RequirementRepository(session)
         requirement = await repo.confirm(requirement_id, confirmed_by)
@@ -410,7 +411,7 @@ class RequirementManagerAgent(BaseAgent):
             confirmed_by=confirmed_by
         )
 
-        # 发布事件
+        # Publish event.
         await self._publish_requirement_confirmed(requirement, confirmed_by)
 
         return requirement
@@ -423,22 +424,22 @@ class RequirementManagerAgent(BaseAgent):
         session: AsyncSession,
     ) -> Optional[Requirement]:
         """
-        拒绝需求
+        Reject a requirement.
 
         Args:
-            requirement_id: 需求ID
-            reason: 拒绝原因
-            rejected_by: 拒绝人
-            session: 数据库会话
+            requirement_id: Requirement ID.
+            reason: Rejection reason.
+            rejected_by: Rejecting user.
+            session: Database session.
 
         Returns:
-            拒绝后的需求，如果不存在返回 None
+            Rejected requirement, or None if it does not exist.
         """
         from .feedback_learning import FeedbackLearningService
 
         repo = RequirementRepository(session)
 
-        # 获取原始需求用于反馈学习
+        # Load the original requirement for feedback learning.
         original_req = await repo.get_by_id(requirement_id)
         if not original_req:
             return None
@@ -462,7 +463,7 @@ class RequirementManagerAgent(BaseAgent):
             rejected_by_hash=hash_identifier(rejected_by),
         )
 
-        # 记录拒绝反馈用于学习（不阻塞主流程）
+        # Record rejection feedback for learning; failure does not block the main flow.
         try:
             feedback_service = FeedbackLearningService(session)
             await feedback_service.record_rejection(
@@ -478,7 +479,7 @@ class RequirementManagerAgent(BaseAgent):
                 error=str(e),
             )
 
-        # 发布事件
+        # Publish event.
         await self._publish_requirement_rejected(requirement, reason)
 
         return requirement
@@ -490,17 +491,17 @@ class RequirementManagerAgent(BaseAgent):
         session: AsyncSession,
     ) -> Optional[Requirement]:
         """
-        删除需求
+        Delete a requirement.
 
-        同时删除向量库记录并发布事件。
+        Also deletes the vector-store record and publishes an event.
 
         Args:
-            requirement_id: 需求ID
-            deleted_by: 删除人
-            session: 数据库会话
+            requirement_id: Requirement ID.
+            deleted_by: Deleting user.
+            session: Database session.
 
         Returns:
-            被删除的需求，如果不存在返回 None
+            Deleted requirement, or None if it does not exist.
         """
         repo = RequirementRepository(session)
         requirement = await repo.delete(requirement_id)
@@ -515,12 +516,12 @@ class RequirementManagerAgent(BaseAgent):
             deleted_by=deleted_by
         )
 
-        # 发布事件
+        # Publish event.
         await self._publish_requirement_deleted(requirement, deleted_by)
 
         return requirement
 
-    # ========== 无 Session 的便捷方法（供 Feishu Handler 使用）==========
+    # ========== Convenience Methods Without External Sessions ==========
 
     async def list_pending_requirements(
         self,
@@ -528,13 +529,13 @@ class RequirementManagerAgent(BaseAgent):
         page_size: int = 5,
     ) -> tuple[list[dict], int, int]:
         """
-        列出待确认需求（自动创建 session）
+        List pending requirements, creating a session internally.
 
-        供 Feishu Bot Handler 使用，无需外部传入 session。
+        Used by the Feishu bot handler without requiring the caller to pass a session.
 
         Args:
-            page: 页码（从 1 开始）
-            page_size: 每页数量
+            page: Page number starting from 1.
+            page_size: Number of items per page.
 
         Returns:
             (requirements_list, total_count, total_pages)
@@ -566,10 +567,10 @@ class RequirementManagerAgent(BaseAgent):
 
     async def get_confirmed_requirements(self) -> list[dict]:
         """
-        获取所有已确认需求（供 PRD 导出使用）
+        Get all confirmed requirements for PRD export.
 
         Returns:
-            已确认需求列表
+            Confirmed requirement list.
         """
         async with self._db_manager.session() as session:
             repo = RequirementRepository(session)
@@ -594,14 +595,14 @@ class RequirementManagerAgent(BaseAgent):
         confirmed_by: str,
     ) -> list[dict]:
         """
-        批量确认需求
+        Confirm requirements in a batch.
 
         Args:
-            requirement_ids: 需求ID列表
-            confirmed_by: 确认人
+            requirement_ids: Requirement ID list.
+            confirmed_by: Confirmer.
 
         Returns:
-            操作结果列表，每个元素包含 requirement_id, success, error
+            Operation results; each item contains requirement_id, success, and error.
         """
         results = []
         async with self._db_manager.session() as session:
@@ -611,7 +612,7 @@ class RequirementManagerAgent(BaseAgent):
                 try:
                     requirement = await repo.confirm(req_id, confirmed_by)
                     if requirement:
-                        # 发布事件
+                        # Publish event.
                         await self._publish_requirement_confirmed(requirement, confirmed_by)
                         results.append({
                             "requirement_id": req_id,
@@ -650,15 +651,15 @@ class RequirementManagerAgent(BaseAgent):
         rejected_by: str,
     ) -> list[dict]:
         """
-        批量拒绝需求
+        Reject requirements in a batch.
 
         Args:
-            requirement_ids: 需求ID列表
-            reason: 拒绝原因（共享）
-            rejected_by: 拒绝人
+            requirement_ids: Requirement ID list.
+            reason: Shared rejection reason.
+            rejected_by: Rejecting user.
 
         Returns:
-            操作结果列表，每个元素包含 requirement_id, success, error
+            Operation results; each item contains requirement_id, success, and error.
         """
         results = []
         async with self._db_manager.session() as session:
@@ -668,7 +669,7 @@ class RequirementManagerAgent(BaseAgent):
                 try:
                     requirement = await repo.reject(req_id, reason=reason, rejected_by=rejected_by)
                     if requirement:
-                        # 发布事件
+                        # Publish event.
                         await self._publish_requirement_rejected(requirement, reason)
                         results.append({
                             "requirement_id": req_id,
@@ -703,13 +704,13 @@ class RequirementManagerAgent(BaseAgent):
 
     async def get_requirement(self, requirement_id: str) -> Optional[Requirement]:
         """
-        获取单个需求详情（自动管理 session）
+        Get a requirement by ID, managing the session internally.
 
         Args:
-            requirement_id: 需求 ID
+            requirement_id: Requirement ID.
 
         Returns:
-            需求对象，不存在则返回 None
+            Requirement object, or None if it does not exist.
         """
         async with self._db_manager.session() as session:
             repo = RequirementRepository(session)
@@ -717,19 +718,19 @@ class RequirementManagerAgent(BaseAgent):
 
     async def get_meeting(self, meeting_id: str) -> Optional[Meeting]:
         """
-        获取单个会议详情（自动管理 session）
+        Get a meeting by ID, managing the session internally.
 
         Args:
-            meeting_id: 会议 ID
+            meeting_id: Meeting ID.
 
         Returns:
-            会议对象，不存在则返回 None
+            Meeting object, or None if it does not exist.
         """
         async with self._db_manager.session() as session:
             repo = MeetingRepository(session)
             return await repo.get_by_id(meeting_id)
 
-    # ========== 会话提取方法（供 SessionManager 使用）==========
+    # ========== Session Extraction Methods ==========
 
     async def extract_from_session(self, session_id: str) -> Optional[IngestResult]:
         """
@@ -886,18 +887,18 @@ class RequirementManagerAgent(BaseAgent):
                 error=str(e),
             )
 
-    # ========== 事件发布（内部方法）==========
+    # ========== Event Publishing Helpers ==========
 
     async def _publish_requirements_extracted(
         self,
         requirements: list[Requirement],
         meeting_id: str
     ):
-        """发布需求提取事件"""
+        """Publish a requirements-extracted event."""
         if not requirements:
             return
 
-        # 发布聚合事件（一次会议提取的所有需求）
+        # Publish aggregate event for all requirements extracted from one meeting.
         event = self.create_event(
             event_type=EventTypes.REQUIREMENT_EXTRACTED,
             payload={
@@ -925,7 +926,7 @@ class RequirementManagerAgent(BaseAgent):
                 requirement_count=len(requirements)
             )
         except Exception as e:
-            # 事件发布失败不阻塞主流程
+            # Event publishing failure does not block the main flow.
             logger.error(
                 "event_publish_failed",
                 event_type=EventTypes.REQUIREMENT_EXTRACTED,
@@ -937,7 +938,7 @@ class RequirementManagerAgent(BaseAgent):
         requirement: Requirement,
         confirmed_by: str
     ):
-        """发布需求确认事件"""
+        """Publish a requirement-confirmed event."""
         event = self.create_event(
             event_type=EventTypes.REQUIREMENT_CONFIRMED,
             payload={
@@ -970,7 +971,7 @@ class RequirementManagerAgent(BaseAgent):
         requirement: Requirement,
         reason: str
     ):
-        """发布需求拒绝事件"""
+        """Publish a requirement-rejected event."""
         event = self.create_event(
             event_type=EventTypes.REQUIREMENT_REJECTED,
             payload={
@@ -1001,7 +1002,7 @@ class RequirementManagerAgent(BaseAgent):
         requirement: Requirement,
         deleted_by: str
     ):
-        """发布需求删除事件"""
+        """Publish a requirement-deleted event."""
         event = self.create_event(
             event_type=EventTypes.REQUIREMENT_DELETED,
             payload={
@@ -1028,10 +1029,10 @@ class RequirementManagerAgent(BaseAgent):
             )
 
 
-# 全局 Agent 实例（单例）
+# Global Agent singleton.
 agent = RequirementManagerAgent()
 
 
 def get_agent() -> RequirementManagerAgent:
-    """获取当前 Agent 实例（支持测试时替换）"""
+    """Get the current Agent instance; tests can replace it."""
     return agent

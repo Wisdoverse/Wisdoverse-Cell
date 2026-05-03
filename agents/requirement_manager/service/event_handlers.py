@@ -1,8 +1,8 @@
 """
-Event Handlers - 事件处理器
+Event handlers.
 
-按事件类型分发处理逻辑。
-当 Agent 订阅事件后，接收到的事件通过此模块路由到对应的处理函数。
+Dispatches handling logic by event type. When the agent subscribes to events,
+received events are routed through this module to the corresponding handler.
 """
 from typing import TYPE_CHECKING
 
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 logger = get_logger("requirement-manager.event_handlers")
 
 
-# 订阅的事件类型
+# Subscribed event types.
 SUBSCRIBED_EVENTS = [
     EventTypes.PROJECT_CREATED,
     EventTypes.PROJECT_UPDATED,
@@ -28,16 +28,16 @@ SUBSCRIBED_EVENTS = [
 
 async def dispatch_event(agent: "RequirementManagerAgent", event: Event) -> list[Event]:
     """
-    事件分发器
+    Event dispatcher.
 
-    根据事件类型路由到对应的处理函数。
+    Routes events to the corresponding handler by event type.
 
     Args:
-        agent: Agent 实例
-        event: 接收到的事件
+        agent: Agent instance.
+        event: Received event.
 
     Returns:
-        处理过程中产生的新事件列表
+        New events produced while handling the input event.
     """
     # Handle coordinator.dispatch inline (no dedicated handler function needed)
     if event.event_type == EventTypes.COORDINATOR_DISPATCH:
@@ -87,16 +87,16 @@ async def dispatch_event(agent: "RequirementManagerAgent", event: Event) -> list
         raise
 
 
-# ========== 事件处理函数 ==========
+# ========== Event Handlers ==========
 
 async def handle_project_created(
     agent: "RequirementManagerAgent",
     event: Event
 ) -> list[Event]:
     """
-    处理项目创建事件
+    Handle project-created events.
 
-    当新项目创建时，自动关联待确认的相关需求。
+    When a new project is created, associate related open requirements.
     """
     payload = event.payload
     project_id = payload.get("project_id")
@@ -114,12 +114,12 @@ async def handle_project_created(
         keywords=keywords
     )
 
-    # 查找可能相关的需求 (基于关键词)
-    # 未来可以实现自动关联逻辑
+    # Find potentially related requirements using keywords.
+    # Automatic association can be implemented later.
     # async with agent._db_manager.session() as session:
     #     repo = RequirementRepository(session)
-    #     # 搜索包含项目关键词的需求
-    #     # 自动添加项目标签
+    #     # Search requirements that contain project keywords.
+    #     # Automatically add project tags.
 
     return []
 
@@ -129,9 +129,9 @@ async def handle_project_updated(
     event: Event
 ) -> list[Event]:
     """
-    处理项目更新事件
+    Handle project-updated events.
 
-    当项目信息更新时，可能需要更新关联需求的状态。
+    When project information changes, related requirement status may need updates.
     """
     payload = event.payload
     project_id = payload.get("project_id")
@@ -143,7 +143,7 @@ async def handle_project_updated(
         changes=list(changes.keys())
     )
 
-    # 未来实现：根据项目状态变化更新需求
+    # Future implementation: update requirements based on project status changes.
     return []
 
 
@@ -152,11 +152,11 @@ async def handle_sprint_started(
     event: Event
 ) -> list[Event]:
     """
-    处理迭代开始事件
+    Handle sprint-started events.
 
-    当新迭代开始时:
-    1. 高亮当前迭代相关的需求
-    2. 发送提醒到飞书群
+    When a new sprint starts:
+    1. Highlight requirements related to the current sprint.
+    2. Send reminders to Feishu groups.
     """
     payload = event.payload
     sprint_id = payload.get("sprint_id")
@@ -172,9 +172,9 @@ async def handle_sprint_started(
         requirement_count=len(requirement_ids)
     )
 
-    # 未来实现:
-    # 1. 标记需求为"本迭代"
-    # 2. 发送飞书通知
+    # Future implementation:
+    # 1. Mark requirements as "current sprint".
+    # 2. Send Feishu notifications.
 
     return []
 
@@ -184,11 +184,11 @@ async def handle_sprint_completed(
     event: Event
 ) -> list[Event]:
     """
-    处理迭代完成事件
+    Handle sprint-completed events.
 
-    当迭代完成时:
-    1. 统计需求完成情况
-    2. 生成迭代报告
+    When a sprint is completed:
+    1. Summarize requirement completion.
+    2. Generate a sprint report.
     """
     payload = event.payload
     sprint_id = payload.get("sprint_id")
@@ -202,9 +202,9 @@ async def handle_sprint_completed(
         incomplete_count=len(incomplete_requirements)
     )
 
-    # 未来实现:
-    # 1. 生成迭代总结
-    # 2. 将未完成需求标记为下迭代
+    # Future implementation:
+    # 1. Generate sprint summary.
+    # 2. Mark incomplete requirements for the next sprint.
 
     return []
 
@@ -214,9 +214,10 @@ async def handle_meeting_uploaded(
     event: Event
 ) -> list[Event]:
     """
-    处理会议上传事件
+    Handle meeting-uploaded events.
 
-    当外部系统（如飞书）通过事件总线发送会议内容时触发。
+    Triggered when external systems such as Feishu send meeting content
+    through the EventBus.
     """
     payload = event.payload
     content = payload.get("content")
@@ -237,7 +238,7 @@ async def handle_meeting_uploaded(
     )
 
     try:
-        # 通过 Agent 处理会议内容
+        # Process meeting content through the agent.
         async with agent._db_manager.session() as session:
             result = await agent.ingest_meeting(
                 content=content,
@@ -262,4 +263,4 @@ async def handle_meeting_uploaded(
             error=str(e)
         )
 
-    return []  # 事件已在 ingest_meeting 中发布
+    return []  # Events have already been published by ingest_meeting.
