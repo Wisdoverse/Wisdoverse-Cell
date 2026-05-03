@@ -13,7 +13,7 @@ Wisdoverse Cell uses layered Docker Compose files under `docker/compose/`:
 | Layer | File | Responsibility |
 |-------|------|----------------|
 | Base infrastructure | `docker-compose.base.yml` | PostgreSQL, PgBouncer, Redis, NATS, Milvus |
-| Application | `docker-compose.app.yml` | Core application services: requirements runtime (`ai-core` runtime id), gateway, and web |
+| Application | `docker-compose.app.yml` | Application services: web, Go gateway, real runtime agents, and support capabilities |
 | Proxy | `docker-compose.proxy.yml` | Traefik reverse proxy |
 | Observability | `docker-compose.observability.yml` | Prometheus, Grafana, Loki, Tempo, exporters |
 | Development override | `docker-compose.override.yml` | Exposed debug ports, single replicas |
@@ -24,7 +24,7 @@ Common modes:
 
 | Mode | Command | Use case |
 |------|---------|----------|
-| Development stack | `make up-dev` | Local Compose stack with debug-friendly defaults and Traefik ingress |
+| Development stack | `make up-dev` | Local Compose stack with infrastructure, web, gateway, real runtime agents, support capabilities, and Traefik ingress |
 | Infrastructure only | `make up-infra` | Run Python/Go/Node processes locally against shared infra |
 | Production-style stack | `make up-prod` | Production-like Compose topology |
 | Observability | `make monitoring-up` | Prometheus/Grafana/Loki/Tempo stack |
@@ -141,6 +141,10 @@ anchor when a new provider is promoted to production use.
 `docker/Dockerfile.agents` is the canonical Python service image. Compose target
 names preserve runtime identifiers for compatibility even when a service is a
 gateway or support capability.
+
+Both the root Compose file and the layered application Compose file include the
+canonical Python runtime services: `ai-core`, `sync-agent`, `analysis-agent`,
+`pjm-agent`, `chat-agent`, `qa-agent`, `dev-agent`, and `evolution-agent`.
 
 Python service images use a runtime-only dependency split:
 

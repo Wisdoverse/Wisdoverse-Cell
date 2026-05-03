@@ -59,6 +59,160 @@ services:
         delay: 5s
         max_attempts: 3
 
+  sync-agent:
+    image: ${REGISTRY}projectcell/sync-agent:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+    deploy:
+      replicas: ${SYNC_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  analysis-agent:
+    image: ${REGISTRY}projectcell/analysis-agent:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+    deploy:
+      replicas: ${ANALYSIS_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  pjm-agent:
+    image: ${REGISTRY}projectcell/pjm-agent:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+    deploy:
+      replicas: ${PM_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  chat-agent:
+    image: ${REGISTRY}projectcell/chat-agent:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+    deploy:
+      replicas: ${CHAT_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  qa-agent:
+    image: ${REGISTRY}projectcell/qa-agent:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+    deploy:
+      replicas: ${QA_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  dev-agent:
+    image: ${REGISTRY}projectcell/dev-agent:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+    deploy:
+      replicas: ${DEV_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  evolution-agent:
+    image: ${REGISTRY}projectcell/evolution-agent:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+    deploy:
+      replicas: ${EVOLUTION_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
   web:
     image: ${REGISTRY}projectcell/web:${VERSION}
     build: !reset null
