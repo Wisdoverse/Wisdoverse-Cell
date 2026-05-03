@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Wisdoverse/project-cell/gateway/internal/client"
@@ -344,15 +345,62 @@ func (h *FeishuHandler) executeSkill(c *gin.Context, match *service.SkillMatch, 
 		c.JSON(http.StatusOK, gin.H{"code": 0})
 
 	case "search":
-		keyword := match.Parameters["keyword"]
-		h.logger.Info("search requested", zap.String("keyword", keyword))
-		// TODO: Implement search via gRPC
+		if h.reqClient == nil {
+			c.JSON(http.StatusOK, gin.H{"code": 0})
+			return
+		}
+		keyword := strings.TrimSpace(match.Parameters["keyword"])
+		h.logger.Info("search requested", zap.String("keyword_hash", shortLogHash(keyword)))
+		if keyword == "" {
+			card := feishu.NewCardBuilder().
+				SetHeader("⚠️ 搜索关键词为空", "orange").
+				AddMarkdown("请输入 `/search <关键词>` 搜索需求。").
+				Build()
+			if err := h.feishuClient.ReplyCard(ctx, messageID, card); err != nil {
+				h.logger.Error("send search usage card failed", zap.Error(err))
+			}
+			c.JSON(http.StatusOK, gin.H{"code": 0})
+			return
+		}
+
+		resp, err := h.reqClient.SearchRequirements(ctx, keyword, chatID, 1, 5)
+		if err != nil {
+			h.logger.Error("search requirements failed", zap.Error(err))
+			c.JSON(http.StatusOK, gin.H{"code": 0})
+			return
+		}
+
+		requirements := make([]feishu.Requirement, len(resp.Requirements))
+		for i, r := range resp.Requirements {
+			requirements[i] = feishu.Requirement{
+				ID:          r.Id,
+				Title:       r.Title,
+				Description: r.Description,
+				Status:      r.Status,
+				Priority:    r.Priority,
+				Category:    r.Category,
+			}
+		}
+
+		card := feishu.BuildRequirementsSearchCard(keyword, requirements, int(resp.Total))
+		if err := h.feishuClient.ReplyCard(ctx, messageID, card); err != nil {
+			h.logger.Error("send search card failed", zap.Error(err))
+		}
+
 		c.JSON(http.StatusOK, gin.H{"code": 0})
 
 	default:
 		h.logger.Debug("skill not implemented", zap.String("skill", match.SkillName))
 		c.JSON(http.StatusOK, gin.H{"code": 0})
 	}
+}
+
+func shortLogHash(value string) string {
+	if value == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(value))
+	return fmt.Sprintf("%x", sum)[:12]
 }
 
 // parseInt converts string to int with error handling.

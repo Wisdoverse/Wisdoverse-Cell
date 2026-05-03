@@ -81,6 +81,51 @@ func BuildRequirementsListCard(requirements []Requirement, page, totalPages, tot
 	return builder.Build()
 }
 
+// BuildRequirementsSearchCard builds a card showing requirement search results.
+func BuildRequirementsSearchCard(keyword string, requirements []Requirement, total int) *Card {
+	builder := NewCardBuilder().
+		SetHeader(fmt.Sprintf("🔎 搜索结果：%s (%d)", truncate(keyword, 30), total), "blue")
+
+	if len(requirements) == 0 {
+		builder.AddMarkdown("未找到匹配的需求。")
+	} else {
+		for i, req := range requirements {
+			content := fmt.Sprintf(
+				"**%d. %s**\n%s\n\n`%s` | `%s` | `%s` | ID: `%s`",
+				i+1,
+				req.Title,
+				truncate(req.Description, 100),
+				statusLabel(req.Status),
+				priorityLabel(req.Priority),
+				categoryLabel(req.Category),
+				req.ID,
+			)
+			builder.AddMarkdown(content)
+
+			if req.Status == "PENDING" {
+				builder.AddActions(
+					NewPrimaryButton("✓ 确认", map[string]interface{}{
+						"action":         "confirm",
+						"requirement_id": req.ID,
+					}),
+					NewDangerButton("✗ 拒绝", map[string]interface{}{
+						"action":         "reject",
+						"requirement_id": req.ID,
+					}),
+				)
+			}
+
+			if i < len(requirements)-1 {
+				builder.AddDivider()
+			}
+		}
+	}
+
+	builder.AddNote(fmt.Sprintf("显示 %d/%d 条匹配结果", len(requirements), total))
+
+	return builder.Build()
+}
+
 // BuildRequirementDetailCard builds a card showing requirement details.
 func BuildRequirementDetailCard(req Requirement, showActions bool) *Card {
 	builder := NewCardBuilder().

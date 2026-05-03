@@ -102,6 +102,45 @@ func TestBuildRequirementsListCard_Pagination(t *testing.T) {
 	}
 }
 
+// --- BuildRequirementsSearchCard ---
+
+func TestBuildRequirementsSearchCard_Empty(t *testing.T) {
+	card := BuildRequirementsSearchCard("offline", nil, 0)
+	js := cardJSON(t, card)
+
+	if !strings.Contains(js, "🔎 搜索结果：offline (0)") {
+		t.Error("header should include the search keyword and total count")
+	}
+	if !strings.Contains(js, "未找到匹配的需求。") {
+		t.Error("empty search card should contain empty message")
+	}
+	if !strings.Contains(js, "显示 0/0 条匹配结果") {
+		t.Error("search card should contain result count note")
+	}
+}
+
+func TestBuildRequirementsSearchCard_WithItems(t *testing.T) {
+	reqs := []Requirement{
+		{ID: "req-001", Title: "Login Feature", Description: "Add login", Status: "PENDING", Priority: "P0", Category: "FEATURE"},
+		{ID: "req-002", Title: "Closed Bug", Description: "Fix crash", Status: "CONFIRMED", Priority: "P1", Category: "BUG"},
+	}
+	card := BuildRequirementsSearchCard("login", reqs, 8)
+	js := cardJSON(t, card)
+
+	if !strings.Contains(js, "Login Feature") {
+		t.Error("should contain the first requirement title")
+	}
+	if !strings.Contains(js, "Closed Bug") {
+		t.Error("should contain the second requirement title")
+	}
+	if !strings.Contains(js, "显示 2/8 条匹配结果") {
+		t.Error("should show visible and total result counts")
+	}
+	if !strings.Contains(js, "✓ 确认") {
+		t.Error("pending result should include the confirm action")
+	}
+}
+
 // --- BuildRequirementDetailCard ---
 
 func TestBuildRequirementDetailCard(t *testing.T) {
