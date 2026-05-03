@@ -5,7 +5,7 @@ Covers:
 - EventTypes constants exist with correct values
 - Payload model construction with valid data
 - Payload model validation rejects invalid data
-- All 6 event types registered in EVENT_PAYLOAD_MODELS
+- Runtime event types are registered in EVENT_PAYLOAD_MODELS
 """
 import pytest
 from pydantic import ValidationError
@@ -46,6 +46,7 @@ from shared.schemas.event_payloads import (
     PMApprovalTimeoutPayload,
     PMDecomposeCompletedPayload,
     PMDecompositionFailedPayload,
+    PMPrdReadyPayload,
     PMTasksReadyForDevPayload,
     ProjectEventPayload,
     QualityEvaluatedPayload,
@@ -66,6 +67,9 @@ from shared.schemas.event_payloads import (
 class TestEventTypes:
     def test_pm_tasks_ready_for_dev(self):
         assert EventTypes.PM_TASKS_READY_FOR_DEV == "pm.tasks-ready-for-dev"
+
+    def test_pm_prd_ready(self):
+        assert EventTypes.PM_PRD_READY == "pm.prd-ready"
 
     def test_dev_workflow_created(self):
         assert EventTypes.DEV_WORKFLOW_CREATED == "dev.workflow-created"
@@ -175,6 +179,22 @@ class TestPMTasksReadyForDevPayload:
     def test_missing_wp_id(self):
         with pytest.raises(ValidationError):
             PMTasksReadyForDevPayload(tasks=[DevTaskInfo(id=1, title="X")])  # type: ignore[call-arg]
+
+
+# ============ PMPrdReadyPayload ============
+
+class TestPMPrdReadyPayload:
+    def test_construction(self):
+        payload = PMPrdReadyPayload(
+            requirement_id="req_001",
+            prd_id="prd_001",
+            title="Login PRD",
+            prd_uri="https://docs.example/prd_001",
+            summary="Ready for decomposition",
+            workflow_id="wf_001",
+        )
+        assert payload.requirement_id == "req_001"
+        assert payload.prd_id == "prd_001"
 
 
 # ============ DevWorkflowCreatedPayload ============
@@ -328,6 +348,7 @@ class TestEventPayloadModelsRegistration:
             ("pm.decompose-completed", PMDecomposeCompletedPayload),
             ("pm.decomposition-failed", PMDecompositionFailedPayload),
             ("pm.approval-timeout", PMApprovalTimeoutPayload),
+            ("pm.prd-ready", PMPrdReadyPayload),
             ("coordinator.command", CoordinatorCommand),
             ("coordinator.response", CoordinatorResponse),
             ("coordinator.dispatch", CoordinatorDispatchPayload),
@@ -617,6 +638,13 @@ class TestPMAndAnalysisPayloadContracts:
             {"record_id": "dec_001", "age_hours": 24.5},
         )
         assert isinstance(result, PMApprovalTimeoutPayload)
+
+    def test_validate_pm_prd_ready_payload(self):
+        result = validate_event_payload(
+            "pm.prd-ready",
+            {"requirement_id": "req_001", "title": "Login PRD"},
+        )
+        assert isinstance(result, PMPrdReadyPayload)
 
 
 class TestEvolutionPayloadContracts:

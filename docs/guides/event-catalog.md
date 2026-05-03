@@ -48,8 +48,8 @@ actions only when the event intentionally requests work, such as `sync.trigger`.
 | `sync.started` | sync capability | Event observers | Synchronization started |
 | `sync.completed` | sync capability | project management, analysis | Synchronization completed |
 | `sync.failed` | sync capability | Event observers | Synchronization failed |
-| `sync.trigger` | user interaction gateway | sync capability | User or scheduler requested sync |
-| `sync.task-needs-decompose` | sync capability | project management | Synced work item needs decomposition |
+| `sync.trigger` | user interaction gateway or scheduler/API | sync capability | User or scheduler requested sync |
+| `sync.task-needs-decompose` | sync capability or PJM retry path | project management | Synced work item needs decomposition |
 | `report.daily-generated` | analysis capability | Event observers | Daily report generated |
 | `report.weekly-generated` | analysis capability | Event observers | Weekly report generated |
 | `analysis.risk-detected` | analysis capability | project management | Project risk detected |
@@ -58,8 +58,20 @@ actions only when the event intentionally requests work, such as `sync.trigger`.
 | `pm.decompose-completed` | project management | Event observers | Decomposition completed |
 | `pm.decomposition-failed` | project management | Event observers | Decomposition failed |
 | `pm.approval-timeout` | project management | Event observers | Decomposition approval timed out |
+| `pm.prd-ready` | requirement manager or external PRD workflow | coordinator | PRD is ready for downstream decomposition planning |
+| `pm.tasks-ready-for-dev` | project management or coordinator | dev agent | Decomposed tasks are ready for development |
 | `chat.pm-query` | user interaction gateway | project management | User asked a PM-related question |
 | `chat.pm-response` | project management | user interaction gateway | PM query answer produced |
+| `coordinator.command` | user interaction gateway or control-plane API | coordinator | User or operator intent requires orchestration |
+| `coordinator.response` | coordinator | user interaction gateway | Coordinator response for the requesting surface |
+| `coordinator.dispatch` | coordinator | runtime agents or capability modules | Coordinator dispatched work to a target boundary |
+| `qa.run-requested` | dev agent or coordinator | QA agent | QA acceptance was requested for a code change |
+| `qa.acceptance-completed` | QA agent | project management and dev agent | Acceptance run completed |
+| `qa.gate-failed` | QA agent | project management | Acceptance gate failed with failure details |
+| `dev.workflow-created` | dev agent | Event observers | AgentForge workflow was created for a task |
+| `dev.mr-created` | dev agent | Event observers | Merge request was created |
+| `dev.task-completed` | dev agent | Event observers | Development task completed |
+| `dev.task-failed` | dev agent | Event observers | Development task failed |
 | `channel.message.inbound` | channel gateway | Event observers | External message received |
 | `channel.message.outbound` | agents or services | channel gateway | Request delivery to an external channel |
 | `channel.message.delivered` | channel gateway | Event observers | Message delivery result recorded |
@@ -232,7 +244,10 @@ Example `sync.trigger` payload:
 records in `evaluations`. `pm.decomposition-failed` and `pm.approval-timeout`
 are failure-evidence events; both should keep the workflow trace when one is
 available so the Coordinator and operator surfaces can connect the failure to
-the original work.
+the original work. `pm.tasks-ready-for-dev` is a command-style handoff to the
+dev agent and must include the decomposed task list. `pm.prd-ready` is consumed
+by the coordinator when an upstream PRD generation boundary has already produced
+the product document.
 
 Example `pm.decomposition-failed` payload:
 
@@ -241,6 +256,36 @@ Example `pm.decomposition-failed` payload:
   "error": "LLM timeout",
   "requirement_title": "Login flow",
   "trace_id": "trace_..."
+}
+```
+
+## 3.5 Coordinator, Development, and QA Events
+
+Coordinator events are orchestration contracts, not direct package imports.
+`coordinator.command` enters the coordinator boundary, `coordinator.dispatch`
+routes work to a target runtime boundary, and `coordinator.response` returns a
+compact response to the requesting gateway. Targeted coordinator decisions may
+also emit the concrete downstream command event directly, such as
+`pm.tasks-ready-for-dev` for the dev agent or `qa.run-requested` for the QA
+agent.
+
+The dev agent publishes workflow-created, merge-request-created, task-completed,
+and task-failed evidence, and may request QA with `qa.run-requested` after
+creating a merge request. The QA agent consumes `qa.run-requested` and
+publishes acceptance facts through `qa.acceptance-completed` and
+`qa.gate-failed`.
+
+Example `qa.run-requested` payload:
+
+```json
+{
+  "agent_name": "dev-agent",
+  "level": "all",
+  "commit_sha": "abc1234",
+  "files_changed": ["agents/dev_agent/service/agent.py"],
+  "mr_iid": 137,
+  "gitlab_project_id": 42,
+  "requested_by": "dev-agent"
 }
 ```
 
@@ -267,11 +312,12 @@ Required or recommended fields:
 | requirement manager agent | `requirement.*` | `project.*`, `sprint.*`, `meeting.uploaded`, `coordinator.dispatch` |
 | sync runtime | `sync.*` with `scope=full`, `openproject`, or `feishu_bitable` | `sync.trigger`, scheduler/API trigger paths |
 | analysis capability | `report.*`, `analysis.*` | `sync.completed` |
-| PJM agent | `pm.*`, `chat.pm-response` | `sync.completed`, `sync.task-needs-decompose`, `analysis.risk-detected`, `chat.pm-query` |
-| user interaction gateway | `chat.pm-query`, `sync.trigger` | `chat.pm-response` |
+| PJM agent | `pm.*`, `chat.pm-response`, retry `sync.task-needs-decompose` | `sync.completed`, `sync.task-needs-decompose`, `analysis.risk-detected`, `chat.pm-query`, `coordinator.dispatch` |
+| user interaction gateway | `chat.pm-query`, `coordinator.command`, `sync.trigger` | `chat.pm-response`, `coordinator.response` |
+| coordinator | `coordinator.response`, `coordinator.dispatch`, `pm.tasks-ready-for-dev`, `qa.run-requested` | `coordinator.command`, `task.notification`, `task.progress`, `pm.prd-ready`, `pm.decompose-completed`, `pm.decomposition-failed`, `analysis.risk-detected` |
 | channel gateway | `channel.message.inbound`, `channel.message.delivered`, `channel.adapter.status` | `channel.message.outbound`, adapter-specific platform callbacks |
-| QA agent | `qa.*` | code or CI events when enabled |
-| Dev agent | development workflow events | decomposed work items when enabled |
+| QA agent | `qa.acceptance-completed`, `qa.gate-failed` | `code.committed`, `qa.run-requested` |
+| Dev agent | `dev.workflow-created`, `dev.mr-created`, `dev.task-completed`, `dev.task-failed`, `qa.run-requested` | `pm.tasks-ready-for-dev`, `qa.acceptance-completed` |
 | evolution capability | `evolution.*` | `evolution.cycle-triggered`, `evolution.human-feedback`, `evolution.pattern-approved`; reads persisted execution traces |
 | control plane | `goal.*`, `work_item.*`, `agent_run.*`, `audit.*` | runtime evidence and operator actions |
 
@@ -294,10 +340,21 @@ active EventBus contract until a publisher and consumer are wired.
 | Event type | Producer | Consumer | Purpose |
 |------------|----------|----------|---------|
 | `code.committed` | CI pipeline or GitLab webhook | QA agent | Code commit available for acceptance |
+| `qa.run-requested` | dev agent or coordinator | QA agent | Acceptance run requested |
 | `qa.acceptance-completed` | QA agent | project management and dev agent | Acceptance run completed |
 | `qa.gate-failed` | QA agent | project management | Acceptance gate failed with failure details |
 
-## 8. Reserved Events
+## 8. Dev Agent Events
+
+| Event type | Producer | Consumer | Purpose |
+|------------|----------|----------|---------|
+| `pm.tasks-ready-for-dev` | PJM agent or coordinator | Dev agent | Development tasks are ready for execution |
+| `dev.workflow-created` | Dev agent | Event observers | AgentForge workflow was created |
+| `dev.mr-created` | Dev agent | Event observers | Merge request was created |
+| `dev.task-completed` | Dev agent | Event observers | Development task completed after QA |
+| `dev.task-failed` | Dev agent | Event observers | Development task failed |
+
+## 9. Reserved Events
 
 These names are reserved for future implementation. Do not reuse them for a
 different meaning.
@@ -314,8 +371,9 @@ different meaning.
 | `ticket` | `ticket.created` |
 | `approval` | `approval.requested`, `approval.granted`, `approval.rejected` |
 | `evolution` | `execution.traced`, `evolution.pattern-shadow-complete` |
+| `dev` | `dev.workflow-completed` |
 
-## 9. External Producer Boundaries
+## 10. External Producer Boundaries
 
 These events are consumed by the repository runtime, but their producers are
 external systems, gateways, schedulers, or deployment-specific integration
@@ -328,6 +386,7 @@ services. Wire producers only through HTTP or EventBus boundaries.
 | `sprint.started` | requirement manager agent | Consumer implemented; producer is external or deployment-specific |
 | `sprint.completed` | requirement manager agent | Consumer implemented; producer is external or deployment-specific |
 | `meeting.uploaded` | requirement manager agent | Consumer implemented; can also use `/agent/request` ingest |
+| `pm.prd-ready` | coordinator | Consumer implemented; producer is a PRD generation boundary or deployment-specific workflow |
 
 When implementing a new producer for these events, update this catalog, add
 payload tests, and include migration notes if consumer behavior changes.

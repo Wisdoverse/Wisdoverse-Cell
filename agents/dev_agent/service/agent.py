@@ -50,10 +50,10 @@ class DevAgent(BaseAgent):
             ],
             published_events=[
                 EventTypes.DEV_WORKFLOW_CREATED,
-                EventTypes.DEV_WORKFLOW_COMPLETED,
                 EventTypes.DEV_MR_CREATED,
                 EventTypes.DEV_TASK_COMPLETED,
                 EventTypes.DEV_TASK_FAILED,
+                EventTypes.QA_RUN_REQUESTED,
             ],
         )
         self._sanitizer = InputSanitizer()

@@ -565,6 +565,19 @@ class PMApprovalTimeoutPayload(BaseModel):
     age_hours: float = Field(..., ge=0)
 
 
+class PMPrdReadyPayload(BaseModel):
+    """pm.prd-ready event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    requirement_id: str | None = None
+    prd_id: str | None = None
+    title: str = ""
+    prd_uri: str | None = None
+    summary: str = ""
+    workflow_id: str | None = None
+
+
 # ============ QA Acceptance Events ============
 
 class AcceptanceFindingPayload(BaseModel):
@@ -794,6 +807,7 @@ EVENT_PAYLOAD_MODELS = {
     "pm.decompose-completed": PMDecomposeCompletedPayload,
     "pm.decomposition-failed": PMDecompositionFailedPayload,
     "pm.approval-timeout": PMApprovalTimeoutPayload,
+    "pm.prd-ready": PMPrdReadyPayload,
     "code.committed": CodeCommittedPayload,
     "qa.run-requested": QARunRequestedPayload,
     "qa.acceptance-completed": QAAcceptanceCompletedPayload,

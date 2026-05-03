@@ -36,6 +36,8 @@ class CoordinatorAgent(BaseAgent):
             published_events=[
                 EventTypes.COORDINATOR_RESPONSE,
                 EventTypes.COORDINATOR_DISPATCH,
+                EventTypes.PM_TASKS_READY_FOR_DEV,
+                EventTypes.QA_RUN_REQUESTED,
             ],
         )
         self._scratchpad = Scratchpad()

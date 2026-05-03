@@ -69,6 +69,8 @@ class TestAgentInit:
         assert EventTypes.CHAT_PM_RESPONSE in agent.published_events
         assert EventTypes.PM_DECOMPOSITION_FAILED in agent.published_events
         assert EventTypes.PM_APPROVAL_TIMEOUT in agent.published_events
+        assert EventTypes.PM_TASKS_READY_FOR_DEV in agent.published_events
+        assert EventTypes.SYNC_TASK_NEEDS_DECOMPOSE in agent.published_events
         assert len(agent.published_events) >= 2
 
 

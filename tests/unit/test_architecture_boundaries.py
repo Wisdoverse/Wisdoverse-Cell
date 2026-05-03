@@ -124,8 +124,14 @@ def test_event_catalog_uses_canonical_runtime_event_names() -> None:
     expected = {
         EventTypes.PM_DECOMPOSITION_FAILED,
         EventTypes.PM_APPROVAL_TIMEOUT,
+        EventTypes.PM_PRD_READY,
+        EventTypes.PM_TASKS_READY_FOR_DEV,
+        EventTypes.QA_RUN_REQUESTED,
         EventTypes.QA_ACCEPTANCE_COMPLETED,
         EventTypes.QA_GATE_FAILED,
+        EventTypes.COORDINATOR_COMMAND,
+        EventTypes.COORDINATOR_RESPONSE,
+        EventTypes.COORDINATOR_DISPATCH,
         "channel.message.outbound",
         "channel.message.delivered",
     }

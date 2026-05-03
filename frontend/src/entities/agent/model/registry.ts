@@ -102,7 +102,7 @@ export const AGENT_REGISTRY: Record<string, AgentMeta> = {
     businessAgent: false,
     contextSources: ["feishu", "control_plane"],
     upstream: [],
-    downstream: ["coordinator"],
+    downstream: ["coordinator", "sync-agent"],
   },
   coordinator: {
     id: "coordinator",
@@ -139,7 +139,7 @@ export const AGENT_REGISTRY: Record<string, AgentMeta> = {
     implemented: true,
     businessAgent: false,
     contextSources: ["openproject", "feishu", "control_plane"],
-    upstream: [],
+    upstream: ["chat-agent"],
     downstream: ["pjm-agent", "analysis-agent"],
   },
   "pjm-agent": {
@@ -196,7 +196,7 @@ export const AGENT_REGISTRY: Record<string, AgentMeta> = {
     implemented: true,
     businessAgent: true,
     contextSources: ["gitlab", "control_plane"],
-    upstream: ["dev-agent"],
+    upstream: ["dev-agent", "coordinator"],
     downstream: [],
   },
   "dev-agent": {

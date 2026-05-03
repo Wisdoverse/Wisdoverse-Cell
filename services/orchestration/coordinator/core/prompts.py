@@ -30,6 +30,6 @@ Return a JSON object with a "decisions" array. Each decision has:
 - For dev-agent: context MUST include wp_id and tasks[] (existing contract)
 - For qa-agent: context MUST include agent_name, commit_sha, mr_iid, gitlab_project_id, files_changed
 - Wait for pm.decompose-completed before sending work to dev-agent
-- After PRD is ready, emit pm.prd_ready first, wait for decomposition
+- After PRD is ready, wait for the canonical pm.prd-ready event before decomposition
 - If you cannot decide, return {"decisions": []} to wait for more information
 """

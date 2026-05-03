@@ -67,6 +67,7 @@ class PMAgent(BaseAgent):
                 EventTypes.PM_DECOMPOSITION_FAILED,
                 EventTypes.PM_APPROVAL_TIMEOUT,
                 EventTypes.PM_TASKS_READY_FOR_DEV,
+                EventTypes.SYNC_TASK_NEEDS_DECOMPOSE,
             ],
         )
         self._db_manager = db or db_manager

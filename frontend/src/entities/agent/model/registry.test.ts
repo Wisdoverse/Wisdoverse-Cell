@@ -92,6 +92,16 @@ describe("agent registry architecture boundary", () => {
     });
   });
 
+  it("documents event-driven topology for gateway, sync, dev, and QA", () => {
+    expect(AGENT_REGISTRY["chat-agent"].downstream).toEqual(
+      expect.arrayContaining(["coordinator", "sync-agent"]),
+    );
+    expect(AGENT_REGISTRY["sync-agent"].upstream).toContain("chat-agent");
+    expect(AGENT_REGISTRY["qa-agent"].upstream).toEqual(
+      expect.arrayContaining(["dev-agent", "coordinator"]),
+    );
+  });
+
   it("maps control-plane records into manageable organization-role agents", () => {
     const meta = agentDefinitionToMeta(controlPlaneAgent());
 

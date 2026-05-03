@@ -25,6 +25,7 @@ async def test_agent_init(mock_event_bus, mock_chat_service):
     assert agent.published_events == [
         EventTypes.CHAT_PM_QUERY,
         EventTypes.COORDINATOR_COMMAND,
+        EventTypes.SYNC_TRIGGER,
     ]
 
 

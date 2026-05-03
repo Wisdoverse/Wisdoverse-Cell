@@ -29,8 +29,10 @@ def test_subscribed_events():
 def test_published_events():
     agent = DevAgent()
     assert EventTypes.DEV_WORKFLOW_CREATED in agent.published_events
+    assert EventTypes.DEV_MR_CREATED in agent.published_events
     assert EventTypes.DEV_TASK_COMPLETED in agent.published_events
     assert EventTypes.DEV_TASK_FAILED in agent.published_events
+    assert EventTypes.QA_RUN_REQUESTED in agent.published_events
 
 
 @pytest.mark.asyncio

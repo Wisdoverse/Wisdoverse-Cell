@@ -15,6 +15,10 @@ async def test_coordinator_agent_init():
     assert EventTypes.COORDINATOR_COMMAND in agent.subscribed_events
     assert EventTypes.TASK_NOTIFICATION in agent.subscribed_events
     assert EventTypes.TASK_PROGRESS in agent.subscribed_events
+    assert EventTypes.COORDINATOR_RESPONSE in agent.published_events
+    assert EventTypes.COORDINATOR_DISPATCH in agent.published_events
+    assert EventTypes.PM_TASKS_READY_FOR_DEV in agent.published_events
+    assert EventTypes.QA_RUN_REQUESTED in agent.published_events
 
 
 @pytest.mark.asyncio

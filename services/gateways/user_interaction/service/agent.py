@@ -37,6 +37,7 @@ class ChatAgent(BaseAgent):
             published_events=[
                 EventTypes.CHAT_PM_QUERY,
                 EventTypes.COORDINATOR_COMMAND,
+                EventTypes.SYNC_TRIGGER,
             ],
         )
         self._db_manager = db or db_manager
