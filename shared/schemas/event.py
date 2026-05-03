@@ -113,6 +113,14 @@ class Event(BaseModel):
     # Optional fields
     metadata: EventMetadata = Field(default_factory=EventMetadata)
 
+    @field_validator("event_id")
+    @classmethod
+    def _validate_event_id(cls, event_id: str) -> str:
+        """Require a stable explicit event identifier when one is provided."""
+        if not event_id.strip():
+            raise ValueError("event_id must be a stable non-empty identifier")
+        return event_id
+
     @field_validator("event_type")
     @classmethod
     def _validate_event_type(cls, event_type: str) -> str:

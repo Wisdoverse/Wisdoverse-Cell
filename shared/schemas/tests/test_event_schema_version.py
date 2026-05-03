@@ -53,6 +53,24 @@ class TestEventSchemaVersion:
         )
         assert event.schema_version == "1.0"
 
+    def test_event_id_requires_stable_identifier(self):
+        for event_id in ("", "   "):
+            with pytest.raises(ValidationError, match="event_id must be"):
+                Event(
+                    event_id=event_id,
+                    event_type="test.created",
+                    source_agent="test-agent",
+                    payload={},
+                )
+
+        event = Event(
+            event_id="orig_123",
+            event_type="test.created",
+            source_agent="test-agent",
+            payload={},
+        )
+        assert event.event_id == "orig_123"
+
     def test_event_type_requires_domain_action_name(self):
         with pytest.raises(ValidationError, match="event_type must use"):
             Event.create(
