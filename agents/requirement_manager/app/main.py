@@ -10,6 +10,7 @@ from shared.integrations.feishu.router import router as feishu_router
 from shared.integrations.wecom.router import router as wecom_router
 from shared.middleware.internal_auth import verify_internal_key
 
+from ..adapters.feishu_cards import FeishuRequirementCardRenderer
 from ..api import (
     admin_router,
     export_router,
@@ -29,6 +30,7 @@ from .plugins import (
 from .routes import api_info_router, api_v1_redirect_router
 
 agent.configure_messenger(get_feishu_client())
+agent.configure_card_renderer(FeishuRequirementCardRenderer())
 
 
 async def _on_startup(runtime: AgentRuntime) -> None:

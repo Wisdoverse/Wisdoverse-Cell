@@ -19,6 +19,7 @@ from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
+from ..core.card_ports import RequirementCardRendererPort
 from ..core.extractor import extractor
 from ..db.database import DatabaseManager, db_manager
 from ..db.repository import (
@@ -58,6 +59,7 @@ class RequirementManagerAgent(BaseAgent):
         bus: Optional[EventBus] = None,
         vectors: Optional[VectorStore] = None,
         messenger: Optional[FeishuMessengerPort] = None,
+        card_renderer: Optional[RequirementCardRendererPort] = None,
     ):
         # 导入订阅事件列表
         from .event_handlers import SUBSCRIBED_EVENTS
@@ -78,10 +80,18 @@ class RequirementManagerAgent(BaseAgent):
         self._event_bus = bus or event_bus
         self._vector_store = vectors or vector_store
         self._messenger = messenger
+        self._card_renderer = card_renderer
 
     def configure_messenger(self, messenger: FeishuMessengerPort | None) -> None:
         """Wire the outbound messaging adapter at the service entry point."""
         self._messenger = messenger
+
+    def configure_card_renderer(
+        self,
+        card_renderer: RequirementCardRendererPort | None,
+    ) -> None:
+        """Wire the outbound card renderer at the service entry point."""
+        self._card_renderer = card_renderer
 
     # ========== 生命周期 ==========
 
@@ -806,21 +816,6 @@ class RequirementManagerAgent(BaseAgent):
         Similar to existing notification but includes session context.
         """
         try:
-            from agents.requirement_manager.integrations.feishu.cards.requirement import (
-                build_requirement_extracted_card,
-            )
-
-            # Build card with requirements
-            card = build_requirement_extracted_card(
-                requirements=result.requirements if hasattr(result, 'requirements') else [],
-                meeting_title=f"群聊会话 {session_id[:8]}...",
-                questions_count=(
-                    result.questions_generated
-                    if hasattr(result, "questions_generated")
-                    else 0
-                ),
-            )
-
             if self._messenger is None:
                 logger.warning(
                     "session_extraction_card_skipped",
@@ -829,6 +824,26 @@ class RequirementManagerAgent(BaseAgent):
                     session_id=session_id,
                 )
                 return
+            if self._card_renderer is None:
+                logger.warning(
+                    "session_extraction_card_skipped",
+                    reason="card_renderer_not_configured",
+                    chat_hash=hash_identifier(chat_id),
+                    session_id=session_id,
+                )
+                return
+
+            card = self._card_renderer.extraction_result_card(
+                requirements=(
+                    result.requirements if hasattr(result, "requirements") else []
+                ),
+                meeting_title=f"群聊会话 {session_id[:8]}...",
+                questions_count=(
+                    result.questions_generated
+                    if hasattr(result, "questions_generated")
+                    else 0
+                ),
+            )
 
             await self._messenger.send_card(
                 receive_id=chat_id,

@@ -135,6 +135,19 @@ def test_agent_core_does_not_import_platform_adapters_directly() -> None:
                 )
 
 
+def test_agent_service_does_not_import_agent_local_integrations_directly() -> None:
+    for agent_root in AGENT_ROOTS:
+        root = Path("agents") / agent_root / "service"
+        if not root.exists():
+            continue
+        for path in _python_files(root):
+            for module in _imported_modules(path):
+                assert not module.startswith(f"agents.{agent_root}.integrations"), (
+                    f"{path} imports agent-local integration module {module}; "
+                    "inject an agent-local adapter or port"
+                )
+
+
 def test_gateway_core_does_not_import_platform_adapters_directly() -> None:
     gateway_roots = [Path("services/gateways")]
     for gateway_root in gateway_roots:

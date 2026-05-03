@@ -18,9 +18,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from agents.requirement_manager.integrations.feishu.cards import (
-    requirement as _req_cards_mod,
-)
 from agents.requirement_manager.service.agent import (
     IngestResult,
     RequirementManagerAgent,
@@ -587,11 +584,14 @@ class TestSendSessionExtractionCard:
         """验证成功发送卡片"""
         mock_client = MagicMock()
         mock_client.send_card = AsyncMock()
+        mock_renderer = MagicMock()
+        mock_renderer.extraction_result_card.return_value = {"card": "data"}
         test_agent = RequirementManagerAgent(
             db=MagicMock(),
             bus=MagicMock(),
             vectors=MagicMock(),
             messenger=mock_client,
+            card_renderer=mock_renderer,
         )
 
         mock_result = IngestResult(
@@ -601,28 +601,32 @@ class TestSendSessionExtractionCard:
             requirement_ids=["req_1", "req_2"]
         )
 
-        with patch.object(_req_cards_mod, "build_requirement_extracted_card") as mock_build:
-            mock_build.return_value = {"card": "data"}
+        await test_agent._send_session_extraction_card(
+            "chat_456",
+            mock_result,
+            "ses_abc123",
+        )
 
-            await test_agent._send_session_extraction_card("chat_456", mock_result, "ses_abc123")
-
-            mock_build.assert_called_once()
-            mock_client.send_card.assert_called_once_with(
-                receive_id="chat_456",
-                receive_id_type="chat_id",
-                card={"card": "data"}
-            )
+        mock_renderer.extraction_result_card.assert_called_once()
+        mock_client.send_card.assert_called_once_with(
+            receive_id="chat_456",
+            receive_id_type="chat_id",
+            card={"card": "data"}
+        )
 
     @pytest.mark.asyncio
     async def test_send_card_handles_error(self):
         """验证卡片发送失败时不抛出异常"""
         mock_client = MagicMock()
         mock_client.send_card = AsyncMock(side_effect=Exception("Connection error"))
+        mock_renderer = MagicMock()
+        mock_renderer.extraction_result_card.return_value = {"card": "data"}
         test_agent = RequirementManagerAgent(
             db=MagicMock(),
             bus=MagicMock(),
             vectors=MagicMock(),
             messenger=mock_client,
+            card_renderer=mock_renderer,
         )
 
         mock_result = IngestResult(

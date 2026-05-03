@@ -1,0 +1,2 @@
+"""Requirement Manager outbound adapters."""
+
