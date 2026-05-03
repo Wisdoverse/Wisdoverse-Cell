@@ -13,6 +13,7 @@ Design principles:
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections import Counter
 from typing import TYPE_CHECKING, Any, Optional
@@ -296,7 +297,8 @@ class SelfReflector:
                 agent_id=agent_id,
                 skill_id=skill_id,
                 error=str(exc),
-                raw_preview=raw[:200],
+                raw_bytes=len(raw.encode("utf-8")),
+                raw_sha256=hashlib.sha256(raw.encode("utf-8")).hexdigest(),
             )
             return None
 

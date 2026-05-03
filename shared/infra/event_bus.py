@@ -25,6 +25,7 @@ Usage:
         await handle_event(event)
 """
 import asyncio
+import hashlib
 import os
 import socket
 from typing import Any, AsyncGenerator, Optional, Protocol, runtime_checkable
@@ -275,18 +276,13 @@ class EventBus:
                 try:
                     event = Event.model_validate_json(event_data)
                 except ValidationError as ve:
-                    raw_preview = (
-                        event_data[:200] + "..."
-                        if len(event_data) > 200
-                        else event_data
-                    )
                     logger.error(
                         "event_validation_failed",
                         error=str(ve),
                         raw_event_data_length=len(event_data),
                     )
                     await self.publish_raw_dlq(
-                        raw_event_data=raw_preview,
+                        raw_event_data=event_data,
                         error=str(ve),
                         agent_id=group,
                     )
@@ -528,6 +524,7 @@ class EventBus:
     ) -> None:
         """Publish an invalid/raw event payload to DLQ before acknowledging it."""
         await self.connect()
+        raw_event_bytes = raw_event_data.encode("utf-8")
         dlq_event = Event.create(
             event_type=EventTypes.DLQ_FAILED,
             source_agent=agent_id,
@@ -535,7 +532,10 @@ class EventBus:
                 "original_event_id": None,
                 "original_event_type": None,
                 "original_source": None,
-                "original_payload": {"raw_event_data": raw_event_data},
+                "original_payload": {
+                    "raw_event_data_bytes": len(raw_event_bytes),
+                    "raw_event_data_sha256": hashlib.sha256(raw_event_bytes).hexdigest(),
+                },
                 "failed_by_agent": agent_id,
                 "failure_stage": "validation",
                 "error": error[:2000],

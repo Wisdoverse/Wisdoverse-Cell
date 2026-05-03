@@ -115,6 +115,10 @@ without coupling runtime packages.
 | `evolution_proposal.updated` | control-plane API or approval gate | operator console | Proposal approval or rollout state changed |
 | `dlq.failed` | EventBus or agent runtime | operator console / operations | Failed or malformed event was moved to the dead letter queue |
 
+Malformed event payloads must not be copied into `dlq.failed`. Use payload
+length and a SHA-256 fingerprint for correlation instead of storing raw event
+content.
+
 Example `agent.wakeup-requested` payload:
 
 ```json

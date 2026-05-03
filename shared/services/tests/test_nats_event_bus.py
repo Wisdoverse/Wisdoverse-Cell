@@ -2,6 +2,7 @@
 Tests for NATSEventBus, EventBusProtocol, and EventBus factory.
 """
 import asyncio
+import hashlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -154,6 +155,7 @@ class TestNATSEventBusPublish:
             event_type="requirement.confirmed",
             source_agent="test-agent",
             payload={"key": "value"},
+            metadata={"trace_id": "trace-123"},
         )
         result = await connected_bus.publish(event)
 
@@ -162,6 +164,10 @@ class TestNATSEventBusPublish:
         call_args = connected_bus._js.publish.call_args
         assert call_args[0][0] == f"{SUBJECT_PREFIX}.requirement.confirmed"
         assert b"evt_test123" in call_args[0][1]
+        assert call_args.kwargs["headers"] == {
+            "Nats-Msg-Id": "evt_test123",
+            "trace-id": "trace-123",
+        }
 
     @pytest.mark.asyncio
     async def test_publish_returns_false_on_error(self, connected_bus):
@@ -246,12 +252,17 @@ class TestNATSEventBusSubscribe:
         connected_bus._js.pull_subscribe = AsyncMock(return_value=mock_sub)
 
         events = []
-        with pytest.raises(asyncio.CancelledError):
-            async for evt in connected_bus.subscribe(["requirement.confirmed"]):
-                events.append(evt)
+        with patch.object(_nats_mod.logger, "error") as log_error:
+            with pytest.raises(asyncio.CancelledError):
+                async for evt in connected_bus.subscribe(["requirement.confirmed"]):
+                    events.append(evt)
 
         assert len(events) == 0
         mock_msg.nak.assert_awaited_once()
+        log_kwargs = log_error.call_args.kwargs
+        assert "data_preview" not in log_kwargs
+        assert log_kwargs["payload_bytes"] == len(mock_msg.data)
+        assert log_kwargs["payload_sha256"] == hashlib.sha256(mock_msg.data).hexdigest()
 
     @pytest.mark.asyncio
     async def test_subscribe_continues_on_timeout(self, connected_bus):

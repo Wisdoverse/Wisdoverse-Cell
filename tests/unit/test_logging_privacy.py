@@ -11,6 +11,7 @@ RAW_CONTENT_SLICE_LOG = re.compile(
 RAW_LOG_KWARGS = {
     "approved_by",
     "content_preview",
+    "data_preview",
     "email",
     "message",
     "open_id",
@@ -22,10 +23,12 @@ RAW_LOG_KWARGS = {
     "receive_id",
     "rejected_by",
     "response",
+    "raw_preview",
     "sender_id",
     "user",
     "user_id",
     "user_name",
+    "text_preview",
 }
 
 

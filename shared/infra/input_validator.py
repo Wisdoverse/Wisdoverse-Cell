@@ -1,5 +1,6 @@
 """Input validation for agent payloads — size limits and injection detection."""
 
+import hashlib
 import json
 import re
 
@@ -53,7 +54,8 @@ class InputValidator:
                     logger.warning(
                         "injection_detected",
                         pattern=pattern.pattern[:60],
-                        text_preview=text[:100],
+                        text_length=len(text),
+                        text_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
                     )
                     raise InputValidationError(
                         "injection_detected",

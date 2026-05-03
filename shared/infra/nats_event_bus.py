@@ -5,6 +5,7 @@ Drop-in replacement for the Redis EventBus implementing EventBusProtocol
 (connect, disconnect, publish, subscribe async generator).
 """
 import asyncio
+import hashlib
 from typing import AsyncGenerator
 
 import nats
@@ -108,6 +109,7 @@ class NATSEventBus:
         subject = f"{SUBJECT_PREFIX}.{event.event_type}"
         data = event.model_dump_json().encode()
         headers = {}
+        headers["Nats-Msg-Id"] = event.event_id
         if event.metadata and event.metadata.trace_id:
             headers["trace-id"] = event.metadata.trace_id
 
@@ -170,7 +172,10 @@ class NATSEventBus:
                             "nats_event_parse_error",
                             error=str(e),
                             subject=msg.subject,
-                            data_preview=msg.data[:200] if msg.data else None,
+                            payload_bytes=len(msg.data) if msg.data else 0,
+                            payload_sha256=(
+                                hashlib.sha256(msg.data).hexdigest() if msg.data else None
+                            ),
                         )
                         await msg.nak()
                         continue

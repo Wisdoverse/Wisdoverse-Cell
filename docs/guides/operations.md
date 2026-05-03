@@ -242,6 +242,11 @@ duplicate publication, the consumer acknowledges and skips it. If another
 consumer is already processing the same `event_id`, the duplicate remains
 unacknowledged and can be reclaimed later.
 
+NATS JetStream deployments publish events with `Nats-Msg-Id = event_id` so
+producer retries can use JetStream duplicate detection. NATS consumers still
+receive at-least-once delivery and must keep handler side effects idempotent by
+`event_id` or a domain-level idempotency key.
+
 ## 6. Scaling
 
 Common scaling commands:
@@ -412,9 +417,11 @@ EventBus failure visibility:
 - Redis EventBus exposes `get_pending_count(event_type, group)` for consumer lag.
 - Redis EventBus writes failed handler events and malformed payloads to
   `dlq.failed`; operators can inspect it with `get_dead_letter_count()` and
-  `list_dead_letters()`.
+  `list_dead_letters()`. Malformed-payload DLQ records store payload length and
+  a SHA-256 fingerprint instead of raw event content.
 - NATS deployments use JetStream redelivery and consumer stats instead of the
-  Redis DLQ stream.
+  Redis DLQ stream. Malformed NATS payload logs include payload length and a
+  SHA-256 fingerprint, not raw event content.
 
 ## 10. Local E2E Verification
 

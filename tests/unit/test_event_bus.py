@@ -1,5 +1,6 @@
 """Unit tests for shared.services.event_bus.EventBus (Redis Streams)."""
 
+import hashlib
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
@@ -332,7 +333,10 @@ async def test_publish_raw_dlq_writes_validation_failure(bus, mock_redis):
     dlq_event = Event.model_validate_json(call_args.args[1]["data"])
     assert dlq_event.payload["original_event_id"] is None
     assert dlq_event.payload["failure_stage"] == "validation"
-    assert dlq_event.payload["original_payload"] == {"raw_event_data": "{bad-json"}
+    assert dlq_event.payload["original_payload"] == {
+        "raw_event_data_bytes": len(b"{bad-json"),
+        "raw_event_data_sha256": hashlib.sha256(b"{bad-json").hexdigest(),
+    }
 
 
 @pytest.mark.asyncio
