@@ -138,6 +138,15 @@ def test_runtime_code_uses_core_id_contracts() -> None:
                 )
 
 
+def test_sync_core_does_not_read_global_settings() -> None:
+    root = Path("shared/capabilities/sync/core")
+    for path in _python_files(root):
+        for module in _imported_modules(path):
+            assert module != "shared.config", (
+                f"{path} imports global settings; inject explicit sync config"
+            )
+
+
 def test_agent_core_does_not_import_platform_adapters_directly() -> None:
     for agent_root in AGENT_ROOTS:
         root = Path("agents") / agent_root / "core"

@@ -26,6 +26,8 @@ class SyncEngine:
         bitable: BitableTablePort,
         event_bus: EventBus | None = None,
         decompose_filter: Callable[[int], bool] | None = None,
+        member_table_app_token: str | None = None,
+        member_table_id: str | None = None,
     ):
         self._db = db_manager
         self._op = op_client
@@ -36,6 +38,8 @@ class SyncEngine:
             bitable=bitable,
             event_bus=event_bus,
             decompose_filter=decompose_filter,
+            member_table_app_token=member_table_app_token,
+            member_table_id=member_table_id,
         )
         self.feishu_bitable = FeishuBitableSyncEngine(
             db_manager=db_manager,

@@ -155,6 +155,45 @@ async def test_openproject_sync_preserves_trace_id_on_decompose_event(
 
 
 @pytest.mark.asyncio
+async def test_openproject_member_map_config_is_injected(
+    mock_db_manager,
+    mock_op_client,
+    mock_bitable,
+):
+    """OpenProject sync core should not read global settings for member tables."""
+    engine = OpenProjectSyncEngine(
+        db_manager=mock_db_manager,
+        op_client=mock_op_client,
+        bitable=mock_bitable,
+        member_table_app_token="app_token",
+        member_table_id="member_table",
+    )
+    mock_bitable.list_all_records.return_value = [{"fields": {"name": "Alice"}}]
+
+    with patch("shared.capabilities.sync.core.openproject_sync.data_mapper") as mock_mapper:
+        mock_mapper.build_member_map.return_value = {"Alice": "ou_alice"}
+
+        result = await engine._load_member_map()
+
+    mock_bitable.list_all_records.assert_awaited_once_with(
+        app_token="app_token",
+        table_id="member_table",
+    )
+    assert result == {"Alice": "ou_alice"}
+
+
+@pytest.mark.asyncio
+async def test_openproject_member_map_skips_without_config(
+    openproject_engine,
+    mock_bitable,
+):
+    result = await openproject_engine._load_member_map()
+
+    assert result == {}
+    mock_bitable.list_all_records.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_feishu_bitable_sync_empty(feishu_bitable_engine, mock_bitable):
     """飞书无记录时，同步应成功且 processed=0"""
     mock_bitable.list_all_records.return_value = []

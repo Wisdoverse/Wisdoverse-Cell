@@ -67,6 +67,8 @@ class SyncAgent(BaseAgent):
             bitable=bitable_service,
             event_bus=self._event_bus,
             decompose_filter=self._should_decompose,
+            member_table_app_token=app_settings.feishu_pm_app_token,
+            member_table_id=app_settings.feishu_pm_member_table_id,
         )
 
         logger.info("agent_started", agent_id=self.agent_id)

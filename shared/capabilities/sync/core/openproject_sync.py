@@ -25,25 +25,28 @@ class OpenProjectSyncEngine:
         bitable: BitableTablePort,
         event_bus: EventBus | None = None,
         decompose_filter: Callable[[int], bool] | None = None,
+        member_table_app_token: str | None = None,
+        member_table_id: str | None = None,
     ):
         self._db = db_manager
         self._op = op_client
         self._bitable = bitable
         self._event_bus = event_bus
         self._decompose_filter = decompose_filter
+        self._member_table_app_token = member_table_app_token
+        self._member_table_id = member_table_id
 
     async def _load_member_map(self) -> dict[str, str]:
         member_map: dict[str, str] = {}
+        if not self._member_table_app_token or not self._member_table_id:
+            return member_map
         try:
-            from shared.config import settings as _settings
-
-            if _settings.feishu_pm_app_token and _settings.feishu_pm_member_table_id:
-                member_records = await self._bitable.list_all_records(
-                    app_token=_settings.feishu_pm_app_token,
-                    table_id=_settings.feishu_pm_member_table_id,
-                )
-                member_map = data_mapper.build_member_map(member_records)
-                logger.info("member_map_loaded", count=len(member_map))
+            member_records = await self._bitable.list_all_records(
+                app_token=self._member_table_app_token,
+                table_id=self._member_table_id,
+            )
+            member_map = data_mapper.build_member_map(member_records)
+            logger.info("member_map_loaded", count=len(member_map))
         except Exception as e:
             logger.warning("member_map_load_failed", error=str(e))
         return member_map
