@@ -1,12 +1,12 @@
 """
-MessageRecorder - 群聊消息被动记录器
+Passive group-chat message recorder.
 
-负责：
-- 白名单检查：只记录配置的群聊
-- 智能过滤：跳过表情、系统消息、短消息
-- 去重：message_id 唯一性检查
-- 用户名缓存：减少 API 调用
-- 入库存储
+Responsibilities:
+- Whitelist checks: record only configured group chats
+- Smart filtering: skip stickers, system messages, and short messages
+- Deduplication: enforce message_id uniqueness
+- Username caching: reduce API calls
+- Database persistence
 """
 
 import json
@@ -25,7 +25,7 @@ logger = get_logger("feishu.handlers.message")
 
 
 class MessageRecorder:
-    """消息记录器 - 过滤、去重、入库"""
+    """Message recorder with filtering, deduplication, and persistence."""
 
     SKIP_MESSAGE_TYPES = {"sticker", "system", "share_card", "share_user"}
     MIN_TEXT_LENGTH = 3  # Skip "好", "OK", "+1"
@@ -186,7 +186,7 @@ class MessageRecorder:
             return content_str
 
     def _extract_post_text(self, content: dict) -> str:
-        """Extract plain text from post (富文本) content"""
+        """Extract plain text from rich-text post content."""
         texts = []
 
         # Post content structure: {"title": "...", "content": [[{tag, text}, ...]]}

@@ -1,10 +1,10 @@
 """
-SessionManager - 会话管理器
+Session manager.
 
-负责：
-- 会话生命周期管理
-- 使用 Redis 延迟队列检测超时
-- 触发需求提取
+Responsibilities:
+- Manage session lifecycle
+- Use a Redis delayed queue to detect timeouts
+- Trigger requirement extraction
 """
 
 import time
@@ -23,7 +23,7 @@ logger = get_logger("feishu.services.session_manager")
 
 
 class SessionManager:
-    """会话管理器 - 检测会话结束并触发提取"""
+    """Session manager that detects session end and triggers extraction."""
 
     REDIS_KEY = "feishu:session_timeouts"
 

@@ -1,9 +1,9 @@
 """
-EventHandler - 处理飞书事件订阅
+Feishu event subscription handler.
 
-支持的事件：
-- vc.meeting.meeting_ended_v1    会议结束
-- calendar.calendar.event_changed_v4  日历变更
+Supported events:
+- vc.meeting.meeting_ended_v1: meeting ended
+- calendar.calendar.event_changed_v4: calendar event changed
 """
 import re
 from datetime import datetime
@@ -18,15 +18,15 @@ from shared.utils.logger import get_logger
 
 logger = get_logger("feishu.handlers.event")
 
-# 日历事件关键词过滤
+# Calendar event keyword filter.
 CALENDAR_KEYWORDS = ["需求", "产品", "review", "PRD", "评审", "规划", "迭代"]
 
 
 class EventHandler:
     """
-    事件订阅处理器
+    Event subscription handler.
 
-    处理飞书主动推送的事件。
+    Handles events pushed by Feishu.
     """
 
     def __init__(self, feishu_client, agent):
@@ -38,7 +38,7 @@ class EventHandler:
             "calendar.calendar.event_changed_v4": self._handle_calendar_changed,
         }
 
-        # 编译关键词正则
+        # Compile keyword regex.
         self._keyword_pattern = re.compile(
             "|".join(CALENDAR_KEYWORDS),
             re.IGNORECASE
@@ -46,14 +46,14 @@ class EventHandler:
 
     async def dispatch(self, event_type: str, data: dict) -> dict:
         """
-        分发事件到对应处理器
+        Dispatch events to the corresponding handler.
 
         Args:
-            event_type: 事件类型
-            data: 完整事件数据
+            event_type: Event type.
+            data: Complete event payload.
 
         Returns:
-            响应数据
+            Response payload.
         """
         handler = self._handlers.get(event_type)
 
@@ -73,12 +73,12 @@ class EventHandler:
 
     async def _handle_meeting_ended(self, data: dict) -> dict:
         """
-        处理会议结束事件
+        Handle meeting-ended events.
 
-        流程：
-        1. 提取会议信息
-        2. 调用 Agent 提取需求
-        3. 发送卡片通知到会议群
+        Flow:
+        1. Extract meeting information.
+        2. Call the agent to extract requirements.
+        3. Send a notification card to the meeting chat.
         """
         event = data.get("event", {})
         meeting = event.get("meeting", {})
@@ -136,24 +136,24 @@ class EventHandler:
 
     async def _handle_calendar_changed(self, data: dict) -> dict:
         """
-        处理日历变更事件
+        Handle calendar-changed events.
 
-        流程：
-        1. 过滤事件类型（只处理 create/update）
-        2. 检查标题是否包含需求相关关键词
-        3. 如果匹配，发送提醒卡片给组织者
+        Flow:
+        1. Filter event types and only handle create/update.
+        2. Check whether the title contains requirement-related keywords.
+        3. If matched, send a reminder card to the organizer.
         """
         event = data.get("event", {})
         calendar_event = event.get("event", {})
 
         event_id = calendar_event.get("event_id", "")
-        summary = calendar_event.get("summary", "")  # 会议标题
+        summary = calendar_event.get("summary", "")  # Meeting title
         organizer = calendar_event.get("organizer", {})
         organizer_id = organizer.get("user_id", "")
         start_time = calendar_event.get("start_time", {})
         attendees = calendar_event.get("attendees", [])
 
-        # 变更类型
+        # Change type.
         change_type = event.get("type", "")
 
         logger.info(
@@ -164,12 +164,12 @@ class EventHandler:
             has_organizer=bool(organizer_id)
         )
 
-        # 只处理创建和更新事件
+        # Only handle created and updated events.
         if change_type not in ("created", "updated"):
             logger.debug("calendar_event_skipped_type", change_type=change_type)
             return {"code": 0}
 
-        # 检查标题是否包含关键词
+        # Check whether the title contains keywords.
         matched_keywords = self._keyword_pattern.findall(summary)
         if not matched_keywords:
             logger.debug(
@@ -186,7 +186,7 @@ class EventHandler:
             keywords=matched_keywords
         )
 
-        # 解析开始时间
+        # Parse start time.
         start_timestamp = start_time.get("timestamp", "")
         if start_timestamp:
             try:
@@ -197,13 +197,13 @@ class EventHandler:
         else:
             start_time_str = start_time.get("date", "未知时间")
 
-        # 获取参与者名称
+        # Get attendee names.
         attendee_names = []
-        for att in attendees[:10]:  # 最多取10人
+        for att in attendees[:10]:  # At most 10 attendees
             if att.get("display_name"):
                 attendee_names.append(att["display_name"])
 
-        # 发送提醒卡片给组织者
+        # Send reminder card to organizer.
         if organizer_id:
             try:
                 card = build_calendar_reminder_card(

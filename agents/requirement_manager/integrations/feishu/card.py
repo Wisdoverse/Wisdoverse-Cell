@@ -117,7 +117,7 @@ class CardHandler:
             }
 
     async def _get_user_name(self, open_id: str) -> str:
-        """获取用户名（带缓存）"""
+        """Get user name with cache."""
         if open_id in self._user_cache:
             return self._user_cache[open_id]
 
@@ -130,7 +130,7 @@ class CardHandler:
             return "Unknown"
 
     async def _handle_confirm(self, action_value: dict, operator_id: str) -> dict:
-        """处理确认需求"""
+        """Handle requirement confirmation."""
         req_id = action_value.get("req_id")
         if not req_id:
             return {"toast": {"type": "error", "content": "缺少需求 ID"}}
@@ -173,7 +173,7 @@ class CardHandler:
         operator_id: str,
         data: dict
     ) -> dict:
-        """处理拒绝需求"""
+        """Handle requirement rejection."""
         req_id = action_value.get("req_id")
         if not req_id:
             return {"toast": {"type": "error", "content": "缺少需求 ID"}}
@@ -216,7 +216,7 @@ class CardHandler:
         }
 
     async def _handle_view_detail(self, action_value: dict) -> dict:
-        """处理查看详情 - 弹出详情卡片"""
+        """Handle detail view and return the detail card."""
         req_id = action_value.get("req_id")
         if not req_id:
             return {"toast": {"type": "error", "content": "缺少需求 ID"}}
@@ -266,7 +266,7 @@ class CardHandler:
         }
 
     async def _handle_list_confirm(self, action_value: dict, operator_id: str) -> dict:
-        """处理列表中的确认需求"""
+        """Handle requirement confirmation from the list card."""
         req_id = action_value.get("req_id")
         page = action_value.get("page", 1)
         chat_id = action_value.get("chat_id", "")
@@ -315,7 +315,7 @@ class CardHandler:
         operator_id: str,
         data: dict
     ) -> dict:
-        """处理列表中的拒绝需求"""
+        """Handle requirement rejection from the list card."""
         req_id = action_value.get("req_id")
         page = action_value.get("page", 1)
         chat_id = action_value.get("chat_id", "")
@@ -364,7 +364,7 @@ class CardHandler:
         }
 
     async def _handle_list_pagination(self, action_value: dict) -> dict:
-        """处理列表翻页"""
+        """Handle list pagination."""
         page = action_value.get("page", 1)
         chat_id = action_value.get("chat_id", "")
 
@@ -385,7 +385,7 @@ class CardHandler:
         return {"card": card}
 
     async def _handle_batch_confirm(self, action_value: dict, operator_id: str) -> dict:
-        """处理批量确认"""
+        """Handle batch confirmation."""
         req_ids = action_value.get("req_ids", [])
 
         if not req_ids:
@@ -423,7 +423,7 @@ class CardHandler:
         }
 
     async def _handle_batch_reject(self, action_value: dict, operator_id: str) -> dict:
-        """处理批量拒绝"""
+        """Handle batch rejection."""
         req_ids = action_value.get("req_ids", [])
         reason = action_value.get("reason", "批量拒绝")
 
