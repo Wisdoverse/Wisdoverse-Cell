@@ -1,5 +1,5 @@
 """
-Tests for Gateway Models - 跨平台统一消息模型测试
+Tests for gateway models and cross-platform unified messaging.
 """
 from datetime import UTC, datetime
 
@@ -17,16 +17,16 @@ from shared.messaging.inbound.models import (
 
 
 class TestEnums:
-    """测试枚举类型"""
+    """Enum tests."""
 
     def test_platform_values(self):
-        """测试 Platform 枚举值"""
+        """Test Platform enum values."""
         assert Platform.FEISHU.value == "feishu"
         assert Platform.WECOM.value == "wecom"
         assert Platform.WEB.value == "web"
 
     def test_message_type_values(self):
-        """测试 MessageType 枚举值"""
+        """Test MessageType enum values."""
         assert MessageType.TEXT.value == "text"
         assert MessageType.IMAGE.value == "image"
         assert MessageType.FILE.value == "file"
@@ -34,17 +34,17 @@ class TestEnums:
         assert MessageType.CARD.value == "card"
 
     def test_card_action_style_values(self):
-        """测试 CardActionStyle 枚举值"""
+        """Test CardActionStyle enum values."""
         assert CardActionStyle.PRIMARY.value == "primary"
         assert CardActionStyle.DANGER.value == "danger"
         assert CardActionStyle.DEFAULT.value == "default"
 
 
 class TestUnifiedMessage:
-    """测试 UnifiedMessage 模型"""
+    """UnifiedMessage model tests."""
 
     def test_minimal_instantiation(self):
-        """测试最小参数实例化"""
+        """Test minimal instantiation."""
         msg = UnifiedMessage(
             platform=Platform.FEISHU,
             message_id="msg_001",
@@ -58,7 +58,7 @@ class TestUnifiedMessage:
         assert msg.sender_id == "user_001"
 
     def test_default_values(self):
-        """测试默认值"""
+        """Test default values."""
         msg = UnifiedMessage(
             platform=Platform.WECOM,
             message_id="msg_002",
@@ -76,7 +76,7 @@ class TestUnifiedMessage:
         assert msg.raw_data == {}
 
     def test_full_instantiation(self):
-        """测试完整参数实例化"""
+        """Test full instantiation."""
         now = datetime.now(UTC)
         msg = UnifiedMessage(
             platform=Platform.WEB,
@@ -104,7 +104,7 @@ class TestUnifiedMessage:
         assert msg.raw_data == {"original": "data"}
 
     def test_serialization(self):
-        """测试序列化"""
+        """Test serialization."""
         msg = UnifiedMessage(
             platform=Platform.FEISHU,
             message_id="msg_004",
@@ -117,7 +117,7 @@ class TestUnifiedMessage:
         assert '"message_id":"msg_004"' in json_str
 
     def test_deserialization(self):
-        """测试反序列化"""
+        """Test deserialization."""
         json_data = {
             "platform": "wecom",
             "message_id": "msg_005",
@@ -131,22 +131,22 @@ class TestUnifiedMessage:
 
 
 class TestCardAction:
-    """测试 CardAction 模型"""
+    """CardAction model tests."""
 
     def test_minimal_instantiation(self):
-        """测试最小参数实例化"""
+        """Test minimal instantiation."""
         action = CardAction(label="Submit", action_id="submit_btn")
         assert action.label == "Submit"
         assert action.action_id == "submit_btn"
 
     def test_default_values(self):
-        """测试默认值"""
+        """Test default values."""
         action = CardAction(label="Cancel", action_id="cancel_btn")
         assert action.value == {}
         assert action.style == CardActionStyle.DEFAULT
 
     def test_full_instantiation(self):
-        """测试完整参数实例化"""
+        """Test full instantiation."""
         action = CardAction(
             label="Confirm",
             action_id="confirm_btn",
@@ -157,7 +157,7 @@ class TestCardAction:
         assert action.style == CardActionStyle.PRIMARY
 
     def test_serialization(self):
-        """测试序列化"""
+        """Test serialization."""
         action = CardAction(
             label="Delete",
             action_id="delete_btn",
@@ -169,16 +169,16 @@ class TestCardAction:
 
 
 class TestUnifiedCard:
-    """测试 UnifiedCard 模型"""
+    """UnifiedCard model tests."""
 
     def test_minimal_instantiation(self):
-        """测试最小参数实例化"""
+        """Test minimal instantiation."""
         card = UnifiedCard(title="Test Card", content="# Hello")
         assert card.title == "Test Card"
         assert card.content == "# Hello"
 
     def test_default_values(self):
-        """测试默认值"""
+        """Test default values."""
         card = UnifiedCard(title="Test", content="Content")
         assert card.status is None
         assert card.status_color is None
@@ -188,7 +188,7 @@ class TestUnifiedCard:
         assert card.context == {}
 
     def test_full_instantiation(self):
-        """测试完整参数实例化"""
+        """Test full instantiation."""
         action = CardAction(label="Approve", action_id="approve_btn")
         card = UnifiedCard(
             title="Requirement Card",
@@ -208,7 +208,7 @@ class TestUnifiedCard:
         assert card.context == {"requirement_id": "req_001"}
 
     def test_serialization_deserialization(self):
-        """测试序列化和反序列化"""
+        """Test serialization and deserialization."""
         original = UnifiedCard(
             title="Test",
             content="Content",
@@ -223,10 +223,10 @@ class TestUnifiedCard:
 
 
 class TestUnifiedAction:
-    """测试 UnifiedAction 模型"""
+    """UnifiedAction model tests."""
 
     def test_minimal_instantiation(self):
-        """测试最小参数实例化"""
+        """Test minimal instantiation."""
         action = UnifiedAction(
             platform=Platform.FEISHU,
             action_id="btn_click",
@@ -239,7 +239,7 @@ class TestUnifiedAction:
         assert action.operator_id == "user_001"
 
     def test_default_values(self):
-        """测试默认值"""
+        """Test default values."""
         action = UnifiedAction(
             platform=Platform.WECOM,
             action_id="action_001",
@@ -251,7 +251,7 @@ class TestUnifiedAction:
         assert action.raw_data == {}
 
     def test_full_instantiation(self):
-        """测试完整参数实例化"""
+        """Test full instantiation."""
         action = UnifiedAction(
             platform=Platform.WEB,
             action_id="approve",
@@ -267,23 +267,23 @@ class TestUnifiedAction:
 
 
 class TestAgentResponse:
-    """测试 AgentResponse 模型"""
+    """AgentResponse model tests."""
 
     def test_empty_instantiation(self):
-        """测试空实例化"""
+        """Test empty instantiation."""
         response = AgentResponse()
         assert response.text is None
         assert response.card is None
         assert response.update_card is False
 
     def test_text_response(self):
-        """测试文本响应"""
+        """Test text response."""
         response = AgentResponse(text="Hello, user!")
         assert response.text == "Hello, user!"
         assert response.card is None
 
     def test_card_response(self):
-        """测试卡片响应"""
+        """Test card response."""
         card = UnifiedCard(title="Response", content="Success!")
         response = AgentResponse(card=card, update_card=True)
         assert response.card is not None
@@ -291,29 +291,29 @@ class TestAgentResponse:
         assert response.update_card is True
 
     def test_serialization(self):
-        """测试序列化"""
+        """Test serialization."""
         response = AgentResponse(text="Test")
         json_str = response.model_dump_json()
         assert '"text":"Test"' in json_str
 
 
 class TestActionResponse:
-    """测试 ActionResponse 模型"""
+    """ActionResponse model tests."""
 
     def test_empty_instantiation(self):
-        """测试空实例化"""
+        """Test empty instantiation."""
         response = ActionResponse()
         assert response.update_card is False
         assert response.card is None
         assert response.toast is None
 
     def test_toast_response(self):
-        """测试 toast 响应"""
+        """Test toast response."""
         response = ActionResponse(toast="Operation successful!")
         assert response.toast == "Operation successful!"
 
     def test_card_update_response(self):
-        """测试卡片更新响应"""
+        """Test card update response."""
         card = UnifiedCard(title="Updated", content="New content")
         response = ActionResponse(update_card=True, card=card)
         assert response.update_card is True
@@ -321,7 +321,7 @@ class TestActionResponse:
         assert response.card.title == "Updated"
 
     def test_full_response(self):
-        """测试完整响应"""
+        """Test full response."""
         card = UnifiedCard(title="Result", content="Done")
         response = ActionResponse(
             update_card=True,

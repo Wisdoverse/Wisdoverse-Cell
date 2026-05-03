@@ -1,7 +1,8 @@
 """
-BasePlatformAdapter - 平台适配器抽象基类
+BasePlatformAdapter - platform adapter abstract base class.
 
-所有平台适配器必须实现此接口，提供统一的消息处理能力。
+All platform adapters must implement this interface to provide unified message
+handling.
 """
 
 from abc import ABC, abstractmethod
@@ -12,113 +13,113 @@ from .models import Platform, UnifiedAction, UnifiedCard, UnifiedMessage
 
 class BasePlatformAdapter(ABC):
     """
-    平台适配器基类
+    Platform adapter base class.
 
-    职责：
-    1. 将平台原始消息转换为 UnifiedMessage
-    2. 将 UnifiedCard 转换为平台卡片格式
-    3. 将平台回调转换为 UnifiedAction
-    4. 发送消息到平台
-    5. 获取用户信息用于身份映射
+    Responsibilities:
+    1. Convert raw platform messages to UnifiedMessage.
+    2. Convert UnifiedCard to the platform-native card format.
+    3. Convert platform callbacks to UnifiedAction.
+    4. Send messages to the platform.
+    5. Fetch user information for identity mapping.
     """
 
     @property
     @abstractmethod
     def platform(self) -> Platform:
-        """返回适配器对应的平台"""
+        """Return the platform handled by this adapter."""
         pass
 
     @abstractmethod
     async def parse_message(self, raw_event: dict) -> Optional[UnifiedMessage]:
         """
-        将平台原始消息事件转换为统一格式
+        Convert a raw platform message event to the unified format.
 
         Args:
-            raw_event: 平台原始事件数据
+            raw_event: Raw platform event data.
 
         Returns:
-            UnifiedMessage 或 None（如果无法解析）
+            UnifiedMessage, or None when the event cannot be parsed.
         """
         pass
 
     @abstractmethod
     async def parse_action(self, raw_callback: dict) -> Optional[UnifiedAction]:
         """
-        将平台卡片回调转换为统一操作
+        Convert a platform card callback to a unified action.
 
         Args:
-            raw_callback: 平台回调数据
+            raw_callback: Platform callback data.
 
         Returns:
-            UnifiedAction 或 None（如果无法解析）
+            UnifiedAction, or None when the callback cannot be parsed.
         """
         pass
 
     @abstractmethod
     async def send_card(self, chat_id: str, card: UnifiedCard) -> str:
         """
-        发送卡片消息
+        Send a card message.
 
         Args:
-            chat_id: 会话 ID
-            card: 统一卡片格式
+            chat_id: Conversation ID.
+            card: Unified card model.
 
         Returns:
-            平台消息 ID
+            Platform message ID.
         """
         pass
 
     @abstractmethod
     async def send_text(self, chat_id: str, text: str) -> str:
         """
-        发送文本消息
+        Send a text message.
 
         Args:
-            chat_id: 会话 ID
-            text: 文本内容
+            chat_id: Conversation ID.
+            text: Message text.
 
         Returns:
-            平台消息 ID
+            Platform message ID.
         """
         pass
 
     @abstractmethod
     async def update_card(self, message_id: str, card: UnifiedCard) -> bool:
         """
-        更新已发送的卡片
+        Update a sent card.
 
         Args:
-            message_id: 要更新的消息 ID
-            card: 新的卡片内容
+            message_id: Message ID to update.
+            card: Replacement card content.
 
         Returns:
-            是否更新成功
+            Whether the update succeeded.
         """
         pass
 
     @abstractmethod
     async def get_user_email(self, platform_user_id: str) -> Optional[str]:
         """
-        获取用户邮箱（用于跨平台身份映射）
+        Get a user email for cross-platform identity mapping.
 
         Args:
-            platform_user_id: 平台用户 ID
+            platform_user_id: Platform user ID.
 
         Returns:
-            用户邮箱或 None
+            User email or None.
         """
         pass
 
     @abstractmethod
     async def get_user_name(self, platform_user_id: str) -> Optional[str]:
         """
-        获取用户名称
+        Get a user display name.
 
         Args:
-            platform_user_id: 平台用户 ID
+            platform_user_id: Platform user ID.
 
         Returns:
-            用户名称或 None
+            User name or None.
         """
         pass
 

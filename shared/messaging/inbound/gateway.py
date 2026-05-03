@@ -1,8 +1,8 @@
 # shared/services/gateway/gateway.py
 """
-UnifiedGateway - 统一消息网关
+UnifiedGateway - unified message gateway.
 
-协调各平台适配器与 Agent 的消息流转。
+Coordinates message flow between platform adapters and agents.
 """
 from typing import Any, Callable, Coroutine, Optional
 
@@ -22,19 +22,19 @@ from .user_service import UserService
 
 logger = get_logger("gateway")
 
-# Agent 消息处理函数类型
+# Agent message handler function types.
 MessageHandler = Callable[[UnifiedMessage], Coroutine[Any, Any, Optional[AgentResponse]]]
 ActionHandler = Callable[[UnifiedAction], Coroutine[Any, Any, Optional[ActionResponse]]]
 
 
 class UnifiedGateway:
     """
-    统一消息网关
+    Unified message gateway.
 
-    职责：
-    1. 消息路由：平台消息 → Agent
-    2. 响应分发：Agent 响应 → 平台
-    3. 用户映射：平台 ID → 统一用户
+    Responsibilities:
+    1. Message routing: platform message -> Agent.
+    2. Response dispatch: Agent response -> platform.
+    3. User mapping: platform ID -> unified user.
     """
 
     def __init__(
@@ -47,11 +47,11 @@ class UnifiedGateway:
     ):
         """
         Args:
-            user_service: 用户服务
-            adapters: 平台适配器字典
-            message_handler: 消息处理函数（由 Agent 提供）
-            action_handler: 回调处理函数（由 Agent 提供）
-            skill_service: 技能服务（可选，用于命令/模式匹配）
+            user_service: User service.
+            adapters: Platform adapter dictionary.
+            message_handler: Message handler provided by the Agent.
+            action_handler: Callback handler provided by the Agent.
+            skill_service: Optional skill service for command and pattern matching.
         """
         self.user_service = user_service
         self.adapters: dict[Platform, BasePlatformAdapter] = adapters or {}
@@ -59,22 +59,22 @@ class UnifiedGateway:
         self._action_handler = action_handler
         self._skill_service = skill_service
 
-        # 将适配器传给 UserService
+        # Pass adapters to UserService.
         if adapters:
             user_service.set_adapters(adapters)
 
     def register_adapter(self, adapter: BasePlatformAdapter) -> None:
-        """注册平台适配器"""
+        """Register a platform adapter."""
         self.adapters[adapter.platform] = adapter
         self.user_service.set_adapters(self.adapters)
         logger.info("adapter_registered", platform=adapter.platform.value)
 
     def set_message_handler(self, handler: MessageHandler) -> None:
-        """设置消息处理函数"""
+        """Set the message handler."""
         self._message_handler = handler
 
     def set_action_handler(self, handler: ActionHandler) -> None:
-        """设置回调处理函数"""
+        """Set the callback handler."""
         self._action_handler = handler
 
     def set_skill_service(self, skill_service: Any) -> None:
@@ -87,25 +87,25 @@ class UnifiedGateway:
         raw_event: dict,
     ) -> None:
         """
-        处理入站消息
+        Handle an inbound message.
 
-        流程：
-        1. 获取适配器
-        2. 解析为统一格式
-        3. 用户身份映射
-        4. 交给 Agent 处理
-        5. 发送响应
+        Flow:
+        1. Get adapter.
+        2. Parse to unified format.
+        3. Resolve user identity.
+        4. Pass to Agent.
+        5. Send response.
 
         Args:
-            platform: 平台类型
-            raw_event: 平台原始事件数据
+            platform: Platform type.
+            raw_event: Raw platform event data.
         """
         adapter = self.adapters.get(platform)
         if not adapter:
             logger.warning("unknown_platform", platform=platform.value)
             return
 
-        # 1. 解析为统一格式
+        # 1. Parse to unified format.
         message = await adapter.parse_message(raw_event)
         if not message:
             logger.debug("message_parse_failed", platform=platform.value)
@@ -119,7 +119,7 @@ class UnifiedGateway:
             content_length=len(message.content or ""),
         )
 
-        # 2. 用户身份映射
+        # 2. Resolve user identity.
         user = None
         try:
             user = await self.user_service.resolve_user(platform, message.sender_id)
@@ -131,7 +131,7 @@ class UnifiedGateway:
                 error=str(e),
                 sender_hash=hash_identifier(message.sender_id),
             )
-            # 继续处理，但没有用户映射
+            # Continue processing without user mapping.
 
         # 3. Try skill handling first
         if self._skill_service:
@@ -151,7 +151,7 @@ class UnifiedGateway:
             logger.error("message_handler_error", error=str(e))
             response = AgentResponse(text=f"处理消息时发生错误: {str(e)}")
 
-        # 5. 发送响应
+        # 5. Send response.
         if response:
             await self._send_response(adapter, message.chat_id, response)
 
@@ -161,21 +161,21 @@ class UnifiedGateway:
         raw_callback: dict,
     ) -> Optional[dict]:
         """
-        处理卡片回调
+        Handle a card callback.
 
         Args:
-            platform: 平台类型
-            raw_callback: 平台回调数据
+            platform: Platform type.
+            raw_callback: Platform callback data.
 
         Returns:
-            响应数据（用于同步返回给平台）
+            Response data for synchronous platform callbacks.
         """
         adapter = self.adapters.get(platform)
         if not adapter:
             logger.warning("unknown_platform", platform=platform.value)
             return None
 
-        # 1. 解析回调
+        # 1. Parse callback.
         action = await adapter.parse_action(raw_callback)
         if not action:
             logger.debug("action_parse_failed", platform=platform.value)
@@ -188,14 +188,14 @@ class UnifiedGateway:
             operator_id=action.operator_id,
         )
 
-        # 2. 用户身份映射
+        # 2. Resolve user identity.
         try:
             user = await self.user_service.resolve_user(platform, action.operator_id)
             action.user_id = user.id
         except Exception as e:
             logger.warning("user_resolve_failed", error=str(e), operator_id=action.operator_id)
 
-        # 3. 交给 Agent 处理
+        # 3. Pass to Agent.
         if not self._action_handler:
             logger.warning("no_action_handler")
             return None
@@ -206,7 +206,7 @@ class UnifiedGateway:
             logger.error("action_handler_error", error=str(e))
             return {"toast": {"type": "error", "content": f"处理失败: {str(e)}"}}
 
-        # 4. 更新卡片或返回响应
+        # 4. Update card or return response.
         if response:
             return await self._handle_action_response(adapter, action, response)
 
@@ -219,15 +219,15 @@ class UnifiedGateway:
         card: UnifiedCard,
     ) -> Optional[str]:
         """
-        主动发送卡片
+        Send a card proactively.
 
         Args:
-            platform: 目标平台
-            chat_id: 会话 ID
-            card: 卡片内容
+            platform: Target platform.
+            chat_id: Conversation ID.
+            card: Card content.
 
         Returns:
-            消息 ID 或 None
+            Message ID or None.
         """
         adapter = self.adapters.get(platform)
         if not adapter:
@@ -254,15 +254,15 @@ class UnifiedGateway:
         text: str,
     ) -> Optional[str]:
         """
-        主动发送文本
+        Send text proactively.
 
         Args:
-            platform: 目标平台
-            chat_id: 会话 ID
-            text: 文本内容
+            platform: Target platform.
+            chat_id: Conversation ID.
+            text: Message text.
 
         Returns:
-            消息 ID 或 None
+            Message ID or None.
         """
         adapter = self.adapters.get(platform)
         if not adapter:
@@ -290,7 +290,7 @@ class UnifiedGateway:
         chat_id: str,
         response: AgentResponse,
     ) -> None:
-        """发送 Agent 响应"""
+        """Send an Agent response."""
         try:
             if response.card:
                 await adapter.send_card(chat_id, response.card)
@@ -309,10 +309,10 @@ class UnifiedGateway:
         action: UnifiedAction,
         response: ActionResponse,
     ) -> dict:
-        """处理 Action 响应"""
+        """Handle an Action response."""
         result: dict = {}
 
-        # 更新卡片
+        # Update card.
         if response.update_card and response.card and action.message_id:
             try:
                 await adapter.update_card(action.message_id, response.card)
@@ -320,7 +320,7 @@ class UnifiedGateway:
             except Exception as e:
                 logger.error("update_card_error", error=str(e))
 
-        # Toast 消息
+        # Toast message.
         if response.toast:
             result["toast"] = {
                 "type": "success",
@@ -335,12 +335,12 @@ class UnifiedGateway:
         card: UnifiedCard,
     ) -> dict:
         """
-        转换卡片为平台格式
+        Convert a card to platform-native format.
 
-        用于同步返回给平台（如飞书卡片回调响应）。
+        Used when returning data synchronously to a platform callback, such as
+        Feishu card callbacks.
         """
-        # 这里需要调用 adapter 的内部方法，但为了保持封装，
-        # 我们让 adapter 自己处理
+        # Call the adapter's explicit platform conversion hook when available.
         if hasattr(adapter, "_build_feishu_card"):
             return adapter._build_feishu_card(card)
         elif hasattr(adapter, "_build_wecom_card"):
