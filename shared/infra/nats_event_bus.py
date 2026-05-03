@@ -29,9 +29,15 @@ SUBJECT_PREFIX = "events"
 class NATSEventBus:
     """NATS JetStream EventBus implementation."""
 
-    def __init__(self, nats_url: str, consumer_name: str = "projectcell"):
+    def __init__(
+        self,
+        nats_url: str,
+        consumer_name: str = "projectcell",
+        stream_replicas: int = 1,
+    ):
         self._nats_url = nats_url
         self._consumer_name = consumer_name
+        self._stream_replicas = stream_replicas
         self._nc: nats.NATS | None = None
         self._js = None
 
@@ -89,11 +95,15 @@ class NATSEventBus:
                     retention="limits",
                     max_age=7 * 24 * 3600 * 1_000_000_000,  # 7 days in nanoseconds
                     storage="file",
-                    num_replicas=3,
+                    num_replicas=self._stream_replicas,
                     discard="old",
                 )
             )
-            logger.info("nats_stream_created", stream=STREAM_NAME)
+            logger.info(
+                "nats_stream_created",
+                stream=STREAM_NAME,
+                replicas=self._stream_replicas,
+            )
 
         logger.info("nats_event_bus_connected", servers=servers)
 

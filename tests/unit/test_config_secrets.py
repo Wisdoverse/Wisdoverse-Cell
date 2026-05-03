@@ -156,6 +156,23 @@ class TestRedisUrl:
         assert "redis-pass-secret" in url
 
 
+class TestNatsConfig:
+    """NATS settings must support both single-node and clustered JetStream."""
+
+    def test_nats_stream_replicas_defaults_to_single_node(self):
+        from shared.config import Settings
+
+        settings = Settings(_env_file=None)
+
+        assert settings.nats_stream_replicas == 1
+
+    def test_nats_stream_replicas_must_be_positive(self):
+        from shared.config import Settings
+
+        with pytest.raises(ValidationError, match="nats_stream_replicas"):
+            Settings(_env_file=None, nats_stream_replicas=0)
+
+
 class TestNonSecretFieldsUnchanged:
     """pm_api_key and internal_service_key stay as plain str."""
 

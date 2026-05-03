@@ -84,6 +84,25 @@ class TestNATSEventBusConnect:
         config = mock_js.add_stream.call_args[0][0]
         assert config.name == STREAM_NAME
         assert f"{SUBJECT_PREFIX}.>" in config.subjects
+        assert config.num_replicas == 1
+
+    @pytest.mark.asyncio
+    async def test_connect_uses_configured_stream_replicas(self):
+        bus = NATSEventBus(
+            nats_url="nats://localhost:4222",
+            consumer_name="test-consumer",
+            stream_replicas=3,
+        )
+        mock_nc = AsyncMock()
+        mock_js = AsyncMock()
+        mock_js.find_stream_info_by_subject.side_effect = NotFoundError
+        mock_nc.jetstream = MagicMock(return_value=mock_js)
+
+        with patch.object(_nats_mod.nats, "connect", return_value=mock_nc):
+            await bus.connect()
+
+        config = mock_js.add_stream.call_args[0][0]
+        assert config.num_replicas == 3
 
     @pytest.mark.asyncio
     async def test_connect_reuses_existing_stream(self, bus):
@@ -395,12 +414,14 @@ class TestEventBusFactory:
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.event_bus_backend = "nats"
             mock_settings.nats_url = "nats://localhost:4222"
+            mock_settings.nats_stream_replicas = 1
             mock_settings.event_bus_consumer_name = ""
             mock_settings.otel_service_name = "ai-core"
 
             bus = create_event_bus()
             assert isinstance(bus, NATSEventBus)
             assert bus._consumer_name == "ai-core"
+            assert bus._stream_replicas == 1
 
     def test_factory_uses_configured_nats_consumer_name(self):
         from shared.services.event_bus import create_event_bus
@@ -408,12 +429,14 @@ class TestEventBusFactory:
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.event_bus_backend = "nats"
             mock_settings.nats_url = "nats://localhost:4222"
+            mock_settings.nats_stream_replicas = 3
             mock_settings.event_bus_consumer_name = "qa-agent"
             mock_settings.otel_service_name = "ai-core"
 
             bus = create_event_bus()
             assert isinstance(bus, NATSEventBus)
             assert bus._consumer_name == "qa-agent"
+            assert bus._stream_replicas == 3
 
     def test_factory_override_backend_parameter(self):
         from shared.services.event_bus import create_event_bus
@@ -421,12 +444,14 @@ class TestEventBusFactory:
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.event_bus_backend = "redis"
             mock_settings.nats_url = "nats://localhost:4222"
+            mock_settings.nats_stream_replicas = 2
             mock_settings.event_bus_consumer_name = ""
             mock_settings.otel_service_name = "pjm-agent"
 
             bus = create_event_bus(backend="nats")
             assert isinstance(bus, NATSEventBus)
             assert bus._consumer_name == "pjm-agent"
+            assert bus._stream_replicas == 2
 
     def test_factory_raises_on_unknown_backend(self):
         from shared.services.event_bus import create_event_bus
@@ -441,6 +466,7 @@ class TestEventBusFactory:
 
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.nats_url = "nats://localhost:4222"
+            mock_settings.nats_stream_replicas = 1
             mock_settings.event_bus_consumer_name = ""
             mock_settings.otel_service_name = "ai-core"
 

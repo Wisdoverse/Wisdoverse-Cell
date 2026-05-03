@@ -69,6 +69,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       # NATS / Event Bus
       NATS_URL: nats://nats-1:4222,nats://nats-2:4222,nats://nats-3:4222
+      NATS_STREAM_REPLICAS: "3"
       EVENT_BUS_BACKEND: ${EVENT_BUS_BACKEND:-redis}
       EVENT_BUS_CONSUMER_NAME: requirement-manager
       # Database Read Replica (optional, for read/write split)

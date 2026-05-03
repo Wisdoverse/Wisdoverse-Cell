@@ -75,12 +75,15 @@ class Settings(BaseSettings):
 
     # NATS JetStream
     nats_url: str = "nats://localhost:4222"
+    nats_stream_replicas: int = 1
     event_bus_backend: Literal["nats", "redis"] = "redis"
 
     @model_validator(mode="after")
     def _validate_nats_config(self) -> "Settings":
         if self.event_bus_backend == "nats" and not self.nats_url.strip():
             raise ValueError("nats_url must be set when event_bus_backend is 'nats'")
+        if self.nats_stream_replicas < 1:
+            raise ValueError("nats_stream_replicas must be >= 1")
         return self
 
     # Vector Database (Milvus)

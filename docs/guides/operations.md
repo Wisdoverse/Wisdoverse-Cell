@@ -247,6 +247,9 @@ producer retries can use JetStream duplicate detection. NATS consumers still
 receive at-least-once delivery and must keep handler side effects idempotent by
 `event_id` or a domain-level idempotency key.
 
+`NATS_STREAM_REPLICAS` controls the JetStream stream replica count. Use `1` for
+single-node local NATS and `3` for the bundled three-node Compose cluster.
+
 ## 6. Scaling
 
 Common scaling commands:

@@ -625,10 +625,12 @@ def create_event_bus(backend: str | None = None) -> EventBusProtocol:
             "event_bus_backend_selected",
             backend="nats",
             consumer_name=consumer_name,
+            stream_replicas=settings.nats_stream_replicas,
         )
         return NATSEventBus(
             nats_url=settings.nats_url,
             consumer_name=consumer_name,
+            stream_replicas=settings.nats_stream_replicas,
         )
     elif chosen == "redis":
         logger.info("event_bus_backend_selected", backend="redis")
