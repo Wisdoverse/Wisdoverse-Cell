@@ -14,6 +14,7 @@ from agents.requirement_manager.grpc import requirement_pb2 as pb2
 from agents.requirement_manager.grpc import requirement_pb2_grpc as pb2_grpc
 from agents.requirement_manager.models.requirement import Requirement, RequirementStatus
 from agents.requirement_manager.service.agent import RequirementManagerAgent
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 logger = get_logger("grpc.servicer")
@@ -242,8 +243,8 @@ class RequirementServicer(pb2_grpc.RequirementServiceServicer):
         logger.info(
             "grpc_reject_requirement",
             id=request.id,
-            rejected_by=request.rejected_by,
-            reason=request.reason[:50] if request.reason else None,
+            rejected_by_hash=hash_identifier(request.rejected_by),
+            reason_length=len(request.reason or ""),
         )
 
         try:

@@ -60,7 +60,7 @@ class DenialTracker:
         logger.info(
             "denial_recorded",
             agent_id=agent_id,
-            user_id=user_id,
+            user_hash=hash_identifier(user_id),
             action_type=action_type,
         )
 
@@ -81,7 +81,7 @@ class DenialTracker:
         logger.debug(
             "denial_cache_hit",
             agent_id=agent_id,
-            user_id=user_id,
+            user_hash=hash_identifier(user_id),
             action_type=action_type,
         )
         return data

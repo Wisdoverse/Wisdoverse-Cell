@@ -240,7 +240,7 @@ class EventBus:
                             logger.error(
                                 "event_validation_failed",
                                 error=str(ve),
-                                raw_event_data=raw_preview,
+                                raw_event_data_length=len(event_data),
                             )
                             await self.publish_raw_dlq(
                                 raw_event_data=raw_preview,
@@ -403,11 +403,7 @@ class EventBus:
                 logger.error(
                     "dlq_event_validation_failed",
                     error=str(exc),
-                    raw_event_data=(
-                        event_data[:200] + "..."
-                        if len(event_data) > 200
-                        else event_data
-                    ),
+                    raw_event_data_length=len(event_data),
                 )
         return events
 

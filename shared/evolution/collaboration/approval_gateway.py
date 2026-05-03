@@ -8,6 +8,7 @@ Privacy: reports contain only metrics, never raw prompts or trigger conditions.
 
 from typing import Any
 
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from .models import PatternStatus
@@ -81,17 +82,25 @@ class ApprovalGateway:
         if user_id not in self._admin_user_ids:
             logger.warning(
                 "approval_rejected_unauthorized",
-                user_id=user_id,
+                user_hash=hash_identifier(user_id),
                 pattern_id=pattern_id,
             )
             return False
 
         if approved:
             await self._store.approve_pattern(pattern_id, approved_by=user_id)
-            logger.info("pattern_approved", pattern_id=pattern_id, approved_by=user_id)
+            logger.info(
+                "pattern_approved",
+                pattern_id=pattern_id,
+                approved_by_hash=hash_identifier(user_id),
+            )
         else:
             await self._store.update_status(pattern_id, PatternStatus.RETIRED)
-            logger.info("pattern_rejected", pattern_id=pattern_id, rejected_by=user_id)
+            logger.info(
+                "pattern_rejected",
+                pattern_id=pattern_id,
+                rejected_by_hash=hash_identifier(user_id),
+            )
 
         return True
 

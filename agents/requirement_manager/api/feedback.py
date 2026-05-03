@@ -7,6 +7,7 @@ delegating business logic to the agent.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from ..db.database import get_db
@@ -160,8 +161,8 @@ async def batch_reject_requirements(
         total=len(request.requirement_ids),
         succeeded=succeeded,
         failed=failed,
-        reason=request.reason,
-        rejected_by=request.rejected_by
+        reason_length=len(request.reason or ""),
+        rejected_by_hash=hash_identifier(request.rejected_by),
     )
 
     return BatchOperationResponse(

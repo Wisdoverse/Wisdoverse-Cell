@@ -1,6 +1,7 @@
 """Thin helper to record card operations from any module."""
 import json
 
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from ..db.database import db_manager
@@ -45,6 +46,11 @@ async def record_op(
                 fields_snapshot=snapshot,
                 error_message=error_message,
             )
-        logger.info("op_recorded", action=action, user=user_name, result=result)
+        logger.info(
+            "op_recorded",
+            action=action,
+            user_hash=hash_identifier(user_id),
+            result=result,
+        )
     except Exception as e:
         logger.error("op_record_failed", action=action, error=str(e))

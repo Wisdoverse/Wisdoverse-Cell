@@ -11,6 +11,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from ..db.repository import FeedbackRepository, RequirementRepository
@@ -113,7 +114,7 @@ class FeedbackLearningService:
             "rejection_feedback_recorded",
             feedback_id=feedback.id,
             requirement_id=requirement_id,
-            rejected_by=rejected_by,
+            rejected_by_hash=hash_identifier(rejected_by),
         )
 
         return feedback

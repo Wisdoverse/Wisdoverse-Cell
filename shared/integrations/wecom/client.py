@@ -185,7 +185,7 @@ class WecomClient:
                     "wecom_get_user_error",
                     code=data.get("errcode"),
                     msg=data.get("errmsg"),
-                    user_id=user_id,
+                    user_hash=hash_identifier(user_id),
                 )
                 return {"userid": user_id, "name": "Unknown"}
 

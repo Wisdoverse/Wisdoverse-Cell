@@ -165,9 +165,9 @@ class UserService:
                 self._set_platform_id(existing_user, platform, platform_user_id)
                 logger.info(
                     "user_linked",
-                    user_id=existing_user.id,
+                    user_hash=hash_identifier(existing_user.id),
                     platform=platform.value,
-                    platform_user_id=platform_user_id,
+                    platform_user_hash=hash_identifier(platform_user_id),
                 )
                 return existing_user
 
@@ -194,10 +194,10 @@ class UserService:
 
         logger.info(
             "user_created",
-            user_id=user.id,
+            user_hash=hash_identifier(user.id),
             platform=platform.value,
-            platform_user_id=platform_user_id,
-            email=email,
+            platform_user_hash=hash_identifier(platform_user_id),
+            email_hash=hash_identifier(email),
         )
 
         return user

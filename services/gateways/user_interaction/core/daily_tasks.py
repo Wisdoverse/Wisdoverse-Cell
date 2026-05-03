@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from shared.config import settings
 from shared.core import BitableTablePort, FeishuMessengerPort
 from shared.infra.llm_gateway import llm_gateway
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from ..db.database import db_manager
@@ -173,7 +174,11 @@ async def dispatch_morning_tasks():
             try:
                 text = await _generate_dispatch_message(name, tasks)
             except Exception as e:
-                logger.warning("claude_dispatch_fallback", user=name, error=str(e))
+                logger.warning(
+                    "claude_dispatch_fallback",
+                    user_hash=hash_identifier(open_id),
+                    error=str(e),
+                )
                 lines = [f"早上好 {name}！你当前有 {len(tasks)} 个活跃任务：\n"]
                 for i, t in enumerate(tasks, 1):
                     lines.append(f"{i}. [{t['status']}] {t['title']} [{t['priority']}]")
@@ -188,7 +193,11 @@ async def dispatch_morning_tasks():
                 )
                 dispatched += 1
             except Exception as e:
-                logger.error("dispatch_send_failed", user=name, error=str(e))
+                logger.error(
+                    "dispatch_send_failed",
+                    user_hash=hash_identifier(open_id),
+                    error=str(e),
+                )
                 continue
 
             async with db_manager.session() as session:
@@ -252,7 +261,11 @@ async def collect_evening_progress():
                 )
                 asked += 1
             except Exception as e:
-                logger.error("collect_send_failed", user=user_name, error=str(e))
+                logger.error(
+                    "collect_send_failed",
+                    user_hash=hash_identifier(user_id),
+                    error=str(e),
+                )
 
         logger.info("evening_collect_done", asked=asked)
     except Exception as e:

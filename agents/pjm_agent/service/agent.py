@@ -15,6 +15,7 @@ from shared.infra.llm_gateway import llm_gateway
 from shared.integrations.feishu.bitable import bitable_service
 from shared.integrations.feishu.client import get_feishu_client
 from shared.integrations.openproject.client import get_op_client
+from shared.observability.privacy import hash_identifier
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
@@ -269,7 +270,7 @@ class PMAgent(BaseAgent):
                 "chat_query_failed",
                 error=str(e),
                 error_type=type(e).__name__,
-                user_id=user_id,
+                user_hash=hash_identifier(user_id),
                 trace_id=event.metadata.trace_id,
             )
             response = {"error": f"Failed to retrieve PM status: {type(e).__name__}"}

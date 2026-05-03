@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared.config import settings as app_settings
 from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.notification import NotificationChannel, notification_service
+from shared.observability.privacy import hash_identifier
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
@@ -419,8 +420,8 @@ class RequirementManagerAgent(BaseAgent):
         logger.info(
             "requirement_rejected",
             requirement_id=requirement_id,
-            reason=reason,
-            rejected_by=rejected_by
+            reason_length=len(reason or ""),
+            rejected_by_hash=hash_identifier(rejected_by),
         )
 
         # 记录拒绝反馈用于学习（不阻塞主流程）
@@ -639,8 +640,8 @@ class RequirementManagerAgent(BaseAgent):
                         logger.info(
                             "batch_requirement_rejected",
                             requirement_id=req_id,
-                            reason=reason,
-                            rejected_by=rejected_by
+                            reason_length=len(reason or ""),
+                            rejected_by_hash=hash_identifier(rejected_by),
                         )
                     else:
                         results.append({
