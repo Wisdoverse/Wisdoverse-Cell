@@ -1,14 +1,14 @@
 """
 Integration tests for API endpoints
 
-测试 API 路由与 Agent 的集成：
-- HTTP 请求正确委托给 Agent
-- 响应格式正确
+Tests API route integration with the Agent:
+- HTTP requests delegate to the Agent correctly
+- Response formats are correct
 """
 import sys
 from pathlib import Path
 
-# 确保项目根目录在 Python 路径中
+# Ensure the project root is on the Python path.
 _project_root = Path(__file__).parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -23,10 +23,10 @@ from agents.requirement_manager.service.agent import IngestResult
 
 @pytest.fixture
 def mock_agent():
-    """创建 mock Agent"""
+    """Create a mock Agent."""
     mock_agent_instance = MagicMock()
 
-    # 配置 ingest mock
+    # Configure ingest mock.
     mock_agent_instance.ingest_meeting = AsyncMock(return_value=IngestResult(
         meeting_id="mtg_test123",
         requirements_extracted=2,
@@ -34,7 +34,7 @@ def mock_agent():
         requirement_ids=["req_1", "req_2"]
     ))
 
-    # 配置 feedback mock
+    # Configure feedback mock.
     mock_agent_instance.confirm_requirement = AsyncMock()
     mock_agent_instance.reject_requirement = AsyncMock()
 
@@ -50,7 +50,7 @@ def mock_agent():
 
 @pytest.fixture
 def mock_db_session():
-    """创建 mock 数据库会话"""
+    """Create a mock database session."""
     with patch("agents.requirement_manager.api.ingest.get_db") as mock_get_db, \
          patch("agents.requirement_manager.api.feedback.get_db") as mock_get_db_feedback:
 
@@ -66,11 +66,11 @@ def mock_db_session():
 
 
 class TestIngestAPI:
-    """测试导入 API"""
+    """Ingest API tests."""
 
     @pytest.mark.asyncio
     async def test_upload_delegates_to_agent(self, mock_agent, mock_db_session):
-        """验证 upload 端点委托给 Agent"""
+        """Upload endpoint delegates to the Agent."""
         from agents.requirement_manager.app.main import app
 
         # Mock lifespan to skip agent startup
@@ -91,10 +91,10 @@ class TestIngestAPI:
                     }
                 )
 
-        # 验证调用了 agent
+        # Validate that the Agent was called.
         mock_agent["ingest"].ingest_meeting.assert_called_once()
 
-        # 验证参数
+        # Validate parameters.
         call_args = mock_agent["ingest"].ingest_meeting.call_args
         assert call_args.kwargs["content"] == "会议内容：讨论了新功能需求"
         assert call_args.kwargs["source"] == "upload"
@@ -102,12 +102,12 @@ class TestIngestAPI:
 
 
 class TestFeedbackAPI:
-    """测试反馈 API"""
+    """Feedback API tests."""
 
     @pytest.mark.asyncio
     async def test_confirm_delegates_to_agent(self, mock_agent, mock_db_session):
-        """验证 confirm 端点委托给 Agent"""
-        # 创建 mock requirement（需要所有 RequirementOut 字段）
+        """Confirm endpoint delegates to the Agent."""
+        # Create mock requirement with all RequirementOut fields.
         from datetime import datetime
 
         from agents.requirement_manager.app.main import app
@@ -141,18 +141,18 @@ class TestFeedbackAPI:
                     json={"confirmed_by": "测试用户"}
                 )
 
-        # 验证调用了 agent
+        # Validate that the Agent was called.
         mock_agent["feedback"].confirm_requirement.assert_called_once()
 
-        # 验证参数
+        # Validate parameters.
         call_args = mock_agent["feedback"].confirm_requirement.call_args
         assert call_args.kwargs["requirement_id"] == "req_123"
         assert call_args.kwargs["confirmed_by"] == "测试用户"
 
     @pytest.mark.asyncio
     async def test_reject_delegates_to_agent(self, mock_agent, mock_db_session):
-        """验证 reject 端点委托给 Agent"""
-        # 创建 mock requirement（需要所有 RequirementOut 字段）
+        """Reject endpoint delegates to the Agent."""
+        # Create mock requirement with all RequirementOut fields.
         from datetime import datetime
 
         from agents.requirement_manager.app.main import app
@@ -189,10 +189,10 @@ class TestFeedbackAPI:
                     }
                 )
 
-        # 验证调用了 agent
+        # Validate that the Agent was called.
         mock_agent["feedback"].reject_requirement.assert_called_once()
 
-        # 验证参数
+        # Validate parameters.
         call_args = mock_agent["feedback"].reject_requirement.call_args
         assert call_args.kwargs["requirement_id"] == "req_123"
         assert call_args.kwargs["reason"] == "不符合产品方向"
@@ -200,16 +200,16 @@ class TestFeedbackAPI:
 
 
 class TestAgentEventPublishing:
-    """测试 Agent 事件发布"""
+    """Agent event publishing tests."""
 
     @pytest.mark.asyncio
     async def test_confirm_publishes_event(self):
-        """验证确认需求时发布事件"""
+        """Confirming a requirement publishes an event."""
         from agents.requirement_manager.models import Requirement
         from agents.requirement_manager.service.agent import RequirementManagerAgent
         from shared.schemas.event import EventTypes
 
-        # 创建带 mock 依赖的 Agent
+        # Create an Agent with mock dependencies.
         mock_bus = MagicMock()
         mock_bus.publish = AsyncMock(return_value=True)
         mock_bus.connect = AsyncMock()
@@ -241,7 +241,7 @@ class TestAgentEventPublishing:
                 session=mock_session
             )
 
-        # 验证事件发布
+        # Validate event publishing.
         mock_bus.publish.assert_called_once()
         published_event = mock_bus.publish.call_args[0][0]
 
@@ -252,11 +252,11 @@ class TestAgentEventPublishing:
 
     @pytest.mark.asyncio
     async def test_event_publish_failure_does_not_block(self):
-        """验证事件发布失败不阻塞主流程"""
+        """Event publishing failures do not block the main flow."""
         from agents.requirement_manager.models import Requirement
         from agents.requirement_manager.service.agent import RequirementManagerAgent
 
-        # 创建 mock 事件总线，模拟发布失败
+        # Create a mock event bus that simulates publish failure.
         mock_bus = MagicMock()
         mock_bus.publish = AsyncMock(side_effect=Exception("Redis connection failed"))
         mock_bus.connect = AsyncMock()
@@ -281,12 +281,12 @@ class TestAgentEventPublishing:
             mock_repo_instance.confirm = AsyncMock(return_value=mock_requirement)
             MockRepo.return_value = mock_repo_instance
 
-            # 应该不抛出异常
+            # Should not raise.
             result = await test_agent.confirm_requirement(
                 requirement_id="req_123",
                 confirmed_by="测试用户",
                 session=mock_session
             )
 
-        # 验证主流程完成
+        # Validate that the main flow completed.
         assert result == mock_requirement

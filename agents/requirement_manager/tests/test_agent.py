@@ -1,16 +1,16 @@
 """
 Unit tests for RequirementManagerAgent
 
-测试 Agent 核心功能：
-- 继承 BaseAgent
-- 事件创建
-- 事件处理分发
+Tests core Agent behavior:
+- BaseAgent inheritance
+- Event creation
+- Event dispatch
 """
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-# 确保项目根目录在 Python 路径中
+# Ensure the project root is on the Python path.
 _project_root = Path(__file__).parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -36,31 +36,31 @@ class _HealthyDbManager:
 
 
 class TestRequirementManagerAgentClass:
-    """测试 Agent 类定义"""
+    """RequirementManagerAgent class definition tests."""
 
     def test_inherits_from_base_agent(self):
-        """验证继承自 BaseAgent"""
+        """Agent inherits from BaseAgent."""
         assert isinstance(agent, BaseAgent)
         assert isinstance(agent, RequirementManagerAgent)
 
     def test_agent_id(self):
-        """验证 agent_id 符合规范（kebab-case）"""
+        """agent_id follows kebab-case."""
         assert agent.agent_id == "requirement-manager"
         assert "-" in agent.agent_id  # kebab-case
         assert "_" not in agent.agent_id  # not snake_case
 
     def test_agent_name(self):
-        """验证 agent_name"""
+        """agent_name is set."""
         assert agent.agent_name == "Requirement Manager"
 
     def test_published_events(self):
-        """验证发布的事件类型"""
+        """Published event types are declared."""
         assert EventTypes.REQUIREMENT_EXTRACTED in agent.published_events
         assert EventTypes.REQUIREMENT_CONFIRMED in agent.published_events
         assert EventTypes.REQUIREMENT_REJECTED in agent.published_events
 
     def test_subscribed_events_for_cross_agent_integration(self):
-        """验证订阅事件用于跨 Agent 集成"""
+        """Subscribed events support cross-Agent integration."""
         expected_events = [
             'project.created',
             'project.updated',
@@ -73,10 +73,10 @@ class TestRequirementManagerAgentClass:
 
 
 class TestEventCreation:
-    """测试事件创建"""
+    """Event creation tests."""
 
     def test_create_event_sets_source_agent(self):
-        """验证 create_event 自动设置 source_agent"""
+        """create_event sets source_agent automatically."""
         event = agent.create_event(
             event_type=EventTypes.REQUIREMENT_CONFIRMED,
             payload={"requirement_id": "req_123"}
@@ -87,7 +87,7 @@ class TestEventCreation:
         assert event.payload["requirement_id"] == "req_123"
 
     def test_create_event_generates_event_id(self):
-        """验证 create_event 生成 event_id"""
+        """create_event generates an event_id."""
         event = agent.create_event(
             event_type=EventTypes.REQUIREMENT_EXTRACTED,
             payload={}
@@ -97,7 +97,7 @@ class TestEventCreation:
         assert event.event_id.startswith("evt_")
 
     def test_create_event_with_trace_id(self):
-        """验证 create_event 支持 trace_id"""
+        """create_event supports trace_id."""
         event = agent.create_event(
             event_type=EventTypes.REQUIREMENT_CONFIRMED,
             payload={},
@@ -108,11 +108,11 @@ class TestEventCreation:
 
 
 class TestEventDispatch:
-    """测试事件分发"""
+    """Event dispatch tests."""
 
     @pytest.mark.asyncio
     async def test_dispatch_unknown_event_returns_empty(self):
-        """验证未知事件类型返回空列表"""
+        """Unknown event types return an empty list."""
         event = Event.create(
             event_type="unknown.event",
             source_agent="test",
@@ -125,7 +125,7 @@ class TestEventDispatch:
 
     @pytest.mark.asyncio
     async def test_dispatch_logs_unhandled_event(self):
-        """验证未处理的事件会记录日志"""
+        """Unhandled events are logged."""
         event = Event.create(
             event_type="unhandled.event.type",
             source_agent="test",
@@ -138,11 +138,11 @@ class TestEventDispatch:
 
 
 class TestAgentLifecycle:
-    """测试 Agent 生命周期"""
+    """Agent lifecycle tests."""
 
     @pytest.mark.asyncio
     async def test_startup_initializes_resources(self):
-        """验证 startup 初始化资源（vector store lifecycle managed by plugin）"""
+        """startup initializes resources managed directly by the Agent."""
         test_agent = RequirementManagerAgent(
             db=MagicMock(),
             bus=MagicMock(),
@@ -163,7 +163,7 @@ class TestAgentLifecycle:
 
     @pytest.mark.asyncio
     async def test_shutdown_cleans_up_resources(self):
-        """验证 shutdown 清理资源（vector store lifecycle managed by plugin）"""
+        """shutdown cleans up resources managed directly by the Agent."""
         test_agent = RequirementManagerAgent(
             db=MagicMock(),
             bus=MagicMock(),
@@ -204,10 +204,10 @@ class TestAgentLifecycle:
 
 
 class TestIngestResult:
-    """测试 IngestResult 数据类"""
+    """IngestResult dataclass tests."""
 
     def test_ingest_result_fields(self):
-        """验证 IngestResult 字段"""
+        """IngestResult exposes expected fields."""
         result = IngestResult(
             meeting_id="mtg_123",
             requirements_extracted=3,
@@ -222,10 +222,10 @@ class TestIngestResult:
 
 
 class TestAgentDependencyInjection:
-    """测试依赖注入"""
+    """Dependency injection tests."""
 
     def test_agent_accepts_custom_dependencies(self):
-        """验证 Agent 支持自定义依赖"""
+        """Agent accepts custom dependencies."""
         mock_db = MagicMock()
         mock_bus = MagicMock()
         mock_vectors = MagicMock()
@@ -241,7 +241,7 @@ class TestAgentDependencyInjection:
         assert test_agent._vector_store is mock_vectors
 
     def test_agent_uses_defaults_when_no_injection(self):
-        """验证 Agent 使用默认依赖"""
+        """Agent uses default dependencies when none are injected."""
         from agents.requirement_manager.db.database import db_manager
         from agents.requirement_manager.db.vector_store import vector_store
         from shared.infra.event_bus import event_bus as default_event_bus
@@ -366,10 +366,10 @@ class TestHandleRequest:
 
 
 class TestFormatMessagesForExtraction:
-    """测试消息格式化方法"""
+    """Message formatting tests."""
 
     def test_format_single_message(self):
-        """验证单条消息格式化"""
+        """Format one message."""
         from datetime import UTC, datetime
 
         # Create mock message
@@ -384,7 +384,7 @@ class TestFormatMessagesForExtraction:
         assert "[10:30] 张三: 这是一条测试消息" == result
 
     def test_format_multiple_messages(self):
-        """验证多条消息格式化"""
+        """Format multiple messages."""
         from datetime import UTC, datetime
 
         mock_msg1 = MagicMock()
@@ -406,7 +406,7 @@ class TestFormatMessagesForExtraction:
         assert "[10:31] 李四: 第二条消息" == lines[1]
 
     def test_format_skips_empty_content(self):
-        """验证跳过空内容消息"""
+        """Skip messages with empty content."""
         from datetime import UTC, datetime
 
         mock_msg1 = MagicMock()
@@ -431,7 +431,7 @@ class TestFormatMessagesForExtraction:
         assert result == "[10:30] 张三: 有内容"
 
     def test_format_handles_none_sender_name(self):
-        """验证处理空发送者姓名"""
+        """Handle a missing sender name."""
         from datetime import UTC, datetime
 
         mock_msg = MagicMock()
@@ -445,7 +445,7 @@ class TestFormatMessagesForExtraction:
         assert "[10:30] Unknown: 消息内容" == result
 
     def test_format_handles_none_sent_at(self):
-        """验证处理空发送时间"""
+        """Handle a missing sent_at value."""
         mock_msg = MagicMock()
         mock_msg.sender_name = "张三"
         mock_msg.sent_at = None
@@ -458,11 +458,11 @@ class TestFormatMessagesForExtraction:
 
 
 class TestExtractFromSession:
-    """测试会话提取方法"""
+    """Session extraction tests."""
 
     @pytest.mark.asyncio
     async def test_extract_from_session_no_messages(self):
-        """验证无消息时返回 None"""
+        """Return None when the session has no messages."""
         from contextlib import asynccontextmanager
 
         mock_db = MagicMock()
@@ -490,7 +490,7 @@ class TestExtractFromSession:
 
     @pytest.mark.asyncio
     async def test_extract_from_session_with_messages(self):
-        """验证有消息时触发提取"""
+        """Trigger extraction when the session has messages."""
         from contextlib import asynccontextmanager
         from datetime import UTC, datetime
 
@@ -551,7 +551,7 @@ class TestExtractFromSession:
 
     @pytest.mark.asyncio
     async def test_extract_from_session_no_requirements_extracted(self):
-        """验证无需求提取时不发送卡片"""
+        """Do not send a card when no requirements are extracted."""
         from contextlib import asynccontextmanager
         from datetime import UTC, datetime
 
@@ -605,11 +605,11 @@ class TestExtractFromSession:
 
 
 class TestSendSessionExtractionCard:
-    """测试会话提取卡片发送"""
+    """Session extraction card sending tests."""
 
     @pytest.mark.asyncio
     async def test_send_card_success(self):
-        """验证成功发送卡片"""
+        """Send a card successfully."""
         mock_client = MagicMock()
         mock_client.send_card = AsyncMock()
         mock_renderer = MagicMock()
@@ -644,7 +644,7 @@ class TestSendSessionExtractionCard:
 
     @pytest.mark.asyncio
     async def test_send_card_handles_error(self):
-        """验证卡片发送失败时不抛出异常"""
+        """Card sending errors do not raise."""
         mock_client = MagicMock()
         mock_client.send_card = AsyncMock(side_effect=Exception("Connection error"))
         mock_renderer = MagicMock()
