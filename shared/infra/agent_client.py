@@ -7,12 +7,50 @@ with typed convenience clients for specific agents.
 
 from __future__ import annotations
 
+from enum import Enum
+
 import httpx
 
 from shared.config import settings
 from shared.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+class AgentClientErrorCategory(str, Enum):
+    """Stable error categories for inter-agent HTTP calls."""
+
+    RATE_LIMIT = "rate_limit"
+    OVERLOADED = "overloaded"
+    NETWORK = "network"
+    AUTH = "auth"
+    CONTENT_SIZE = "content_size"
+    OTHER = "other"
+
+
+_AUTH_STATUS_CODES = {401, 403}
+_CONTENT_SIZE_STATUS_CODES = {413, 414, 431}
+_OVERLOADED_STATUS_CODES = {500, 502, 503, 504, 529}
+
+
+def classify_agent_client_error(exc: BaseException) -> AgentClientErrorCategory:
+    """Map an inter-agent HTTP failure into a stable operator category."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        status_code = exc.response.status_code
+        if status_code in _AUTH_STATUS_CODES:
+            return AgentClientErrorCategory.AUTH
+        if status_code == 429:
+            return AgentClientErrorCategory.RATE_LIMIT
+        if status_code in _CONTENT_SIZE_STATUS_CODES:
+            return AgentClientErrorCategory.CONTENT_SIZE
+        if status_code in _OVERLOADED_STATUS_CODES:
+            return AgentClientErrorCategory.OVERLOADED
+        return AgentClientErrorCategory.OTHER
+
+    if isinstance(exc, httpx.RequestError):
+        return AgentClientErrorCategory.NETWORK
+
+    return AgentClientErrorCategory.OTHER
 
 
 class AgentClient:
@@ -30,6 +68,27 @@ class AgentClient:
             headers["X-Trace-ID"] = trace_id
         return headers
 
+    def _log_error(
+        self,
+        *,
+        method: str,
+        path: str,
+        exc: httpx.HTTPError,
+        trace_id: str | None,
+    ) -> None:
+        category = classify_agent_client_error(exc)
+        response = getattr(exc, "response", None)
+        status_code = getattr(response, "status_code", None)
+        logger.warning(
+            "agent_http_request_failed",
+            method=method,
+            base_url=self.base_url,
+            path=path,
+            error_category=category.value,
+            status_code=status_code,
+            trace_id=trace_id,
+        )
+
     async def post(
         self,
         path: str,
@@ -40,17 +99,25 @@ class AgentClient:
         """Send a POST request and return the JSON response."""
         url = f"{self.base_url}{path}"
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(url, json=json, headers=self._headers(trace_id))
-            resp.raise_for_status()
-            return resp.json()
+            try:
+                resp = await client.post(url, json=json, headers=self._headers(trace_id))
+                resp.raise_for_status()
+                return resp.json()
+            except httpx.HTTPError as exc:
+                self._log_error(method="POST", path=path, exc=exc, trace_id=trace_id)
+                raise
 
     async def get(self, path: str, *, trace_id: str | None = None) -> dict:
         """Send a GET request and return the JSON response."""
         url = f"{self.base_url}{path}"
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.get(url, headers=self._headers(trace_id))
-            resp.raise_for_status()
-            return resp.json()
+            try:
+                resp = await client.get(url, headers=self._headers(trace_id))
+                resp.raise_for_status()
+                return resp.json()
+            except httpx.HTTPError as exc:
+                self._log_error(method="GET", path=path, exc=exc, trace_id=trace_id)
+                raise
 
 
 class PMAgentClient:

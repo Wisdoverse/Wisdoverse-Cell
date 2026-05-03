@@ -5,7 +5,12 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from shared.infra.agent_client import AgentClient, PMAgentClient
+from shared.infra.agent_client import (
+    AgentClient,
+    AgentClientErrorCategory,
+    PMAgentClient,
+    classify_agent_client_error,
+)
 
 
 @pytest.fixture
@@ -58,6 +63,68 @@ class TestAgentClient:
         assert result == {"ok": True}
         headers = mock_get.call_args.kwargs["headers"]
         assert headers == {"X-Trace-ID": "trace-http-2"}
+
+    @pytest.mark.parametrize(
+        ("status_code", "category"),
+        [
+            (401, AgentClientErrorCategory.AUTH),
+            (403, AgentClientErrorCategory.AUTH),
+            (429, AgentClientErrorCategory.RATE_LIMIT),
+            (413, AgentClientErrorCategory.CONTENT_SIZE),
+            (414, AgentClientErrorCategory.CONTENT_SIZE),
+            (431, AgentClientErrorCategory.CONTENT_SIZE),
+            (500, AgentClientErrorCategory.OVERLOADED),
+            (502, AgentClientErrorCategory.OVERLOADED),
+            (503, AgentClientErrorCategory.OVERLOADED),
+            (504, AgentClientErrorCategory.OVERLOADED),
+            (529, AgentClientErrorCategory.OVERLOADED),
+            (418, AgentClientErrorCategory.OTHER),
+        ],
+    )
+    def test_classify_http_status_errors(self, status_code, category):
+        request = httpx.Request("POST", "http://agent.test/agent/request")
+        response = httpx.Response(status_code, request=request)
+        exc = httpx.HTTPStatusError(
+            "request failed",
+            request=request,
+            response=response,
+        )
+
+        assert classify_agent_client_error(exc) == category
+
+    def test_classify_request_errors_as_network(self):
+        request = httpx.Request("GET", "http://agent.test/health")
+        exc = httpx.ConnectError("connection refused", request=request)
+
+        assert classify_agent_client_error(exc) == AgentClientErrorCategory.NETWORK
+
+    @pytest.mark.asyncio
+    async def test_post_logs_classified_failure_without_wrapping_exception(self):
+        mock_resp = httpx.Response(
+            503,
+            text="Service unavailable",
+            request=httpx.Request("POST", "http://test"),
+        )
+        with (
+            patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp),
+            patch("shared.infra.agent_client.logger") as mock_logger,
+        ):
+            client = AgentClient("http://test-pm:8012")
+
+            with pytest.raises(httpx.HTTPStatusError):
+                await client.post(
+                    "/agent/request",
+                    json={"action": "wakeup"},
+                    trace_id="trace-classified",
+                )
+
+        warning = mock_logger.warning.call_args
+        assert warning.args == ("agent_http_request_failed",)
+        assert warning.kwargs["method"] == "POST"
+        assert warning.kwargs["path"] == "/agent/request"
+        assert warning.kwargs["error_category"] == AgentClientErrorCategory.OVERLOADED.value
+        assert warning.kwargs["status_code"] == 503
+        assert warning.kwargs["trace_id"] == "trace-classified"
 
 
 class TestPMAgentClient:
