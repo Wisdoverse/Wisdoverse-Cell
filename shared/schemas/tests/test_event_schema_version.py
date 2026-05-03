@@ -62,12 +62,20 @@ class TestEventSchemaVersion:
             )
 
     def test_source_agent_requires_publishing_agent_id(self):
-        with pytest.raises(ValidationError, match="source_agent must be"):
-            Event.create(
-                event_type="test.created",
-                source_agent="   ",
-                payload={},
-            )
+        for source_agent in ("", "   ", "Test Agent", "test.agent"):
+            with pytest.raises(ValidationError, match="source_agent must be"):
+                Event.create(
+                    event_type="test.created",
+                    source_agent=source_agent,
+                    payload={},
+                )
+
+        event = Event.create(
+            event_type="test.created",
+            source_agent="test-agent_1",
+            payload={},
+        )
+        assert event.source_agent == "test-agent_1"
 
     def test_event_fields_are_immutable(self):
         event = Event.create(

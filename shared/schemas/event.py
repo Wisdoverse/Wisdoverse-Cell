@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from shared.core.ids import generate_id
 
 _EVENT_TYPE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)+$")
+_AGENT_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
 
 class _ReadOnlyDict(dict):
@@ -124,7 +125,7 @@ class Event(BaseModel):
     @classmethod
     def _validate_source_agent(cls, source_agent: str) -> str:
         """Require an explicit publishing agent ID."""
-        if not source_agent.strip():
+        if not _AGENT_ID_PATTERN.fullmatch(source_agent):
             raise ValueError("source_agent must be the publishing agent ID")
         return source_agent
 
