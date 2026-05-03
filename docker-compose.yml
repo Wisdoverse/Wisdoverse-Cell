@@ -43,6 +43,19 @@ x-llm-env: &llm-env
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
 
+x-app-security-env: &app-security-env
+  SECRET_KEY: ${SECRET_KEY:-dev-only-change-in-production}
+  PM_API_KEY: ${PM_API_KEY:-}
+  INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
+  A2A_JWT_SECRET: ${A2A_JWT_SECRET:-dev-only-change-in-production}
+  CONTROL_PLANE_ENABLED: ${CONTROL_PLANE_ENABLED:-false}
+  CONTROL_PLANE_COMPANY_ID: ${CONTROL_PLANE_COMPANY_ID:-cmp_projectcell}
+  CONTROL_PLANE_APPROVAL_ENFORCED: ${CONTROL_PLANE_APPROVAL_ENFORCED:-false}
+  CONTROL_PLANE_LLM_BUDGET_ENFORCED: ${CONTROL_PLANE_LLM_BUDGET_ENFORCED:-false}
+  CONTROL_PLANE_TOOL_BUDGET_ENFORCED: ${CONTROL_PLANE_TOOL_BUDGET_ENFORCED:-false}
+  CONTROL_PLANE_LOCAL_ADAPTER_ENABLED: ${CONTROL_PLANE_LOCAL_ADAPTER_ENABLED:-false}
+  CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST: ${CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST:-}
+
 x-healthcheck-defaults: &healthcheck-defaults
   interval: 30s
   timeout: 10s
@@ -204,7 +217,7 @@ services:
       API_HOST: "0.0.0.0"
       API_PORT: "8000"
       # LLM
-      <<: *llm-env
+      <<: [*llm-env, *app-security-env]
       # Application
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
@@ -352,6 +365,7 @@ services:
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
       FEISHU_BITABLE_APP_TOKEN: ${FEISHU_BITABLE_APP_TOKEN:-}
       FEISHU_BITABLE_TABLE_ID: ${FEISHU_BITABLE_TABLE_ID:-}
+      <<: *app-security-env
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
     ports:
@@ -407,6 +421,7 @@ services:
       FEISHU_PM_APP_TOKEN: ${FEISHU_PM_APP_TOKEN:-}
       FEISHU_PM_TASK_TABLE_ID: ${FEISHU_PM_TASK_TABLE_ID:-}
       FEISHU_REPORT_CHAT_ID: ${FEISHU_REPORT_CHAT_ID:-}
+      <<: *app-security-env
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
     ports:
@@ -467,7 +482,7 @@ services:
       FEISHU_REPORT_CHAT_ID: ${FEISHU_REPORT_CHAT_ID:-}
       OPENPROJECT_URL: ${OPENPROJECT_URL:-}
       OPENPROJECT_API_KEY: ${OPENPROJECT_API_KEY:-}
-      <<: *llm-env
+      <<: [*llm-env, *app-security-env]
       DECOMPOSE_PROJECT_IDS: ${DECOMPOSE_PROJECT_IDS:-}
       DECOMPOSE_NOTIFY_OPEN_ID: ${DECOMPOSE_NOTIFY_OPEN_ID:-}
       APP_ENV: ${APP_ENV:-development}
@@ -527,7 +542,7 @@ services:
       GITLAB_QA_TOKEN: ${GITLAB_QA_TOKEN:-}
       QA_FEISHU_WEBHOOK_URL: ${QA_FEISHU_WEBHOOK_URL:-}
       QA_HIGH_SEVERITY_CHECKS: ${QA_HIGH_SEVERITY_CHECKS:-}
-      <<: *llm-env
+      <<: [*llm-env, *app-security-env]
       FEISHU_APP_ID: ${FEISHU_APP_ID:-}
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
       FEISHU_WEBHOOK_URL: ${FEISHU_WEBHOOK_URL:-}
@@ -583,7 +598,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "6"
-      <<: *llm-env
+      <<: [*llm-env, *app-security-env]
       DEV_GITLAB_API_URL: ${GITLAB_API_URL:-}
       DEV_GITLAB_PROJECT_ID: ${GITLAB_PROJECT_ID:-0}
       DEV_GITLAB_TOKEN: ${GITLAB_DEV_TOKEN:-}
@@ -644,7 +659,7 @@ services:
       FEISHU_APP_ID: ${FEISHU_APP_ID:-}
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
       FEISHU_VERIFY_SIGNATURE: "false"  # Gateway handles verification
-      <<: *llm-env
+      <<: [*llm-env, *app-security-env]
       OPENPROJECT_URL: ${OPENPROJECT_URL:-}
       OPENPROJECT_API_KEY: ${OPENPROJECT_API_KEY:-}
       FEISHU_BITABLE_APP_TOKEN: ${FEISHU_BITABLE_APP_TOKEN:-}

@@ -29,6 +29,19 @@ x-llm-env: &llm-env
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
 
+x-app-security-env: &app-security-env
+  SECRET_KEY: ${SECRET_KEY:-dev-only-change-in-production}
+  PM_API_KEY: ${PM_API_KEY:-}
+  INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
+  A2A_JWT_SECRET: ${A2A_JWT_SECRET:-dev-only-change-in-production}
+  CONTROL_PLANE_ENABLED: ${CONTROL_PLANE_ENABLED:-false}
+  CONTROL_PLANE_COMPANY_ID: ${CONTROL_PLANE_COMPANY_ID:-cmp_projectcell}
+  CONTROL_PLANE_APPROVAL_ENFORCED: ${CONTROL_PLANE_APPROVAL_ENFORCED:-false}
+  CONTROL_PLANE_LLM_BUDGET_ENFORCED: ${CONTROL_PLANE_LLM_BUDGET_ENFORCED:-false}
+  CONTROL_PLANE_TOOL_BUDGET_ENFORCED: ${CONTROL_PLANE_TOOL_BUDGET_ENFORCED:-false}
+  CONTROL_PLANE_LOCAL_ADAPTER_ENABLED: ${CONTROL_PLANE_LOCAL_ADAPTER_ENABLED:-false}
+  CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST: ${CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST:-}
+
 services:
   # ===========================================================================
 # Requirement manager agent (HTTP + gRPC), using the ai-core runtime service id.
@@ -69,7 +82,7 @@ services:
       API_HOST: "0.0.0.0"
       API_PORT: "8000"
       # LLM
-      <<: *llm-env
+      <<: [*llm-env, *app-security-env]
       # Application
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
