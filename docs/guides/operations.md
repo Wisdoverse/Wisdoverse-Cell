@@ -223,6 +223,8 @@ Relevant settings:
 |---------|---------|---------|
 | `EVENT_BUS_PENDING_CLAIM_IDLE_MS` | `360000` | Minimum pending idle time before another consumer may reclaim a message |
 | `EVENT_BUS_PENDING_CLAIM_COUNT` | `10` | Maximum pending messages to reclaim from one stream per poll |
+| `EVENT_BUS_PROCESSED_EVENT_TTL_SECONDS` | `604800` | How long a consumer group remembers successfully processed event IDs |
+| `EVENT_BUS_PROCESSING_LOCK_TTL_SECONDS` | `360` | In-flight lock TTL used to avoid concurrent duplicate handling of the same `event_id` |
 
 Pending replay preserves at-least-once delivery. Event handlers must still be
 idempotent by `event_id` or a domain-level idempotency key before creating
@@ -232,6 +234,13 @@ The effective reclaim idle time is never lower than
 `EVENT_HANDLER_TIMEOUT_SECONDS + 1s`. This prevents a second consumer from
 claiming a message while the first consumer may still be inside its allowed
 handler window.
+
+After a handler completes successfully, the Redis backend stores
+`group + event_id` for the configured idempotency window before acknowledging
+the stream entry. If the same event is replayed after an ACK failure or
+duplicate publication, the consumer acknowledges and skips it. If another
+consumer is already processing the same `event_id`, the duplicate remains
+unacknowledged and can be reclaimed later.
 
 ## 6. Scaling
 

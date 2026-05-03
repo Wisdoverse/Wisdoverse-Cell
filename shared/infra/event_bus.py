@@ -118,6 +118,12 @@ class EventBus:
         """
         return f"{self.queue_prefix}:{event_type}"
 
+    def _processed_event_key(self, group: str, event_id: str) -> str:
+        return f"{self.queue_prefix}:processed:{group}:{event_id}"
+
+    def _processing_event_key(self, group: str, event_id: str) -> str:
+        return f"{self.queue_prefix}:processing:{group}:{event_id}"
+
     @staticmethod
     def _consumer_name() -> str:
         """Generate a unique consumer name within a group (hostname-pid)."""
@@ -157,6 +163,63 @@ class EventBus:
         configured_ms = max(1, settings.event_bus_pending_claim_idle_ms)
         handler_timeout_ms = max(1, settings.event_handler_timeout_seconds) * 1000
         return max(configured_ms, handler_timeout_ms + 1000)
+
+    def _processing_lock_ttl_seconds(self) -> int:
+        """Return a lock TTL long enough for one runtime handler attempt."""
+        configured_seconds = max(1, settings.event_bus_processing_lock_ttl_seconds)
+        handler_timeout_seconds = max(1, settings.event_handler_timeout_seconds)
+        return max(configured_seconds, handler_timeout_seconds + 60)
+
+    async def _is_processed(self, *, group: str, event_id: str) -> bool:
+        key = self._processed_event_key(group, event_id)
+        try:
+            return bool(await self._redis.get(key))
+        except Exception as exc:
+            logger.warning(
+                "event_idempotency_lookup_failed",
+                group=group,
+                event_id=event_id,
+                error=str(exc),
+            )
+            return False
+
+    async def _claim_processing(self, *, group: str, consumer: str, event_id: str) -> bool:
+        key = self._processing_event_key(group, event_id)
+        try:
+            return bool(
+                await self._redis.set(
+                    key,
+                    consumer,
+                    nx=True,
+                    ex=self._processing_lock_ttl_seconds(),
+                )
+            )
+        except Exception as exc:
+            logger.warning(
+                "event_idempotency_claim_failed",
+                group=group,
+                event_id=event_id,
+                error=str(exc),
+            )
+            return True
+
+    async def _mark_processed(self, *, group: str, event_id: str) -> None:
+        key = self._processed_event_key(group, event_id)
+        lock_key = self._processing_event_key(group, event_id)
+        try:
+            await self._redis.set(
+                key,
+                "1",
+                ex=max(1, settings.event_bus_processed_event_ttl_seconds),
+            )
+            await self._redis.delete(lock_key)
+        except Exception as exc:
+            logger.warning(
+                "event_idempotency_mark_failed",
+                group=group,
+                event_id=event_id,
+                error=str(exc),
+            )
 
     async def _claim_pending(
         self,
@@ -203,6 +266,7 @@ class EventBus:
         results: list[tuple[str, list]],
         *,
         group: str,
+        consumer: str,
     ) -> AsyncGenerator[Event, None]:
         """Validate, yield, and acknowledge Redis Stream messages."""
         for stream_key, messages in results:
@@ -230,6 +294,29 @@ class EventBus:
                     await self._redis.xack(stream_key, group, message_id)
                     continue
 
+                if await self._is_processed(group=group, event_id=event.event_id):
+                    logger.info(
+                        "event_duplicate_skipped",
+                        event_id=event.event_id,
+                        event_type=event.event_type,
+                        group=group,
+                    )
+                    await self._redis.xack(stream_key, group, message_id)
+                    continue
+
+                if not await self._claim_processing(
+                    group=group,
+                    consumer=consumer,
+                    event_id=event.event_id,
+                ):
+                    logger.info(
+                        "event_duplicate_in_progress",
+                        event_id=event.event_id,
+                        event_type=event.event_type,
+                        group=group,
+                    )
+                    continue
+
                 logger.debug(
                     "event_received",
                     event_id=event.event_id,
@@ -240,6 +327,7 @@ class EventBus:
                 yield event
 
                 # ACK after successful processing by the async-for consumer.
+                await self._mark_processed(group=group, event_id=event.event_id)
                 await self._redis.xack(stream_key, group, message_id)
 
     async def publish(self, event: Event) -> bool:
@@ -331,7 +419,11 @@ class EventBus:
                     consumer=consumer,
                 )
                 if claimed:
-                    async for event in self._yield_stream_results(claimed, group=group_name):
+                    async for event in self._yield_stream_results(
+                        claimed,
+                        group=group_name,
+                        consumer=consumer,
+                    ):
                         yield event
                     continue
 
@@ -346,7 +438,11 @@ class EventBus:
                 if not results:
                     continue
 
-                async for event in self._yield_stream_results(results, group=group_name):
+                async for event in self._yield_stream_results(
+                    results,
+                    group=group_name,
+                    consumer=consumer,
+                ):
                     yield event
 
             except asyncio.CancelledError:

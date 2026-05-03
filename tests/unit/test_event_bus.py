@@ -1,6 +1,6 @@
 """Unit tests for shared.services.event_bus.EventBus (Redis Streams)."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
@@ -15,6 +15,9 @@ def mock_redis():
     r.xautoclaim = AsyncMock(return_value=("0-0", [], []))
     r.xgroup_create = AsyncMock()
     r.xreadgroup = AsyncMock(return_value=[])
+    r.get = AsyncMock(return_value=None)
+    r.set = AsyncMock(return_value=True)
+    r.delete = AsyncMock(return_value=1)
     r.xlen = AsyncMock(return_value=0)
     r.xpending = AsyncMock(return_value={"pending": 0})
     r.xrevrange = AsyncMock(return_value=[])
@@ -107,6 +110,94 @@ def test_pending_claim_idle_exceeds_handler_timeout(bus, monkeypatch):
     monkeypatch.setattr(_event_bus_mod.settings, "event_handler_timeout_seconds", 5)
 
     assert bus._pending_claim_idle_ms() == 6_000
+
+
+def test_processing_lock_ttl_exceeds_handler_timeout(bus, monkeypatch):
+    monkeypatch.setattr(_event_bus_mod.settings, "event_bus_processing_lock_ttl_seconds", 1)
+    monkeypatch.setattr(_event_bus_mod.settings, "event_handler_timeout_seconds", 5)
+
+    assert bus._processing_lock_ttl_seconds() == 65
+
+
+@pytest.mark.asyncio
+async def test_successful_event_is_marked_processed_before_ack(bus, mock_redis):
+    event = _make_event()
+    stream_key = bus._get_stream_key("sync.completed")
+    generator = bus._yield_stream_results(
+        [(stream_key, [("100-0", {"data": event.model_dump_json()})])],
+        group="qa-agent",
+        consumer="consumer-1",
+    )
+
+    received = await anext(generator)
+    assert received.event_id == event.event_id
+
+    with pytest.raises(StopAsyncIteration):
+        await anext(generator)
+
+    processed_key = f"projectcell:events:processed:qa-agent:{event.event_id}"
+    processing_key = f"projectcell:events:processing:qa-agent:{event.event_id}"
+    mock_redis.set.assert_has_awaits(
+        [
+            call(processing_key, "consumer-1", nx=True, ex=360),
+            call(processed_key, "1", ex=604_800),
+        ]
+    )
+    mock_redis.delete.assert_awaited_once_with(processing_key)
+    mock_redis.xack.assert_awaited_once_with(stream_key, "qa-agent", "100-0")
+
+
+@pytest.mark.asyncio
+async def test_subscribe_skips_processed_duplicate_and_acks(bus, mock_redis):
+    stream_key = bus._get_stream_key("sync.completed")
+    duplicate_event = _make_event()
+    next_event = _make_event()
+    mock_redis.get.side_effect = ["1", None]
+    mock_redis.xreadgroup = AsyncMock(
+        return_value=[
+            (
+                stream_key,
+                [
+                    ("100-0", {"data": duplicate_event.model_dump_json()}),
+                    ("101-0", {"data": next_event.model_dump_json()}),
+                ],
+            )
+        ]
+    )
+
+    subscription = bus.subscribe(["sync.completed"], timeout=1, group="qa-agent")
+    received = await anext(subscription)
+    await subscription.aclose()
+
+    assert received.event_id == next_event.event_id
+    mock_redis.xack.assert_any_await(stream_key, "qa-agent", "100-0")
+    assert mock_redis.set.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_subscribe_leaves_in_progress_duplicate_unacked(bus, mock_redis):
+    stream_key = bus._get_stream_key("sync.completed")
+    locked_event = _make_event()
+    next_event = _make_event()
+    mock_redis.set.side_effect = [False, True]
+    mock_redis.xreadgroup = AsyncMock(
+        return_value=[
+            (
+                stream_key,
+                [
+                    ("100-0", {"data": locked_event.model_dump_json()}),
+                    ("101-0", {"data": next_event.model_dump_json()}),
+                ],
+            )
+        ]
+    )
+
+    subscription = bus.subscribe(["sync.completed"], timeout=1, group="qa-agent")
+    received = await anext(subscription)
+    await subscription.aclose()
+
+    assert received.event_id == next_event.event_id
+    assert call(stream_key, "qa-agent", "100-0") not in mock_redis.xack.await_args_list
 
 
 @pytest.mark.asyncio

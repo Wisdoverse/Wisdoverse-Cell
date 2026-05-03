@@ -34,6 +34,8 @@ Migrate to Redis Streams (XADD/XREADGROUP) which provides:
 - The effective pending reclaim idle time is clamped above
   `EVENT_HANDLER_TIMEOUT_SECONDS` to avoid concurrent duplicate processing for
   long-running handlers.
+- Processed event IDs are remembered per consumer group for a bounded
+  idempotency window so successful replay does not re-run the same handler.
 - Simpler publish() — single XADD replaces LPUSH + smembers loop
 
 ### Negative
