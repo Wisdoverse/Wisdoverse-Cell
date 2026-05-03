@@ -65,6 +65,8 @@ actions only when the event intentionally requests work, such as `sync.trigger`.
 | `coordinator.command` | user interaction gateway or control-plane API | coordinator | User or operator intent requires orchestration |
 | `coordinator.response` | coordinator | user interaction gateway | Coordinator response for the requesting surface |
 | `coordinator.dispatch` | coordinator | runtime agents or capability modules | Coordinator dispatched work to a target boundary |
+| `task.notification` | runtime agents | coordinator | Agent task completion or failure notification |
+| `task.progress` | runtime agents | coordinator | Agent progress heartbeat for long-running work |
 | `qa.run-requested` | dev agent or coordinator | QA agent | QA acceptance was requested for a code change |
 | `qa.acceptance-completed` | QA agent | project management and dev agent | Acceptance run completed |
 | `qa.gate-failed` | QA agent | project management | Acceptance gate failed with failure details |
@@ -271,7 +273,8 @@ routes work to a target runtime boundary, and `coordinator.response` returns a
 compact response to the requesting gateway. Targeted coordinator decisions may
 also emit the concrete downstream command event directly, such as
 `pm.tasks-ready-for-dev` for the dev agent or `qa.run-requested` for the QA
-agent.
+agent. Runtime agents can report back through `task.notification` when a
+dispatched task finishes or fails, and `task.progress` during long-running work.
 
 The dev agent publishes workflow-created, merge-request-created, task-completed,
 and task-failed evidence, and may request QA with `qa.run-requested` after
@@ -290,6 +293,32 @@ Example `qa.run-requested` payload:
   "mr_iid": 137,
   "gitlab_project_id": 42,
   "requested_by": "dev-agent"
+}
+```
+
+Example `task.notification` payload:
+
+```json
+{
+  "task_id": "task_...",
+  "agent_id": "dev-agent",
+  "status": "completed",
+  "summary": "Merge request created",
+  "result": {"mr_iid": 137},
+  "usage": {"llm_tokens": 1200}
+}
+```
+
+Example `task.progress` payload:
+
+```json
+{
+  "task_id": "task_...",
+  "agent_id": "dev-agent",
+  "tool_use_count": 4,
+  "llm_token_count": 3200,
+  "last_activity": {"phase": "tests"},
+  "recent_activities": [{"phase": "implementation"}]
 }
 ```
 

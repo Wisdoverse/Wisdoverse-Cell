@@ -186,6 +186,8 @@ def test_event_catalog_uses_canonical_runtime_event_names() -> None:
         EventTypes.COORDINATOR_COMMAND,
         EventTypes.COORDINATOR_RESPONSE,
         EventTypes.COORDINATOR_DISPATCH,
+        EventTypes.TASK_NOTIFICATION,
+        EventTypes.TASK_PROGRESS,
         "channel.message.outbound",
         "channel.message.delivered",
     }
