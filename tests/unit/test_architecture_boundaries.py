@@ -498,6 +498,23 @@ def test_frontend_route_pages_compose_widgets_only() -> None:
             )
 
 
+def test_frontend_locale_layout_keeps_provider_composition_in_widget() -> None:
+    path = Path("frontend/src/app/[locale]/layout.tsx")
+    source = path.read_text()
+    forbidden_imports = (
+        "@/components",
+        "next/font",
+        "next-intl\"",
+    )
+
+    assert "@/widgets/root-shell" in source
+    for token in forbidden_imports:
+        assert token not in source, (
+            f"{path} owns root shell composition through {token}; "
+            "compose LocaleRootShell instead"
+        )
+
+
 def test_event_catalog_uses_canonical_runtime_event_names() -> None:
     catalog = Path("docs/guides/event-catalog.md").read_text()
     expected = {
