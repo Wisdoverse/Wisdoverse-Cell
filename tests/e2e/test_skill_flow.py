@@ -109,7 +109,7 @@ class TestListSkillE2E:
             result = await skill.execute(context)
 
         assert result.success is True
-        # Should have "暂无" or empty message
+        # Should have an empty-state message.
         assert result.response.card is not None
 
 
