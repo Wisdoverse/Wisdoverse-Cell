@@ -41,6 +41,25 @@ def test_runtime_modules_keep_canonical_package_boundaries() -> None:
             )
 
 
+def test_runtime_modules_expose_event_contracts() -> None:
+    modules = {module.agent_id: module for module in RUNTIME_MODULES}
+
+    assert modules["chat-agent"].published_events == (
+        "chat.pm-query",
+        "coordinator.command",
+        "sync.trigger",
+    )
+    assert "sync.trigger" in modules["sync-agent"].subscribed_events
+    assert modules["coordinator"].published_events == (
+        "coordinator.response",
+        "coordinator.dispatch",
+        "pm.tasks-ready-for-dev",
+        "qa.run-requested",
+    )
+    assert "qa.run-requested" in modules["dev-agent"].published_events
+    assert "qa.run-requested" in modules["qa-agent"].subscribed_events
+
+
 def test_organization_roles_are_control_plane_templates_not_packages() -> None:
     role_ids = {template.agent_id for template in ORGANIZATION_ROLE_TEMPLATES}
 
@@ -86,6 +105,8 @@ def test_managed_catalog_exposes_root_role_templates_and_runtime_modules() -> No
     assert requirement_manager.catalog_group == "runtime_module"
     assert requirement_manager.package_path == "agents.requirement_manager"
     assert requirement_manager.runtime_boundary == "root_agent"
+    assert requirement_manager.subscribed_events
+    assert requirement_manager.published_events
     assert requirement_manager.implemented is True
     assert requirement_manager.business_agent is True
     assert requirement_manager.frontend_managed is True
@@ -168,6 +189,10 @@ def test_frontend_registry_matches_runtime_catalog() -> None:
         assert f'agentKind: "{module.agent_kind.value}"' in body
         assert f'interactionMode: "{module.interaction_mode.value}"' in body
         assert f'runtimeBoundary: "{module.runtime_boundary}"' in body
+        for event_type in module.subscribed_events:
+            assert f'"{event_type}"' in body
+        for event_type in module.published_events:
+            assert f'"{event_type}"' in body
 
 
 def test_frontend_builtin_registry_excludes_role_templates() -> None:

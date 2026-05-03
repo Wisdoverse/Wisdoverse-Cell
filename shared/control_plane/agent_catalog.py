@@ -22,6 +22,8 @@ class RuntimeModule:
     interaction_mode: AgentInteractionMode
     description: str
     runtime_boundary: str
+    subscribed_events: tuple[str, ...] = ()
+    published_events: tuple[str, ...] = ()
     implemented: bool = True
     business_agent: bool = False
     frontend_managed: bool = True
@@ -86,6 +88,8 @@ class AgentCatalogEntry:
     description: str
     package_path: str | None
     runtime_boundary: str | None
+    subscribed_events: tuple[str, ...]
+    published_events: tuple[str, ...]
     implemented: bool
     business_agent: bool
     frontend_managed: bool
@@ -101,6 +105,8 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         interaction_mode=AgentInteractionMode.DIRECT,
         description="User interaction and Feishu webhook gateway.",
         runtime_boundary="gateway",
+        subscribed_events=("chat.pm-response", "coordinator.response"),
+        published_events=("chat.pm-query", "coordinator.command", "sync.trigger"),
     ),
     RuntimeModule(
         agent_id="channel-gateway",
@@ -110,6 +116,12 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         interaction_mode=AgentInteractionMode.DIRECT,
         description="Multi-channel messaging gateway runtime.",
         runtime_boundary="gateway",
+        subscribed_events=("channel.message.outbound",),
+        published_events=(
+            "channel.message.inbound",
+            "channel.message.delivered",
+            "channel.adapter.status",
+        ),
     ),
     RuntimeModule(
         agent_id="coordinator",
@@ -119,6 +131,21 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         interaction_mode=AgentInteractionMode.ROUTED,
         description="Cross-module event orchestration worker.",
         runtime_boundary="orchestration",
+        subscribed_events=(
+            "coordinator.command",
+            "task.notification",
+            "task.progress",
+            "pm.prd-ready",
+            "pm.decompose-completed",
+            "pm.decomposition-failed",
+            "analysis.risk-detected",
+        ),
+        published_events=(
+            "coordinator.response",
+            "coordinator.dispatch",
+            "pm.tasks-ready-for-dev",
+            "qa.run-requested",
+        ),
     ),
     RuntimeModule(
         agent_id="requirement-manager",
@@ -128,6 +155,20 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         interaction_mode=AgentInteractionMode.INTERNAL,
         description="Requirement extraction, confirmation, PRD, and local Feishu flow.",
         runtime_boundary="root_agent",
+        subscribed_events=(
+            "project.created",
+            "project.updated",
+            "sprint.started",
+            "sprint.completed",
+            "meeting.uploaded",
+            "coordinator.dispatch",
+        ),
+        published_events=(
+            "requirement.extracted",
+            "requirement.confirmed",
+            "requirement.rejected",
+            "requirement.deleted",
+        ),
         business_agent=True,
     ),
     RuntimeModule(
@@ -141,6 +182,13 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
             "Feishu Bitable sync capabilities."
         ),
         runtime_boundary="capability",
+        subscribed_events=("sync.trigger",),
+        published_events=(
+            "sync.started",
+            "sync.completed",
+            "sync.failed",
+            "sync.task-needs-decompose",
+        ),
     ),
     RuntimeModule(
         agent_id="analysis-agent",
@@ -150,6 +198,13 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         interaction_mode=AgentInteractionMode.INTERNAL,
         description="Risk detection and operating analytics capability.",
         runtime_boundary="capability",
+        subscribed_events=("sync.completed",),
+        published_events=(
+            "report.daily-generated",
+            "report.weekly-generated",
+            "analysis.risk-detected",
+            "analysis.quality-evaluated",
+        ),
     ),
     RuntimeModule(
         agent_id="pjm-agent",
@@ -159,6 +214,22 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         interaction_mode=AgentInteractionMode.INTERNAL,
         description="Task decomposition, approval preparation, alerts, and reports.",
         runtime_boundary="root_agent",
+        subscribed_events=(
+            "sync.completed",
+            "analysis.risk-detected",
+            "chat.pm-query",
+            "sync.task-needs-decompose",
+            "coordinator.dispatch",
+        ),
+        published_events=(
+            "pm.alert-triggered",
+            "chat.pm-response",
+            "pm.decompose-completed",
+            "pm.decomposition-failed",
+            "pm.approval-timeout",
+            "pm.tasks-ready-for-dev",
+            "sync.task-needs-decompose",
+        ),
         business_agent=True,
     ),
     RuntimeModule(
@@ -169,6 +240,8 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         interaction_mode=AgentInteractionMode.INTERNAL,
         description="QA acceptance and quality verification capability.",
         runtime_boundary="root_agent",
+        subscribed_events=("code.committed", "qa.run-requested"),
+        published_events=("qa.acceptance-completed", "qa.gate-failed"),
         business_agent=True,
     ),
     RuntimeModule(
@@ -179,6 +252,14 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         interaction_mode=AgentInteractionMode.INTERNAL,
         description="AgentForge-backed software delivery execution module.",
         runtime_boundary="root_agent",
+        subscribed_events=("pm.tasks-ready-for-dev", "qa.acceptance-completed"),
+        published_events=(
+            "dev.workflow-created",
+            "dev.mr-created",
+            "dev.task-completed",
+            "dev.task-failed",
+            "qa.run-requested",
+        ),
         business_agent=True,
     ),
     RuntimeModule(
@@ -189,6 +270,12 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         interaction_mode=AgentInteractionMode.INTERNAL,
         description="Self-evolution analysis and recommendation capability.",
         runtime_boundary="capability",
+        subscribed_events=(
+            "evolution.cycle-triggered",
+            "evolution.human-feedback",
+            "evolution.pattern-approved",
+        ),
+        published_events=("evolution.skill-proposed", "evolution.pattern-proposed"),
     ),
 )
 
@@ -241,6 +328,8 @@ def _runtime_module_to_catalog_entry(module: RuntimeModule) -> AgentCatalogEntry
         description=module.description,
         package_path=module.package_path,
         runtime_boundary=module.runtime_boundary,
+        subscribed_events=module.subscribed_events,
+        published_events=module.published_events,
         implemented=module.implemented,
         business_agent=module.business_agent,
         frontend_managed=module.frontend_managed,
@@ -260,6 +349,8 @@ def _role_template_to_catalog_entry(
         description=f"{template.title} role agent template for {template.domain}.",
         package_path=None,
         runtime_boundary=None,
+        subscribed_events=(),
+        published_events=(),
         implemented=False,
         business_agent=True,
         frontend_managed=template.frontend_managed,

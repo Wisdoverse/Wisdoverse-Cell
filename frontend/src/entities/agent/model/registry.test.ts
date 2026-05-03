@@ -100,6 +100,14 @@ describe("agent registry architecture boundary", () => {
     expect(AGENT_REGISTRY["qa-agent"].upstream).toEqual(
       expect.arrayContaining(["dev-agent", "coordinator"]),
     );
+    expect(AGENT_REGISTRY["chat-agent"].publishedEvents).toEqual(
+      expect.arrayContaining(["coordinator.command", "sync.trigger"]),
+    );
+    expect(AGENT_REGISTRY.coordinator.publishedEvents).toEqual(
+      expect.arrayContaining(["pm.tasks-ready-for-dev", "qa.run-requested"]),
+    );
+    expect(AGENT_REGISTRY["dev-agent"].publishedEvents).toContain("qa.run-requested");
+    expect(AGENT_REGISTRY["qa-agent"].subscribedEvents).toContain("qa.run-requested");
   });
 
   it("maps control-plane records into manageable organization-role agents", () => {
