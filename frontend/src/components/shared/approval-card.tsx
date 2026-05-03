@@ -3,7 +3,7 @@
 import type { ApprovalRequest } from "@/lib/api/types";
 import { AgentAvatar } from "./agent-avatar";
 import { DomainBadge } from "./domain-badge";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/button";
 import { AGENT_REGISTRY } from "@/lib/registry/agents";
 import { Check, X, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";

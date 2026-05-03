@@ -1,8 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/shared/ui/tabs";
+import { Badge } from "@/shared/ui/badge";
 
 interface ApprovalFiltersProps {
   activeType: string | undefined;

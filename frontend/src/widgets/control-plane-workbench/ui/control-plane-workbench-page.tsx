@@ -31,15 +31,15 @@ import {
   type WorkItemPriority,
 } from "@/entities/control-plane";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/shared/ui/badge";
+import { Button } from "@/shared/ui/button";
+import { Skeleton } from "@/shared/ui/skeleton";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@/components/ui/tabs";
+} from "@/shared/ui/tabs";
 import {
   Table,
   TableBody,
@@ -47,7 +47,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/shared/ui/table";
 import { cn } from "@/lib/utils";
 
 type Workbench = ControlPlaneWorkbenchState;

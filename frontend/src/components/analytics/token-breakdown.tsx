@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { AgentAvatar } from "@/components/shared/agent-avatar";
 import { getAllAgents } from "@/lib/registry/agents";
 import type { AgentMeta } from "@/lib/api/types";

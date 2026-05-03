@@ -6,7 +6,7 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-} from "@/components/ui/card";
+} from "@/shared/ui/card";
 import { AnswerForm } from "@/components/questions/answer-form";
 import type { OpenQuestion } from "@/lib/api/types";
 

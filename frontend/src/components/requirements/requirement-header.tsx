@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/button";
 import type { Requirement } from "@/lib/api/types";
 
 interface RequirementHeaderProps {

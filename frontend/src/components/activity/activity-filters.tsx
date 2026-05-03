@@ -7,7 +7,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/ui/select";
 import type { AgentDomain } from "@/lib/api/types";
 import { DOMAIN_LIST } from "@/lib/registry/domains";
 

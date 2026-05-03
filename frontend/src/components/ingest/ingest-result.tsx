@@ -9,8 +9,8 @@ import {
   CardTitle,
   CardContent,
   CardFooter,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+} from "@/shared/ui/card";
+import { Button } from "@/shared/ui/button";
 import type { IngestResponse } from "@/lib/api/types";
 
 interface IngestResultProps {

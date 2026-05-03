@@ -7,10 +7,10 @@ import { useTheme } from "next-themes";
 import { useSession, signOut } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
 import { Sun, Moon, LogOut, User, Bell } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/shared/ui/button";
+import { Separator } from "@/shared/ui/separator";
+import { SidebarTrigger } from "@/shared/ui/sidebar";
+import { Avatar, AvatarFallback } from "@/shared/ui/avatar";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -18,7 +18,7 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+} from "@/shared/ui/breadcrumb";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,7 +26,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/shared/ui/dropdown-menu";
 import { LocaleSwitcher } from "./locale-switcher";
 
 const segmentLabels: Record<string, string> = {

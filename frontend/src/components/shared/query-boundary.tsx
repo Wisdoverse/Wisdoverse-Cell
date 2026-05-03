@@ -1,7 +1,7 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/shared/ui/skeleton";
+import { Button } from "@/shared/ui/button";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 

@@ -28,7 +28,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar";
+} from "@/shared/ui/sidebar";
 
 interface NavItem {
   key: string;

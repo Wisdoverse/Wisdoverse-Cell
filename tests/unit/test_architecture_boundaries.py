@@ -524,6 +524,21 @@ def test_frontend_root_shell_uses_shared_foundation() -> None:
     assert "@/components" not in source
 
 
+def test_frontend_ui_primitives_live_in_shared_ui() -> None:
+    legacy_root = Path("frontend/src/components/ui")
+    legacy_files = list(legacy_root.glob("*.tsx")) if legacy_root.exists() else []
+    assert legacy_files == []
+
+    for path in Path("frontend/src").rglob("*.ts*"):
+        if "__tests__" in path.parts:
+            continue
+        source = path.read_text()
+        assert "@/components/ui/" not in source, (
+            f"{path} imports UI primitives from legacy components; "
+            "use frontend/src/shared/ui"
+        )
+
+
 def test_event_catalog_uses_canonical_runtime_event_names() -> None:
     catalog = Path("docs/guides/event-catalog.md").read_text()
     expected = {

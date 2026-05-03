@@ -12,9 +12,9 @@ import { RequirementInfo } from "@/components/requirements/requirement-info";
 import { SimilarRequirements } from "@/components/requirements/similar-requirements";
 import { PriorityBadge } from "@/components/shared/priority-badge";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/shared/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { Skeleton } from "@/shared/ui/skeleton";
 import { useRequirement } from "@/entities/requirement/model/use-requirements";
 
 type RequirementDetailPageWidgetProps = {

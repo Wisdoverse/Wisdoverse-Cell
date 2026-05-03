@@ -8,7 +8,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/ui/select";
 import { locales } from "@/i18n/config";
 
 const localeLabels: Record<string, string> = {

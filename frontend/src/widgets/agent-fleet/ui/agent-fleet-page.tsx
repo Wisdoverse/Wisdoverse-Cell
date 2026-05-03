@@ -14,7 +14,7 @@ import {
 } from "@/entities/agent";
 import { AgentCreateDialog } from "@/features/agent-create";
 import { PageHeader } from "@/components/shared/page-header";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@/shared/ui/skeleton";
 import {
   AgentFleetFilters,
   type AgentFleetFiltersState,

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/shared/ui/button";
+import { Textarea } from "@/shared/ui/textarea";
 import { answerQuestion } from "@/lib/api/export";
 
 interface AnswerFormProps {

@@ -3,15 +3,15 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronDown, ChevronRight, MessageCircle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { Badge } from "@/shared/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { PriorityBadge } from "@/components/shared/priority-badge";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+} from "@/shared/ui/collapsible";
 import type { Requirement } from "@/lib/api/types";
 
 interface RequirementInfoProps {

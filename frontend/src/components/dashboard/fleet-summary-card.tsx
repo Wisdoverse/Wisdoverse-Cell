@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
-} from "@/components/ui/card";
+} from "@/shared/ui/card";
 import { AgentStatusDot } from "@/components/shared/agent-status-dot";
 import { getAllAgents } from "@/lib/registry/agents";
 import type { AgentStatus } from "@/lib/api/types";

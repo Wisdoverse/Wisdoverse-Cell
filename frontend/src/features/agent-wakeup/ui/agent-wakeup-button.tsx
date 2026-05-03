@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { wakeControlPlaneAgent } from "@/entities/agent";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/button";
 
 interface AgentWakeupButtonProps {
   agentId: string;

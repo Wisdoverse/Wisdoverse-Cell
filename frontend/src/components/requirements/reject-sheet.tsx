@@ -10,9 +10,9 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+} from "@/shared/ui/sheet";
+import { Button } from "@/shared/ui/button";
+import { Textarea } from "@/shared/ui/textarea";
 import { rejectRequirement } from "@/lib/api/feedback";
 
 interface RejectSheetProps {

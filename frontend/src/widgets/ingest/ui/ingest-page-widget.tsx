@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { IngestResult } from "@/components/ingest/ingest-result";
 import { UploadForm } from "@/components/ingest/upload-form";
 import { PageHeader } from "@/components/shared/page-header";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import type { IngestResponse } from "@/lib/api/types";
 
 export function IngestPageWidget() {

@@ -9,9 +9,9 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@/shared/ui/card";
+import { Button } from "@/shared/ui/button";
+import { Skeleton } from "@/shared/ui/skeleton";
 import { resetCircuitBreaker } from "@/lib/api/admin";
 import type { CircuitBreakerResponse } from "@/lib/api/types";
 

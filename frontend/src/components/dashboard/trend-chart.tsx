@@ -14,7 +14,7 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
-} from "@/components/ui/card";
+} from "@/shared/ui/card";
 
 interface TrendChartProps {
   data: { date: string; count: number }[] | undefined;

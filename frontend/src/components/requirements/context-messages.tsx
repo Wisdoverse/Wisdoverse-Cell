@@ -2,8 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import useSWR from "swr";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { Skeleton } from "@/shared/ui/skeleton";
 import { MessageSquare } from "lucide-react";
 import { getContext } from "@/lib/api/requirements";
 

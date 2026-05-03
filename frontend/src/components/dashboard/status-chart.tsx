@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
-} from "@/components/ui/card";
+} from "@/shared/ui/card";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "#f59e0b",

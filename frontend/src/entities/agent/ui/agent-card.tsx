@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/shared/ui/badge";
 import { cn } from "@/lib/utils";
 import type { AgentMeta, AgentRuntimeStatus } from "../model/types";
 import { AgentAvatar } from "./agent-avatar";

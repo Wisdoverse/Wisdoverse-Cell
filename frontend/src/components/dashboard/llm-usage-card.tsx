@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
-} from "@/components/ui/card";
+} from "@/shared/ui/card";
 import type {
   LLMUsageResponse,
   CircuitBreakerResponse,

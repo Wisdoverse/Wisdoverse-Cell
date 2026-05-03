@@ -3,9 +3,9 @@
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { Badge } from "@/shared/ui/badge";
+import { Skeleton } from "@/shared/ui/skeleton";
 import { Copy } from "lucide-react";
 import { getSimilarRequirements } from "@/lib/api/requirements";
 import { StatusBadge } from "@/components/shared/status-badge";

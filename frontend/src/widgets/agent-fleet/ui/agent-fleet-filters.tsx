@@ -4,14 +4,14 @@ import { Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import type { AgentKind, AgentStatus } from "@/entities/agent";
-import { Input } from "@/components/ui/input";
+import { Input } from "@/shared/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/ui/select";
 import { cn } from "@/lib/utils";
 
 export interface AgentFleetFiltersState {

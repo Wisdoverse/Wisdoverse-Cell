@@ -14,7 +14,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+} from "@/shared/ui/collapsible";
 import type { AgentFleetFiltersState } from "./agent-fleet-filters";
 
 interface AgentFleetOverviewProps {
