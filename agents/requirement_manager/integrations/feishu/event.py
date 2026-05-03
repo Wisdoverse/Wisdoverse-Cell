@@ -9,7 +9,7 @@ import re
 from datetime import datetime
 from typing import Callable
 
-from agents.requirement_manager.integrations.feishu.cards.requirement import (
+from shared.integrations.feishu.cards.requirement import (
     build_calendar_reminder_card,
     build_requirement_extracted_card,
 )

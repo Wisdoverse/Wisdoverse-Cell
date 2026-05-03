@@ -220,10 +220,15 @@ shared/core/ids.py       -> Stable runtime and control-plane ID contracts
 shared/core/integration_ports.py -> External platform ports (abstract)
 shared/messaging/inbound/ -> Inbound orchestration
 shared/messaging/outbound/ -> Outbound orchestration
-shared/integrations/feishu/ -> Feishu adapter
+shared/integrations/feishu/ -> Feishu adapter, including shared Feishu card renderers
 shared/integrations/wecom/ -> WeCom adapter
 agents/<agent>/adapters/ -> Agent-local external adapters
 ```
+
+Feishu interactive-card payload construction is a shared platform integration
+capability. Agent cores should expose business-level card-rendering ports, while
+service entry points inject concrete renderers from
+`shared/integrations/feishu/cards/`.
 
 ---
 

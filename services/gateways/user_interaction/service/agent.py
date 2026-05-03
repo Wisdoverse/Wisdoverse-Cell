@@ -5,13 +5,13 @@ from typing import Optional
 from shared.config import settings as app_settings
 from shared.infra.event_bus import EventBus, event_bus
 from shared.integrations.feishu.bitable import bitable_service
+from shared.integrations.feishu.cards.tools import FeishuToolCardRenderer
 from shared.integrations.feishu.client import get_feishu_client
 from shared.integrations.openproject.client import get_op_client
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
-from ..adapters.feishu_cards import FeishuToolCardRenderer
 from ..core.chat_service import ChatService
 from ..core.daily_tasks import (
     DailyTaskDependencies,

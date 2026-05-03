@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from agents.requirement_manager.integrations.feishu.cards.requirement import (
+from shared.integrations.feishu.cards.requirement import (
     build_batch_confirmation_card,
     build_batch_result_card,
     build_bot_help_card,
@@ -47,7 +47,7 @@ class TestRequirementCards:
         ],
     )
     def test_priority_mapping(self, priority, expected_icon, expected_color):
-        from agents.requirement_manager.integrations.feishu.cards.requirement import (
+        from shared.integrations.feishu.cards.requirement import (
             PRIORITY_COLORS,
             PRIORITY_ICONS,
         )

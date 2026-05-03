@@ -4,16 +4,16 @@ CardHandler - 处理卡片按钮回调
 处理用户在消息卡片中的点击操作。
 """
 
-from agents.requirement_manager.integrations.feishu.cards.requirement import (
+from shared.integrations.feishu.cards.decomposition import (
+    build_decomposition_approved_card,
+    build_decomposition_rejected_card,
+)
+from shared.integrations.feishu.cards.requirement import (
     build_batch_result_card,
     build_requirement_confirmed_card,
     build_requirement_detail_card,
     build_requirement_list_card,
     build_requirement_rejected_card,
-)
-from shared.integrations.feishu.cards.decomposition import (
-    build_decomposition_approved_card,
-    build_decomposition_rejected_card,
 )
 from shared.utils.logger import get_logger
 

@@ -1,6 +1,6 @@
 """Tests for the PJM Feishu card renderer adapter."""
 
-from agents.pjm_agent.adapters.feishu_cards import FeishuPJMCardRenderer
+from shared.integrations.feishu.cards.pjm import FeishuPJMCardRenderer
 
 
 def _stats() -> dict:

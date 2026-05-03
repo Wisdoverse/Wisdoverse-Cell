@@ -66,7 +66,7 @@ shared/
   db/                         # Shared database layer
   grpc/                       # gRPC proto + generated code
   messaging/{inbound,outbound}/ # Messaging gateway
-  integrations/{feishu,wecom,...}/ # Platform adapters
+  integrations/{feishu,wecom,...}/ # Platform adapters, including Feishu card renderers
   infra/                      # CircuitBreaker, AgentClient, EventBus, LLM Gateway, VectorStore, Embedder
   middleware/                  # Shared middleware
   models/                     # Shared Pydantic models
@@ -154,6 +154,9 @@ capabilities belong under `shared/capabilities/`. Root-level `agents/*`
 packages must be deployable agents with stable runtime identifiers, not
 compatibility aliases. Within an agent package, external HTTP/SDK clients live
 under `adapters/`; `core/` should depend on ports or injected collaborators.
+Feishu card schema builders and reusable Feishu card renderers are shared
+platform integration capabilities under `shared/integrations/feishu/cards/`;
+agent and gateway code should inject them through service-local ports.
 
 **Human-in-the-Loop**: Finance | Legal | Customer | Technical (must approve)
 

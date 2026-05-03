@@ -138,6 +138,30 @@ def test_runtime_code_uses_core_id_contracts() -> None:
                 )
 
 
+def test_feishu_card_renderers_live_in_shared_integrations() -> None:
+    """Old local Feishu card modules must stay compatibility-only shims."""
+    shim_paths = [
+        Path("agents/requirement_manager/adapters/feishu_cards.py"),
+        Path("agents/requirement_manager/integrations/feishu/cards/requirement.py"),
+        Path("agents/pjm_agent/adapters/feishu_cards.py"),
+        Path("services/gateways/user_interaction/adapters/feishu_cards.py"),
+    ]
+    for path in shim_paths:
+        tree = ast.parse(path.read_text())
+        class_names = [
+            node.name for node in tree.body if isinstance(node, ast.ClassDef)
+        ]
+        assert not class_names, (
+            f"{path} defines Feishu card classes {class_names}; "
+            "put concrete card renderers in shared/integrations/feishu/cards"
+        )
+        for module in _imported_modules(path):
+            assert module.startswith("shared.integrations.feishu.cards"), (
+                f"{path} imports {module}; compatibility shims should only "
+                "re-export shared Feishu card implementations"
+            )
+
+
 def test_sync_core_does_not_read_global_settings() -> None:
     root = Path("shared/capabilities/sync/core")
     for path in _python_files(root):

@@ -110,6 +110,9 @@ Important boundary:
    - Platform adapters connect Feishu, WeCom, OpenProject, GitLab, and other
      external systems to the control plane.
    - Adapters MUST live behind shared port or client interfaces.
+   - Platform-specific Feishu interactive-card builders and reusable renderers
+     MUST live under `shared/integrations/feishu/cards/` and be injected into
+     agent or gateway services through ports.
 
 9. `Observability`
    - Emits structured logs, metrics, traces, and health signals for operators.

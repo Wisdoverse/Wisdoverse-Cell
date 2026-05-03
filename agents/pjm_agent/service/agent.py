@@ -13,6 +13,7 @@ from shared.config import settings as app_settings
 from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.llm_gateway import llm_gateway
 from shared.integrations.feishu.bitable import bitable_service
+from shared.integrations.feishu.cards.pjm import FeishuPJMCardRenderer
 from shared.integrations.feishu.client import get_feishu_client
 from shared.integrations.openproject.client import get_op_client
 from shared.observability.privacy import hash_identifier
@@ -20,7 +21,6 @@ from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
-from ..adapters.feishu_cards import FeishuPJMCardRenderer
 from ..core.alert_service import AlertService
 from ..core.config_service import PMConfigService
 from ..core.decompose import DecomposeService

@@ -11,7 +11,7 @@ import json
 import re
 from typing import Optional
 
-from agents.requirement_manager.integrations.feishu.cards.requirement import (
+from shared.integrations.feishu.cards.requirement import (
     build_bot_help_card,
     build_prd_preview_card,
     build_requirement_extracted_card,

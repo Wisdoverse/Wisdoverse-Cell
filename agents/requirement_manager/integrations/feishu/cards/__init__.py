@@ -1,6 +1,7 @@
-"""Requirements-owned Feishu card templates."""
+"""Deprecated compatibility shim for requirement Feishu card templates."""
 
-from .requirement import (
+from shared.integrations.feishu.cards.requirement import (
+    FeishuRequirementCardRenderer,
     build_batch_confirmation_card,
     build_batch_result_card,
     build_bot_help_card,
@@ -14,6 +15,7 @@ from .requirement import (
 )
 
 __all__ = [
+    "FeishuRequirementCardRenderer",
     "build_batch_confirmation_card",
     "build_batch_result_card",
     "build_bot_help_card",
