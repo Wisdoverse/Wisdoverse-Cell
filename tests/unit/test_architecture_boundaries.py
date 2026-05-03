@@ -345,6 +345,13 @@ def test_event_catalog_uses_canonical_runtime_event_names() -> None:
         EventTypes.COORDINATOR_DISPATCH,
         EventTypes.TASK_NOTIFICATION,
         EventTypes.TASK_PROGRESS,
+        EventTypes.A2A_TASK_SUBMITTED,
+        EventTypes.A2A_TASK_WORKING,
+        EventTypes.A2A_TASK_INPUT_REQUIRED,
+        EventTypes.A2A_TASK_COMPLETED,
+        EventTypes.A2A_TASK_FAILED,
+        EventTypes.A2A_TASK_CANCELED,
+        EventTypes.A2A_TASK_ERROR,
         "channel.message.outbound",
         "channel.message.delivered",
     }
