@@ -7,13 +7,61 @@ shared language of the system.
 from datetime import UTC, datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from shared.core.ids import generate_id
 
 
+class _ReadOnlyDict(dict):
+    """dict-compatible read-only mapping for event payloads."""
+
+    def _read_only(self, *args, **kwargs):
+        raise TypeError("Event payload is immutable")
+
+    __setitem__ = _read_only
+    __delitem__ = _read_only
+    clear = _read_only
+    pop = _read_only
+    popitem = _read_only
+    setdefault = _read_only
+    update = _read_only
+    __ior__ = _read_only
+
+
+class _ReadOnlyList(list):
+    """list-compatible read-only sequence for nested event payload values."""
+
+    def _read_only(self, *args, **kwargs):
+        raise TypeError("Event payload is immutable")
+
+    __setitem__ = _read_only
+    __delitem__ = _read_only
+    append = _read_only
+    clear = _read_only
+    extend = _read_only
+    insert = _read_only
+    pop = _read_only
+    remove = _read_only
+    reverse = _read_only
+    sort = _read_only
+    __iadd__ = _read_only
+    __imul__ = _read_only
+
+
+def _freeze_json_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return _ReadOnlyDict(
+            {str(key): _freeze_json_value(item) for key, item in value.items()}
+        )
+    if isinstance(value, list | tuple):
+        return _ReadOnlyList(_freeze_json_value(item) for item in value)
+    return value
+
+
 class EventMetadata(BaseModel):
     """Event metadata."""
+    model_config = ConfigDict(frozen=True)
+
     trace_id: Optional[str] = None      # trace ID for a related event chain
     retry_count: int = 0                 # retry count
     correlation_id: Optional[str] = None # correlation ID for request-response flows
@@ -33,6 +81,7 @@ class Event(BaseModel):
     """
 
     model_config = ConfigDict(
+        frozen=True,
         ser_json_timedelta="iso8601",
     )
 
@@ -46,6 +95,12 @@ class Event(BaseModel):
 
     # Optional fields
     metadata: EventMetadata = Field(default_factory=EventMetadata)
+
+    @field_validator("payload", mode="after")
+    @classmethod
+    def _freeze_payload(cls, payload: dict[str, Any]) -> dict[str, Any]:
+        """Store event payloads as recursive read-only JSON-like data."""
+        return _freeze_json_value(payload)
 
     @classmethod
     def create(

@@ -296,16 +296,21 @@ async def test_publish_returns_false_on_error(bus, mock_redis):
 
 @pytest.mark.asyncio
 async def test_publish_dlq_writes_observable_failed_event(bus, mock_redis):
-    event = _make_event()
-    event.metadata.trace_id = "trace_dlq"
+    with patch.object(_event_bus_mod, "create_event_bus"):
+        from shared.schemas.event import Event
+
+    event = Event.create(
+        event_type="sync.completed",
+        source_agent="test",
+        payload={"k": "v"},
+        trace_id="trace_dlq",
+    )
 
     await bus.publish_dlq(event, "handler exploded", "analysis-agent")
 
     mock_redis.xadd.assert_awaited_once()
     call_args = mock_redis.xadd.call_args
     assert call_args.args[0] == "projectcell:events:dlq.failed"
-
-    from shared.schemas.event import Event
 
     dlq_event = Event.model_validate_json(call_args.args[1]["data"])
     assert dlq_event.event_type == "dlq.failed"
