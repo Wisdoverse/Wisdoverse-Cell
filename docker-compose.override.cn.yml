@@ -2,14 +2,14 @@
 # Docker Compose Override — CN Region Mirrors
 # =============================================================================
 #
-# 中国大陆开发者加速构建：
+# Faster builds for developers in China mainland:
 #   cp docker-compose.override.cn.yml docker-compose.override.yml
 #
-# 注意：此文件会覆盖已有的 docker-compose.override.yml。
-# 如需保留开发配置（如 volume mounts），请手动合并
-# docker-compose.override.yml 中的内容到此文件。
+# This file replaces the active docker-compose.override.yml when copied.
+# If you already have local development settings such as volume mounts, merge
+# them manually into this file before copying it.
 #
-# Base image 加速需额外配置 Docker daemon：
+# Base image mirrors require Docker daemon configuration:
 #   /etc/docker/daemon.json (Linux)
 #   ~/.docker/daemon.json (Docker Desktop)
 #
@@ -20,7 +20,8 @@
 #     ]
 #   }
 #
-# 配置后重启 Docker: sudo systemctl restart docker
+# Restart Docker after changing daemon configuration:
+#   sudo systemctl restart docker
 # =============================================================================
 
 services:
