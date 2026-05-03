@@ -2,6 +2,11 @@ package handler
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -28,6 +33,43 @@ func newTestHandler(t *testing.T, chatAgentAddr string) *FeishuHandler {
 		&config.FeishuConfig{AppID: "app123", AppSecret: "secret123"},
 		nil, service.NewMatcher(), nil, nil, chatAgentAddr, "", zap.NewNop(),
 	)
+}
+
+func encryptedFeishuWebhookBody(t *testing.T, payload string, encryptKey string) []byte {
+	t.Helper()
+
+	key := sha256.Sum256([]byte(encryptKey))
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		t.Fatalf("create cipher: %v", err)
+	}
+
+	iv := []byte("1234567890abcdef")
+	padding := aes.BlockSize - len(payload)%aes.BlockSize
+	padded := append([]byte(payload), bytes.Repeat([]byte{byte(padding)}, padding)...)
+
+	cipherText := make([]byte, len(padded))
+	cipher.NewCBCEncrypter(block, iv).CryptBlocks(cipherText, padded)
+	encryptedPayload := append(append([]byte{}, iv...), cipherText...)
+
+	body, err := json.Marshal(map[string]string{
+		"encrypt": base64.StdEncoding.EncodeToString(encryptedPayload),
+	})
+	if err != nil {
+		t.Fatalf("marshal encrypted webhook body: %v", err)
+	}
+	return body
+}
+
+func setFeishuSignatureHeaders(t *testing.T, req *http.Request, body []byte, encryptKey string) {
+	t.Helper()
+
+	timestamp := "1704067200"
+	nonce := "nonce-123"
+	hash := sha256.Sum256([]byte(timestamp + nonce + encryptKey + string(body)))
+	req.Header.Set("X-Lark-Request-Timestamp", timestamp)
+	req.Header.Set("X-Lark-Request-Nonce", nonce)
+	req.Header.Set("X-Lark-Signature", hex.EncodeToString(hash[:]))
 }
 
 func TestNewFeishuHandler(t *testing.T) {
@@ -225,6 +267,95 @@ func TestFeishuHandler_SignatureEnabledWithoutEncryptKey(t *testing.T) {
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestFeishuHandler_EncryptedURLVerificationWithoutSignature(t *testing.T) {
+	encryptKey := "test-encrypt-key"
+	cfg := &config.FeishuConfig{
+		AppID:           "app123",
+		AppSecret:       "secret123",
+		EncryptKey:      encryptKey,
+		VerifySignature: true,
+	}
+
+	h := NewFeishuHandler(cfg, nil, service.NewMatcher(), nil, nil, "", "", zap.NewNop())
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	body := encryptedFeishuWebhookBody(t, `{"type":"url_verification","challenge":"encrypted-challenge"}`, encryptKey)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/feishu/webhook", bytes.NewReader(body))
+
+	h.Webhook(c)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if resp["challenge"] != "encrypted-challenge" {
+		t.Errorf("challenge = %v, want encrypted-challenge", resp["challenge"])
+	}
+}
+
+func TestFeishuHandler_EncryptedCallbackRequiresSignature(t *testing.T) {
+	encryptKey := "test-encrypt-key"
+	cfg := &config.FeishuConfig{
+		AppID:           "app123",
+		AppSecret:       "secret123",
+		EncryptKey:      encryptKey,
+		VerifySignature: true,
+	}
+
+	h := NewFeishuHandler(cfg, nil, service.NewMatcher(), nil, nil, "", "", zap.NewNop())
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	body := encryptedFeishuWebhookBody(
+		t,
+		`{"schema":"2.0","header":{"event_id":"evt_1","event_type":"unknown.event","token":"token"}}`,
+		encryptKey,
+	)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/feishu/webhook", bytes.NewReader(body))
+
+	h.Webhook(c)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestFeishuHandler_EncryptedCallbackWithSignature(t *testing.T) {
+	encryptKey := "test-encrypt-key"
+	cfg := &config.FeishuConfig{
+		AppID:           "app123",
+		AppSecret:       "secret123",
+		EncryptKey:      encryptKey,
+		VerifySignature: true,
+	}
+
+	h := NewFeishuHandler(cfg, nil, service.NewMatcher(), nil, nil, "", "", zap.NewNop())
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	body := encryptedFeishuWebhookBody(
+		t,
+		`{"schema":"2.0","header":{"event_id":"evt_1","event_type":"unknown.event","token":"token"}}`,
+		encryptKey,
+	)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/feishu/webhook", bytes.NewReader(body))
+	setFeishuSignatureHeaders(t, c.Request, body, encryptKey)
+
+	h.Webhook(c)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
 	}
 }
 

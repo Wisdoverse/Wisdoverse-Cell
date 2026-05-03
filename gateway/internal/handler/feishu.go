@@ -62,7 +62,6 @@ func NewFeishuHandler(
 
 // Webhook handles POST /api/feishu/webhook
 func (h *FeishuHandler) Webhook(c *gin.Context) {
-	// Read body
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		h.logger.Error("failed to read body", zap.Error(err))
@@ -70,7 +69,27 @@ func (h *FeishuHandler) Webhook(c *gin.Context) {
 		return
 	}
 
-	// Verify signature if enabled
+	parseBody := body
+	encryptedBody := false
+	if decrypted, encrypted, err := h.decryptWebhookBody(body); err != nil {
+		h.logger.Warn("failed to decrypt feishu webhook body", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"code": -1, "msg": "invalid encrypted body"})
+		return
+	} else if encrypted {
+		parseBody = decrypted
+		encryptedBody = true
+	}
+
+	var req feishu.WebhookRequest
+	if encryptedBody {
+		parsed, err := h.parseWebhookRequest(parseBody)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": -1, "msg": "invalid json"})
+			return
+		}
+		req = *parsed
+	}
+
 	if h.cfg.VerifySignature {
 		if h.cfg.EncryptKey == "" {
 			h.logger.Error("feishu signature verification is enabled without encrypt_key")
@@ -81,26 +100,29 @@ func (h *FeishuHandler) Webhook(c *gin.Context) {
 		nonce := c.GetHeader("X-Lark-Request-Nonce")
 		signature := c.GetHeader("X-Lark-Signature")
 
-		if !feishu.VerifySignature(timestamp, nonce, h.cfg.EncryptKey, body, signature) {
+		isUnsignedEncryptedChallenge := encryptedBody &&
+			req.Type == feishu.EventTypeURLVerification &&
+			timestamp == "" && nonce == "" && signature == ""
+		if !isUnsignedEncryptedChallenge && !feishu.VerifySignature(timestamp, nonce, h.cfg.EncryptKey, body, signature) {
 			h.logger.Warn("invalid signature")
 			c.JSON(http.StatusUnauthorized, gin.H{"code": -1, "msg": "invalid signature"})
 			return
 		}
 	}
 
-	// Parse request
-	var req feishu.WebhookRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		h.logger.Error("failed to parse request", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"code": -1, "msg": "invalid json"})
-		return
+	if !encryptedBody {
+		parsed, err := h.parseWebhookRequest(parseBody)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": -1, "msg": "invalid json"})
+			return
+		}
+		req = *parsed
 	}
 
-	// Store raw body for potential forwarding
-	c.Set("rawBody", body)
+	c.Set("rawBody", parseBody)
 
-	// Handle different request types
-	// Feishu v2.0 events have no "type" field but have "header"
+	// Handle different request types. Feishu v2.0 events have no "type" field
+	// but have "header".
 	if req.Type == "" && req.Header != nil {
 		req.Type = feishu.EventTypeCallback
 	}
@@ -124,6 +146,32 @@ func (h *FeishuHandler) Webhook(c *gin.Context) {
 		h.logger.Warn("unknown request type", zap.String("type", req.Type))
 		c.JSON(http.StatusOK, gin.H{"code": 0})
 	}
+}
+
+func (h *FeishuHandler) decryptWebhookBody(body []byte) ([]byte, bool, error) {
+	var wrapper struct {
+		Encrypt string `json:"encrypt"`
+	}
+	if err := json.Unmarshal(body, &wrapper); err != nil || wrapper.Encrypt == "" {
+		return body, false, nil
+	}
+	if h.cfg.EncryptKey == "" {
+		return nil, true, fmt.Errorf("encrypt key is required")
+	}
+	decrypted, err := feishu.DecryptMessage(wrapper.Encrypt, h.cfg.EncryptKey)
+	if err != nil {
+		return nil, true, err
+	}
+	return decrypted, true, nil
+}
+
+func (h *FeishuHandler) parseWebhookRequest(body []byte) (*feishu.WebhookRequest, error) {
+	var req feishu.WebhookRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		h.logger.Error("failed to parse request", zap.Error(err))
+		return nil, err
+	}
+	return &req, nil
 }
 
 // handleURLVerification handles the URL verification challenge.

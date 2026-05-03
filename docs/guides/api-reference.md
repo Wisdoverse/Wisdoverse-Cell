@@ -20,10 +20,13 @@ Internal key comparison must use constant-time comparison. Development
 environments may skip the check only when `internal_service_key` is not
 configured.
 
-Feishu webhook handlers must verify the raw request body before parsing
-untrusted JSON when signature verification is enabled. Missing keys, missing
-headers, or mismatched signatures fail closed before URL verification,
-event dispatch, card action handling, or message processing.
+Feishu webhook handlers must verify the raw request body before event dispatch,
+card action handling, or message processing when signature verification is
+enabled. Missing keys, missing headers, or mismatched signatures fail closed for
+ordinary callbacks. The only exception is Feishu's encrypted URL verification
+challenge: when the body contains an `encrypt` wrapper and no signature headers,
+the gateway decrypts the challenge with `FEISHU_ENCRYPT_KEY` and responds with
+the decrypted challenge value.
 
 ## Common Service Endpoints
 

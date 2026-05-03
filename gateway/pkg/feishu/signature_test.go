@@ -1,9 +1,14 @@
 package feishu
 
 import (
+	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -93,10 +98,12 @@ func TestVerifySignature_EmptyBody(t *testing.T) {
 	}
 }
 
-func TestDecryptMessage_Passthrough(t *testing.T) {
-	// Current implementation is passthrough
+func TestDecryptMessage_EncryptedPayload(t *testing.T) {
 	input := `{"test":"data"}`
-	result, err := DecryptMessage(input, "any-key")
+	encryptKey := "test-encrypt-key"
+	encrypted := encryptForTest(t, input, encryptKey)
+
+	result, err := DecryptMessage(encrypted, encryptKey)
 
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -105,4 +112,46 @@ func TestDecryptMessage_Passthrough(t *testing.T) {
 	if string(result) != input {
 		t.Errorf("result = %q, want %q", string(result), input)
 	}
+}
+
+func TestDecryptMessage_InvalidInputs(t *testing.T) {
+	tests := []struct {
+		name       string
+		encrypted  string
+		encryptKey string
+		wantErr    string
+	}{
+		{"missing key", "payload", "", "encrypt key is required"},
+		{"invalid base64", "not-base64", "key", "decode encrypted payload"},
+		{"too short", base64.StdEncoding.EncodeToString([]byte("short")), "key", "too short"},
+		{"no json", encryptForTest(t, "not-json", "key"), "key", "does not contain JSON"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := DecryptMessage(tt.encrypted, tt.encryptKey)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %v, want it to contain %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func encryptForTest(t *testing.T, plainText string, encryptKey string) string {
+	t.Helper()
+
+	key := sha256.Sum256([]byte(encryptKey))
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		t.Fatalf("create cipher: %v", err)
+	}
+
+	iv := []byte("1234567890abcdef")
+	padding := aes.BlockSize - len(plainText)%aes.BlockSize
+	padded := append([]byte(plainText), bytes.Repeat([]byte{byte(padding)}, padding)...)
+
+	cipherText := make([]byte, len(padded))
+	cipher.NewCBCEncrypter(block, iv).CryptBlocks(cipherText, padded)
+	payload := append(append([]byte{}, iv...), cipherText...)
+	return base64.StdEncoding.EncodeToString(payload)
 }

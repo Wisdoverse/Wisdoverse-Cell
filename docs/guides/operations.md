@@ -85,8 +85,10 @@ Production expectations:
 - Local execution adapters are disabled unless explicitly reviewed.
 - Default development passwords are replaced before deployment.
 - `FEISHU_VERIFY_SIGNATURE=true` and `FEISHU_ENCRYPT_KEY` is populated before
-  exposing Feishu webhook routes; invalid signatures must fail before JSON
-  parsing or event dispatch.
+  exposing Feishu webhook routes. Ordinary callbacks with missing or invalid
+  signature headers must fail before event dispatch. Encrypted URL verification
+  challenges may arrive without signature headers; those are accepted only after
+  successful AES-CBC decryption with `FEISHU_ENCRYPT_KEY`.
 
 ### 3.1 LLM Provider Selection
 
