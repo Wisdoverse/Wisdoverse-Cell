@@ -63,7 +63,15 @@ def test_services_and_shared_code_do_not_import_agent_internals() -> None:
 
 def test_runtime_code_does_not_import_llm_provider_sdks_directly() -> None:
     roots = [Path("agents"), Path("services"), Path("shared")]
-    provider_modules = {"anthropic", "openai"}
+    provider_modules = (
+        "anthropic",
+        "openai",
+        "google.generativeai",
+        "vertexai",
+        "cohere",
+        "mistralai",
+        "groq",
+    )
     for root in roots:
         if not root.exists():
             continue
@@ -71,8 +79,10 @@ def test_runtime_code_does_not_import_llm_provider_sdks_directly() -> None:
             if "tests" in path.parts:
                 continue
             for module in _imported_modules(path):
-                root_module = module.split(".", 1)[0]
-                assert root_module not in provider_modules, (
+                assert not any(
+                    module == provider or module.startswith(f"{provider}.")
+                    for provider in provider_modules
+                ), (
                     f"{path} imports provider SDK module {module}; use LLMGateway"
                 )
 
@@ -117,6 +127,37 @@ def test_frontend_domain_hooks_are_imported_from_entities() -> None:
             continue
         source = path.read_text()
         assert "@/lib/hooks" not in source, f"{path} imports legacy hooks"
+
+
+def test_frontend_fsd_dependency_direction() -> None:
+    forbidden_by_root = {
+        Path("frontend/src/entities"): ("@/features", "@/widgets"),
+        Path("frontend/src/features"): ("@/widgets",),
+    }
+    for root, forbidden_imports in forbidden_by_root.items():
+        if not root.exists():
+            continue
+        for path in root.rglob("*.ts*"):
+            if "__tests__" in path.parts:
+                continue
+            source = path.read_text()
+            for import_path in forbidden_imports:
+                assert import_path not in source, (
+                    f"{path} violates FSD dependency direction with {import_path}"
+                )
+
+
+def test_frontend_route_pages_compose_widgets_only() -> None:
+    route_root = Path("frontend/src/app/[locale]/(app)")
+    allowed_internal_imports = ("@/widgets",)
+    for path in route_root.rglob("page.tsx"):
+        source = path.read_text()
+        for line in source.splitlines():
+            if not line.startswith("import ") or '"@/' not in line:
+                continue
+            assert any(token in line for token in allowed_internal_imports), (
+                f"{path} route page imports non-widget dependency: {line}"
+            )
 
 
 def test_event_catalog_uses_canonical_runtime_event_names() -> None:
