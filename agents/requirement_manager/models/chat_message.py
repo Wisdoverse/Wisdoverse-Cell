@@ -1,5 +1,5 @@
 """
-ChatMessage Model - 群聊消息数据模型
+Chat message persistence model.
 """
 from datetime import UTC, datetime
 from typing import Optional
@@ -14,9 +14,10 @@ from .base import Base
 
 class ChatMessage(Base):
     """
-    群聊消息表
+    Group chat message table.
 
-    存储从飞书群聊获取的消息，用于上下文丰富、持续抽取和会话历史。
+    Stores messages collected from Feishu group chats for context enrichment,
+    continuous extraction, and conversation history.
     """
     __tablename__ = "chat_messages"
 
@@ -26,31 +27,31 @@ class ChatMessage(Base):
         default=lambda: generate_id(IDPrefix.MESSAGE)
     )
 
-    # 群聊和消息标识
-    chat_id: Mapped[str] = mapped_column(String(64))  # 群聊 ID
-    message_id: Mapped[str] = mapped_column(String(64), unique=True)  # 飞书原始消息 ID
+    # Chat and message identifiers
+    chat_id: Mapped[str] = mapped_column(String(64))  # Group chat ID
+    message_id: Mapped[str] = mapped_column(String(64), unique=True)  # Original Feishu message ID
 
-    # 发送者信息
-    sender_id: Mapped[str] = mapped_column(String(64))  # 发送者 open_id
-    sender_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)  # 发送者姓名
+    # Sender metadata
+    sender_id: Mapped[str] = mapped_column(String(64))  # Sender open_id
+    sender_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)  # Sender name
 
-    # 消息内容
+    # Message content
     message_type: Mapped[str] = mapped_column(String(16))  # text/image/file/post
-    content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 文本内容
+    content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Text content
 
-    # 会话和需求关联
-    session_id: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)  # 会话 ID
-    requirement_ids: Mapped[list] = mapped_column(JSON, default=list)  # 关联的需求 ID 列表
+    # Session and requirement associations
+    session_id: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)  # Session ID
+    requirement_ids: Mapped[list] = mapped_column(JSON, default=list)  # Related requirement ID list
 
-    # 处理状态
-    extracted: Mapped[bool] = mapped_column(Boolean, default=False)  # 是否已提取需求
+    # Processing state
+    extracted: Mapped[bool] = mapped_column(Boolean, default=False)  # Whether requirements have been extracted
 
-    # 时间戳
-    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # 消息发送时间
+    # Timestamps
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # Message sent time
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC)
-    )  # 入库时间
+    )  # Persistence time
 
     __table_args__ = (
         Index('ix_chat_messages_chat_session', 'chat_id', 'session_id'),

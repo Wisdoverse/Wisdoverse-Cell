@@ -1,5 +1,5 @@
 """
-Meeting Model - 会议记录数据模型
+Meeting model for persisted meeting and channel records.
 """
 from datetime import UTC, datetime
 from typing import Optional
@@ -14,9 +14,10 @@ from .base import Base
 
 class Meeting(Base):
     """
-    会议记录表
+    Meeting records table.
 
-    存储从飞书会议、微信等渠道获取的会议纪要/聊天记录。
+    Stores meeting notes and chat records collected from Feishu meetings,
+    WeCom, and other channels.
     """
     __tablename__ = "meetings"
 
@@ -26,24 +27,24 @@ class Meeting(Base):
         default=lambda: generate_id(IDPrefix.MEETING)
     )
 
-    # 来源信息
+    # Source metadata
     source: Mapped[str] = mapped_column(String(32))  # "feishu" / "upload" / "wechat"
-    source_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # 原始系统的ID
+    source_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # Source-system ID
 
-    # 内容
-    title: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)  # 会议主题
-    raw_content: Mapped[str] = mapped_column(Text)  # 原始内容
+    # Content
+    title: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)  # Meeting subject
+    raw_content: Mapped[str] = mapped_column(Text)  # Raw content
 
-    # 元数据
+    # Metadata
     meeting_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    participants: Mapped[list] = mapped_column(JSON, default=list)  # 参与者列表
-    context: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 上下文说明
+    participants: Mapped[list] = mapped_column(JSON, default=list)  # Participant list
+    context: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Context notes
 
-    # 处理状态
-    processed: Mapped[bool] = mapped_column(default=False)  # 是否已提取需求
+    # Processing state
+    processed: Mapped[bool] = mapped_column(default=False)  # Whether requirements have been extracted
     processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # 时间戳（使用 timezone-aware datetime）
+    # Timestamps use timezone-aware datetime values.
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC)
