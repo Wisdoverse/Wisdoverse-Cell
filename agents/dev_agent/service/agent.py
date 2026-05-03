@@ -4,6 +4,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from sqlalchemy import text
+
 from shared.config import settings
 from shared.control_plane import (
     ApprovalCategory,
@@ -131,6 +133,33 @@ class DevAgent(BaseAgent):
             result = await self._dispatch_action(action, request, repo, session)
             await session.commit()
             return result
+
+    async def health_check(self) -> dict[str, bool]:
+        """Return readiness checks for the development execution boundary."""
+        checks = {
+            "database": False,
+            "notifier": self._notifier is not None,
+        }
+        if settings.agentforge_api_url:
+            checks["agentforge_client"] = self._forge is not None
+        if settings.dev_gitlab_api_url and settings.dev_gitlab_project_id:
+            checks["gitlab_client"] = self._gitlab_client is not None
+
+        if self._db_manager is not None:
+            try:
+                async with self._db_manager.session() as session:
+                    await session.execute(text("SELECT 1"))
+                checks["database"] = True
+            except Exception as exc:
+                logger.error(
+                    "health_check_db_failed",
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+        elif self._repo is not None:
+            checks["database"] = True
+
+        return checks
 
     async def _dispatch_action(
         self, action: str | None, request: dict, repo: DevTaskRepository, session

@@ -40,6 +40,18 @@ class Scratchpad:
             if not path.exists():
                 path.write_text("")
 
+    def is_initialized(self) -> bool:
+        """Return whether the scratchpad directory has its required structure."""
+        required_paths = [
+            self._base / "workflows",
+            self._base / "agents",
+            self._base / "decisions",
+            self._base / "global_status.md",
+            self._base / "decisions" / "pending.md",
+            self._base / "decisions" / "log.md",
+        ]
+        return all(path.exists() for path in required_paths)
+
     async def write_agent_output(self, agent_id: str, content: str) -> None:
         await self._write(f"agents/{agent_id}_output.md", content)
 

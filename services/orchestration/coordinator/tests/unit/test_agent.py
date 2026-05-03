@@ -22,6 +22,26 @@ async def test_coordinator_agent_init():
 
 
 @pytest.mark.asyncio
+async def test_health_check_reports_initialized_runtime_dependencies(tmp_path):
+    from services.orchestration.coordinator.service.agent import CoordinatorAgent
+    from shared.infra.scratchpad import Scratchpad
+
+    agent = CoordinatorAgent()
+    agent._scratchpad = Scratchpad(str(tmp_path / "scratchpad"))
+
+    before = await agent.health_check()
+    await agent._scratchpad.initialize()
+    after = await agent.health_check()
+
+    assert before["scratchpad"] is False
+    assert after == {
+        "scratchpad": True,
+        "state_store": True,
+        "llm_gateway": True,
+    }
+
+
+@pytest.mark.asyncio
 async def test_handle_event_with_command_returns_events():
     from services.orchestration.coordinator.core.models import Decision
     from services.orchestration.coordinator.service.agent import CoordinatorAgent

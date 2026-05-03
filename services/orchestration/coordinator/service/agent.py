@@ -95,6 +95,14 @@ class CoordinatorAgent(BaseAgent):
             return result
         return {"error": "unknown action", "action": request.get("action")}
 
+    async def health_check(self) -> dict[str, bool]:
+        """Return readiness checks for the coordinator runtime boundary."""
+        return {
+            "scratchpad": self._scratchpad.is_initialized(),
+            "state_store": self._state_store is not None,
+            "llm_gateway": self._llm is not None,
+        }
+
     def _build_context(
         self,
         *,

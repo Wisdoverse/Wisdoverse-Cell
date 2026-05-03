@@ -7,6 +7,7 @@ Unit tests for RequirementManagerAgent
 - 事件处理分发
 """
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 # 确保项目根目录在 Python 路径中
@@ -26,6 +27,12 @@ from agents.requirement_manager.service.agent import (
 from agents.requirement_manager.service.event_handlers import dispatch_event
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
+
+
+class _HealthyDbManager:
+    @asynccontextmanager
+    async def session(self):
+        yield AsyncMock()
 
 
 class TestRequirementManagerAgentClass:
@@ -173,6 +180,27 @@ class TestAgentLifecycle:
         # Vector store lifecycle is now managed by VectorStorePlugin,
         # so close() is no longer called during agent shutdown.
         test_agent._vector_store.close.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_health_check_reports_runtime_dependencies(self):
+        bus = MagicMock()
+        bus.is_connected = True
+        test_agent = RequirementManagerAgent(
+            db=_HealthyDbManager(),
+            bus=bus,
+            vectors=MagicMock(),
+            messenger=object(),
+            card_renderer=object(),
+        )
+
+        result = await test_agent.health_check()
+
+        assert result == {
+            "database": True,
+            "event_bus": True,
+            "messenger": True,
+            "card_renderer": True,
+        }
 
 
 class TestIngestResult:

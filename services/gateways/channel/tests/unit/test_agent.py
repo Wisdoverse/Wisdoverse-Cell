@@ -117,6 +117,26 @@ class TestHandleRequest:
         assert result["agent_name"] == "Channel Gateway Agent"
 
     @pytest.mark.asyncio
+    async def test_standard_health_action_reports_gateway_dependencies(self):
+        mock_bus = MagicMock()
+        mock_bus.is_connected = True
+        agent = ChannelGatewayAgent(
+            bus=mock_bus,
+            adapter_registry=AdapterRegistry(),
+        )
+
+        result = await agent.handle_request({"action": "health"})
+
+        assert result == {
+            "agent_id": "channel-gateway",
+            "checks": {
+                "event_bus": True,
+                "adapter_registry": True,
+                "adapter_listeners": True,
+            },
+        }
+
+    @pytest.mark.asyncio
     async def test_unknown_action_returns_ok(self):
         agent = ChannelGatewayAgent()
 

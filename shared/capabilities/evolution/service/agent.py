@@ -5,6 +5,7 @@ CRITICAL: This agent must NOT be wrapped with EvolvedAgent (no self-evolution).
 Phase 2 operates in suggestion mode only — proposals require human approval.
 Phase 3 adds collaboration pattern proposal and approval handling.
 """
+from sqlalchemy import text
 
 from shared.config import settings
 from shared.control_plane import (
@@ -279,6 +280,28 @@ class EvolutionAgent(BaseAgent):
             ]
             return {"proposals": proposals}
         return {"status": "ok"}
+
+    async def health_check(self) -> dict[str, bool]:
+        """Return readiness checks for the evolution capability boundary."""
+        checks = {
+            "database": False,
+            "event_bus": bool(getattr(self._event_bus, "is_connected", False)),
+            "llm_gateway": self._llm is not None,
+            "control_plane_approval_service": self._control_plane_approvals is not None,
+        }
+        if evolution_settings.collaboration_enabled:
+            checks["collaboration_approval_gateway"] = self._approval_gateway is not None
+        try:
+            async with self._db_manager.session() as session:
+                await session.execute(text("SELECT 1"))
+            checks["database"] = True
+        except Exception as exc:
+            logger.error(
+                "health_check_db_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+        return checks
 
     async def _attach_proposal_approval(
         self,

@@ -83,6 +83,17 @@ class ChannelGatewayAgent(BaseAgent):
 
         return {"status": "ok"}
 
+    async def health_check(self) -> dict[str, bool]:
+        """Return readiness checks for the channel gateway boundary."""
+        adapters = self._adapter_registry.list_all()
+        return {
+            "event_bus": bool(getattr(self._event_bus, "is_connected", False)),
+            "adapter_registry": self._adapter_registry is not None,
+            "adapter_listeners": all(
+                adapter.channel_id in self._listener_tasks for adapter in adapters
+            ),
+        }
+
     async def _run_event_loop(self) -> None:
         """Event consumer loop."""
         async for event in self._event_bus.subscribe(self.subscribed_events):

@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,6 +14,12 @@ from agents.dev_agent.models.schemas import (
 from agents.dev_agent.service import agent as agent_module
 from agents.dev_agent.service.agent import DevAgent
 from shared.schemas.event import Event, EventTypes
+
+
+class _HealthyDbManager:
+    @asynccontextmanager
+    async def session(self):
+        yield AsyncMock()
 
 
 def test_agent_id():
@@ -48,6 +55,27 @@ async def test_handle_request_unknown_action():
     agent = DevAgent()
     result = await agent.handle_request({"action": "nonexistent"})
     assert "error" in result
+
+
+@pytest.mark.asyncio
+async def test_health_check_reports_wired_dependencies():
+    agent = DevAgent()
+    agent._db_manager = _HealthyDbManager()
+    agent._notifier = object()
+    agent._forge = object()
+    agent._gitlab_client = object()
+
+    with patch.object(agent_module.settings, "agentforge_api_url", "http://forge"):
+        with patch.object(agent_module.settings, "dev_gitlab_api_url", "http://gitlab"):
+            with patch.object(agent_module.settings, "dev_gitlab_project_id", 1):
+                result = await agent.health_check()
+
+    assert result == {
+        "database": True,
+        "notifier": True,
+        "agentforge_client": True,
+        "gitlab_client": True,
+    }
 
 
 @pytest.mark.asyncio

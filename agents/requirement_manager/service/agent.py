@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Optional
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.config import settings as app_settings
@@ -184,6 +185,26 @@ class RequirementManagerAgent(BaseAgent):
                 "requirement_ids": result.requirement_ids,
             }
         return {"status": "ok"}
+
+    async def health_check(self) -> dict[str, bool]:
+        """Return readiness checks for the requirement manager runtime boundary."""
+        checks = {
+            "database": False,
+            "event_bus": bool(getattr(self._event_bus, "is_connected", False)),
+            "messenger": self._messenger is not None,
+            "card_renderer": self._card_renderer is not None,
+        }
+        try:
+            async with self._db_manager.session() as session:
+                await session.execute(text("SELECT 1"))
+            checks["database"] = True
+        except Exception as exc:
+            logger.error(
+                "health_check_db_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+        return checks
 
     def _parse_meeting_date(self, value: Any) -> datetime | None:
         if value in (None, ""):

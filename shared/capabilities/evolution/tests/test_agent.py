@@ -189,6 +189,19 @@ class TestHandleRequest:
         assert result == {"status": "ok"}
 
     @pytest.mark.asyncio
+    async def test_health_check_reports_runtime_dependencies(self, agent, mock_bus):
+        mock_bus.is_connected = True
+
+        result = await agent.health_check()
+
+        assert result == {
+            "database": True,
+            "event_bus": True,
+            "llm_gateway": True,
+            "control_plane_approval_service": True,
+        }
+
+    @pytest.mark.asyncio
     async def test_attach_proposal_approval_adds_control_plane_id(self, agent):
         agent._control_plane_approvals = MagicMock()
         agent._control_plane_approvals.request_approval = AsyncMock(
