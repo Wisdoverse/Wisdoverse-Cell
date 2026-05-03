@@ -67,7 +67,11 @@ def test_get_stream_key(bus):
 # ── subscribe / pending replay ───────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_subscribe_claims_pending_before_reading_new_messages(bus, mock_redis):
+async def test_subscribe_claims_pending_before_reading_new_messages(
+    bus, mock_redis, monkeypatch
+):
+    monkeypatch.setattr(_event_bus_mod.settings, "event_bus_pending_claim_idle_ms", 60_000)
+    monkeypatch.setattr(_event_bus_mod.settings, "event_handler_timeout_seconds", 10)
     pending_event = _make_event()
     new_event = _make_event()
     stream_key = bus._get_stream_key("sync.completed")
@@ -96,6 +100,13 @@ async def test_subscribe_claims_pending_before_reading_new_messages(bus, mock_re
         count=10,
     )
     mock_redis.xack.assert_any_await(stream_key, "qa-agent", "100-0")
+
+
+def test_pending_claim_idle_exceeds_handler_timeout(bus, monkeypatch):
+    monkeypatch.setattr(_event_bus_mod.settings, "event_bus_pending_claim_idle_ms", 1_000)
+    monkeypatch.setattr(_event_bus_mod.settings, "event_handler_timeout_seconds", 5)
+
+    assert bus._pending_claim_idle_ms() == 6_000
 
 
 @pytest.mark.asyncio

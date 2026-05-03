@@ -221,12 +221,17 @@ Relevant settings:
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
-| `EVENT_BUS_PENDING_CLAIM_IDLE_MS` | `60000` | Minimum pending idle time before another consumer may reclaim a message |
+| `EVENT_BUS_PENDING_CLAIM_IDLE_MS` | `360000` | Minimum pending idle time before another consumer may reclaim a message |
 | `EVENT_BUS_PENDING_CLAIM_COUNT` | `10` | Maximum pending messages to reclaim from one stream per poll |
 
 Pending replay preserves at-least-once delivery. Event handlers must still be
 idempotent by `event_id` or a domain-level idempotency key before creating
 irreversible side effects.
+
+The effective reclaim idle time is never lower than
+`EVENT_HANDLER_TIMEOUT_SECONDS + 1s`. This prevents a second consumer from
+claiming a message while the first consumer may still be inside its allowed
+handler window.
 
 ## 6. Scaling
 

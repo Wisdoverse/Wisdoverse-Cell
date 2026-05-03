@@ -31,6 +31,9 @@ Migrate to Redis Streams (XADD/XREADGROUP) which provides:
 - Built-in monitoring via get_pending_count()
 - Idle pending messages are reclaimed in bounded batches controlled by
   `EVENT_BUS_PENDING_CLAIM_COUNT`
+- The effective pending reclaim idle time is clamped above
+  `EVENT_HANDLER_TIMEOUT_SECONDS` to avoid concurrent duplicate processing for
+  long-running handlers.
 - Simpler publish() — single XADD replaces LPUSH + smembers loop
 
 ### Negative

@@ -266,7 +266,7 @@ class Settings(BaseSettings):
     event_bus_consumer_name: str = ""  # NATS durable consumer name; defaults to OTEL_SERVICE_NAME
     event_bus_queue_max_length: int = 10_000  # Max events per consumer-group queue
     event_bus_queue_ttl_seconds: int = 86_400  # Queue key expiry (24h)
-    event_bus_pending_claim_idle_ms: int = 60_000  # Redis Streams pending reclaim idle time
+    event_bus_pending_claim_idle_ms: int = 360_000  # Redis Streams pending reclaim idle time
     event_bus_pending_claim_count: int = 10  # Max pending messages to reclaim per stream poll
     event_loop_max_backoff_seconds: int = 60  # Max retry backoff for agent event loops
     event_handler_timeout_seconds: int = 300  # 5 min default per event handler

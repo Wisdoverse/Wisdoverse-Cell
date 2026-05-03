@@ -152,6 +152,12 @@ class EventBus:
 
         return messages
 
+    def _pending_claim_idle_ms(self) -> int:
+        """Return a safe pending-claim threshold for the shared runtime."""
+        configured_ms = max(1, settings.event_bus_pending_claim_idle_ms)
+        handler_timeout_ms = max(1, settings.event_handler_timeout_seconds) * 1000
+        return max(configured_ms, handler_timeout_ms + 1000)
+
     async def _claim_pending(
         self,
         *,
@@ -161,7 +167,7 @@ class EventBus:
     ) -> list[tuple[str, list]]:
         """Claim idle pending entries so consumer restarts preserve at-least-once delivery."""
         claimed: list[tuple[str, list]] = []
-        idle_ms = max(1, settings.event_bus_pending_claim_idle_ms)
+        idle_ms = self._pending_claim_idle_ms()
         count = max(1, settings.event_bus_pending_claim_count)
 
         for stream_key in stream_keys:
