@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+from collections import Counter
 from pathlib import Path
 
 from shared.messaging.outbound.models.events import ChannelEventTypes
@@ -268,6 +269,78 @@ def test_pjm_core_does_not_read_global_settings() -> None:
             )
 
 
+def test_pjm_app_mounted_routes_do_not_duplicate_http_contracts() -> None:
+    """Mounted PJM routers must not duplicate the same HTTP method and path."""
+    app_path = Path("agents/pjm_agent/app/main.py")
+    app_tree = ast.parse(app_path.read_text())
+    router_imports: dict[str, Path] = {}
+
+    for node in ast.walk(app_tree):
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        if node.level != 2 or not node.module or not node.module.startswith("api."):
+            continue
+        module_path = Path("agents/pjm_agent") / f"{node.module.replace('.', '/')}.py"
+        for alias in node.names:
+            if alias.name == "router":
+                router_imports[alias.asname or alias.name] = module_path
+
+    mounted_router_aliases: set[str] = set()
+    for node in ast.walk(app_tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not (isinstance(func, ast.Name) and func.id == "create_agent_app"):
+            continue
+        for keyword in node.keywords:
+            if keyword.arg != "routers" or not isinstance(keyword.value, ast.List):
+                continue
+            for item in keyword.value.elts:
+                if isinstance(item, ast.Tuple) and item.elts and isinstance(item.elts[0], ast.Name):
+                    mounted_router_aliases.add(item.elts[0].id)
+
+    routes: list[tuple[str, str]] = []
+    for alias in mounted_router_aliases:
+        router_path = router_imports[alias]
+        tree = ast.parse(router_path.read_text())
+        prefix = ""
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            if not any(isinstance(target, ast.Name) and target.id == "router" for target in node.targets):
+                continue
+            call = node.value
+            if not isinstance(call, ast.Call):
+                continue
+            for keyword in call.keywords:
+                if keyword.arg == "prefix" and isinstance(keyword.value, ast.Constant):
+                    prefix = str(keyword.value.value)
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.AsyncFunctionDef | ast.FunctionDef):
+                continue
+            for decorator in node.decorator_list:
+                if not isinstance(decorator, ast.Call):
+                    continue
+                if not isinstance(decorator.func, ast.Attribute):
+                    continue
+                if not (
+                    isinstance(decorator.func.value, ast.Name)
+                    and decorator.func.value.id == "router"
+                ):
+                    continue
+                if not decorator.args or not isinstance(decorator.args[0], ast.Constant):
+                    continue
+                routes.append((decorator.func.attr.upper(), prefix + str(decorator.args[0].value)))
+
+    duplicates = [
+        (method, path)
+        for (method, path), count in Counter(routes).items()
+        if count > 1
+    ]
+    assert duplicates == []
+
+
 def test_agent_core_does_not_import_platform_adapters_directly() -> None:
     for agent_root in AGENT_ROOTS:
         root = Path("agents") / agent_root / "core"
@@ -435,3 +508,19 @@ def test_api_reference_documents_current_qa_stats_endpoint() -> None:
 
     assert "/api/v1/qa/stats" in api_reference
     assert "/api/v1/qa/status" not in api_reference
+
+
+def test_api_reference_does_not_duplicate_pjm_decomposition_routes() -> None:
+    api_reference = Path("docs/guides/api-reference.md").read_text()
+    pjm_decomposition_rows = [
+        line
+        for line in api_reference.splitlines()
+        if "| `/api/v1/pm/decompose/{wp_id}" in line
+    ]
+    method_paths = [
+        tuple(cell.strip(" `") for cell in line.split("|")[1:3])
+        for line in pjm_decomposition_rows
+    ]
+
+    assert len(method_paths) == len(set(method_paths))
+    assert "Alternate decomposition router path" not in api_reference

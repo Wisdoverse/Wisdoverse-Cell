@@ -117,7 +117,11 @@ async def approve_decomposition(wp_id: int, body: DecomposeActionRequest):
 async def reject_decomposition(wp_id: int, body: DecomposeActionRequest):
     """Reject decomposition."""
     agent = get_agent()
-    result = await agent.reject_decomposition(wp_id, rejected_by=body.operator or "api")
+    result = await agent.reject_decomposition(
+        wp_id,
+        rejected_by=body.operator or "api",
+        reason=body.reason,
+    )
     if result is None:
         raise HTTPException(status_code=400, detail="Record not found or status is not pending")
     return DecomposeActionResponse(

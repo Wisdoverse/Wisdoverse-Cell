@@ -20,6 +20,7 @@ def mock_agent():
     agent._config = MagicMock()
     agent._config.members = []
     agent.handle_request = AsyncMock()
+    agent.reject_decomposition = AsyncMock()
     return agent
 
 
@@ -167,3 +168,24 @@ async def test_alerts_endpoint_empty(test_app, mock_agent):
     data = resp.json()
     assert data["total"] == 0
     assert data["alerts"] == []
+
+
+@pytest.mark.asyncio
+async def test_reject_decomposition_forwards_reason(test_app, mock_agent):
+    """POST /api/v1/pm/decompose/{wp_id}/reject preserves the rejection reason."""
+    mock_agent.reject_decomposition.return_value = {"subject": "Split feature"}
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/pm/decompose/123/reject",
+            json={"operator": "alice", "reason": "not useful"},
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["action"] == "reject"
+    mock_agent.reject_decomposition.assert_awaited_once_with(
+        123,
+        rejected_by="alice",
+        reason="not useful",
+    )

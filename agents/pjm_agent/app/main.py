@@ -12,7 +12,6 @@ from shared.middleware.internal_auth import verify_internal_key
 from shared.schemas.agent import BaseAgent
 from shared.utils.logger import get_logger
 
-from ..api.decomposition import router as decomposition_router
 from ..api.pm import router as pm_router
 from ..service.agent import agent as _raw_agent
 
@@ -36,7 +35,6 @@ app = create_agent_app(
     description="Project management agent for alerts, decomposition, and reporting.",
     routers=[
         (pm_router, [Depends(verify_internal_key)]),
-        (decomposition_router, [Depends(verify_internal_key)]),
     ],
     plugins=[InfraHealthPlugin()],
     control_plane_enabled=settings.control_plane_enabled,

@@ -50,6 +50,7 @@ class DecomposeStatusResponse(BaseModel):
 
 class DecomposeActionRequest(BaseModel):
     operator: str = ""
+    reason: str = ""
 
 
 class DecomposeActionResponse(BaseModel):

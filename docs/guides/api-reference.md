@@ -198,8 +198,6 @@ Primary prefix: `/api/v1`.
 | `GET` | `/api/v1/pm/decompose/{wp_id}` | Read decomposition status |
 | `POST` | `/api/v1/pm/decompose/{wp_id}/approve` | Approve decomposition |
 | `POST` | `/api/v1/pm/decompose/{wp_id}/reject` | Reject decomposition |
-| `POST` | `/api/v1/pm/decompose/{wp_id}/approve` | Alternate decomposition router path |
-| `POST` | `/api/v1/pm/decompose/{wp_id}/reject` | Alternate decomposition router path |
 
 ## User Interaction Gateway API
 
