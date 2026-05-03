@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Optional
 
 from shared.db.repository import UserRepository
 from shared.models.user import User
+from shared.observability.privacy import hash_identifier
 from shared.utils.id_generator import IDPrefix, generate_id
 from shared.utils.logger import get_logger
 
@@ -80,7 +81,11 @@ class UserService:
         if self.redis:
             cached = await self.redis.get(cache_key)
             if cached:
-                logger.debug("user_cache_hit", platform=platform.value, user_id=platform_user_id)
+                logger.debug(
+                    "user_cache_hit",
+                    platform=platform.value,
+                    user_hash=hash_identifier(platform_user_id),
+                )
                 return self._deserialize_user(cached)
 
         # 2. 查数据库

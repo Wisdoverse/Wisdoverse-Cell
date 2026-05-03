@@ -6,6 +6,7 @@ UnifiedGateway - 统一消息网关
 """
 from typing import Any, Callable, Coroutine, Optional
 
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from .adapter import BasePlatformAdapter
@@ -114,8 +115,8 @@ class UnifiedGateway:
             "message_received",
             platform=platform.value,
             message_id=message.message_id,
-            chat_id=message.chat_id,
-            content_preview=message.content[:50] if message.content else "",
+            chat_hash=hash_identifier(message.chat_id),
+            content_length=len(message.content or ""),
         )
 
         # 2. 用户身份映射
@@ -125,7 +126,11 @@ class UnifiedGateway:
             message.user_id = user.id
             message.sender_name = user.name
         except Exception as e:
-            logger.warning("user_resolve_failed", error=str(e), sender_id=message.sender_id)
+            logger.warning(
+                "user_resolve_failed",
+                error=str(e),
+                sender_hash=hash_identifier(message.sender_id),
+            )
             # 继续处理，但没有用户映射
 
         # 3. Try skill handling first

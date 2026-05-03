@@ -16,6 +16,7 @@ from shared.messaging.inbound.models import (
     UnifiedMessage,
 )
 from shared.models.platform import Platform
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from .client import OpenClawClient
@@ -239,7 +240,7 @@ class OpenClawPlatformAdapter(BasePlatformAdapter):
             self._user_cache[user_id] = result
             return result
         except Exception:
-            logger.warning("openclaw_user_info_failed", user_id=user_id)
+            logger.warning("openclaw_user_info_failed", user_hash=hash_identifier(user_id))
             return {}
 
     def _build_openclaw_card(self, card: UnifiedCard) -> dict:

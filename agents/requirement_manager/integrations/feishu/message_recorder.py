@@ -17,6 +17,7 @@ from agents.requirement_manager.db.database import DatabaseManager
 from agents.requirement_manager.db.repository import MessageRepository
 from agents.requirement_manager.models.chat_message import ChatMessage
 from shared.config import settings
+from shared.observability.privacy import hash_identifier
 from shared.utils.id_generator import IDPrefix, generate_id
 from shared.utils.logger import get_logger
 
@@ -224,7 +225,7 @@ class MessageRecorder:
             self._user_cache[open_id] = name
             return name
         except Exception as e:
-            logger.warning("get_sender_name_failed", open_id=open_id, error=str(e))
+            logger.warning("get_sender_name_failed", open_id_hash=hash_identifier(open_id), error=str(e))
             return "Unknown"
 
     def _parse_timestamp(self, timestamp_str: str) -> datetime:

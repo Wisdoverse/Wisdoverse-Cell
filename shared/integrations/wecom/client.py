@@ -13,6 +13,7 @@ from typing import Optional
 
 import httpx
 
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 logger = get_logger("wecom.client")
@@ -103,7 +104,7 @@ class WecomClient:
             logger.error("wecom_send_text_error", code=data.get("errcode"), msg=data.get("errmsg"))
             raise ValueError(f"Failed to send message: {data.get('errmsg')}")
 
-        logger.info("wecom_text_sent", user_id=user_id, msgid=data.get("msgid"))
+        logger.info("wecom_text_sent", user_hash=hash_identifier(user_id), msgid=data.get("msgid"))
         return data.get("msgid", "")
 
     async def send_template_card(self, user_id: str, card: dict) -> str:
@@ -127,7 +128,7 @@ class WecomClient:
             logger.error("wecom_send_card_error", code=data.get("errcode"), msg=data.get("errmsg"))
             raise ValueError(f"Failed to send card: {data.get('errmsg')}")
 
-        logger.info("wecom_card_sent", user_id=user_id, msgid=data.get("msgid"))
+        logger.info("wecom_card_sent", user_hash=hash_identifier(user_id), msgid=data.get("msgid"))
         return data.get("msgid", "")
 
     async def update_template_card(self, response_code: str, card: dict) -> bool:
@@ -196,7 +197,7 @@ class WecomClient:
                 "avatar": data.get("avatar", ""),
             }
         except Exception as e:
-            logger.warning("wecom_get_user_error", error=str(e), user_id=user_id)
+            logger.warning("wecom_get_user_error", error=str(e), user_hash=hash_identifier(user_id))
             return {"userid": user_id, "name": "Unknown"}
 
 

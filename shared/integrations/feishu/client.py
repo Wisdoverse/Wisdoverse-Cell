@@ -32,6 +32,7 @@ from lark_oapi.api.im.v1 import (
 )
 
 from shared.config import settings
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from .errors import FeishuAPIError, feishu_error_handler
@@ -166,7 +167,11 @@ class FeishuClient:
         )
         response = await self._sdk.im.v1.message.acreate(request)
         self._check_response(response, "send_card")
-        logger.info("feishu_card_sent", receive_id=receive_id, message_id=response.data.message_id)
+        logger.info(
+            "feishu_card_sent",
+            receive_id_hash=hash_identifier(receive_id),
+            message_id=response.data.message_id,
+        )
         return response.data.message_id
 
     @feishu_error_handler("send_message")
@@ -206,7 +211,12 @@ class FeishuClient:
         )
         response = await self._sdk.im.v1.message.acreate(request)
         self._check_response(response, "send_message")
-        logger.info("feishu_message_sent", receive_id=receive_id, msg_type=msg_type, message_id=response.data.message_id)
+        logger.info(
+            "feishu_message_sent",
+            receive_id_hash=hash_identifier(receive_id),
+            msg_type=msg_type,
+            message_id=response.data.message_id,
+        )
         return response.data.message_id
 
     @feishu_error_handler("update_card")
@@ -332,7 +342,9 @@ class FeishuClient:
             response = await self._sdk.contact.v3.user.aget(request)
             if not response.success():
                 logger.warning(
-                    "feishu_get_user_error", code=response.code, open_id=open_id
+                    "feishu_get_user_error",
+                    code=response.code,
+                    open_id_hash=hash_identifier(open_id),
                 )
                 return {"name": "Unknown", "open_id": open_id}
             user = response.data.user
@@ -342,7 +354,7 @@ class FeishuClient:
                 "open_id": open_id,
             }
         except Exception as e:
-            logger.warning("feishu_get_user_error", error=str(e), open_id=open_id)
+            logger.warning("feishu_get_user_error", error=str(e), open_id_hash=hash_identifier(open_id))
             return {"name": "Unknown", "open_id": open_id}
 
     async def lookup_user_ids(

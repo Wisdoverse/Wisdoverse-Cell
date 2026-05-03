@@ -4,6 +4,7 @@ import re
 import xml.etree.ElementTree as ET
 from typing import Optional
 
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from ..cards.builder import WecomCardBuilder
@@ -32,7 +33,11 @@ class WecomBotHandler:
         user_id = from_user.text or ""
         content = content_elem.text or ""
 
-        logger.info("wecom_bot_message_received", user_id=user_id, content_preview=content[:50])
+        logger.info(
+            "wecom_bot_message_received",
+            user_hash=hash_identifier(user_id),
+            content_length=len(content),
+        )
 
         match = self.COMMAND_PATTERN.match(content.strip())
         if match:

@@ -17,6 +17,7 @@ from agents.requirement_manager.integrations.feishu.cards.requirement import (
     build_requirement_extracted_card,
     build_requirement_list_card,
 )
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 logger = get_logger("feishu.handlers.bot")
@@ -60,8 +61,8 @@ class BotHandler:
         logger.info(
             "bot_message_received",
             message_id=message_id,
-            chat_id=chat_id,
-            content_preview=content[:50]
+            chat_hash=hash_identifier(chat_id),
+            content_length=len(content),
         )
 
         # Check if it's a command

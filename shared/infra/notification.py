@@ -10,6 +10,7 @@ from enum import Enum
 from typing import Optional
 
 from ..config import settings
+from ..observability.privacy import hash_identifier
 from ..utils.logger import get_logger
 
 logger = get_logger("notification")
@@ -148,7 +149,11 @@ class NotificationService:
                 receive_id_type=receive_id_type,
                 card=card
             )
-            logger.info("feishu_notification_sent", title=title, receive_id=receive_id)
+            logger.info(
+                "feishu_notification_sent",
+                title=title,
+                receive_id_hash=hash_identifier(receive_id),
+            )
             return True
 
         except Exception as e:
