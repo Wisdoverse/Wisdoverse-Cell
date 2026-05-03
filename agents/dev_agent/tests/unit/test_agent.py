@@ -95,10 +95,38 @@ async def test_critical_task_rejected():
                 }
             ],
         },
+        trace_id="trace-dev",
     )
     result = await agent.handle_event(event)
     assert len(result) == 1
     assert result[0].event_type == EventTypes.DEV_TASK_FAILED
+    assert result[0].metadata.trace_id == "trace-dev"
+
+
+@pytest.mark.asyncio
+async def test_execute_workflow_preserves_trace_id():
+    agent = DevAgent()
+    agent._forge = AsyncMock()
+    agent._forge.create_workflow = AsyncMock(return_value="wf-agentforge")
+    agent._forge.run_workflow = AsyncMock()
+    repo = AsyncMock()
+    task_record = MagicMock(id="dev-123", wp_id=123)
+    plan = WorkflowPlan(
+        name="dev-task-wp-123",
+        description="Implement traced workflow",
+        nodes=[WorkflowNode(name="plan", config={})],
+    )
+
+    result = await agent._execute_workflow(
+        plan,
+        task_record,
+        repo,
+        trace_id="trace-dev",
+    )
+
+    assert len(result) == 1
+    assert result[0].event_type == EventTypes.DEV_WORKFLOW_CREATED
+    assert result[0].metadata.trace_id == "trace-dev"
 
 
 @pytest.mark.asyncio

@@ -298,6 +298,7 @@ class DevAgent(BaseAgent):
 
     async def _handle_tasks_ready(self, event: Event) -> list[Event]:
         payload = event.payload
+        trace_id = event.metadata.trace_id if event.metadata else None
         if payload.get("instruction"):
             logger.info(
                 "coordinator_instruction_received",
@@ -337,6 +338,7 @@ class DevAgent(BaseAgent):
                                 "failed_node": "",
                                 "runbook_url": "",
                             },
+                            trace_id=trace_id,
                         )
                     )
                     continue
@@ -364,6 +366,7 @@ class DevAgent(BaseAgent):
                             "failed_node": "",
                             "runbook_url": "",
                         },
+                        trace_id=trace_id,
                     )
                 )
 
@@ -381,7 +384,7 @@ class DevAgent(BaseAgent):
             for _task_input, sanitized, risk in sanitized_tasks:
                 try:
                     new_events = await self._process_single_task(
-                        sanitized, risk, repo, log_repo
+                        sanitized, risk, repo, log_repo, trace_id=trace_id
                     )
                     events.extend(new_events)
                 except Exception as e:
@@ -397,6 +400,7 @@ class DevAgent(BaseAgent):
     async def _process_single_task(
         self, sanitized: SanitizedTask, risk: RiskLevel,
         repo: DevTaskRepository, log_repo: DevWorkflowLogRepository,
+        trace_id: str | None = None,
     ) -> list[Event]:
         """Process a single already-sanitized task through plan -> execute pipeline."""
         events: list[Event] = []
@@ -427,13 +431,13 @@ class DevAgent(BaseAgent):
             return events
 
         new_events = await self._plan_and_execute(
-            sanitized, task_record, repo, log_repo, risk
+            sanitized, task_record, repo, log_repo, risk, trace_id=trace_id
         )
         events.extend(new_events)
         return events
 
     async def _plan_and_execute(
-        self, sanitized, task_record, repo, log_repo, risk
+        self, sanitized, task_record, repo, log_repo, risk, trace_id: str | None = None
     ) -> list[Event]:
         """Plan workflow and execute (or queue for approval). Reusable for retries."""
         events: list[Event] = []
@@ -489,7 +493,7 @@ class DevAgent(BaseAgent):
             )
             return events
 
-        return await self._execute_workflow(plan, task_record, repo)
+        return await self._execute_workflow(plan, task_record, repo, trace_id=trace_id)
 
     async def _request_workflow_approval(
         self,
@@ -529,7 +533,9 @@ class DevAgent(BaseAgent):
             return None
         return approval.approval_id if approval is not None else None
 
-    async def _execute_workflow(self, plan, task_record, repo) -> list[Event]:
+    async def _execute_workflow(
+        self, plan, task_record, repo, trace_id: str | None = None
+    ) -> list[Event]:
         """Submit workflow to AgentForge and update status."""
         events: list[Event] = []
         if self._forge:
@@ -553,6 +559,7 @@ class DevAgent(BaseAgent):
                             "workflow_id": workflow_id,
                             "node_count": len(plan.nodes),
                         },
+                        trace_id=trace_id,
                     )
                 )
             except ForgeClientError as e:
