@@ -8,7 +8,7 @@ import { Badge } from "@/shared/ui/badge";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { Copy } from "lucide-react";
 import { getSimilarRequirements } from "@/lib/api/requirements";
-import { StatusBadge } from "@/components/shared/status-badge";
+import { StatusBadge } from "@/entities/requirement/ui/status-badge";
 
 interface SimilarRequirementsProps {
   requirementId: string;

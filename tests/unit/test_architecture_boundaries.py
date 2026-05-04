@@ -575,6 +575,21 @@ def test_frontend_app_shell_owns_event_listener() -> None:
     assert './event-listener' in source
 
 
+def test_frontend_requirement_ui_lives_in_requirement_entity() -> None:
+    for component in ("priority-badge", "status-badge"):
+        assert not (
+            Path("frontend/src/components/shared") / f"{component}.tsx"
+        ).exists()
+        assert (
+            Path("frontend/src/entities/requirement/ui") / f"{component}.tsx"
+        ).exists()
+
+    for path in Path("frontend/src").rglob("*.ts*"):
+        source = path.read_text()
+        assert "@/components/shared/priority-badge" not in source
+        assert "@/components/shared/status-badge" not in source
+
+
 def test_event_catalog_uses_canonical_runtime_event_names() -> None:
     catalog = Path("docs/guides/event-catalog.md").read_text()
     expected = {

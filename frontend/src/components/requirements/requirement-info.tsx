@@ -5,8 +5,8 @@ import { useTranslations } from "next-intl";
 import { ChevronDown, ChevronRight, MessageCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Badge } from "@/shared/ui/badge";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { PriorityBadge } from "@/components/shared/priority-badge";
+import { StatusBadge } from "@/entities/requirement/ui/status-badge";
+import { PriorityBadge } from "@/entities/requirement/ui/priority-badge";
 import {
   Collapsible,
   CollapsibleContent,

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { StatusBadge } from "@/components/shared/status-badge";
+import { StatusBadge } from "@/entities/requirement/ui/status-badge";
 import type { RequirementStatus } from "@/lib/api/types";
 
 // next-intl is globally mocked in setup.ts – useTranslations returns key lookup.
