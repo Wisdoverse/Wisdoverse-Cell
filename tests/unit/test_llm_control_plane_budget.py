@@ -72,6 +72,7 @@ class TestControlPlaneLLMBudget:
         record_usage.assert_awaited_once()
         record_kwargs = record_usage.await_args.kwargs
         assert record_kwargs["reservation"] == reservation
+        assert record_kwargs["source_agent_id"] == "agent-a"
         assert record_kwargs["run_id"] == "run-1"
         assert record_kwargs["trace_id"] == "trace-1"
         assert record_kwargs["input_tokens"] == 120
@@ -125,6 +126,7 @@ class TestControlPlaneLLMBudget:
         record_usage.assert_awaited_once()
         record_kwargs = record_usage.await_args.kwargs
         assert record_kwargs["reservation"] == reservation
+        assert record_kwargs["source_agent_id"] == "agent-a"
         assert record_kwargs["run_id"] == "run-2"
         assert record_kwargs["trace_id"] == "trace-2"
 
@@ -164,4 +166,5 @@ class TestControlPlaneLLMBudget:
         check_kwargs = check_budget.await_args.kwargs
         assert check_kwargs["company_id"] == "cmp_ctx"
         record_kwargs = record_usage.await_args.kwargs
+        assert record_kwargs["source_agent_id"] == "agent-a"
         assert record_kwargs["run_id"] == "run_ctx"

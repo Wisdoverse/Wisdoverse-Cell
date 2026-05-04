@@ -793,7 +793,7 @@ type HealthResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Healthy       bool                   `protobuf:"varint,1,opt,name=healthy,proto3" json:"healthy,omitempty"`
 	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	Services      map[string]bool        `protobuf:"bytes,3,rep,name=services,proto3" json:"services,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"` // db, redis, llm
+	Services      map[string]bool        `protobuf:"bytes,3,rep,name=services,proto3" json:"services,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"` // db, agent
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

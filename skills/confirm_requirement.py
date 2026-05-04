@@ -1,2 +1,2 @@
-"""Deprecated: use agents.capabilities.requirements.skills.confirm_requirement"""
-from agents.capabilities.requirements.skills.confirm_requirement import *  # noqa: F401,F403
+"""Deprecated: use agents.requirement_manager.skills.confirm_requirement"""
+from agents.requirement_manager.skills.confirm_requirement import *  # noqa: F401,F403

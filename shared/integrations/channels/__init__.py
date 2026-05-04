@@ -1,18 +1,14 @@
-# shared/integrations/channels/__init__.py
-"""
-Channels - 消息渠道抽象层
+"""Deprecated: use shared.core.channels."""
 
-提供统一的消息渠道接口，支持多渠道（飞书、企微等）。
-"""
-from .base import MessageChannel
-from .registry import ChannelRegistry
-from .types import (
+from shared.core.channels import (
     CardAction,
     CardElement,
     ChannelCard,
     ChannelMessage,
+    ChannelRegistry,
     ChannelResponse,
     IncomingMessage,
+    MessageChannel,
 )
 
 __all__ = [

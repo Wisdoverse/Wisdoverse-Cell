@@ -1,10 +1,10 @@
 """
-OpenClaw - OpenClaw Gateway 集成服务
+OpenClaw Gateway integration service.
 
-通过 WebSocket JSON-RPC 连接 OpenClaw Gateway，
-使 Wisdoverse Cell 成为 OpenClaw 的通道插件。
+Connects to OpenClaw Gateway over WebSocket JSON-RPC so Wisdoverse Cell can
+act as an OpenClaw channel plugin.
 
-使用方式:
+Usage:
     from shared.integrations.openclaw import OpenClawClient, OpenClawPlatformAdapter
 
     client = OpenClawClient(

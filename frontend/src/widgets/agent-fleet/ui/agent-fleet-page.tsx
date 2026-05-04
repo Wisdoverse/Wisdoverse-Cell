@@ -13,8 +13,8 @@ import {
   type ControlPlaneAgentDefinition,
 } from "@/entities/agent";
 import { AgentCreateDialog } from "@/features/agent-create";
-import { PageHeader } from "@/components/shared/page-header";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/shared/ui/page-header";
+import { Skeleton } from "@/shared/ui/skeleton";
 import {
   AgentFleetFilters,
   type AgentFleetFiltersState,
@@ -77,6 +77,7 @@ export function AgentFleetPage() {
   const t = useTranslations("agents");
   const [filters, setFilters] = useState<AgentFleetFiltersState>({
     status: "all",
+    agentKind: "all",
     search: "",
   });
   const {

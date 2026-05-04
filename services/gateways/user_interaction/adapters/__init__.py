@@ -1,0 +1,1 @@
+"""User interaction gateway adapters."""

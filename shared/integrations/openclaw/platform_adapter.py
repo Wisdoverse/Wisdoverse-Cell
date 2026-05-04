@@ -1,8 +1,9 @@
 """
-OpenClawPlatformAdapter - OpenClaw 平台适配器
+OpenClawPlatformAdapter - OpenClaw platform adapter.
 
-实现 BasePlatformAdapter 接口，用于统一网关的 OpenClaw 接入。
-将 OpenClaw Gateway 事件转换为 UnifiedMessage，并通过 Gateway 发送响应。
+Implements BasePlatformAdapter for the unified gateway OpenClaw integration.
+Converts OpenClaw Gateway events to UnifiedMessage and sends responses through
+the gateway.
 """
 from datetime import UTC, datetime
 from typing import Optional
@@ -16,6 +17,7 @@ from shared.messaging.inbound.models import (
     UnifiedMessage,
 )
 from shared.models.platform import Platform
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from .client import OpenClawClient
@@ -34,10 +36,10 @@ _MSG_TYPE_MAP: dict[str, MessageType] = {
 
 class OpenClawPlatformAdapter(BasePlatformAdapter):
     """
-    OpenClaw 平台适配器
+    OpenClaw platform adapter.
 
-    通过 OpenClawClient (WebSocket) 与 OpenClaw Gateway 通信，
-    将 OpenClaw 事件转换为统一格式，并将统一格式转换为 OpenClaw RPC 调用发送。
+    Communicates with OpenClaw Gateway through OpenClawClient and translates
+    between OpenClaw events and the unified gateway model.
     """
 
     def __init__(self, client: OpenClawClient):
@@ -50,12 +52,12 @@ class OpenClawPlatformAdapter(BasePlatformAdapter):
 
     async def parse_message(self, raw_event: dict) -> Optional[UnifiedMessage]:
         """
-        将 OpenClaw 入站消息事件转换为统一格式
+        Convert an inbound OpenClaw message event to the unified format.
 
-        预期 raw_event 结构:
+        Expected raw_event structure:
         {
             "message_id": "...",
-            "channel": "whatsapp",  # 原始平台
+            "channel": "whatsapp",  # Original platform.
             "chat_id": "...",
             "chat_type": "private" | "group",
             "sender": {
@@ -78,11 +80,11 @@ class OpenClawPlatformAdapter(BasePlatformAdapter):
         if not sender_id:
             return None
 
-        # 消息类型映射
+        # Map message type to the unified model.
         raw_type = raw_event.get("message_type", "text")
         message_type = _MSG_TYPE_MAP.get(raw_type, MessageType.TEXT)
 
-        # 时间戳处理
+        # Normalize the timestamp.
         ts = raw_event.get("timestamp")
         if isinstance(ts, (int, float)):
             timestamp = datetime.fromtimestamp(ts, tz=UTC)
@@ -106,9 +108,9 @@ class OpenClawPlatformAdapter(BasePlatformAdapter):
 
     async def parse_action(self, raw_callback: dict) -> Optional[UnifiedAction]:
         """
-        将 OpenClaw 卡片回调转换为统一格式
+        Convert an OpenClaw card callback to the unified format.
 
-        预期 raw_callback 结构:
+        Expected raw_callback structure:
         {
             "action_id": "approve",
             "message_id": "...",
@@ -136,14 +138,14 @@ class OpenClawPlatformAdapter(BasePlatformAdapter):
 
     async def send_card(self, chat_id: str, card: UnifiedCard) -> str:
         """
-        通过 OpenClaw Gateway 发送卡片消息
+        Send a card message through OpenClaw Gateway.
 
         Args:
-            chat_id: 会话 ID
-            card: 统一卡片格式
+            chat_id: Conversation ID.
+            card: Unified card model.
 
         Returns:
-            消息 ID
+            Message ID.
         """
         openclaw_card = self._build_openclaw_card(card)
 
@@ -158,14 +160,14 @@ class OpenClawPlatformAdapter(BasePlatformAdapter):
 
     async def send_text(self, chat_id: str, text: str) -> str:
         """
-        通过 OpenClaw Gateway 发送文本消息
+        Send a text message through OpenClaw Gateway.
 
         Args:
-            chat_id: 会话 ID
-            text: 文本内容
+            chat_id: Conversation ID.
+            text: Message text.
 
         Returns:
-            消息 ID
+            Message ID.
         """
         result = await self._client.send_request(
             "channel.sendText",
@@ -178,14 +180,14 @@ class OpenClawPlatformAdapter(BasePlatformAdapter):
 
     async def update_card(self, message_id: str, card: UnifiedCard) -> bool:
         """
-        通过 OpenClaw Gateway 更新已发送的卡片
+        Update a sent card through OpenClaw Gateway.
 
         Args:
-            message_id: 消息 ID
-            card: 新的卡片内容
+            message_id: Message ID.
+            card: Replacement card content.
 
         Returns:
-            是否成功
+            Whether the update succeeded.
         """
         openclaw_card = self._build_openclaw_card(card)
 
@@ -200,26 +202,26 @@ class OpenClawPlatformAdapter(BasePlatformAdapter):
 
     async def get_user_email(self, platform_user_id: str) -> Optional[str]:
         """
-        通过 OpenClaw Gateway 获取用户邮箱
+        Get a user email through OpenClaw Gateway.
 
         Args:
-            platform_user_id: OpenClaw 用户 ID
+            platform_user_id: OpenClaw user ID.
 
         Returns:
-            邮箱或 None
+            Email address or None.
         """
         user_info = await self._get_user_info(platform_user_id)
         return user_info.get("email")
 
     async def get_user_name(self, platform_user_id: str) -> Optional[str]:
         """
-        通过 OpenClaw Gateway 获取用户名称
+        Get a user display name through OpenClaw Gateway.
 
         Args:
-            platform_user_id: OpenClaw 用户 ID
+            platform_user_id: OpenClaw user ID.
 
         Returns:
-            用户名或 None
+            User name or None.
         """
         user_info = await self._get_user_info(platform_user_id)
         return user_info.get("name")
@@ -227,7 +229,7 @@ class OpenClawPlatformAdapter(BasePlatformAdapter):
     # === Private Methods ===
 
     async def _get_user_info(self, user_id: str) -> dict:
-        """获取用户信息（带缓存）"""
+        """Get user information with an in-memory cache."""
         if user_id in self._user_cache:
             return self._user_cache[user_id]
 
@@ -239,18 +241,18 @@ class OpenClawPlatformAdapter(BasePlatformAdapter):
             self._user_cache[user_id] = result
             return result
         except Exception:
-            logger.warning("openclaw_user_info_failed", user_id=user_id)
+            logger.warning("openclaw_user_info_failed", user_hash=hash_identifier(user_id))
             return {}
 
     def _build_openclaw_card(self, card: UnifiedCard) -> dict:
         """
-        将 UnifiedCard 转换为 OpenClaw 卡片格式
+        Convert UnifiedCard to the OpenClaw card format.
 
         Args:
-            card: 统一卡片
+            card: Unified card model.
 
         Returns:
-            OpenClaw 卡片 JSON
+            OpenClaw card JSON.
         """
         openclaw_card: dict = {
             "title": card.title,
@@ -284,5 +286,5 @@ class OpenClawPlatformAdapter(BasePlatformAdapter):
         return openclaw_card
 
     def _map_action_style(self, style: CardActionStyle) -> str:
-        """将 CardActionStyle 映射为 OpenClaw 按钮样式"""
+        """Map CardActionStyle to the OpenClaw button style."""
         return style.value

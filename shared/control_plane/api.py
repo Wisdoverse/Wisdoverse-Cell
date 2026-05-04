@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.config import settings
+from shared.middleware.internal_auth import verify_internal_key
 from shared.schemas.event import EventTypes
 
 from .adapter_registry import DEFAULT_ADAPTER_REGISTRY
@@ -22,12 +23,17 @@ from .models import (
     AgentInteractionMode,
     AgentKind,
     AgentRole,
+    ApprovalCategory,
+    ApprovalStatus,
     Artifact,
     ArtifactType,
     AuditEvent,
     CompanyContext,
     Decision,
     DecisionStatus,
+    EvolutionProposal,
+    EvolutionRolloutState,
+    EvolutionTier,
     Goal,
     GoalStatus,
     WorkItem,
@@ -42,6 +48,53 @@ SessionProvider = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 
 class ApprovalActionRequest(BaseModel):
     resolved_by: str = Field(default="api", min_length=1, max_length=128)
+
+
+class CompanyCreateRequest(BaseModel):
+    company_id: str | None = Field(default=None, min_length=1, max_length=48)
+    name: str = Field(min_length=1, max_length=256)
+    mission: str = Field(default="", max_length=10_000)
+    created_by: str = Field(default="api", min_length=1, max_length=128)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("name", "mission", "created_by", mode="before")
+    @classmethod
+    def _clean_string(cls, value: Any) -> str:
+        return str(value or "").strip()
+
+    @field_validator("company_id", mode="before")
+    @classmethod
+    def _clean_optional_string(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        cleaned = str(value).strip()
+        return cleaned or None
+
+
+class CompanyUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=256)
+    mission: str | None = Field(default=None, max_length=10_000)
+    actor_id: str = Field(default="api", min_length=1, max_length=128)
+    metadata: dict[str, Any] | None = None
+
+    @field_validator("name", "mission", mode="before")
+    @classmethod
+    def _clean_optional_string(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        cleaned = str(value).strip()
+        return cleaned or None
+
+    @field_validator("actor_id", mode="before")
+    @classmethod
+    def _clean_actor_id(cls, value: Any) -> str:
+        return str(value or "api").strip() or "api"
+
+    @model_validator(mode="after")
+    def _require_change(self) -> "CompanyUpdateRequest":
+        if self.name is None and self.mission is None and self.metadata is None:
+            raise ValueError("at least one company field must be provided")
+        return self
 
 
 class GoalCreateRequest(BaseModel):
@@ -209,6 +262,62 @@ class ArtifactCreateRequest(BaseModel):
         return cleaned or None
 
 
+class EvolutionProposalCreateRequest(BaseModel):
+    company_id: str | None = Field(default=None, min_length=1, max_length=48)
+    tier: EvolutionTier
+    scope: str = Field(min_length=1, max_length=256)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    expected_benefit: str = Field(min_length=1, max_length=20_000)
+    risk: str = Field(min_length=1, max_length=20_000)
+    approval_id: str | None = Field(default=None, max_length=48)
+    approval_required: bool = True
+    proposed_by: str = Field(default="evolution-agent", min_length=1, max_length=64)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("scope", "expected_benefit", "risk", "proposed_by", mode="before")
+    @classmethod
+    def _clean_string(cls, value: Any) -> str:
+        return str(value or "").strip()
+
+    @field_validator("approval_id", mode="before")
+    @classmethod
+    def _clean_optional_string(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        cleaned = str(value).strip()
+        return cleaned or None
+
+
+class EvolutionProposalStatusUpdateRequest(BaseModel):
+    approval_state: ApprovalStatus | None = None
+    rollout_state: EvolutionRolloutState | None = None
+    approval_id: str | None = Field(default=None, max_length=48)
+    actor_id: str = Field(default="api", min_length=1, max_length=128)
+
+    @field_validator("approval_id", mode="before")
+    @classmethod
+    def _clean_optional_string(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        cleaned = str(value).strip()
+        return cleaned or None
+
+    @field_validator("actor_id", mode="before")
+    @classmethod
+    def _clean_actor_id(cls, value: Any) -> str:
+        return str(value or "api").strip() or "api"
+
+    @model_validator(mode="after")
+    def _require_change(self) -> "EvolutionProposalStatusUpdateRequest":
+        if (
+            self.approval_state is None
+            and self.rollout_state is None
+            and self.approval_id is None
+        ):
+            raise ValueError("at least one proposal status field must be provided")
+        return self
+
+
 class AgentDefinitionCreateRequest(BaseModel):
     company_id: str | None = Field(default=None, min_length=1, max_length=48)
     agent_id: str = Field(
@@ -228,6 +337,8 @@ class AgentDefinitionCreateRequest(BaseModel):
     context_sources: list[str] = Field(default_factory=list, max_length=50)
     capabilities: list[str] = Field(default_factory=list, max_length=50)
     responsibilities: list[str] = Field(default_factory=list, max_length=50)
+    subscribed_events: list[str] = Field(default_factory=list, max_length=100)
+    published_events: list[str] = Field(default_factory=list, max_length=100)
     permissions: list[str] = Field(default_factory=list, max_length=50)
     budget_policy_id: str | None = Field(default=None, max_length=48)
     escalation_policy: dict[str, Any] = Field(default_factory=dict)
@@ -239,6 +350,8 @@ class AgentDefinitionCreateRequest(BaseModel):
         "capabilities",
         "context_sources",
         "responsibilities",
+        "subscribed_events",
+        "published_events",
         "permissions",
         mode="before",
     )
@@ -338,6 +451,13 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
     return data
 
 
+def _rollout_requires_approval(rollout_state: str | None) -> bool:
+    return rollout_state in {
+        EvolutionRolloutState.CANARY.value,
+        EvolutionRolloutState.ACTIVE.value,
+    }
+
+
 def create_control_plane_router(
     *,
     session_provider: SessionProvider | None = None,
@@ -401,6 +521,97 @@ def create_control_plane_router(
             if goal is None or goal.company_id != company_id:
                 raise HTTPException(status_code=400, detail="goal_not_found")
         return resolved_goal_id, resolved_work_item_id
+
+    @router.get("/companies")
+    async def list_companies(
+        search: str | None = None,
+        limit: int = Query(default=100, ge=1, le=500),
+        session: AsyncSession = Depends(get_session),
+    ):
+        repo = ControlPlaneRepository(session)
+        rows = await repo.list_companies(search=search, limit=limit)
+        return {"companies": [_row_to_dict(row) for row in rows], "total": len(rows)}
+
+    @router.post(
+        "/companies",
+        status_code=http_status.HTTP_201_CREATED,
+    )
+    async def create_company(
+        body: CompanyCreateRequest,
+        session: AsyncSession = Depends(get_session),
+    ):
+        repo = ControlPlaneRepository(session)
+        company_id = body.company_id
+        if company_id and await repo.get_company(company_id) is not None:
+            raise HTTPException(status_code=409, detail="company_already_exists")
+
+        company_values: dict[str, Any] = {
+            "name": body.name,
+            "mission": body.mission,
+            "metadata": body.metadata,
+        }
+        if company_id:
+            company_values["company_id"] = company_id
+        row = await repo.create_company(
+            CompanyContext(**company_values)
+        )
+        await repo.append_audit_event(
+            AuditEvent(
+                company_id=row.company_id,
+                action=EventTypes.COMPANY_CREATED,
+                target_type="company",
+                target_id=row.company_id,
+                actor_type="user",
+                actor_id=body.created_by,
+                detail={
+                    "company_id": row.company_id,
+                    "name": row.name,
+                },
+            )
+        )
+        return _row_to_dict(row)
+
+    @router.get("/companies/{company_id}")
+    async def get_company(
+        company_id: str,
+        session: AsyncSession = Depends(get_session),
+    ):
+        repo = ControlPlaneRepository(session)
+        row = await repo.get_company(company_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="company_not_found")
+        return _row_to_dict(row)
+
+    @router.patch("/companies/{company_id}")
+    async def update_company(
+        company_id: str,
+        body: CompanyUpdateRequest,
+        session: AsyncSession = Depends(get_session),
+    ):
+        repo = ControlPlaneRepository(session)
+        row = await repo.update_company_context(
+            company_id,
+            name=body.name,
+            mission=body.mission,
+            metadata=body.metadata,
+        )
+        if row is None:
+            raise HTTPException(status_code=404, detail="company_not_found")
+        await repo.append_audit_event(
+            AuditEvent(
+                company_id=row.company_id,
+                action=EventTypes.COMPANY_UPDATED,
+                target_type="company",
+                target_id=row.company_id,
+                actor_type="user",
+                actor_id=body.actor_id,
+                detail={
+                    "company_id": row.company_id,
+                    "name": row.name,
+                },
+            )
+        )
+        return _row_to_dict(row)
 
     @router.get("/goals")
     async def list_goals(
@@ -867,6 +1078,167 @@ def create_control_plane_router(
             raise HTTPException(status_code=404, detail="artifact_not_found")
         return _row_to_dict(row)
 
+    @router.get("/evolution-proposals")
+    async def list_evolution_proposals(
+        company_id: str | None = None,
+        tier: EvolutionTier | None = None,
+        approval_state: ApprovalStatus | None = None,
+        rollout_state: EvolutionRolloutState | None = None,
+        scope: str | None = None,
+        limit: int = Query(default=100, ge=1, le=500),
+        session: AsyncSession = Depends(get_session),
+    ):
+        repo = ControlPlaneRepository(session)
+        rows = await repo.list_evolution_proposals(
+            company_id=resolve_company(company_id),
+            tier=tier.value if tier else None,
+            approval_state=approval_state.value if approval_state else None,
+            rollout_state=rollout_state.value if rollout_state else None,
+            scope=scope,
+            limit=limit,
+        )
+        return {
+            "evolution_proposals": [_row_to_dict(row) for row in rows],
+            "total": len(rows),
+        }
+
+    @router.post(
+        "/evolution-proposals",
+        status_code=http_status.HTTP_201_CREATED,
+    )
+    async def create_evolution_proposal(
+        body: EvolutionProposalCreateRequest,
+        session: AsyncSession = Depends(get_session),
+    ):
+        repo = ControlPlaneRepository(session)
+        company_id = resolve_company(body.company_id)
+        await ensure_company(repo, company_id)
+
+        approval_id = body.approval_id
+        approval_state = ApprovalStatus.PENDING.value
+        if approval_id:
+            approval = await repo.get_approval(approval_id)
+            if approval is None or approval.company_id != company_id:
+                raise HTTPException(status_code=400, detail="approval_not_found")
+            approval_state = approval.status
+        elif body.approval_required:
+            approval = await ApprovalGate(repo).request_approval(
+                company_id=company_id,
+                category=ApprovalCategory.TECHNICAL,
+                requested_by=f"agent:{body.proposed_by}",
+                source_agent_id=body.proposed_by,
+                proposed_action=(
+                    f"Review {body.tier.value} evolution proposal for {body.scope}"
+                ),
+                reason=body.expected_benefit,
+                risk=body.risk,
+                rollback_note=(
+                    "Do not promote the proposal; keep current runtime behavior."
+                ),
+                affected_resources=[body.scope],
+            )
+            approval_id = approval.approval_id
+            approval_state = approval.status
+
+        row = await repo.create_evolution_proposal(
+            EvolutionProposal(
+                company_id=company_id,
+                tier=body.tier,
+                scope=body.scope,
+                evidence=body.evidence,
+                expected_benefit=body.expected_benefit,
+                risk=body.risk,
+                approval_state=approval_state,
+                approval_id=approval_id,
+                metadata=body.metadata,
+            )
+        )
+        await repo.append_audit_event(
+            AuditEvent(
+                company_id=company_id,
+                action=EventTypes.EVOLUTION_PROPOSAL_CREATED,
+                target_type="evolution_proposal",
+                target_id=row.proposal_id,
+                actor_type="agent",
+                actor_id=body.proposed_by,
+                detail={
+                    "proposal_id": row.proposal_id,
+                    "tier": row.tier,
+                    "scope": row.scope,
+                    "approval_state": row.approval_state,
+                    "rollout_state": row.rollout_state,
+                    "approval_id": row.approval_id,
+                },
+            )
+        )
+        return _row_to_dict(row)
+
+    @router.get("/evolution-proposals/{proposal_id}")
+    async def get_evolution_proposal(
+        proposal_id: str,
+        company_id: str | None = None,
+        session: AsyncSession = Depends(get_session),
+    ):
+        row = await ControlPlaneRepository(session).get_evolution_proposal(proposal_id)
+        if row is None or row.company_id != resolve_company(company_id):
+            raise HTTPException(status_code=404, detail="evolution_proposal_not_found")
+        return _row_to_dict(row)
+
+    @router.patch("/evolution-proposals/{proposal_id}/status")
+    async def update_evolution_proposal_status(
+        proposal_id: str,
+        body: EvolutionProposalStatusUpdateRequest,
+        company_id: str | None = None,
+        session: AsyncSession = Depends(get_session),
+    ):
+        repo = ControlPlaneRepository(session)
+        resolved_company_id = resolve_company(company_id)
+        existing = await repo.get_evolution_proposal(proposal_id)
+        if existing is None or existing.company_id != resolved_company_id:
+            raise HTTPException(status_code=404, detail="evolution_proposal_not_found")
+
+        approval_id = body.approval_id
+        approval_state = body.approval_state.value if body.approval_state else None
+        if approval_id:
+            approval = await repo.get_approval(approval_id)
+            if approval is None or approval.company_id != resolved_company_id:
+                raise HTTPException(status_code=400, detail="approval_not_found")
+            approval_state = approval_state or approval.status
+
+        rollout_state = body.rollout_state.value if body.rollout_state else None
+        effective_approval_state = approval_state or existing.approval_state
+        if (
+            _rollout_requires_approval(rollout_state)
+            and effective_approval_state != ApprovalStatus.APPROVED.value
+        ):
+            raise HTTPException(status_code=400, detail="approval_required")
+
+        row = await repo.update_evolution_proposal_status(
+            proposal_id,
+            approval_state=approval_state,
+            rollout_state=rollout_state,
+            approval_id=approval_id,
+        )
+        if row is None:
+            raise HTTPException(status_code=404, detail="evolution_proposal_not_found")
+        await repo.append_audit_event(
+            AuditEvent(
+                company_id=resolved_company_id,
+                action=EventTypes.EVOLUTION_PROPOSAL_UPDATED,
+                target_type="evolution_proposal",
+                target_id=row.proposal_id,
+                actor_type="user",
+                actor_id=body.actor_id,
+                detail={
+                    "proposal_id": row.proposal_id,
+                    "approval_state": row.approval_state,
+                    "rollout_state": row.rollout_state,
+                    "approval_id": row.approval_id,
+                },
+            )
+        )
+        return _row_to_dict(row)
+
     @router.get("/runs")
     async def list_runs(
         company_id: str | None = None,
@@ -949,6 +1321,8 @@ def create_control_plane_router(
                 context_sources=body.context_sources,
                 capabilities=body.capabilities,
                 responsibilities=body.responsibilities,
+                subscribed_events=body.subscribed_events,
+                published_events=body.published_events,
                 permissions=body.permissions,
                 budget_policy_id=body.budget_policy_id,
                 escalation_policy=body.escalation_policy,
@@ -1022,7 +1396,7 @@ def create_control_plane_router(
         )
         return _row_to_dict(row)
 
-    @router.post("/agents/{agent_id}/wake")
+    @router.post("/agents/{agent_id}/wake", dependencies=[Depends(verify_internal_key)])
     async def wake_agent(
         agent_id: str,
         body: AgentWakeupRequest,
@@ -1053,7 +1427,10 @@ def create_control_plane_router(
             "output": result.output,
         }
 
-    @router.post("/scheduler/heartbeats/run-once")
+    @router.post(
+        "/scheduler/heartbeats/run-once",
+        dependencies=[Depends(verify_internal_key)],
+    )
     async def run_heartbeat_scheduler_once(
         body: HeartbeatRunRequest,
         session: AsyncSession = Depends(get_session),
@@ -1117,6 +1494,26 @@ def create_control_plane_router(
             )
         except ApprovalRequiredError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        proposal = await repo.update_evolution_proposal_approval_state_by_approval(
+            approval_id,
+            approval_state=ApprovalStatus.APPROVED.value,
+        )
+        if proposal is not None:
+            await repo.append_audit_event(
+                AuditEvent(
+                    company_id=proposal.company_id,
+                    action=EventTypes.EVOLUTION_PROPOSAL_UPDATED,
+                    target_type="evolution_proposal",
+                    target_id=proposal.proposal_id,
+                    actor_type="user",
+                    actor_id=body.resolved_by,
+                    detail={
+                        "proposal_id": proposal.proposal_id,
+                        "approval_state": proposal.approval_state,
+                        "approval_id": approval_id,
+                    },
+                )
+            )
         return decision.__dict__
 
     @router.post("/approvals/{approval_id}/reject")
@@ -1133,6 +1530,28 @@ def create_control_plane_router(
             )
         except ApprovalRequiredError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        proposal = await repo.update_evolution_proposal_approval_state_by_approval(
+            approval_id,
+            approval_state=ApprovalStatus.REJECTED.value,
+            rollout_state=EvolutionRolloutState.REJECTED.value,
+        )
+        if proposal is not None:
+            await repo.append_audit_event(
+                AuditEvent(
+                    company_id=proposal.company_id,
+                    action=EventTypes.EVOLUTION_PROPOSAL_UPDATED,
+                    target_type="evolution_proposal",
+                    target_id=proposal.proposal_id,
+                    actor_type="user",
+                    actor_id=body.resolved_by,
+                    detail={
+                        "proposal_id": proposal.proposal_id,
+                        "approval_state": proposal.approval_state,
+                        "rollout_state": proposal.rollout_state,
+                        "approval_id": approval_id,
+                    },
+                )
+            )
         return decision.__dict__
 
     @router.get("/budgets/usage")

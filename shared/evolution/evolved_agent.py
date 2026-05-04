@@ -177,6 +177,9 @@ class EvolvedAgent(BaseAgent):
     async def shutdown(self) -> None:
         await self._agent.shutdown()
 
+    async def health_check(self) -> dict[str, bool]:
+        return await self._agent.health_check()
+
     def get_agent_card(self) -> "AgentCard":
         return self._agent.get_agent_card()
 

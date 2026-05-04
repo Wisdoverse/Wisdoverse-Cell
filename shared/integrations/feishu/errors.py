@@ -1,11 +1,11 @@
 """
-Feishu Error Handling - 统一错误处理模块
+Feishu error handling utilities.
 
-包含：
-- FeishuAPIError: 飞书 API 错误异常
-- retryable_request: 带重试的 HTTP 请求（已废弃，SDK 内置重试）
-- handle_feishu_response: 响应处理工具
-- feishu_error_handler: 错误处理装饰器
+Includes:
+- FeishuAPIError: Feishu API exception.
+- retryable_request: deprecated HTTP retry helper; the SDK has built-in retry.
+- handle_feishu_response: response handling helper.
+- feishu_error_handler: error handling decorator.
 """
 import asyncio
 import functools
@@ -17,10 +17,10 @@ from shared.utils.logger import get_logger
 logger = get_logger("feishu.errors")
 
 
-# 可重试的 HTTP 状态码
+# Retryable HTTP status codes.
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
-# 可重试的飞书错误码
+# Retryable Feishu error codes.
 RETRYABLE_FEISHU_CODES = {
     99991663,  # Token expired, need refresh
     99991664,  # Token invalid
@@ -30,12 +30,12 @@ RETRYABLE_FEISHU_CODES = {
 
 class FeishuAPIError(Exception):
     """
-    飞书 API 错误异常
+    Feishu API error.
 
     Attributes:
-        code: 飞书错误码
-        message: 错误消息
-        details: 额外详情
+        code: Feishu error code.
+        message: Error message.
+        details: Additional details.
     """
 
     def __init__(
@@ -54,14 +54,14 @@ class FeishuAPIError(Exception):
 
     @classmethod
     def from_response(cls, response_data: dict) -> "FeishuAPIError":
-        """从 API 响应创建异常"""
+        """Create an exception from an API response."""
         code = response_data.get("code", 0)
         message = response_data.get("msg", response_data.get("message", "Unknown error"))
         return cls(code=code, message=message, details=response_data)
 
     @property
     def is_retryable(self) -> bool:
-        """是否可重试"""
+        """Return whether the error is retryable."""
         return self.code in RETRYABLE_FEISHU_CODES
 
 
@@ -73,24 +73,24 @@ async def retryable_request(
     **kwargs,
 ):
     """
-    带重试机制的 HTTP 请求
+    HTTP request helper with retries.
 
     .. deprecated::
-        SDK (lark-oapi) 内置重试机制，不再需要手动重试。
-        此函数保留仅为向后兼容。
+        The lark-oapi SDK has built-in retry support. This function remains only
+        for backward compatibility.
 
     Args:
-        method: HTTP 方法 (get, post, patch, etc.)
-        url: 请求 URL
-        max_retries: 最大重试次数
-        retry_delay: 重试延迟（秒）
-        **kwargs: 传递给 httpx 的其他参数
+        method: HTTP method such as get, post, or patch.
+        url: Request URL.
+        max_retries: Maximum retry attempts.
+        retry_delay: Retry delay in seconds.
+        **kwargs: Additional parameters passed to httpx.
 
     Returns:
         httpx.Response
 
     Raises:
-        FeishuAPIError: 重试耗尽后抛出
+        FeishuAPIError: Raised after retry exhaustion.
     """
     warnings.warn(
         "retryable_request is deprecated. Use lark-oapi SDK which has built-in retry.",
@@ -166,16 +166,16 @@ async def retryable_request(
 
 def handle_feishu_response(response_data: dict) -> Any:
     """
-    处理飞书 API 响应
+    Handle a Feishu API response.
 
     Args:
-        response_data: API 响应数据
+        response_data: API response data.
 
     Returns:
-        data 字段的内容
+        The content of the data field.
 
     Raises:
-        FeishuAPIError: 如果响应表示错误
+        FeishuAPIError: Raised when the response represents an error.
     """
     code = response_data.get("code", 0)
 
@@ -184,7 +184,7 @@ def handle_feishu_response(response_data: dict) -> Any:
         logger.error(
             "feishu_api_error",
             code=code,
-            message=response_data.get("msg", ""),
+            platform_message_length=len(str(response_data.get("msg", ""))),
         )
         raise error
 
@@ -193,12 +193,12 @@ def handle_feishu_response(response_data: dict) -> Any:
 
 def feishu_error_handler(operation_name: str):
     """
-    飞书操作错误处理装饰器
+    Error handling decorator for Feishu operations.
 
-    自动捕获异常并转换为 FeishuAPIError。
+    Captures exceptions and converts them to FeishuAPIError.
 
     Args:
-        operation_name: 操作名称（用于日志）
+        operation_name: Operation name used for logs.
 
     Usage:
         @feishu_error_handler("send_card")

@@ -2,6 +2,7 @@
 
 import sys
 from contextlib import asynccontextmanager
+from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.control_plane.api import create_control_plane_router
 from shared.control_plane.models import (
+    AgentRole,
     AgentRun,
     AgentRunStatus,
     ApprovalCategory,
@@ -22,6 +24,7 @@ from shared.control_plane.models import (
     CompanyContext,
 )
 from shared.control_plane.repository import ControlPlaneRepository
+from shared.middleware import internal_auth as _internal_auth_mod
 from shared.schemas.event import EventTypes
 
 
@@ -57,6 +60,7 @@ async def _seed(db_session: AsyncSession):
             reason="High risk task",
             risk="External workflow execution",
             rollback_note="Cancel workflow",
+            affected_resources=["agentforge:workflow"],
             run_id=run.run_id,
             trace_id="trace-api",
         )
@@ -97,6 +101,134 @@ async def _seed(db_session: AsyncSession):
     )
     await db_session.flush()
     return run, approval
+
+
+@pytest.mark.asyncio
+async def test_control_plane_api_manages_company_contexts(db_session: AsyncSession):
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        created = await client.post(
+            "/api/v1/control-plane/companies",
+            json={
+                "company_id": "cmp_public",
+                "name": "Wisdoverse Cell",
+                "mission": "Operate with agents",
+                "metadata": {"stage": "public"},
+                "created_by": "human:operator",
+            },
+        )
+        duplicate = await client.post(
+            "/api/v1/control-plane/companies",
+            json={
+                "company_id": "cmp_public",
+                "name": "Wisdoverse Cell",
+            },
+        )
+        listed = await client.get(
+            "/api/v1/control-plane/companies",
+            params={"search": "wisdoverse"},
+        )
+        fetched = await client.get("/api/v1/control-plane/companies/cmp_public")
+        updated = await client.patch(
+            "/api/v1/control-plane/companies/cmp_public",
+            json={
+                "mission": "Run AI-native operations",
+                "metadata": {"stage": "public", "region": "global"},
+                "actor_id": "human:operator",
+            },
+        )
+        missing = await client.get("/api/v1/control-plane/companies/cmp_missing")
+        audit = await client.get(
+            "/api/v1/control-plane/audit-events",
+            params={"company_id": "cmp_public", "target_type": "company"},
+        )
+
+    assert created.status_code == 201
+    assert created.json()["company_id"] == "cmp_public"
+    assert created.json()["metadata"] == {"stage": "public"}
+    assert duplicate.status_code == 409
+    assert listed.status_code == 200
+    assert listed.json()["total"] == 1
+    assert fetched.status_code == 200
+    assert fetched.json()["name"] == "Wisdoverse Cell"
+    assert updated.status_code == 200
+    assert updated.json()["mission"] == "Run AI-native operations"
+    assert updated.json()["metadata"] == {"stage": "public", "region": "global"}
+    assert missing.status_code == 404
+    assert audit.status_code == 200
+    assert [event["action"] for event in audit.json()["audit_events"]] == [
+        EventTypes.COMPANY_UPDATED,
+        EventTypes.COMPANY_CREATED,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_control_plane_api_manages_evolution_proposals(
+    db_session: AsyncSession,
+):
+    repo = ControlPlaneRepository(db_session)
+    await repo.create_company(CompanyContext(company_id="cmp_evolution", name="Evolution"))
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        created = await client.post(
+            "/api/v1/control-plane/evolution-proposals",
+            json={
+                "company_id": "cmp_evolution",
+                "tier": "L2",
+                "scope": "agent-routing",
+                "evidence": {"p95_latency_ms": 1200},
+                "expected_benefit": "Reduce routing latency",
+                "risk": "May change coordinator dispatch behavior",
+                "proposed_by": "evolution-agent",
+            },
+        )
+        proposal = created.json()
+        listed = await client.get(
+            "/api/v1/control-plane/evolution-proposals",
+            params={"company_id": "cmp_evolution", "tier": "L2"},
+        )
+        blocked = await client.patch(
+            f"/api/v1/control-plane/evolution-proposals/{proposal['proposal_id']}/status",
+            params={"company_id": "cmp_evolution"},
+            json={"rollout_state": "active", "actor_id": "human:architect"},
+        )
+        approved = await client.post(
+            f"/api/v1/control-plane/approvals/{proposal['approval_id']}/approve",
+            json={"resolved_by": "human:architect"},
+        )
+        fetched_after_approval = await client.get(
+            f"/api/v1/control-plane/evolution-proposals/{proposal['proposal_id']}",
+            params={"company_id": "cmp_evolution"},
+        )
+        activated = await client.patch(
+            f"/api/v1/control-plane/evolution-proposals/{proposal['proposal_id']}/status",
+            params={"company_id": "cmp_evolution"},
+            json={"rollout_state": "active", "actor_id": "human:architect"},
+        )
+
+    assert created.status_code == 201
+    assert proposal["approval_state"] == "pending"
+    assert proposal["rollout_state"] == "proposed"
+    assert proposal["approval_id"]
+    assert listed.status_code == 200
+    assert listed.json()["total"] == 1
+    assert blocked.status_code == 400
+    assert blocked.json()["detail"] == "approval_required"
+    assert approved.status_code == 200
+    assert fetched_after_approval.status_code == 200
+    assert fetched_after_approval.json()["approval_state"] == "approved"
+    assert activated.status_code == 200
+    assert activated.json()["rollout_state"] == "active"
 
 
 @pytest.mark.asyncio
@@ -381,6 +513,11 @@ async def test_control_plane_api_creates_frontend_agent_definition(
                 "context_sources": ["control_plane", "feishu"],
                 "capabilities": ["market analysis"],
                 "responsibilities": ["Find market signals"],
+                "subscribed_events": [
+                    "work_item.created",
+                    "market.signal-requested",
+                ],
+                "published_events": ["market.signal-detected"],
                 "permissions": ["work_items:create"],
                 "created_by": "human:board",
             },
@@ -409,16 +546,25 @@ async def test_control_plane_api_creates_frontend_agent_definition(
     assert created.json()["interaction_mode"] == "direct"
     assert created.json()["adapter_type"] == "codex_local"
     assert created.json()["context_sources"] == ["control_plane", "feishu"]
+    assert created.json()["subscribed_events"] == [
+        "work_item.created",
+        "market.signal-requested",
+    ]
+    assert created.json()["published_events"] == ["market.signal-detected"]
     assert duplicate.status_code == 409
     assert listed.status_code == 200
     assert listed.json()["total"] == 1
     assert listed.json()["agents"][0]["reports_to_agent_id"] == "ceo"
+    assert listed.json()["agents"][0]["subscribed_events"] == [
+        "work_item.created",
+        "market.signal-requested",
+    ]
     assert status.status_code == 200
     assert status.json()["status"] == "paused"
 
 
 @pytest.mark.asyncio
-async def test_control_plane_api_separates_role_agents_from_capability_modules(
+async def test_control_plane_api_separates_agent_kinds(
     db_session: AsyncSession,
 ):
     repo = ControlPlaneRepository(db_session)
@@ -458,13 +604,27 @@ async def test_control_plane_api_separates_role_agents_from_capability_modules(
                 "context_sources": ["openproject", "feishu"],
             },
         )
+        business_runtime_agent = await client.post(
+            "/api/v1/control-plane/agents",
+            json={
+                "company_id": "cmp_agent_kinds",
+                "agent_id": "qa-agent",
+                "display_name": "QA Agent",
+                "agent_kind": "business_runtime_agent",
+                "interaction_mode": "internal",
+                "role": "quality-agent",
+                "title": "QA Agent",
+                "domain": "quality",
+                "context_sources": ["gitlab", "control_plane"],
+            },
+        )
         invalid_module = await client.post(
             "/api/v1/control-plane/agents",
             json={
                 "company_id": "cmp_agent_kinds",
                 "agent_id": "qa-direct",
                 "display_name": "QA Direct",
-                "agent_kind": "capability_module",
+                "agent_kind": "business_runtime_agent",
                 "interaction_mode": "direct",
             },
         )
@@ -474,16 +634,29 @@ async def test_control_plane_api_separates_role_agents_from_capability_modules(
         )
         listed_modules = await client.get(
             "/api/v1/control-plane/agents",
-            params={"company_id": "cmp_agent_kinds", "interaction_mode": "internal"},
+            params={"company_id": "cmp_agent_kinds", "agent_kind": "capability_module"},
+        )
+        listed_business_agents = await client.get(
+            "/api/v1/control-plane/agents",
+            params={
+                "company_id": "cmp_agent_kinds",
+                "agent_kind": "business_runtime_agent",
+            },
         )
 
     assert role_agent.status_code == 201
     assert module_agent.status_code == 201
+    assert business_runtime_agent.status_code == 201
     assert invalid_module.status_code == 422
     assert listed_roles.json()["total"] == 1
     assert listed_roles.json()["agents"][0]["agent_id"] == "cto"
     assert listed_modules.json()["total"] == 1
     assert listed_modules.json()["agents"][0]["agent_kind"] == "capability_module"
+    assert listed_business_agents.json()["total"] == 1
+    assert (
+        listed_business_agents.json()["agents"][0]["agent_kind"]
+        == "business_runtime_agent"
+    )
 
 
 @pytest.mark.asyncio
@@ -569,6 +742,55 @@ async def test_control_plane_api_wakes_process_agent_definition(
     assert {"audit_event"}.issubset(
         {item["type"] for item in timeline.json()["timeline"]}
     )
+
+
+@pytest.mark.asyncio
+async def test_control_plane_service_actions_require_internal_key(
+    db_session: AsyncSession,
+):
+    repo = ControlPlaneRepository(db_session)
+    await repo.create_company(CompanyContext(company_id="cmp_internal", name="Internal"))
+    await repo.create_agent_role(
+        AgentRole(
+            company_id="cmp_internal",
+            agent_id="internal-runner",
+            display_name="Internal Runner",
+            adapter_type="builtin",
+        )
+    )
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    with patch.object(_internal_auth_mod, "settings") as mock_settings:
+        mock_settings.internal_service_key = "secret-key"
+        mock_settings.app_env = "development"
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            missing_wake = await client.post(
+                "/api/v1/control-plane/agents/internal-runner/wake",
+                json={"company_id": "cmp_internal"},
+            )
+            missing_scheduler = await client.post(
+                "/api/v1/control-plane/scheduler/heartbeats/run-once",
+                json={"company_id": "cmp_internal"},
+            )
+            allowed_wake = await client.post(
+                "/api/v1/control-plane/agents/internal-runner/wake",
+                json={"company_id": "cmp_internal"},
+                headers={"X-Internal-Key": "secret-key"},
+            )
+            allowed_scheduler = await client.post(
+                "/api/v1/control-plane/scheduler/heartbeats/run-once",
+                json={"company_id": "cmp_internal"},
+                headers={"X-Internal-Key": "secret-key"},
+            )
+
+    assert missing_wake.status_code == 401
+    assert missing_scheduler.status_code == 401
+    assert allowed_wake.status_code == 200
+    assert allowed_scheduler.status_code == 200
 
 
 @pytest.mark.asyncio

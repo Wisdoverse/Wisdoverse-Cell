@@ -7,7 +7,9 @@
 
 -- ---------------------------------------------------------------------------
 -- 1. Create agent-specific roles
---    Passwords sourced from env vars at deploy time; defaults for local dev.
+--    02-agent-users.sh creates or updates these roles from environment
+--    variables before this SQL file runs. The hard-coded passwords below are
+--    local-dev fallbacks for manual SQL-only execution.
 -- ---------------------------------------------------------------------------
 DO $$
 BEGIN
@@ -36,6 +38,11 @@ BEGIN
         CREATE ROLE qa_agent WITH LOGIN PASSWORD 'qa_agent_dev';
     END IF;
 
+    -- Dev Agent: delivery tasks and workflow execution logs
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dev_agent') THEN
+        CREATE ROLE dev_agent WITH LOGIN PASSWORD 'dev_agent_dev';
+    END IF;
+
     -- Evolution Agent: traces, skill configs, reflections, experiments, memory, patterns
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'evolution_agent') THEN
         CREATE ROLE evolution_agent WITH LOGIN PASSWORD 'evolution_agent_dev';
@@ -46,8 +53,8 @@ $$;
 -- ---------------------------------------------------------------------------
 -- 2. Grant connect & schema usage
 -- ---------------------------------------------------------------------------
-GRANT CONNECT ON DATABASE projectcell TO chat_agent, pjm_agent, sync_agent, analysis_agent, qa_agent, evolution_agent;
-GRANT USAGE ON SCHEMA public TO chat_agent, pjm_agent, sync_agent, analysis_agent, qa_agent, evolution_agent;
+GRANT CONNECT ON DATABASE projectcell TO chat_agent, pjm_agent, sync_agent, analysis_agent, qa_agent, dev_agent, evolution_agent;
+GRANT USAGE ON SCHEMA public TO chat_agent, pjm_agent, sync_agent, analysis_agent, qa_agent, dev_agent, evolution_agent;
 
 -- ---------------------------------------------------------------------------
 -- 3. Table-level grants (tables created by Alembic / SQLAlchemy on first run)
@@ -134,6 +141,18 @@ EXCEPTION WHEN undefined_table THEN
 END
 $$;
 
+-- Dev Agent tables
+DO $$
+BEGIN
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+        dev_agent_tasks,
+        dev_agent_workflow_logs
+    TO dev_agent;
+EXCEPTION WHEN undefined_table THEN
+    RAISE NOTICE 'dev_agent tables do not exist yet — skipping grants';
+END
+$$;
+
 -- Evolution Agent tables
 DO $$
 BEGIN
@@ -155,17 +174,19 @@ BEGIN
         sync_agent_mappings,
         sync_agent_logs,
         qa_acceptance_runs,
-        qa_acceptance_results
+        qa_acceptance_results,
+        dev_agent_tasks,
+        dev_agent_workflow_logs
     TO evolution_agent;
 EXCEPTION WHEN undefined_table THEN
     RAISE NOTICE 'evolution/cross-agent tables do not exist yet — skipping grants';
 END
 $$;
 
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO chat_agent, pjm_agent, sync_agent, analysis_agent, qa_agent, evolution_agent;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO chat_agent, pjm_agent, sync_agent, analysis_agent, qa_agent, dev_agent, evolution_agent;
 
 -- Default privileges so future sequences are also accessible
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE ON SEQUENCES TO chat_agent, pjm_agent, sync_agent, analysis_agent, qa_agent, evolution_agent;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE ON SEQUENCES TO chat_agent, pjm_agent, sync_agent, analysis_agent, qa_agent, dev_agent, evolution_agent;
 
 -- ---------------------------------------------------------------------------
 -- Done

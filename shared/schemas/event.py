@@ -4,19 +4,98 @@ Event Schema - standard format for inter-agent communication.
 All inter-agent communication flows through Event objects. Events are the
 shared language of the system.
 """
+import math
+import re
 from datetime import UTC, datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..utils.id_generator import generate_id
+from shared.core.ids import generate_id
+
+_EVENT_TYPE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)+$")
+_AGENT_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+
+
+def validate_agent_id(agent_id: str, *, field_name: str = "agent_id") -> str:
+    """Validate stable runtime agent IDs used in events and agent contracts."""
+    if not _AGENT_ID_PATTERN.fullmatch(agent_id):
+        raise ValueError(f"{field_name} must be a stable runtime agent ID")
+    return agent_id
+
+
+class _ReadOnlyDict(dict):
+    """dict-compatible read-only mapping for event payloads."""
+
+    def _read_only(self, *args, **kwargs):
+        raise TypeError("Event payload is immutable")
+
+    __setitem__ = _read_only
+    __delitem__ = _read_only
+    clear = _read_only
+    pop = _read_only
+    popitem = _read_only
+    setdefault = _read_only
+    update = _read_only
+    __ior__ = _read_only
+
+
+class _ReadOnlyList(list):
+    """list-compatible read-only sequence for nested event payload values."""
+
+    def _read_only(self, *args, **kwargs):
+        raise TypeError("Event payload is immutable")
+
+    __setitem__ = _read_only
+    __delitem__ = _read_only
+    append = _read_only
+    clear = _read_only
+    extend = _read_only
+    insert = _read_only
+    pop = _read_only
+    remove = _read_only
+    reverse = _read_only
+    sort = _read_only
+    __iadd__ = _read_only
+    __imul__ = _read_only
+
+
+def _freeze_json_value(value: Any, *, path: str = "payload") -> Any:
+    if isinstance(value, dict):
+        return _ReadOnlyDict(
+            {
+                str(key): _freeze_json_value(item, path=f"{path}.{key}")
+                for key, item in value.items()
+            }
+        )
+    if isinstance(value, list | tuple):
+        return _ReadOnlyList(
+            _freeze_json_value(item, path=f"{path}[{index}]")
+            for index, item in enumerate(value)
+        )
+    if value is None or isinstance(value, str | bool | int):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"{path} must contain only finite JSON numbers")
+        return value
+    raise ValueError(f"{path} contains non-JSON-serializable value {type(value).__name__}")
 
 
 class EventMetadata(BaseModel):
     """Event metadata."""
+    model_config = ConfigDict(frozen=True)
+
     trace_id: Optional[str] = None      # trace ID for a related event chain
     retry_count: int = 0                 # retry count
     correlation_id: Optional[str] = None # correlation ID for request-response flows
+
+    @field_validator("retry_count")
+    @classmethod
+    def _validate_retry_count(cls, retry_count: int) -> int:
+        if retry_count < 0:
+            raise ValueError("retry_count must be greater than or equal to 0")
+        return retry_count
 
 
 class Event(BaseModel):
@@ -33,6 +112,7 @@ class Event(BaseModel):
     """
 
     model_config = ConfigDict(
+        frozen=True,
         ser_json_timedelta="iso8601",
     )
 
@@ -46,6 +126,42 @@ class Event(BaseModel):
 
     # Optional fields
     metadata: EventMetadata = Field(default_factory=EventMetadata)
+
+    @field_validator("event_id")
+    @classmethod
+    def _validate_event_id(cls, event_id: str) -> str:
+        """Require a stable explicit event identifier when one is provided."""
+        if not event_id.strip():
+            raise ValueError("event_id must be a stable non-empty identifier")
+        return event_id
+
+    @field_validator("event_type")
+    @classmethod
+    def _validate_event_type(cls, event_type: str) -> str:
+        """Enforce the cross-agent event naming contract: {domain}.{action}."""
+        if not _EVENT_TYPE_PATTERN.fullmatch(event_type):
+            raise ValueError("event_type must use {domain}.{action} naming")
+        return event_type
+
+    @field_validator("source_agent")
+    @classmethod
+    def _validate_source_agent(cls, source_agent: str) -> str:
+        """Require an explicit publishing agent ID."""
+        return validate_agent_id(source_agent, field_name="source_agent")
+
+    @field_validator("payload", mode="after")
+    @classmethod
+    def _freeze_payload(cls, payload: dict[str, Any]) -> dict[str, Any]:
+        """Store event payloads as recursive read-only JSON-like data."""
+        return _freeze_json_value(payload)
+
+    @field_validator("schema_version")
+    @classmethod
+    def _validate_schema_version(cls, schema_version: str) -> str:
+        """Require a non-empty schema version in every serialized event."""
+        if not schema_version.strip():
+            raise ValueError("schema_version must be present")
+        return schema_version
 
     @classmethod
     def create(
@@ -74,6 +190,13 @@ class EventTypes:
     REQUIREMENT_CHANGED = "requirement.changed"
     REQUIREMENT_REJECTED = "requirement.rejected"
     REQUIREMENT_DELETED = "requirement.deleted"
+
+    # External work context consumed by requirement manager
+    PROJECT_CREATED = "project.created"
+    PROJECT_UPDATED = "project.updated"
+    SPRINT_STARTED = "sprint.started"
+    SPRINT_COMPLETED = "sprint.completed"
+    MEETING_UPLOADED = "meeting.uploaded"
 
     # Development
     CODE_COMMITTED = "code.committed"
@@ -104,6 +227,8 @@ class EventTypes:
     APPROVAL_REJECTED = "approval.rejected"
 
     # Control-plane ledger
+    COMPANY_CREATED = "company.created"
+    COMPANY_UPDATED = "company.updated"
     GOAL_CREATED = "goal.created"
     GOAL_UPDATED = "goal.updated"
     WORK_ITEM_CREATED = "work_item.created"
@@ -120,6 +245,8 @@ class EventTypes:
     BUDGET_USAGE_RECORDED = "budget.usage-recorded"
     ARTIFACT_CREATED = "artifact.created"
     AUDIT_EVENT_RECORDED = "audit.event-recorded"
+    EVOLUTION_PROPOSAL_CREATED = "evolution_proposal.created"
+    EVOLUTION_PROPOSAL_UPDATED = "evolution_proposal.updated"
 
     # PM sync
     SYNC_STARTED = "sync.started"
@@ -180,3 +307,12 @@ class EventTypes:
     TASK_NOTIFICATION = "task.notification"
     TASK_PROGRESS = "task.progress"
     PM_PRD_READY = "pm.prd-ready"
+
+    # A2A bridge
+    A2A_TASK_SUBMITTED = "a2a.task.submitted"
+    A2A_TASK_WORKING = "a2a.task.working"
+    A2A_TASK_INPUT_REQUIRED = "a2a.task.input-required"
+    A2A_TASK_COMPLETED = "a2a.task.completed"
+    A2A_TASK_FAILED = "a2a.task.failed"
+    A2A_TASK_CANCELED = "a2a.task.canceled"
+    A2A_TASK_ERROR = "a2a.task.error"

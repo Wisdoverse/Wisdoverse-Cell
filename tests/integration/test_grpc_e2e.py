@@ -9,10 +9,10 @@ import pytest
 from grpc import aio
 
 # Import after patching to avoid loading real database
-with patch("agents.capabilities.requirements.db.database.db_manager"):
-    from agents.capabilities.requirements.grpc import requirement_pb2 as pb2
-    from agents.capabilities.requirements.grpc import requirement_pb2_grpc as pb2_grpc
-    from agents.capabilities.requirements.grpc.server import create_server
+with patch("agents.requirement_manager.db.database.db_manager"):
+    from agents.requirement_manager.grpc import requirement_pb2 as pb2
+    from agents.requirement_manager.grpc import requirement_pb2_grpc as pb2_grpc
+    from agents.requirement_manager.grpc.server import create_server
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ async def grpc_server():
     # Create server with mock agent
     mock_agent = AsyncMock()
 
-    with patch("agents.capabilities.requirements.grpc.servicer.db_manager") as mock_db:
+    with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
         mock_session = AsyncMock()
         mock_db.session.return_value.__aenter__.return_value = mock_session
 
@@ -55,7 +55,7 @@ class TestGRPCServer:
         """Should be able to call HealthCheck via gRPC."""
         server, _ = grpc_server
 
-        with patch("agents.capabilities.requirements.grpc.servicer.db_manager") as mock_db:
+        with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
             mock_session = AsyncMock()
             mock_db.session.return_value.__aenter__.return_value = mock_session
 
@@ -71,11 +71,11 @@ class TestGRPCServer:
         """Should be able to list requirements via gRPC."""
         server, _ = grpc_server
 
-        with patch("agents.capabilities.requirements.grpc.servicer.db_manager") as mock_db:
+        with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
             mock_session = AsyncMock()
             mock_db.session.return_value.__aenter__.return_value = mock_session
 
-            with patch("agents.capabilities.requirements.grpc.servicer.RequirementRepository") as MockRepo:
+            with patch("agents.requirement_manager.grpc.servicer.RequirementRepository") as MockRepo:
                 mock_repo = AsyncMock()
                 mock_repo.list_all.return_value = []
                 MockRepo.return_value = mock_repo

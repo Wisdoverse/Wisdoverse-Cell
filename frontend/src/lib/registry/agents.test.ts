@@ -9,7 +9,7 @@ import {
 describe("Agent Registry", () => {
   it("should have requirement-manager registered", () => {
     const rm = getAgentMeta("requirement-manager");
-    expect(rm.name).toBe("Requirements Module");
+    expect(rm.name).toBe("Requirement Manager");
     expect(rm.shortName).toBe("RM");
     expect(rm.domain).toBe("product");
     expect(rm.icon).toBe("ClipboardList");

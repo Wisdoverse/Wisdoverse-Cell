@@ -1,6 +1,6 @@
 # Wisdoverse Cell API Reference
 
-Last updated: 2026-05-02
+Last updated: 2026-05-04
 
 This page documents the current HTTP surface at a contract level. English is
 the primary language for API descriptions. Response examples may include
@@ -19,6 +19,14 @@ real integration contract.
 Internal key comparison must use constant-time comparison. Development
 environments may skip the check only when `internal_service_key` is not
 configured.
+
+Feishu webhook handlers must verify the raw request body before event dispatch,
+card action handling, or message processing when signature verification is
+enabled. Missing keys, missing headers, or mismatched signatures fail closed for
+ordinary callbacks. The only exception is Feishu's encrypted URL verification
+challenge: when the body contains an `encrypt` wrapper and no signature headers,
+the gateway decrypts the challenge with `FEISHU_ENCRYPT_KEY` and responds with
+the decrypted challenge value.
 
 ## Common Service Endpoints
 
@@ -92,6 +100,10 @@ Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.
 
 | Method | Path | Purpose |
 |--------|------|---------|
+| `GET` | `/companies` | List company contexts |
+| `POST` | `/companies` | Create a company context |
+| `GET` | `/companies/{company_id}` | Read one company context |
+| `PATCH` | `/companies/{company_id}` | Update company name, mission, or metadata |
 | `GET` | `/goals` | List durable company goals |
 | `POST` | `/goals` | Create a goal |
 | `GET` | `/goals/{goal_id}` | Read one goal |
@@ -107,6 +119,10 @@ Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.
 | `GET` | `/artifacts` | List artifacts |
 | `POST` | `/artifacts` | Create an artifact |
 | `GET` | `/artifacts/{artifact_id}` | Read one artifact |
+| `GET` | `/evolution-proposals` | List self-evolution proposals |
+| `POST` | `/evolution-proposals` | Create a proposal and optional technical approval |
+| `GET` | `/evolution-proposals/{proposal_id}` | Read one proposal |
+| `PATCH` | `/evolution-proposals/{proposal_id}/status` | Update approval or rollout state |
 | `GET` | `/runs` | List agent runs |
 | `GET` | `/runs/{run_id}` | Read one run |
 | `GET` | `/agents` | List `AgentRole` records |
@@ -125,7 +141,18 @@ Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.
 Creation endpoints validate that referenced company, goal, work item, and run
 IDs belong to the same company context.
 
-## Requirements Capability API
+`AgentRole` create/list/read payloads include the event-boundary contract:
+`subscribed_events` and `published_events`. These fields document how an agent
+participates in EventBus communication without importing another agent's
+internal implementation.
+
+`agent_kind` accepts `organization_role`, `business_runtime_agent`,
+`capability_module`, `integration_gateway`, and `system_worker`. Business
+runtime agents are deployed root agents such as requirement manager, PJM, QA,
+and Dev. Capability modules are support boundaries such as sync, analysis, and
+evolution.
+
+## Requirement Manager API
 
 Primary prefix: `/api/v1`.
 
@@ -156,8 +183,8 @@ Primary prefix: `/api/v1`.
 | `GET` | `/stats/enhanced` | Extended statistics and trend data |
 | `GET` | `/export/prd` | Export PRD JSON payload |
 | `GET` | `/export/prd/download` | Download generated PRD |
-| `GET` | `/export/questions` | Export open questions |
-| `GET` | `/export/questions/download` | Download open questions |
+| `GET` | `/export/questions` | Export questions; `status=open`, `answered`, or `all` |
+| `GET` | `/export/questions/download` | Download questions; `status=open`, `answered`, or `all` |
 | `GET` | `/messages/search` | Search message/session content |
 | `GET` | `/messages/session/{session_id}` | Read a message session |
 | `GET` | `/admin/llm-usage` | LLM usage summary |
@@ -175,10 +202,24 @@ Primary prefix: `/api/v1`.
 | `POST` | `/api/v1/pm/report/weekly` | Trigger weekly report generation |
 | `POST` | `/api/v1/pm/decompose/{wp_id}/retry` | Retry decomposition |
 | `GET` | `/api/v1/pm/decompose/{wp_id}` | Read decomposition status |
-| `POST` | `/api/v1/pm/decompose/{wp_id}/approve` | Approve decomposition |
-| `POST` | `/api/v1/pm/decompose/{wp_id}/reject` | Reject decomposition |
-| `POST` | `/api/v1/pm/decompose/{wp_id}/approve` | Alternate decomposition router path |
-| `POST` | `/api/v1/pm/decompose/{wp_id}/reject` | Alternate decomposition router path |
+| `POST` | `/api/v1/pm/decompose/{wp_id}/approve` | Approve decomposition; body should include `operator` for approval evidence |
+| `POST` | `/api/v1/pm/decompose/{wp_id}/reject` | Reject decomposition; body should include `operator` and may include `reason` |
+
+Decomposition status responses use these workflow states:
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Decomposition is waiting for human approval before OpenProject writes |
+| `writing` | Approved decomposition is currently being written to OpenProject |
+| `approved` | OpenProject write succeeded |
+| `rejected` | Human rejected the proposed decomposition |
+| `failed` | Decomposition generation failed before approval |
+| `write_failed` | Decomposition was approved, but the OpenProject write failed |
+
+`POST /api/v1/pm/decompose/{wp_id}/retry` is allowed only for `failed`,
+`rejected`, and `write_failed` records. Event replay of
+`sync.task-needs-decompose` skips `pending`, `writing`, `approved`, and
+`write_failed` records to avoid duplicate OpenProject side effects.
 
 ## User Interaction Gateway API
 
@@ -197,19 +238,21 @@ Primary prefix: `/api/v1`.
 | Analysis | `POST` | `/api/v1/analysis/daily` | Generate daily report |
 | Analysis | `POST` | `/api/v1/analysis/weekly` | Generate weekly report |
 | Analysis | `GET` | `/api/v1/analysis/risks` | Check project risks |
-| Sync | `POST` | `/api/v1/sync/trigger` | Trigger synchronization |
+| Sync | `POST` | `/api/v1/sync/trigger` | Trigger compatibility full synchronization |
+| Sync | `POST` | `/api/v1/sync/openproject/trigger` | Trigger OpenProject-to-Bitable projection sync |
+| Sync | `POST` | `/api/v1/sync/feishu-bitable/trigger` | Trigger Feishu Bitable-to-OpenProject progress sync |
 | Sync | `GET` | `/api/v1/sync/status` | Read sync status |
 | Sync | `GET` | `/api/v1/sync/mappings` | List sync mappings |
 | QA | `POST` | `/api/v1/qa/run` | Start QA acceptance |
 | QA | `GET` | `/api/v1/qa/runs/{run_id}` | Read one QA run |
 | QA | `GET` | `/api/v1/qa/runs` | List QA runs |
-| QA | `GET` | `/api/v1/qa/status` | Read QA status |
+| QA | `GET` | `/api/v1/qa/stats` | Read QA acceptance statistics |
 | Development | `GET` | `/api/v1/dev/tasks` | List development tasks |
 | Development | `GET` | `/api/v1/dev/tasks/failed` | List failed tasks |
 | Development | `GET` | `/api/v1/dev/tasks/{wp_id}` | Read task detail |
 | Development | `POST` | `/api/v1/dev/tasks/{task_id}/retry` | Retry task |
 | Development | `POST` | `/api/v1/dev/tasks/{task_id}/cancel` | Cancel task |
-| Development | `POST` | `/api/v1/dev/tasks/{task_id}/approve` | Approve task |
+| Development | `POST` | `/api/v1/dev/tasks/{task_id}/approve` | Approve task; body may include `operator` and `approval_id` for control-plane approval evidence |
 | Evolution | `POST` | `/analyze` | Trigger global evolution analysis |
 
 ## Gateway and Integration APIs
@@ -223,6 +266,10 @@ Primary prefix: `/api/v1`.
 | WeCom integration | `GET` | `/api/wecom/webhook` | WeCom verification |
 | WeCom integration | `POST` | `/api/wecom/webhook` | WeCom event callback |
 | WeCom integration | `GET` | `/api/wecom/health` | WeCom integration health |
+| Channel Gateway | `GET` | `/health` | Public liveness |
+| Channel Gateway | `GET` | `/health/adapters` | Internal-key adapter health |
+| Channel Gateway | `GET` | `/api/admin/adapters` | Internal-key adapter inventory |
+| Channel Gateway | `GET` | `/api/admin/adapters/{channel_id}` | Internal-key adapter detail |
 
 ## DSAR Endpoints
 
@@ -231,9 +278,11 @@ Mounted by shared API helpers when enabled:
 | Method | Path | Purpose |
 |--------|------|---------|
 | `POST` | `/api/dsar/export` | Export user data |
-| `POST` | `/api/dsar/delete` | Delete user data |
+| `POST` | `/api/dsar/delete` | Dry-run user data deletion; `confirm=true` requires an approved `approval_id` |
 
-DSAR routes require internal authentication and must be audited.
+DSAR routes require internal authentication and must be audited. Confirmed
+deletion is a legal/privacy-sensitive destructive action and must carry a
+control-plane approval id when approval enforcement is enabled.
 
 ## A2A and MCP Protocol Routes
 
@@ -261,3 +310,6 @@ result = await client.approve_decomposition(wp_id=42, operator="alice")
 
 For asynchronous collaboration, publish an EventBus event and include `trace_id`
 when one already exists.
+
+`POST /agent/request` accepts `X-Trace-ID`; the shared runtime copies it into
+the request payload when the JSON body does not already contain `trace_id`.

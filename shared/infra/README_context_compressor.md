@@ -42,7 +42,7 @@ If your agent needs to re-inject context after compression (e.g., system state, 
 
 ```python
 async def restore_context() -> list[dict]:
-    return [{"role": "user", "content": "[系统上下文] 当前项目状态..."}]
+    return [{"role": "user", "content": "[System context] Current project state..."}]
 
 compressor = ContextCompressor(
     config,
@@ -55,4 +55,4 @@ The callback runs after L2 summarization. Its returned messages are appended to 
 
 ## Reference: chat_agent Integration
 
-See `agents/gateways/user_interaction/core/chat_service.py` for the canonical integration example.
+See `services/gateways/user_interaction/core/chat_service.py` for the canonical integration example.

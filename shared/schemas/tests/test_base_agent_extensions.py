@@ -1,4 +1,6 @@
 """Tests for BaseAgent extension methods (progress, notification, scratchpad)."""
+import pytest
+
 from shared.schemas.event import EventTypes
 
 
@@ -6,7 +8,7 @@ class _TestAgent:
     """Minimal concrete agent for testing BaseAgent helpers."""
 
     @staticmethod
-    def _make():
+    def _make(agent_id: str = "test-agent"):
         from shared.schemas.agent import BaseAgent
 
         class ConcreteAgent(BaseAgent):
@@ -16,9 +18,15 @@ class _TestAgent:
                 return {}
 
         return ConcreteAgent(
-            agent_id="test-agent",
+            agent_id=agent_id,
             agent_name="Test Agent",
         )
+
+
+def test_base_agent_rejects_invalid_runtime_agent_id():
+    for agent_id in ("", "   ", "Test Agent", "test.agent"):
+        with pytest.raises(ValueError, match="agent_id must be"):
+            _TestAgent._make(agent_id=agent_id)
 
 
 def test_create_task_notification():

@@ -1,13 +1,13 @@
 """
-CardBuilder - 飞书消息卡片构建器
+CardBuilder - Feishu message card builder.
 
-使用 Builder 模式构建复杂的消息卡片。
+Builds complex message cards with a builder pattern.
 
-使用方式:
+Usage:
     card = (
         CardBuilder()
-        .set_header("标题", template="blue")
-        .add_text("内容")
+        .set_header("Title", template="blue")
+        .add_text("Content")
         .add_action_buttons([...])
         .build()
     )
@@ -66,9 +66,9 @@ def truncate_card_if_needed(card: dict, max_bytes: int = CARD_SIZE_LIMIT) -> dic
 
 class CardBuilder:
     """
-    飞书消息卡片构建器
+    Feishu message card builder.
 
-    支持链式调用，简化卡片构建。
+    Supports chained calls to simplify card construction.
     """
 
     def __init__(self):
@@ -83,12 +83,12 @@ class CardBuilder:
         subtitle: Optional[str] = None,
     ) -> "CardBuilder":
         """
-        设置卡片头部
+        Set the card header.
 
         Args:
-            title: 标题文本
-            template: 颜色模板 (blue, green, red, orange, purple, indigo, turquoise, wathet, yellow, grey, carmine, violet)
-            subtitle: 副标题（可选）
+            title: Header title text.
+            template: Color template (blue, green, red, orange, purple, indigo, turquoise, wathet, yellow, grey, carmine, violet).
+            subtitle: Optional subtitle.
         """
         self.header = {
             "title": {"tag": "plain_text", "content": title},
@@ -104,11 +104,11 @@ class CardBuilder:
         tag: str = "lark_md",
     ) -> "CardBuilder":
         """
-        添加文本元素
+        Add a text element.
 
         Args:
-            content: 文本内容（支持 Markdown）
-            tag: 文本类型 (lark_md, plain_text)
+            content: Text content. Markdown is supported.
+            tag: Text type (lark_md, plain_text).
         """
         self.elements.append({
             "tag": "div",
@@ -117,11 +117,11 @@ class CardBuilder:
         return self
 
     def add_markdown(self, content: str) -> "CardBuilder":
-        """添加 Markdown 文本"""
+        """Add Markdown text."""
         return self.add_text(content, tag="lark_md")
 
     def add_plain_text(self, content: str) -> "CardBuilder":
-        """添加纯文本"""
+        """Add plain text."""
         return self.add_text(content, tag="plain_text")
 
     def add_input(
@@ -131,12 +131,12 @@ class CardBuilder:
         max_length: int = 200,
     ) -> "CardBuilder":
         """
-        添加文本输入框
+        Add a text input.
 
         Args:
-            name: 输入框名称（用于 form_value 提取）
-            placeholder: 占位提示文本
-            max_length: 最大输入长度
+            name: Input name used for form_value extraction.
+            placeholder: Placeholder text.
+            max_length: Maximum input length.
         """
         self.elements.append({
             "tag": "input",
@@ -148,10 +148,10 @@ class CardBuilder:
 
     def add_action_buttons(self, buttons: list[dict]) -> "CardBuilder":
         """
-        添加操作按钮组
+        Add an action button group.
 
         Args:
-            buttons: 按钮列表，每个按钮包含 tag, text, type, value
+            buttons: Button list. Each button contains tag, text, type, and value.
         """
         self.elements.append({
             "tag": "action",
@@ -166,12 +166,12 @@ class CardBuilder:
         button_type: str = "default",
     ) -> "CardBuilder":
         """
-        添加单个按钮（会自动放入 action 组）
+        Add a single button and place it in an action group.
 
         Args:
-            text: 按钮文本
-            value: 点击时传递的值
-            button_type: 按钮类型 (default, primary, danger)
+            text: Button text.
+            value: Value passed on click.
+            button_type: Button type (default, primary, danger).
         """
         button = {
             "tag": "button",
@@ -180,7 +180,7 @@ class CardBuilder:
             "value": value
         }
 
-        # 如果最后一个元素是 action，追加到里面
+        # Append to the previous action element when possible.
         if self.elements and self.elements[-1].get("tag") == "action":
             self.elements[-1]["actions"].append(button)
         else:
@@ -189,12 +189,12 @@ class CardBuilder:
         return self
 
     def add_divider(self) -> "CardBuilder":
-        """添加分割线"""
+        """Add a divider."""
         self.elements.append({"tag": "hr"})
         return self
 
     def add_note(self, text: str) -> "CardBuilder":
-        """添加备注"""
+        """Add a note."""
         self.elements.append({
             "tag": "note",
             "elements": [
@@ -205,11 +205,11 @@ class CardBuilder:
 
     def add_fields(self, fields: list[tuple[str, str]], is_short: bool = True) -> "CardBuilder":
         """
-        添加字段组
+        Add a field group.
 
         Args:
-            fields: (标题, 内容) 元组列表
-            is_short: 是否短字段（两列显示）
+            fields: List of (title, content) tuples.
+            is_short: Whether to render fields as short two-column fields.
         """
         field_elements = []
         for title, content in fields:
@@ -228,7 +228,7 @@ class CardBuilder:
         return self
 
     def build(self) -> dict:
-        """构建最终的卡片 JSON"""
+        """Build the final card JSON."""
         card = {
             "config": self.config,
             "elements": self.elements
@@ -240,7 +240,7 @@ class CardBuilder:
         return card
 
     def build_message(self) -> dict:
-        """构建完整的消息体（包含 msg_type）"""
+        """Build the complete message body including msg_type."""
         return {
             "msg_type": "interactive",
             "card": self.build()

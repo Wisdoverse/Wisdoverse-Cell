@@ -133,6 +133,15 @@ class TestEvolvedAgentDelegation:
         await evolved.shutdown()
         agent.shutdown.assert_awaited_once()
 
+    @pytest.mark.asyncio
+    async def test_delegates_health_check(self):
+        agent = FakeAgent()
+        agent.health_check = AsyncMock(return_value={"database": True})
+        evolved = EvolvedAgent(agent)
+        result = await evolved.health_check()
+        assert result == {"database": True}
+        agent.health_check.assert_awaited_once()
+
 
 class TestEvolvedAgentHandleEvent:
     @pytest.mark.asyncio

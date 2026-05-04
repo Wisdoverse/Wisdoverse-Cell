@@ -25,9 +25,10 @@ Usage:
         await handle_event(event)
 """
 import asyncio
+import hashlib
 import os
 import socket
-from typing import AsyncGenerator, Optional, Protocol, runtime_checkable
+from typing import Any, AsyncGenerator, Optional, Protocol, runtime_checkable
 from urllib.parse import urlparse, urlunparse
 
 import redis.asyncio as redis
@@ -53,6 +54,8 @@ class EventBusProtocol(Protocol):
     async def get_queue_length(self, event_type: str) -> int: ...
     async def get_all_queue_lengths(self) -> dict[str, int]: ...
     async def get_pending_count(self, event_type: str, group: str) -> int: ...
+    async def get_dead_letter_count(self) -> int: ...
+    async def list_dead_letters(self, limit: int = 50) -> list[Event]: ...
 
     @property
     def is_connected(self) -> bool: ...
@@ -116,6 +119,12 @@ class EventBus:
         """
         return f"{self.queue_prefix}:{event_type}"
 
+    def _processed_event_key(self, group: str, event_id: str) -> str:
+        return f"{self.queue_prefix}:processed:{group}:{event_id}"
+
+    def _processing_event_key(self, group: str, event_id: str) -> str:
+        return f"{self.queue_prefix}:processing:{group}:{event_id}"
+
     @staticmethod
     def _consumer_name() -> str:
         """Generate a unique consumer name within a group (hostname-pid)."""
@@ -133,6 +142,189 @@ class EventBus:
                 pass
             else:
                 raise
+
+    def _decode_xautoclaim_response(self, response: Any) -> list[tuple[str, list]]:
+        """Normalize redis-py XAUTOCLAIM responses to stream result tuples."""
+        if not response:
+            return []
+
+        messages: list = []
+        if isinstance(response, (list, tuple)):
+            # redis-py returns (next_start_id, [(message_id, fields), ...], deleted_ids).
+            if len(response) >= 2 and isinstance(response[1], list):
+                messages = response[1]
+            # Some clients return [(message_id, fields), ...] directly.
+            elif response and all(isinstance(item, (list, tuple)) for item in response):
+                messages = list(response)
+
+        return messages
+
+    def _pending_claim_idle_ms(self) -> int:
+        """Return a safe pending-claim threshold for the shared runtime."""
+        configured_ms = max(1, settings.event_bus_pending_claim_idle_ms)
+        handler_timeout_ms = max(1, settings.event_handler_timeout_seconds) * 1000
+        return max(configured_ms, handler_timeout_ms + 1000)
+
+    def _processing_lock_ttl_seconds(self) -> int:
+        """Return a lock TTL long enough for one runtime handler attempt."""
+        configured_seconds = max(1, settings.event_bus_processing_lock_ttl_seconds)
+        handler_timeout_seconds = max(1, settings.event_handler_timeout_seconds)
+        return max(configured_seconds, handler_timeout_seconds + 60)
+
+    async def _is_processed(self, *, group: str, event_id: str) -> bool:
+        key = self._processed_event_key(group, event_id)
+        try:
+            return bool(await self._redis.get(key))
+        except Exception as exc:
+            logger.warning(
+                "event_idempotency_lookup_failed",
+                group=group,
+                event_id=event_id,
+                error=str(exc),
+            )
+            return False
+
+    async def _claim_processing(self, *, group: str, consumer: str, event_id: str) -> bool:
+        key = self._processing_event_key(group, event_id)
+        try:
+            return bool(
+                await self._redis.set(
+                    key,
+                    consumer,
+                    nx=True,
+                    ex=self._processing_lock_ttl_seconds(),
+                )
+            )
+        except Exception as exc:
+            logger.warning(
+                "event_idempotency_claim_failed",
+                group=group,
+                event_id=event_id,
+                error=str(exc),
+            )
+            return True
+
+    async def _mark_processed(self, *, group: str, event_id: str) -> None:
+        key = self._processed_event_key(group, event_id)
+        lock_key = self._processing_event_key(group, event_id)
+        try:
+            await self._redis.set(
+                key,
+                "1",
+                ex=max(1, settings.event_bus_processed_event_ttl_seconds),
+            )
+            await self._redis.delete(lock_key)
+        except Exception as exc:
+            logger.warning(
+                "event_idempotency_mark_failed",
+                group=group,
+                event_id=event_id,
+                error=str(exc),
+            )
+
+    async def _claim_pending(
+        self,
+        *,
+        stream_keys: list[str],
+        group: str,
+        consumer: str,
+    ) -> list[tuple[str, list]]:
+        """Claim idle pending entries so consumer restarts preserve at-least-once delivery."""
+        claimed: list[tuple[str, list]] = []
+        idle_ms = self._pending_claim_idle_ms()
+        count = max(1, settings.event_bus_pending_claim_count)
+
+        for stream_key in stream_keys:
+            try:
+                response = await self._redis.xautoclaim(
+                    stream_key,
+                    group,
+                    consumer,
+                    min_idle_time=idle_ms,
+                    start_id="0-0",
+                    count=count,
+                )
+            except AttributeError:
+                logger.warning("event_pending_claim_unavailable")
+                return []
+            except Exception as exc:
+                logger.warning(
+                    "event_pending_claim_failed",
+                    stream=stream_key,
+                    group=group,
+                    error=str(exc),
+                )
+                continue
+
+            messages = self._decode_xautoclaim_response(response)
+            if messages:
+                claimed.append((stream_key, messages))
+
+        return claimed
+
+    async def _yield_stream_results(
+        self,
+        results: list[tuple[str, list]],
+        *,
+        group: str,
+        consumer: str,
+    ) -> AsyncGenerator[Event, None]:
+        """Validate, yield, and acknowledge Redis Stream messages."""
+        for stream_key, messages in results:
+            for message_id, fields in messages:
+                event_data = fields.get("data", "")
+                try:
+                    event = Event.model_validate_json(event_data)
+                except ValidationError as ve:
+                    logger.error(
+                        "event_validation_failed",
+                        error=str(ve),
+                        raw_event_data_length=len(event_data),
+                    )
+                    await self.publish_raw_dlq(
+                        raw_event_data=event_data,
+                        error=str(ve),
+                        agent_id=group,
+                    )
+                    # ACK invalid messages to prevent infinite redelivery.
+                    await self._redis.xack(stream_key, group, message_id)
+                    continue
+
+                if await self._is_processed(group=group, event_id=event.event_id):
+                    logger.info(
+                        "event_duplicate_skipped",
+                        event_id=event.event_id,
+                        event_type=event.event_type,
+                        group=group,
+                    )
+                    await self._redis.xack(stream_key, group, message_id)
+                    continue
+
+                if not await self._claim_processing(
+                    group=group,
+                    consumer=consumer,
+                    event_id=event.event_id,
+                ):
+                    logger.info(
+                        "event_duplicate_in_progress",
+                        event_id=event.event_id,
+                        event_type=event.event_type,
+                        group=group,
+                    )
+                    continue
+
+                logger.debug(
+                    "event_received",
+                    event_id=event.event_id,
+                    event_type=event.event_type,
+                    stream_message_id=message_id,
+                )
+
+                yield event
+
+                # ACK after successful processing by the async-for consumer.
+                await self._mark_processed(group=group, event_id=event.event_id)
+                await self._redis.xack(stream_key, group, message_id)
 
     async def publish(self, event: Event) -> bool:
         """
@@ -197,18 +389,18 @@ class EventBus:
         await self.connect()
 
         consumer = self._consumer_name()
+        group_name = group or "default"
         # Build stream keys and ensure consumer groups exist
         streams: dict[str, str] = {}
         for et in event_types:
             stream_key = self._get_stream_key(et)
-            if group:
-                await self._ensure_consumer_group(stream_key, group)
+            await self._ensure_consumer_group(stream_key, group_name)
             streams[stream_key] = ">"  # read only new messages
 
         logger.info(
             "event_subscribed",
             event_types=event_types,
-            group=group,
+            group=group_name,
             consumer=consumer,
         )
 
@@ -217,8 +409,22 @@ class EventBus:
 
         while True:
             try:
+                claimed = await self._claim_pending(
+                    stream_keys=list(streams.keys()),
+                    group=group_name,
+                    consumer=consumer,
+                )
+                if claimed:
+                    async for event in self._yield_stream_results(
+                        claimed,
+                        group=group_name,
+                        consumer=consumer,
+                    ):
+                        yield event
+                    continue
+
                 results = await self._redis.xreadgroup(
-                    groupname=group or "default",
+                    groupname=group_name,
                     consumername=consumer,
                     streams=streams,
                     count=1,
@@ -228,33 +434,12 @@ class EventBus:
                 if not results:
                     continue
 
-                for stream_key, messages in results:
-                    for message_id, fields in messages:
-                        event_data = fields.get("data", "")
-                        try:
-                            event = Event.model_validate_json(event_data)
-                        except ValidationError as ve:
-                            raw_preview = (event_data[:200] + "...") if len(event_data) > 200 else event_data
-                            logger.error(
-                                "event_validation_failed",
-                                error=str(ve),
-                                raw_event_data=raw_preview,
-                            )
-                            # ACK invalid messages to prevent infinite redelivery
-                            await self._redis.xack(stream_key, group or "default", message_id)
-                            continue
-
-                        logger.debug(
-                            "event_received",
-                            event_id=event.event_id,
-                            event_type=event.event_type,
-                            message_id=message_id,
-                        )
-
-                        yield event
-
-                        # ACK after successful processing
-                        await self._redis.xack(stream_key, group or "default", message_id)
+                async for event in self._yield_stream_results(
+                    results,
+                    group=group_name,
+                    consumer=consumer,
+                ):
+                    yield event
 
             except asyncio.CancelledError:
                 # Don't ACK — message will be re-delivered to another consumer
@@ -286,6 +471,8 @@ class EventBus:
         result = {}
         for key in keys:
             event_type = key.replace(f"{self.queue_prefix}:", "")
+            if event_type.startswith(("processed:", "processing:")):
+                continue
             try:
                 length = await self._redis.xlen(key)
             except Exception:
@@ -305,12 +492,14 @@ class EventBus:
                 "original_event_type": event.event_type,
                 "original_source": event.source_agent,
                 "original_payload": event.payload,
+                "failed_by_agent": agent_id,
+                "failure_stage": "handler",
                 "error": error[:2000],
             },
             trace_id=event.metadata.trace_id,
         )
         try:
-            key = self._get_stream_key("dlq.failed")
+            key = self._get_stream_key(EventTypes.DLQ_FAILED)
             await self._redis.xadd(
                 key, {"data": dlq_event.model_dump_json()}, maxlen=10_000,
             )
@@ -325,6 +514,82 @@ class EventBus:
                 event_id=event.event_id,
                 error=str(exc),
             )
+
+    async def publish_raw_dlq(
+        self,
+        *,
+        raw_event_data: str,
+        error: str,
+        agent_id: str,
+    ) -> None:
+        """Publish an invalid/raw event payload to DLQ before acknowledging it."""
+        await self.connect()
+        raw_event_bytes = raw_event_data.encode("utf-8")
+        dlq_event = Event.create(
+            event_type=EventTypes.DLQ_FAILED,
+            source_agent=agent_id,
+            payload={
+                "original_event_id": None,
+                "original_event_type": None,
+                "original_source": None,
+                "original_payload": {
+                    "raw_event_data_bytes": len(raw_event_bytes),
+                    "raw_event_data_sha256": hashlib.sha256(raw_event_bytes).hexdigest(),
+                },
+                "failed_by_agent": agent_id,
+                "failure_stage": "validation",
+                "error": error[:2000],
+            },
+        )
+        try:
+            key = self._get_stream_key(EventTypes.DLQ_FAILED)
+            await self._redis.xadd(
+                key, {"data": dlq_event.model_dump_json()}, maxlen=10_000,
+            )
+            logger.info(
+                "dlq_raw_event_published",
+                failure_stage="validation",
+                agent_id=agent_id,
+            )
+        except Exception as exc:
+            logger.error(
+                "dlq_raw_publish_failed",
+                agent_id=agent_id,
+                error=str(exc),
+            )
+
+    async def get_dead_letter_count(self) -> int:
+        """Return count of events in the dead letter queue stream."""
+        await self.connect()
+        try:
+            return await self._redis.xlen(self._get_stream_key(EventTypes.DLQ_FAILED))
+        except Exception:
+            return 0
+
+    async def list_dead_letters(self, limit: int = 50) -> list[Event]:
+        """Return recent dead letter events, newest first."""
+        await self.connect()
+        bounded_limit = max(1, min(limit, 500))
+        try:
+            rows = await self._redis.xrevrange(
+                self._get_stream_key(EventTypes.DLQ_FAILED),
+                count=bounded_limit,
+            )
+        except Exception:
+            return []
+
+        events: list[Event] = []
+        for _, fields in rows:
+            event_data = fields.get("data", "")
+            try:
+                events.append(Event.model_validate_json(event_data))
+            except ValidationError as exc:
+                logger.error(
+                    "dlq_event_validation_failed",
+                    error=str(exc),
+                    raw_event_data_length=len(event_data),
+                )
+        return events
 
     async def get_pending_count(self, event_type: str, group: str) -> int:
         """Get count of unacknowledged messages for a consumer group."""
@@ -351,13 +616,21 @@ def create_event_bus(backend: str | None = None) -> EventBusProtocol:
                 "nats-py package required for NATS event bus backend. "
                 "Install with: pip install nats-py"
             )
-        logger.info("event_bus_backend_selected", backend="nats")
-        # TODO: consumer_name is hardcoded; make configurable via
-        # settings (e.g. settings.otel_service_name) so each agent
-        # gets its own NATS consumer identity.
+        consumer_name = (
+            settings.event_bus_consumer_name.strip()
+            or settings.otel_service_name.strip()
+            or "projectcell"
+        )
+        logger.info(
+            "event_bus_backend_selected",
+            backend="nats",
+            consumer_name=consumer_name,
+            stream_replicas=settings.nats_stream_replicas,
+        )
         return NATSEventBus(
             nats_url=settings.nats_url,
-            consumer_name="requirement-manager",
+            consumer_name=consumer_name,
+            stream_replicas=settings.nats_stream_replicas,
         )
     elif chosen == "redis":
         logger.info("event_bus_backend_selected", backend="redis")

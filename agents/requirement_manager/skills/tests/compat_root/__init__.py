@@ -1,0 +1,1 @@
+# Root skills compatibility tests.

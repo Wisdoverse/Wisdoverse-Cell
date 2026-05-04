@@ -2,10 +2,10 @@
 Seed SkillConfig entries extracted from Requirement Manager Agent hardcoded prompts.
 
 Source files:
-  - agents/capabilities/requirements/core/extractor.py   (extraction system_prompt)
-  - agents/capabilities/requirements/core/generator.py    (document_generation system_prompt)
-  - agents/capabilities/requirements/core/analyzer.py     (analysis system_prompt)
-  - agents/capabilities/requirements/core/comparator.py   (conflict_detection system_prompt)
+  - agents/requirement_manager/core/extractor.py   (extraction system_prompt)
+  - agents/requirement_manager/core/generator.py    (document_generation system_prompt)
+  - agents/requirement_manager/core/analyzer.py     (analysis system_prompt)
+  - agents/requirement_manager/core/comparator.py   (conflict_detection system_prompt)
 
 These seeds represent the v1 baseline for self-evolution tracking.
 The Requirement Manager code itself is NOT modified — these are read-only copies.
@@ -16,7 +16,7 @@ from shared.evolution.models import SkillConfig, SkillStatus
 # ---------------------------------------------------------------------------
 # Skill 1: Requirement Extraction
 # ---------------------------------------------------------------------------
-# Extracted from: agents/capabilities/requirements/core/extractor.py
+# Extracted from: agents/requirement_manager/core/extractor.py
 
 RM_EXTRACTION_SKILL = SkillConfig(
     skill_id="requirement-manager:extraction",
@@ -35,7 +35,7 @@ RM_EXTRACTION_SKILL = SkillConfig(
 # ---------------------------------------------------------------------------
 # Skill 2: Document Generation (PRD)
 # ---------------------------------------------------------------------------
-# Extracted from: agents/capabilities/requirements/core/generator.py
+# Extracted from: agents/requirement_manager/core/generator.py
 
 RM_DOCUMENT_GENERATION_SKILL = SkillConfig(
     skill_id="requirement-manager:document-generation",
@@ -55,7 +55,7 @@ RM_DOCUMENT_GENERATION_SKILL = SkillConfig(
 # ---------------------------------------------------------------------------
 # Skill 3: Requirement Analysis
 # ---------------------------------------------------------------------------
-# Extracted from: agents/capabilities/requirements/core/analyzer.py
+# Extracted from: agents/requirement_manager/core/analyzer.py
 
 RM_ANALYSIS_SKILL = SkillConfig(
     skill_id="requirement-manager:analysis",
@@ -74,7 +74,7 @@ RM_ANALYSIS_SKILL = SkillConfig(
 # ---------------------------------------------------------------------------
 # Skill 4: Conflict Detection
 # ---------------------------------------------------------------------------
-# Extracted from: agents/capabilities/requirements/core/comparator.py
+# Extracted from: agents/requirement_manager/core/comparator.py
 
 RM_CONFLICT_DETECTION_SKILL = SkillConfig(
     skill_id="requirement-manager:conflict-detection",

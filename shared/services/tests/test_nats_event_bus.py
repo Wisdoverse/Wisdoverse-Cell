@@ -2,6 +2,7 @@
 Tests for NATSEventBus, EventBusProtocol, and EventBus factory.
 """
 import asyncio
+import hashlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -83,6 +84,25 @@ class TestNATSEventBusConnect:
         config = mock_js.add_stream.call_args[0][0]
         assert config.name == STREAM_NAME
         assert f"{SUBJECT_PREFIX}.>" in config.subjects
+        assert config.num_replicas == 1
+
+    @pytest.mark.asyncio
+    async def test_connect_uses_configured_stream_replicas(self):
+        bus = NATSEventBus(
+            nats_url="nats://localhost:4222",
+            consumer_name="test-consumer",
+            stream_replicas=3,
+        )
+        mock_nc = AsyncMock()
+        mock_js = AsyncMock()
+        mock_js.find_stream_info_by_subject.side_effect = NotFoundError
+        mock_nc.jetstream = MagicMock(return_value=mock_js)
+
+        with patch.object(_nats_mod.nats, "connect", return_value=mock_nc):
+            await bus.connect()
+
+        config = mock_js.add_stream.call_args[0][0]
+        assert config.num_replicas == 3
 
     @pytest.mark.asyncio
     async def test_connect_reuses_existing_stream(self, bus):
@@ -154,6 +174,7 @@ class TestNATSEventBusPublish:
             event_type="requirement.confirmed",
             source_agent="test-agent",
             payload={"key": "value"},
+            metadata={"trace_id": "trace-123"},
         )
         result = await connected_bus.publish(event)
 
@@ -162,6 +183,10 @@ class TestNATSEventBusPublish:
         call_args = connected_bus._js.publish.call_args
         assert call_args[0][0] == f"{SUBJECT_PREFIX}.requirement.confirmed"
         assert b"evt_test123" in call_args[0][1]
+        assert call_args.kwargs["headers"] == {
+            "Nats-Msg-Id": "evt_test123",
+            "trace-id": "trace-123",
+        }
 
     @pytest.mark.asyncio
     async def test_publish_returns_false_on_error(self, connected_bus):
@@ -235,6 +260,39 @@ class TestNATSEventBusSubscribe:
         mock_msg.ack.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_subscribe_skips_duplicate_after_successful_processing(self, connected_bus):
+        event = Event(
+            event_id="evt_replayed_after_ack_loss",
+            event_type="requirement.confirmed",
+            source_agent="test-agent",
+            payload={"data": "test"},
+        )
+        first_msg = MagicMock()
+        first_msg.data = event.model_dump_json().encode()
+        first_msg.subject = f"{SUBJECT_PREFIX}.requirement.confirmed"
+        first_msg.ack = AsyncMock()
+
+        replayed_msg = MagicMock()
+        replayed_msg.data = event.model_dump_json().encode()
+        replayed_msg.subject = f"{SUBJECT_PREFIX}.requirement.confirmed"
+        replayed_msg.ack = AsyncMock()
+
+        mock_sub = AsyncMock()
+        mock_sub.fetch = AsyncMock(
+            side_effect=[[first_msg, replayed_msg], asyncio.CancelledError()]
+        )
+        connected_bus._js.pull_subscribe = AsyncMock(return_value=mock_sub)
+
+        events = []
+        with pytest.raises(asyncio.CancelledError):
+            async for evt in connected_bus.subscribe(["requirement.confirmed"]):
+                events.append(evt)
+
+        assert [event.event_id for event in events] == ["evt_replayed_after_ack_loss"]
+        first_msg.ack.assert_awaited_once()
+        replayed_msg.ack.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_subscribe_naks_on_parse_error(self, connected_bus):
         mock_msg = MagicMock()
         mock_msg.data = b"invalid json{{"
@@ -246,12 +304,17 @@ class TestNATSEventBusSubscribe:
         connected_bus._js.pull_subscribe = AsyncMock(return_value=mock_sub)
 
         events = []
-        with pytest.raises(asyncio.CancelledError):
-            async for evt in connected_bus.subscribe(["requirement.confirmed"]):
-                events.append(evt)
+        with patch.object(_nats_mod.logger, "error") as log_error:
+            with pytest.raises(asyncio.CancelledError):
+                async for evt in connected_bus.subscribe(["requirement.confirmed"]):
+                    events.append(evt)
 
         assert len(events) == 0
         mock_msg.nak.assert_awaited_once()
+        log_kwargs = log_error.call_args.kwargs
+        assert "data_preview" not in log_kwargs
+        assert log_kwargs["payload_bytes"] == len(mock_msg.data)
+        assert log_kwargs["payload_sha256"] == hashlib.sha256(mock_msg.data).hexdigest()
 
     @pytest.mark.asyncio
     async def test_subscribe_continues_on_timeout(self, connected_bus):
@@ -384,9 +447,29 @@ class TestEventBusFactory:
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.event_bus_backend = "nats"
             mock_settings.nats_url = "nats://localhost:4222"
+            mock_settings.nats_stream_replicas = 1
+            mock_settings.event_bus_consumer_name = ""
+            mock_settings.otel_service_name = "ai-core"
 
             bus = create_event_bus()
             assert isinstance(bus, NATSEventBus)
+            assert bus._consumer_name == "ai-core"
+            assert bus._stream_replicas == 1
+
+    def test_factory_uses_configured_nats_consumer_name(self):
+        from shared.services.event_bus import create_event_bus
+
+        with patch.object(_config_mod, "settings") as mock_settings:
+            mock_settings.event_bus_backend = "nats"
+            mock_settings.nats_url = "nats://localhost:4222"
+            mock_settings.nats_stream_replicas = 3
+            mock_settings.event_bus_consumer_name = "qa-agent"
+            mock_settings.otel_service_name = "ai-core"
+
+            bus = create_event_bus()
+            assert isinstance(bus, NATSEventBus)
+            assert bus._consumer_name == "qa-agent"
+            assert bus._stream_replicas == 3
 
     def test_factory_override_backend_parameter(self):
         from shared.services.event_bus import create_event_bus
@@ -394,9 +477,14 @@ class TestEventBusFactory:
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.event_bus_backend = "redis"
             mock_settings.nats_url = "nats://localhost:4222"
+            mock_settings.nats_stream_replicas = 2
+            mock_settings.event_bus_consumer_name = ""
+            mock_settings.otel_service_name = "pjm-agent"
 
             bus = create_event_bus(backend="nats")
             assert isinstance(bus, NATSEventBus)
+            assert bus._consumer_name == "pjm-agent"
+            assert bus._stream_replicas == 2
 
     def test_factory_raises_on_unknown_backend(self):
         from shared.services.event_bus import create_event_bus
@@ -411,6 +499,9 @@ class TestEventBusFactory:
 
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.nats_url = "nats://localhost:4222"
+            mock_settings.nats_stream_replicas = 1
+            mock_settings.event_bus_consumer_name = ""
+            mock_settings.otel_service_name = "ai-core"
 
             bus = create_event_bus(backend=" NATS ")
             assert isinstance(bus, NATSEventBus)

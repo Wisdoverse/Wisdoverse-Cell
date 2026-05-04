@@ -22,6 +22,23 @@ export type AgentRunStatus =
 
 export type DecisionStatus = "proposed" | "accepted" | "rejected" | "superseded";
 
+export type EvolutionTier = "L1" | "L2" | "L3";
+
+export type EvolutionApprovalState =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "expired"
+  | "cancelled";
+
+export type EvolutionRolloutState =
+  | "proposed"
+  | "shadow"
+  | "canary"
+  | "active"
+  | "rolled_back"
+  | "rejected";
+
 export type ArtifactType =
   | "prd"
   | "report"
@@ -153,6 +170,27 @@ export interface ControlPlaneArtifact {
 
 export interface ControlPlaneArtifactListResponse {
   artifacts: ControlPlaneArtifact[];
+  total: number;
+}
+
+export interface ControlPlaneEvolutionProposal {
+  proposal_id: string;
+  company_id: string;
+  tier: EvolutionTier;
+  scope: string;
+  evidence: Record<string, unknown>;
+  expected_benefit: string;
+  risk: string;
+  approval_state: EvolutionApprovalState;
+  rollout_state: EvolutionRolloutState;
+  approval_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ControlPlaneEvolutionProposalListResponse {
+  evolution_proposals: ControlPlaneEvolutionProposal[];
   total: number;
 }
 

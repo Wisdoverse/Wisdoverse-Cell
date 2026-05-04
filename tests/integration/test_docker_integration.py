@@ -1,5 +1,5 @@
 """
-Integration Tests for Gateway + AI Core
+Integration tests for Gateway + requirement manager agent
 
 These tests validate that all services can communicate with each other.
 
@@ -27,9 +27,12 @@ def _services_available() -> bool:
 
     try:
         # Quick check with short timeout
-        requests.get(f"{gateway_url}/health", timeout=2)
-        requests.get(f"{ai_core_url}/health", timeout=2)
-        return True
+        gateway_response = requests.get(f"{gateway_url}/health", timeout=2)
+        ai_core_response = requests.get(f"{ai_core_url}/health", timeout=2)
+        return (
+            gateway_response.status_code == 200
+            and ai_core_response.status_code == 200
+        )
     except requests.exceptions.RequestException:
         return False
 
@@ -52,6 +55,7 @@ pytestmark = pytest.mark.skipif(
 
 GATEWAY_URL = os.environ.get("GATEWAY_URL", "http://localhost:8080")
 AI_CORE_URL = os.environ.get("AI_CORE_URL", "http://localhost:8000")
+AI_CORE_HEADERS = {"X-API-Key": os.environ.get("PM_API_KEY", "test-pm-api-key")}
 
 
 def wait_for_service(url: str, timeout: int = 60) -> bool:
@@ -77,9 +81,9 @@ class TestServiceHealth:
         resp = requests.get(f"{GATEWAY_URL}/health")
         assert resp.status_code == 200
 
-    def test_ai_core_health(self):
-        """AI Core should be healthy."""
-        assert wait_for_service(AI_CORE_URL), "AI Core did not become healthy"
+    def test_requirements_capability_health(self):
+        """Requirements capability should be healthy."""
+        assert wait_for_service(AI_CORE_URL), "Requirements capability did not become healthy"
         resp = requests.get(f"{AI_CORE_URL}/health")
         assert resp.status_code == 200
 
@@ -119,35 +123,37 @@ class TestGatewayRoutes:
         assert resp.status_code in [200, 400, 403, 404]
 
 
-class TestAICoreAPI:
-    """Test AI Core API endpoints."""
+class TestRequirementManagerAPI:
+    """Test requirement manager agent API endpoints."""
 
     def test_requirements_list(self):
         """Should be able to list requirements."""
-        resp = requests.get(f"{AI_CORE_URL}/api/v1/requirements")
+        resp = requests.get(f"{AI_CORE_URL}/api/v1/requirements", headers=AI_CORE_HEADERS)
         assert resp.status_code == 200
         data = resp.json()
         assert "items" in data or isinstance(data, list)
 
     def test_stats_endpoint(self):
         """Should be able to get stats."""
-        resp = requests.get(f"{AI_CORE_URL}/api/v1/requirements/stats")
+        resp = requests.get(
+            f"{AI_CORE_URL}/api/v1/requirements/stats", headers=AI_CORE_HEADERS
+        )
         # May be 200 or 404 depending on implementation
         assert resp.status_code in [200, 404]
 
 
-class TestGatewayToAICore:
-    """Test communication from Gateway to AI Core."""
+class TestGatewayToRequirementsCapability:
+    """Test communication from Gateway to the requirement manager agent."""
 
     @pytest.mark.skip(reason="Requires valid Feishu signature")
     def test_feishu_message_flow(self):
-        """Test message flow from Feishu through Gateway to AI Core."""
+        """Test message flow from Feishu through Gateway to the requirement manager agent."""
         # This would require a valid Feishu signature
         pass
 
     @pytest.mark.skip(reason="Requires valid WeCom signature")
     def test_wecom_message_flow(self):
-        """Test message flow from WeCom through Gateway to AI Core."""
+        """Test message flow from WeCom through Gateway to the requirement manager agent."""
         # This would require a valid WeCom signature
         pass
 

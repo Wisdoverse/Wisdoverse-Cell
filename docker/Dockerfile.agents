@@ -9,16 +9,18 @@
 # cutting cold-build time roughly in half and enabling pip cache sharing.
 #
 # Targets:
-#   ai-core          — Requirement Manager (port 8000 + gRPC 50051)
-#   sync-agent       — OpenProject ↔ Feishu sync   (port 8010)
-#   analysis-agent   — Reports & milestone checks   (port 8011)
-#   pjm-agent         — PJM alerts & workload monitor  (port 8012)
-#   chat-agent       — Feishu webhook + Claude chat  (port 8013)
-#   qa-agent         — Acceptance verification       (port 8014)
+#   ai-core          - requirement manager agent (port 8000 + gRPC 50051)
+#   sync-agent       - sync support capability (port 8010)
+#   analysis-agent   - analysis support capability (port 8011)
+#   evolution-agent  - self-evolution support capability (port 8016)
+#   pjm-agent        - PJM business runtime agent (port 8012)
+#   chat-agent       - user interaction gateway runtime id (port 8013)
+#   qa-agent         - QA business runtime agent (port 8014)
+#   dev-agent        - Dev business runtime agent (port 8015)
 #
 # Build examples:
 #   docker compose build                       # all agents
-#   docker compose build sync-agent            # single agent
+#   docker compose build sync-agent            # single service target
 #   docker build --target sync-agent -f docker/Dockerfile.agents .
 #
 # ==============================================================================
@@ -49,61 +51,128 @@ RUN if [ -n "$APT_MIRROR" ]; then \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Install shared dependencies (used by all agents via shared/)
-COPY requirements.txt /build/requirements-base.txt
+# Install shared runtime dependencies (used by all agents via shared/).
+# Keep dev/test tooling in root requirements.txt; production images use this
+# Docker-specific runtime baseline plus each service's own requirements file.
+COPY docker/requirements/agent-base.txt /build/requirements-base.txt
 # BuildKit cache mount — not stored in image layer, speeds up rebuilds
 # hadolint ignore=DL3042
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -i ${PIP_INDEX_URL} -r requirements-base.txt
+    if [ -n "$PIP_INDEX_URL" ]; then \
+      pip install -i "$PIP_INDEX_URL" -r requirements-base.txt; \
+    else \
+      pip install -r requirements-base.txt; \
+    fi
 
 
 # ╔═══════════════════════════════════════════════════════════════════════════╗
 # ║  PER-AGENT BUILDER STAGES — pip install with shared cache mount         ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
-# --- ai-core (requirement_manager) — uses root requirements.txt -------------
+# --- ai-core (requirement manager agent) --------------------------------------
 FROM builder-base AS ai-core-builder
-# Already installed from base, nothing extra needed
+ARG PIP_INDEX_URL=https://pypi.org/simple
+ARG INSTALL_VECTOR_DEPS=false
+COPY agents/requirement_manager/requirements.txt .
+COPY agents/requirement_manager/requirements-vector.txt .
+# hadolint ignore=DL3042
+RUN --mount=type=cache,target=/root/.cache/pip \
+    if [ -n "$PIP_INDEX_URL" ]; then \
+      pip install -i "$PIP_INDEX_URL" -r requirements.txt; \
+    else \
+      pip install -r requirements.txt; \
+    fi && \
+    if [ "$INSTALL_VECTOR_DEPS" = "true" ]; then \
+      if [ -n "$PIP_INDEX_URL" ]; then \
+        pip install -i "$PIP_INDEX_URL" -r requirements-vector.txt; \
+      else \
+        pip install -r requirements-vector.txt; \
+      fi; \
+    fi
 
 # --- sync-agent --------------------------------------------------------------
 FROM builder-base AS sync-builder
 ARG PIP_INDEX_URL=https://pypi.org/simple
-COPY agents/capabilities/sync/requirements.txt .
+COPY shared/capabilities/sync/requirements.txt .
 # hadolint ignore=DL3042
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -i ${PIP_INDEX_URL} -r requirements.txt
+    if [ -n "$PIP_INDEX_URL" ]; then \
+      pip install -i "$PIP_INDEX_URL" -r requirements.txt; \
+    else \
+      pip install -r requirements.txt; \
+    fi
 
 # --- analysis-agent ----------------------------------------------------------
 FROM builder-base AS analysis-builder
 ARG PIP_INDEX_URL=https://pypi.org/simple
-COPY agents/capabilities/analysis/requirements.txt .
+COPY shared/capabilities/analysis/requirements.txt .
 # hadolint ignore=DL3042
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -i ${PIP_INDEX_URL} -r requirements.txt
+    if [ -n "$PIP_INDEX_URL" ]; then \
+      pip install -i "$PIP_INDEX_URL" -r requirements.txt; \
+    else \
+      pip install -r requirements.txt; \
+    fi
+
+# --- evolution-agent ---------------------------------------------------------
+FROM builder-base AS evolution-builder
+ARG PIP_INDEX_URL=https://pypi.org/simple
+COPY shared/capabilities/evolution/requirements.txt .
+# hadolint ignore=DL3042
+RUN --mount=type=cache,target=/root/.cache/pip \
+    if [ -n "$PIP_INDEX_URL" ]; then \
+      pip install -i "$PIP_INDEX_URL" -r requirements.txt; \
+    else \
+      pip install -r requirements.txt; \
+    fi
 
 # --- pjm-agent ----------------------------------------------------------------
 FROM builder-base AS pm-builder
 ARG PIP_INDEX_URL=https://pypi.org/simple
-COPY agents/capabilities/project_management/requirements.txt .
+COPY agents/pjm_agent/requirements.txt .
 # hadolint ignore=DL3042
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -i ${PIP_INDEX_URL} -r requirements.txt
+    if [ -n "$PIP_INDEX_URL" ]; then \
+      pip install -i "$PIP_INDEX_URL" -r requirements.txt; \
+    else \
+      pip install -r requirements.txt; \
+    fi
 
 # --- qa-agent ----------------------------------------------------------------
 FROM builder-base AS qa-builder
 ARG PIP_INDEX_URL=https://pypi.org/simple
-COPY agents/capabilities/quality/requirements.txt .
+COPY agents/qa_agent/requirements.txt .
 # hadolint ignore=DL3042
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -i ${PIP_INDEX_URL} -r requirements.txt
+    if [ -n "$PIP_INDEX_URL" ]; then \
+      pip install -i "$PIP_INDEX_URL" -r requirements.txt; \
+    else \
+      pip install -r requirements.txt; \
+    fi
+
+# --- dev-agent ---------------------------------------------------------------
+FROM builder-base AS dev-builder
+ARG PIP_INDEX_URL=https://pypi.org/simple
+COPY agents/dev_agent/requirements.txt .
+# hadolint ignore=DL3042
+RUN --mount=type=cache,target=/root/.cache/pip \
+    if [ -n "$PIP_INDEX_URL" ]; then \
+      pip install -i "$PIP_INDEX_URL" -r requirements.txt; \
+    else \
+      pip install -r requirements.txt; \
+    fi
 
 # --- chat-agent --------------------------------------------------------------
 FROM builder-base AS chat-builder
 ARG PIP_INDEX_URL=https://pypi.org/simple
-COPY agents/gateways/user_interaction/requirements.txt .
+COPY services/gateways/user_interaction/requirements.txt .
 # hadolint ignore=DL3042
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -i ${PIP_INDEX_URL} -r requirements.txt
+    if [ -n "$PIP_INDEX_URL" ]; then \
+      pip install -i "$PIP_INDEX_URL" -r requirements.txt; \
+    else \
+      pip install -r requirements.txt; \
+    fi
 
 
 # ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -141,7 +210,7 @@ ENTRYPOINT ["/usr/bin/tini", "--"]
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
 # =============================================================================
-# ai-core  (requirement_manager)
+# ai-core  (requirement manager agent)
 # =============================================================================
 FROM runtime-base AS ai-core
 
@@ -149,8 +218,8 @@ ARG VERSION=dev
 ARG BUILD_DATE
 ARG GIT_COMMIT
 
-LABEL org.opencontainers.image.title="AI Core (Requirement Manager)" \
-      org.opencontainers.image.description="AI-powered requirement extraction and management" \
+LABEL org.opencontainers.image.title="Requirement Manager Agent (ai-core runtime id)" \
+      org.opencontainers.image.description="Requirements extraction, confirmation, and PRD generation agent" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
       org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
       org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
@@ -165,7 +234,9 @@ ENV PATH="/opt/venv/bin:$PATH" \
 
 COPY --chown=appuser:appgroup shared/ /app/shared/
 COPY --chown=appuser:appgroup skills/ /app/skills/
-COPY --chown=appuser:appgroup agents/capabilities/requirements/ /app/agents/capabilities/requirements/
+COPY --chown=appuser:appgroup agents/requirement_manager/ /app/agents/requirement_manager/
+COPY --chown=appuser:appgroup alembic.ini /app/alembic.ini
+COPY --chown=appuser:appgroup migrations/ /app/migrations/
 RUN mkdir -p /app/data && chown appuser:appgroup /app/data
 
 USER appuser
@@ -175,9 +246,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl --fail --silent http://localhost:8000/health/ready || exit 1
 
 CMD ["gunicorn", \
-     "agents.capabilities.requirements.app.main:app", \
+     "agents.requirement_manager.app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--workers", "4", \
+     "--workers", "1", \
      "--bind", "0.0.0.0:8000", \
      "--timeout", "120", \
      "--graceful-timeout", "30", \
@@ -210,8 +281,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     API_PORT=8010
 
 COPY --chown=appuser:appgroup shared/ /app/shared/
-COPY --chown=appuser:appgroup agents/capabilities/requirements/ /app/agents/capabilities/requirements/
-COPY --chown=appuser:appgroup agents/capabilities/sync/ /app/agents/capabilities/sync/
+COPY --chown=appuser:appgroup shared/capabilities/sync/ /app/shared/capabilities/sync/
 
 USER appuser
 EXPOSE 8010
@@ -220,7 +290,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl --fail --silent http://localhost:8010/health/ready || exit 1
 
 CMD ["gunicorn", \
-     "agents.capabilities.sync.app.main:app", \
+     "shared.capabilities.sync.app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--workers", "1", \
      "--bind", "0.0.0.0:8010", \
@@ -255,8 +325,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     API_PORT=8011
 
 COPY --chown=appuser:appgroup shared/ /app/shared/
-COPY --chown=appuser:appgroup agents/capabilities/requirements/ /app/agents/capabilities/requirements/
-COPY --chown=appuser:appgroup agents/capabilities/analysis/ /app/agents/capabilities/analysis/
+COPY --chown=appuser:appgroup shared/capabilities/analysis/ /app/shared/capabilities/analysis/
 
 USER appuser
 EXPOSE 8011
@@ -265,10 +334,54 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl --fail --silent http://localhost:8011/health/ready || exit 1
 
 CMD ["gunicorn", \
-     "agents.capabilities.analysis.app.main:app", \
+     "shared.capabilities.analysis.app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--workers", "1", \
      "--bind", "0.0.0.0:8011", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--keep-alive", "5", \
+     "--access-logfile", "-", \
+     "--access-logformat", "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s %(D)s"]
+
+
+# =============================================================================
+# evolution-agent
+# =============================================================================
+FROM runtime-base AS evolution-agent
+
+ARG VERSION=dev
+ARG BUILD_DATE
+ARG GIT_COMMIT
+
+LABEL org.opencontainers.image.title="Evolution Capability" \
+      org.opencontainers.image.description="Self-evolution analysis and recommendation capability" \
+      org.opencontainers.image.vendor="Wisdoverse Cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${GIT_COMMIT}"
+
+COPY --from=evolution-builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    API_HOST=0.0.0.0 \
+    API_PORT=8016
+
+COPY --chown=appuser:appgroup shared/ /app/shared/
+COPY --chown=appuser:appgroup shared/capabilities/evolution/ /app/shared/capabilities/evolution/
+
+USER appuser
+EXPOSE 8016
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl --fail --silent http://localhost:8016/health/ready || exit 1
+
+CMD ["gunicorn", \
+     "shared.capabilities.evolution.app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "1", \
+     "--bind", "0.0.0.0:8016", \
      "--timeout", "120", \
      "--graceful-timeout", "30", \
      "--keep-alive", "5", \
@@ -300,8 +413,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     API_PORT=8012
 
 COPY --chown=appuser:appgroup shared/ /app/shared/
-COPY --chown=appuser:appgroup agents/capabilities/requirements/ /app/agents/capabilities/requirements/
-COPY --chown=appuser:appgroup agents/capabilities/project_management/ /app/agents/capabilities/project_management/
+COPY --chown=appuser:appgroup agents/pjm_agent/ /app/agents/pjm_agent/
 
 USER appuser
 EXPOSE 8012
@@ -310,7 +422,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl --fail --silent http://localhost:8012/health/ready || exit 1
 
 CMD ["gunicorn", \
-     "agents.capabilities.project_management.app.main:app", \
+     "agents.pjm_agent.app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--workers", "1", \
      "--bind", "0.0.0.0:8012", \
@@ -345,7 +457,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     API_PORT=8014
 
 COPY --chown=appuser:appgroup shared/ /app/shared/
-COPY --chown=appuser:appgroup agents/capabilities/quality/ /app/agents/capabilities/quality/
+COPY --chown=appuser:appgroup agents/qa_agent/ /app/agents/qa_agent/
 COPY --chown=appuser:appgroup .acceptance/ /app/.acceptance/
 
 USER appuser
@@ -355,10 +467,54 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl --fail --silent http://localhost:8014/health/ready || exit 1
 
 CMD ["gunicorn", \
-     "agents.capabilities.quality.app.main:app", \
+     "agents.qa_agent.app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--workers", "1", \
      "--bind", "0.0.0.0:8014", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--keep-alive", "5", \
+     "--access-logfile", "-", \
+     "--access-logformat", "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s %(D)s"]
+
+
+# =============================================================================
+# dev-agent
+# =============================================================================
+FROM runtime-base AS dev-agent
+
+ARG VERSION=dev
+ARG BUILD_DATE
+ARG GIT_COMMIT
+
+LABEL org.opencontainers.image.title="Dev Agent" \
+      org.opencontainers.image.description="AgentForge-backed software delivery workflow execution" \
+      org.opencontainers.image.vendor="Wisdoverse Cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${GIT_COMMIT}"
+
+COPY --from=dev-builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    API_HOST=0.0.0.0 \
+    API_PORT=8015
+
+COPY --chown=appuser:appgroup shared/ /app/shared/
+COPY --chown=appuser:appgroup agents/dev_agent/ /app/agents/dev_agent/
+
+USER appuser
+EXPOSE 8015
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl --fail --silent http://localhost:8015/health/ready || exit 1
+
+CMD ["gunicorn", \
+     "agents.dev_agent.app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "1", \
+     "--bind", "0.0.0.0:8015", \
      "--timeout", "120", \
      "--graceful-timeout", "30", \
      "--keep-alive", "5", \
@@ -376,7 +532,7 @@ ARG BUILD_DATE
 ARG GIT_COMMIT
 
 LABEL org.opencontainers.image.title="Chat Agent" \
-      org.opencontainers.image.description="Feishu webhook + Claude Tool Calling AI chat" \
+      org.opencontainers.image.description="Feishu webhook + LLM tool-calling chat" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
       org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
       org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
@@ -390,8 +546,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     API_PORT=8013
 
 COPY --chown=appuser:appgroup shared/ /app/shared/
-COPY --chown=appuser:appgroup agents/capabilities/requirements/ /app/agents/capabilities/requirements/
-COPY --chown=appuser:appgroup agents/gateways/user_interaction/ /app/agents/gateways/user_interaction/
+COPY --chown=appuser:appgroup services/gateways/user_interaction/ /app/services/gateways/user_interaction/
 
 USER appuser
 EXPOSE 8013
@@ -400,7 +555,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl --fail --silent http://localhost:8013/health/ready || exit 1
 
 CMD ["gunicorn", \
-     "agents.gateways.user_interaction.app.main:app", \
+     "services.gateways.user_interaction.app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--workers", "1", \
      "--bind", "0.0.0.0:8013", \

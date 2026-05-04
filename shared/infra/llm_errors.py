@@ -8,8 +8,6 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 
-import anthropic
-
 
 class LLMErrorCategory(Enum):
     """Error categories for LLM API calls."""
@@ -21,7 +19,7 @@ class LLMErrorCategory(Enum):
     OTHER = "other"
 
 
-# Patterns that indicate prompt-too-long (Anthropic returns HTTP 400, not 413)
+# Patterns that indicate prompt-too-long or context-window exhaustion.
 _CONTENT_SIZE_PATTERNS = re.compile(
     r"prompt is too long|context length exceeded|"
     r"prompt.+tokens.+maximum|"
@@ -34,25 +32,26 @@ _OVERLOADED_STATUS_CODES = {500, 502, 503, 529}
 
 def classify_error(exc: BaseException) -> LLMErrorCategory:
     """Map an exception to an LLMErrorCategory."""
-    if isinstance(exc, anthropic.RateLimitError):
+    class_name = type(exc).__name__
+    response = getattr(exc, "response", None)
+    status_code = getattr(exc, "status_code", None)
+    if status_code is None and response is not None:
+        status_code = getattr(response, "status_code", None)
+
+    if class_name == "RateLimitError" or status_code == 429:
         return LLMErrorCategory.RATE_LIMIT
-
-    if isinstance(exc, anthropic.APIConnectionError):
-        return LLMErrorCategory.NETWORK
-
-    if isinstance(exc, (anthropic.AuthenticationError, anthropic.PermissionDeniedError)):
+    if class_name in {"AuthenticationError", "PermissionDeniedError"}:
         return LLMErrorCategory.AUTH
-
-    if isinstance(exc, anthropic.BadRequestError):
-        msg = str(exc)
-        if _CONTENT_SIZE_PATTERNS.search(msg):
+    if class_name in {"APIConnectionError", "APITimeoutError"}:
+        return LLMErrorCategory.NETWORK
+    if class_name == "BadRequestError" or status_code == 400:
+        if _CONTENT_SIZE_PATTERNS.search(str(exc)):
             return LLMErrorCategory.CONTENT_SIZE
         return LLMErrorCategory.OTHER
-
-    if isinstance(exc, anthropic.APIStatusError):
-        if exc.status_code in _OVERLOADED_STATUS_CODES:
-            return LLMErrorCategory.OVERLOADED
-        return LLMErrorCategory.OTHER
+    if isinstance(status_code, int) and status_code in _OVERLOADED_STATUS_CODES:
+        return LLMErrorCategory.OVERLOADED
+    if _CONTENT_SIZE_PATTERNS.search(str(exc)):
+        return LLMErrorCategory.CONTENT_SIZE
 
     return LLMErrorCategory.OTHER
 
@@ -60,8 +59,8 @@ def classify_error(exc: BaseException) -> LLMErrorCategory:
 class ContentSizeError(Exception):
     """Raised when the prompt exceeds the model's context window.
 
-    Not a subclass of anthropic.APIStatusError — avoids coupling to
-    the SDK constructor signature (requires httpx.Response).
+    Not a provider-SDK subclass, so callers do not depend on SDK-specific
+    exception constructor signatures.
     Callers that need the original error can access __cause__.
     """
     pass

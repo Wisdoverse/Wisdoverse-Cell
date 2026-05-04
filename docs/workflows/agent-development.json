@@ -8,7 +8,7 @@
       "dependsOn": [],
       "config": {
         "cliTool": "codex",
-        "prompt": "Read SPEC.md, AGENTS.md, docs/guides/agent-development.md, and the reference files below, then write a detailed implementation plan to var/agent-workflows/${AGENT_NAME}-implementation-plan.md:\n\nReference files:\n- agents/capabilities/project_management/ (existing agent architecture reference)\n- shared/app/factory.py (create_agent_app)\n- shared/schemas/agent.py (BaseAgent)\n- shared/schemas/event.py (EventTypes)\n- .acceptance/runner.py (acceptance framework)\n- AGENTS.md (coding standards)\n\nRequirements:\n1. Break work into 5-8 independent parallelizable tasks\n2. Assign each task to the recommended AI tool (Claude Code or Gemini CLI)\n3. Define interface signatures, database tables, and event payloads\n4. List technical risks and the recommended execution order"
+        "prompt": "Read SPEC.md, AGENTS.md, docs/guides/agent-development.md, and the reference files below, then write a detailed implementation plan to var/agent-workflows/${AGENT_NAME}-implementation-plan.md:\n\nReference files:\n- agents/pjm_agent/ (existing agent architecture reference)\n- shared/app/factory.py (create_agent_app)\n- shared/schemas/agent.py (BaseAgent)\n- shared/schemas/event.py (EventTypes)\n- .acceptance/runner.py (acceptance framework)\n- AGENTS.md (coding standards)\n\nRequirements:\n1. Break work into 5-8 independent parallelizable tasks\n2. Assign each task to the recommended AI tool (Claude Code or Gemini CLI)\n3. Define interface signatures, database tables, and event payloads\n4. List technical risks and the recommended execution order"
       }
     },
     {
@@ -44,7 +44,7 @@
       "dependsOn": ["impl-core", "impl-parallel"],
       "config": {
         "cliTool": "codex",
-        "prompt": "Review the complete code under agents/capabilities/${AGENT_NAME}/. It was developed in parallel by Claude Code and Gemini CLI.\n\nReview criteria:\n1. Architecture compliance: BaseAgent inheritance, create_agent_app usage, AGENTS.md rules\n2. Event contracts: EventTypes constants and payload consistency with event_payloads.py\n3. Security: hardcoded secrets, SQL injection, PII leakage\n4. Async safety: blocking calls on the event loop\n5. Failure isolation: notification channels remain isolated\n6. Test coverage: exception paths are tested\n7. Code consistency across outputs from different tools\n8. Deviations from the implementation plan\n\nWrite a structured review report to var/agent-workflows/${AGENT_NAME}-review.md with:\n- Overall score (1-10)\n- Must-fix issue list\n- Recommended improvement list"
+        "prompt": "Review the complete code under shared/capabilities/${AGENT_NAME}/. It was developed in parallel by Claude Code and Gemini CLI.\n\nReview criteria:\n1. Architecture compliance: BaseAgent inheritance, create_agent_app usage, AGENTS.md rules\n2. Event contracts: EventTypes constants and payload consistency with event_payloads.py\n3. Security: hardcoded secrets, SQL injection, PII leakage\n4. Async safety: blocking calls on the event loop\n5. Failure isolation: notification channels remain isolated\n6. Test coverage: exception paths are tested\n7. Code consistency across outputs from different tools\n8. Deviations from the implementation plan\n\nWrite a structured review report to var/agent-workflows/${AGENT_NAME}-review.md with:\n- Overall score (1-10)\n- Must-fix issue list\n- Recommended improvement list"
       }
     },
     {
@@ -53,7 +53,7 @@
       "dependsOn": ["impl-core", "impl-parallel"],
       "config": {
         "cliTool": "claude",
-        "prompt": "Run the acceptance framework for the new capability or gateway:\n\npython .acceptance/runner.py --target agents/capabilities/${AGENT_NAME} --level all --format markdown\n\nIf L0 GATE fails, fix all L0 issues based on the report (ruff format plus manual fixes), then rerun acceptance until L0 passes.\n\nAfter fixes, run:\nruff check agents/capabilities/${AGENT_NAME} --select E,F\nConfirm zero errors."
+        "prompt": "Run the acceptance framework for the new capability or gateway:\n\npython .acceptance/runner.py --target shared/capabilities/${AGENT_NAME} --level all --format markdown\n\nIf L0 GATE fails, fix all L0 issues based on the report (ruff format plus manual fixes), then rerun acceptance until L0 passes.\n\nAfter fixes, run:\nruff check shared/capabilities/${AGENT_NAME} --select E,F\nConfirm zero errors."
       }
     },
     {
@@ -62,7 +62,7 @@
       "dependsOn": ["review", "acceptance"],
       "config": {
         "cliTool": "claude",
-        "prompt": "Fix every must-fix issue from the Codex review report at var/agent-workflows/${AGENT_NAME}-review.md.\n\nAfter fixes:\n1. Run ruff check agents/capabilities/${AGENT_NAME} --select E,F and confirm zero errors\n2. Run python .acceptance/runner.py --target agents/capabilities/${AGENT_NAME} --level l0 and confirm L0 PASS\n3. If Dockerfile or docker-compose integration is missing, complete every file from Task 7"
+        "prompt": "Fix every must-fix issue from the Codex review report at var/agent-workflows/${AGENT_NAME}-review.md.\n\nAfter fixes:\n1. Run ruff check shared/capabilities/${AGENT_NAME} --select E,F and confirm zero errors\n2. Run python .acceptance/runner.py --target shared/capabilities/${AGENT_NAME} --level l0 and confirm L0 PASS\n3. If Dockerfile or docker-compose integration is missing, complete every file from Task 7"
       }
     },
     {
@@ -71,7 +71,7 @@
       "dependsOn": ["fix"],
       "config": {
         "cliTool": "claude",
-        "prompt": "Complete packaging and infrastructure integration for the new capability or gateway:\n\n1. agents/capabilities/${AGENT_NAME}/Dockerfile (use agents/capabilities/project_management/Dockerfile as reference)\n2. agents/capabilities/${AGENT_NAME}/requirements.txt\n3. agents/capabilities/${AGENT_NAME}/README.md\n4. Add builder and runtime targets to docker/Dockerfile.agents\n5. Add the service to docker-compose.yml\n6. Add the scrape job to docker/prometheus/prometheus.yml\n7. Add roles and permissions to docker/init-scripts/02-agent-users.sql\n\nFinally run .acceptance/runner.py --target agents/capabilities/${AGENT_NAME} --level all and confirm final acceptance passes."
+        "prompt": "Complete packaging and infrastructure integration for the new capability or gateway:\n\n1. shared/capabilities/${AGENT_NAME}/Dockerfile (use agents/pjm_agent/Dockerfile as reference)\n2. shared/capabilities/${AGENT_NAME}/requirements.txt\n3. shared/capabilities/${AGENT_NAME}/README.md\n4. Add builder and runtime targets to docker/Dockerfile.agents\n5. Add the service to docker-compose.yml\n6. Add the scrape job to docker/prometheus/prometheus.yml\n7. Add roles and permissions to docker/init-scripts/02-agent-users.sql\n\nFinally run .acceptance/runner.py --target shared/capabilities/${AGENT_NAME} --level all and confirm final acceptance passes."
       }
     },
     {

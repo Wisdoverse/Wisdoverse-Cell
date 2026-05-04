@@ -100,7 +100,11 @@ def _wrap_event_callback(event_data, event_type="im.message.receive_v1"):
 class TestURLVerification:
     """POST /webhook with type=url_verification."""
 
-    def test_post__url_verification__returns_challenge(self, client):
+    def test_post__url_verification_sig_disabled__returns_challenge(
+        self, client, mock_settings
+    ):
+        mock_settings.feishu_verify_signature = False
+
         response = client.post(
             "/api/feishu/webhook",
             json={"type": "url_verification", "challenge": "test_challenge_abc"},
@@ -109,17 +113,24 @@ class TestURLVerification:
         assert response.status_code == 200
         assert response.json() == {"challenge": "test_challenge_abc"}
 
-    def test_post__url_verification__skips_signature_check(self, client, mock_settings):
-        """Even with verify_signature=True, url_verification returns before sig check."""
+    def test_post__url_verification__verifies_signature_when_enabled(
+        self, client, mock_settings, mock_client
+    ):
+        """URL verification is still external webhook traffic and must be signed."""
         mock_settings.feishu_verify_signature = True
+        mock_settings.feishu_encrypt_key = "encrypt_key_for_test"
+        mock_client.verify_signature.return_value = True
 
-        response = client.post(
-            "/api/feishu/webhook",
-            json={"type": "url_verification", "challenge": "skip_sig"},
-        )
+        with _patch_feishu_client(mock_client):
+            response = client.post(
+                "/api/feishu/webhook",
+                json={"type": "url_verification", "challenge": "signed_challenge"},
+                headers=TestSignatureVerification._SIG_HEADERS,
+            )
 
         assert response.status_code == 200
-        assert response.json()["challenge"] == "skip_sig"
+        assert response.json()["challenge"] == "signed_challenge"
+        mock_client.verify_signature.assert_called_once()
 
 
 class TestSignatureVerification:
@@ -181,6 +192,38 @@ class TestSignatureVerification:
         assert response.status_code == 401
         assert response.json()["detail"] == "Signature verification key is not configured"
         mock_client.verify_signature.assert_not_called()
+
+    def test_post__sig_enabled_invalid__returns_401_before_json_parse(
+        self, client, mock_settings, mock_client
+    ):
+        mock_settings.feishu_verify_signature = True
+        mock_settings.feishu_encrypt_key = "encrypt_key_for_test"
+        mock_client.verify_signature.return_value = False
+
+        with _patch_feishu_client(mock_client):
+            response = client.post(
+                "/api/feishu/webhook",
+                content=b"not-json",
+                headers={**self._SIG_HEADERS, "content-type": "application/json"},
+            )
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid signature"
+        mock_client.verify_signature.assert_called_once()
+
+    def test_post__sig_disabled_invalid_json__returns_400(
+        self, client, mock_settings
+    ):
+        mock_settings.feishu_verify_signature = False
+
+        response = client.post(
+            "/api/feishu/webhook",
+            content=b"not-json",
+            headers={"content-type": "application/json"},
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid JSON"
 
     def test_post__sig_disabled__skips_verification(
         self, client, mock_settings, mock_client
@@ -405,6 +448,25 @@ class TestCardActionRouting:
 
         assert response.status_code == 200
         handler.handle_action.assert_not_awaited()
+
+    def test_post__card_handler_raises__returns_generic_error_toast(
+        self, client, mock_settings
+    ):
+        handler = MagicMock()
+        handler.handle_action = AsyncMock(side_effect=RuntimeError("db down"))
+        init_handlers(card_h=handler)
+
+        payload = {"type": "card_action", **make_card_action()}
+
+        response = client.post("/api/feishu/webhook", json=payload)
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "toast": {
+                "type": "error",
+                "content": "操作失败，请稍后重试",
+            }
+        }
 
 
 class TestHealthCheck:

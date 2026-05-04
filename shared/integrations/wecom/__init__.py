@@ -1,4 +1,4 @@
-# shared/services/wecom/__init__.py
+# shared/integrations/wecom/__init__.py
 """WeCom integration service."""
 from .adapter import WecomChannelAdapter
 from .client import WecomClient, get_wecom_client, wecom_client

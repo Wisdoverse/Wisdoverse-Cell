@@ -5,6 +5,7 @@
 # - No debug ports exposed
 # - Stricter resource limits
 # - Rolling update strategy
+# - Explicit INTERNAL_TRANSPORT_PROTECTION declaration
 # =============================================================================
 
 services:
@@ -59,6 +60,167 @@ services:
         delay: 5s
         max_attempts: 3
 
+  sync-agent:
+    image: ${REGISTRY}projectcell/sync-agent:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:?SYNC_AGENT_DB_PASSWORD is required}
+    deploy:
+      replicas: ${SYNC_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  analysis-agent:
+    image: ${REGISTRY}projectcell/analysis-agent:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:?ANALYSIS_AGENT_DB_PASSWORD is required}
+    deploy:
+      replicas: ${ANALYSIS_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  pjm-agent:
+    image: ${REGISTRY}projectcell/pjm-agent:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${PM_AGENT_DB_PASSWORD:?PM_AGENT_DB_PASSWORD is required}
+    deploy:
+      replicas: ${PM_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  chat-agent:
+    image: ${REGISTRY}projectcell/chat-agent:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:?CHAT_AGENT_DB_PASSWORD is required}
+    deploy:
+      replicas: ${CHAT_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  qa-agent:
+    image: ${REGISTRY}projectcell/qa-agent:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${QA_AGENT_DB_PASSWORD:?QA_AGENT_DB_PASSWORD is required}
+    deploy:
+      replicas: ${QA_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  dev-agent:
+    image: ${REGISTRY}projectcell/dev-agent:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${DEV_AGENT_DB_PASSWORD:?DEV_AGENT_DB_PASSWORD is required}
+    deploy:
+      replicas: ${DEV_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  evolution-agent:
+    image: ${REGISTRY}projectcell/evolution-agent:${VERSION}
+    build: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:?EVOLUTION_AGENT_DB_PASSWORD is required}
+    deploy:
+      replicas: ${EVOLUTION_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
   web:
     image: ${REGISTRY}projectcell/web:${VERSION}
     build: !reset null
@@ -74,6 +236,15 @@ services:
           memory: 128M
 
   postgres:
+    environment:
+      APP_ENV: production
+      CHAT_AGENT_DB_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:?CHAT_AGENT_DB_PASSWORD is required}
+      PM_AGENT_DB_PASSWORD: ${PM_AGENT_DB_PASSWORD:?PM_AGENT_DB_PASSWORD is required}
+      SYNC_AGENT_DB_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:?SYNC_AGENT_DB_PASSWORD is required}
+      ANALYSIS_AGENT_DB_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:?ANALYSIS_AGENT_DB_PASSWORD is required}
+      QA_AGENT_DB_PASSWORD: ${QA_AGENT_DB_PASSWORD:?QA_AGENT_DB_PASSWORD is required}
+      DEV_AGENT_DB_PASSWORD: ${DEV_AGENT_DB_PASSWORD:?DEV_AGENT_DB_PASSWORD is required}
+      EVOLUTION_AGENT_DB_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:?EVOLUTION_AGENT_DB_PASSWORD is required}
     deploy:
       resources:
         limits:
@@ -93,10 +264,20 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   redis-master:
-    command: >
-      redis-server /usr/local/etc/redis/redis.conf
-      --maxmemory 512mb
-      --requirepass ${REDIS_PASSWORD:-}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        REDIS_ARGS="/usr/local/etc/redis/redis.conf --maxmemory 512mb"
+        if [ -n "$$REDIS_PASSWORD" ]; then
+          exec redis-server $$REDIS_ARGS --requirepass "$$REDIS_PASSWORD"
+        fi
+        exec redis-server $$REDIS_ARGS
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -n \"$${REDIS_PASSWORD:-}\" ]; then redis-cli -a \"$${REDIS_PASSWORD}\" ping; else redis-cli ping; fi"]
     deploy:
       resources:
         limits:

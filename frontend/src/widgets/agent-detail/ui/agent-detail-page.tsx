@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 
 import {
   AGENT_REGISTRY,
@@ -12,10 +12,10 @@ import {
   type AgentStatus,
 } from "@/entities/agent";
 import { AgentWakeupButton } from "@/features/agent-wakeup";
-import { AgentDetailLayout } from "@/components/agents/agent-detail-layout";
-import { AgentOverview } from "@/components/agents/agent-overview";
-import { AgentEvents } from "@/components/agents/agent-events";
-import { AgentConfig } from "@/components/agents/agent-config";
+import { AgentConfig } from "./agent-config";
+import { AgentDetailLayout } from "./agent-detail-layout";
+import { AgentEvents } from "./agent-events";
+import { AgentOverview } from "./agent-overview";
 
 interface AgentDetailPageProps {
   agentId: string;

@@ -110,6 +110,9 @@ Important boundary:
    - Platform adapters connect Feishu, WeCom, OpenProject, GitLab, and other
      external systems to the control plane.
    - Adapters MUST live behind shared port or client interfaces.
+   - Platform-specific Feishu interactive-card builders and reusable renderers
+     MUST live under `shared/integrations/feishu/cards/` and be injected into
+     agent or gateway services through ports.
 
 9. `Observability`
    - Emits structured logs, metrics, traces, and health signals for operators.
@@ -135,6 +138,36 @@ Important boundary:
 5. `Infrastructure Layer`
    - PostgreSQL, Redis, NATS, Milvus, Traefik, metrics, tracing, and deployment
      assets.
+
+### 3.3 Architecture Boundary Rules
+
+Wisdoverse Cell uses Control Plane Architecture at repository level.
+
+Backend architecture:
+
+- Agent Service Boundary for runtime isolation.
+- Strategic DDD for domain vocabulary and bounded contexts.
+- Clean Architecture inside each agent service.
+- Hexagonal Architecture for integrations and messaging.
+
+Frontend architecture:
+
+- Strict Feature-Sliced Design.
+
+Boundary rules:
+
+1. Agents MUST NOT directly import another independently deployed agent.
+2. Agents MUST communicate through HTTP clients or EventBus events.
+3. External platforms MUST be accessed through ports and adapters.
+4. `shared/control_plane` owns durable product objects: `Goal`, `WorkItem`, `AgentRole`, `AgentRun`, `Approval`, `Budget`, `Artifact`, and `AuditEvent`.
+5. `shared/core` owns abstract ports and protocols.
+6. `shared/integrations` owns platform adapters.
+7. `shared/utils` MUST NOT contain business logic.
+8. Frontend route files MUST stay thin.
+9. Frontend domain data belongs to `entities`.
+10. Frontend user actions belong to `features`.
+11. Frontend composed operator surfaces belong to `widgets`.
+12. All cross-boundary contracts MUST be documented in this specification, API docs, or the Event Catalog.
 
 ## 4. Core Domain Model
 
@@ -162,18 +195,25 @@ Fields:
 #### 4.1.3 Agent Role
 
 Job description, interaction contract, context contract, and execution boundary
-for an agent. Implementations MUST distinguish organization-role agents from
-capability modules. CEO, CTO, CPO, COO, and similar agents are
-`organization_role` records. Existing services such as sync, QA, requirement
-extraction, analysis, and development execution are capability modules unless
-they explicitly expose a role-level user interaction contract.
+for an agent. Implementations MUST distinguish organization-role agents,
+business runtime agents, and support capability modules. CEO, CTO, CPO, COO,
+and similar agents are `organization_role` records. Implemented business
+runtime agents such as `requirement-manager`, `pjm-agent`, `qa-agent`, and
+`dev-agent` live as root packages under `agents/`. Support services such as
+sync, analysis, and evolution remain capability modules under
+`shared/capabilities/` unless they explicitly become business runtime agents.
+OpenProject synchronization and Feishu Bitable synchronization are separate
+support capability boundaries. A deployment MAY keep the historical
+`sync-agent` runtime identifier for compatibility, but implementations MUST NOT
+treat OpenProject work-package sync and Feishu Bitable table sync as one
+undifferentiated domain.
 
 Fields:
 
 - `agent_id`
 - `agent_name`
-- `agent_kind` (`organization_role`, `capability_module`,
-  `integration_gateway`, or `system_worker`)
+- `agent_kind` (`organization_role`, `business_runtime_agent`,
+  `capability_module`, `integration_gateway`, or `system_worker`)
 - `interaction_mode` (`direct`, `routed`, `internal`, or `none`)
 - `context_sources`
 - `responsibilities`
@@ -184,10 +224,11 @@ Fields:
 - `escalation_policy`
 
 Organization-role agents MAY be directly user-facing or routed through a
-gateway. Capability modules SHOULD be internally invoked by role agents,
-schedulers, or control-plane work items. Integration gateways MAY be directly
-user-facing, but they SHOULD route intent to a role agent instead of owning
-business strategy.
+gateway. Root business runtime agents own business work outcomes behind their
+service boundary. Support capability modules SHOULD be internally invoked by
+role agents, root business agents, schedulers, or control-plane work items.
+Integration gateways MAY be directly user-facing, but they SHOULD route intent
+to a role agent or root business agent instead of owning business strategy.
 
 #### 4.1.4 Work Item
 
@@ -357,6 +398,8 @@ Approval categories:
   handling.
 - Technical: architecture changes, production deployment, destructive actions,
   or irreversible migration.
+- Feishu Bitable schema mutations are technical-impacting changes and MUST
+  verify a control-plane approval id before modifying table structure.
 
 Approval requests MUST include enough context for a human to decide: proposed
 action, reason, risk, affected resources, rollback or recovery note, and

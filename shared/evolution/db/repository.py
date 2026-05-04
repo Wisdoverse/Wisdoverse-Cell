@@ -271,6 +271,17 @@ class EvolutionRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_experiment_by_id(
+        self, experiment_id: str
+    ) -> Optional[EvolutionExperiment]:
+        """Return an experiment by stable experiment ID, or None."""
+        result = await self.session.execute(
+            select(EvolutionExperiment).where(
+                EvolutionExperiment.experiment_id == experiment_id
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def conclude_experiment(
         self,
         experiment_id: str,

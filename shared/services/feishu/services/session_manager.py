@@ -1,7 +1,3 @@
-"""Deprecated: use shared.integrations.feishu.services.session_manager"""
-import importlib
-import sys
+"""Deprecated: Feishu session management is owned by the requirement manager agent."""
 
-_real = importlib.import_module("shared.integrations.feishu.services.session_manager")
-sys.modules[__name__] = _real
-sys.modules["shared.services.feishu.services.session_manager"] = _real
+__all__: list[str] = []

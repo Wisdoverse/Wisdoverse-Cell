@@ -17,6 +17,7 @@ from shared.evolution.db.repository import EvolutionRepository
 from shared.infra.embedder import TextEmbedder
 from shared.infra.embedder import embedder as default_embedder
 from shared.infra.vector_store import BaseVectorStore
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 logger = get_logger("evolution.memory")
@@ -147,7 +148,12 @@ class AgentMemory:
                 for r in results
             ]
         except Exception as e:
-            logger.warning("semantic_search_failed", query=query[:50], error=str(e))
+            logger.warning(
+                "semantic_search_failed",
+                query_hash=hash_identifier(query),
+                query_length=len(query),
+                error=str(e),
+            )
             return []
 
     # ── Convenience ───────────────────────────────────────────────────────────

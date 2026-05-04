@@ -1,8 +1,8 @@
 # shared/integrations/feishu/platform_adapter.py
 """
-FeishuPlatformAdapter - 飞书平台适配器
+FeishuPlatformAdapter - Feishu platform adapter.
 
-实现 BasePlatformAdapter 接口，用于统一网关的飞书接入。
+Implements BasePlatformAdapter for the unified gateway Feishu integration.
 """
 import json
 from datetime import UTC, datetime
@@ -29,9 +29,10 @@ logger = get_logger("feishu.platform_adapter")
 
 class FeishuPlatformAdapter(BasePlatformAdapter):
     """
-    飞书平台适配器
+    Feishu platform adapter.
 
-    将飞书消息/回调转换为统一格式，并将统一格式转换为飞书格式发送。
+    Converts Feishu messages and callbacks to the unified format, and sends
+    unified messages back in Feishu format.
     """
 
     def __init__(self, client: "FeishuClient"):
@@ -44,13 +45,13 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
 
     async def parse_message(self, raw_event: dict) -> Optional[UnifiedMessage]:
         """
-        将飞书消息事件转换为统一格式
+        Convert a Feishu message event to the unified format.
 
         Args:
-            raw_event: 飞书 im.message.receive_v1 事件数据
+            raw_event: Feishu im.message.receive_v1 event data.
 
         Returns:
-            UnifiedMessage 或 None
+            UnifiedMessage or None.
         """
         message = raw_event.get("message") or {}
         sender = raw_event.get("sender") or {}
@@ -59,27 +60,27 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
         if not message_id:
             return None
 
-        # 会话信息
+        # Conversation context.
         chat_id = message.get("chat_id", "")
         chat_type = message.get("chat_type", "p2p")
         chat_type_mapped = "group" if chat_type == "group" else "private"
 
-        # 发送者
+        # Sender context.
         sender_id = sender.get("sender_id", {}).get("open_id", "")
         sender_type = sender.get("sender_type", "")
 
-        # 跳过机器人自己的消息
+        # Skip messages sent by the bot application.
         if sender_type == "app":
             return None
 
-        # 消息类型和内容
+        # Message type and content.
         msg_type = message.get("message_type", "text")
         content_str = message.get("content", "{}")
         content, unified_type, mentions, attachments = self._parse_content(
             msg_type, content_str
         )
 
-        # 时间戳
+        # Event timestamp.
         create_time = message.get("create_time", "")
         timestamp = self._parse_timestamp(create_time)
 
@@ -89,7 +90,7 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
             chat_id=chat_id,
             chat_type=chat_type_mapped,
             sender_id=sender_id,
-            sender_name="",  # 由 Gateway 通过 UserService 填充
+            sender_name="",  # Filled by the gateway through UserService.
             message_type=unified_type,
             content=content,
             mentions=mentions,
@@ -100,13 +101,13 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
 
     async def parse_action(self, raw_callback: dict) -> Optional[UnifiedAction]:
         """
-        将飞书卡片回调转换为统一格式
+        Convert a Feishu card callback to the unified format.
 
         Args:
-            raw_callback: 飞书卡片回调数据
+            raw_callback: Feishu card callback data.
 
         Returns:
-            UnifiedAction 或 None
+            UnifiedAction or None.
         """
         action = raw_callback.get("action", {})
         action_value = action.get("value", {})
@@ -115,11 +116,11 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
         if not action_id:
             return None
 
-        # 操作者
+        # Operator context.
         operator = raw_callback.get("operator", {})
         operator_id = operator.get("open_id", "")
 
-        # 消息 ID
+        # Message ID.
         open_message_id = raw_callback.get("open_message_id", "")
 
         return UnifiedAction(
@@ -133,18 +134,18 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
 
     async def send_card(self, chat_id: str, card: UnifiedCard) -> str:
         """
-        发送卡片消息
+        Send a card message.
 
         Args:
-            chat_id: 会话 ID (chat_id 或 open_id)
-            card: 统一卡片格式
+            chat_id: Conversation ID, either chat_id or open_id.
+            card: Unified card model.
 
         Returns:
-            消息 ID
+            Message ID.
         """
         feishu_card = self._build_feishu_card(card)
 
-        # 判断 ID 类型
+        # Choose the Feishu receiver ID type.
         receive_id_type = "chat_id" if chat_id.startswith("oc_") else "open_id"
 
         return await self._client.send_card(
@@ -155,16 +156,16 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
 
     async def send_text(self, chat_id: str, text: str) -> str:
         """
-        发送文本消息
+        Send a text message.
 
         Args:
-            chat_id: 会话 ID
-            text: 文本内容
+            chat_id: Conversation ID.
+            text: Message text.
 
         Returns:
-            消息 ID
+            Message ID.
         """
-        # 使用卡片发送文本以保持格式一致
+        # Send text as a card to keep formatting consistent.
         builder = CardBuilder()
         builder.add_markdown(text)
         card = builder.build()
@@ -179,40 +180,40 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
 
     async def update_card(self, message_id: str, card: UnifiedCard) -> bool:
         """
-        更新已发送的卡片
+        Update a sent card.
 
         Args:
-            message_id: 消息 ID
-            card: 新的卡片内容
+            message_id: Message ID.
+            card: Replacement card content.
 
         Returns:
-            是否成功
+            Whether the update succeeded.
         """
         feishu_card = self._build_feishu_card(card)
         return await self._client.update_card(message_id, feishu_card)
 
     async def get_user_email(self, platform_user_id: str) -> Optional[str]:
         """
-        获取用户邮箱
+        Get a user email.
 
         Args:
-            platform_user_id: 飞书 open_id
+            platform_user_id: Feishu open_id.
 
         Returns:
-            邮箱或 None
+            Email address or None.
         """
         user_info = await self._get_user_info(platform_user_id)
         return user_info.get("email")
 
     async def get_user_name(self, platform_user_id: str) -> Optional[str]:
         """
-        获取用户名称
+        Get a user display name.
 
         Args:
-            platform_user_id: 飞书 open_id
+            platform_user_id: Feishu open_id.
 
         Returns:
-            用户名或 None
+            User name or None.
         """
         user_info = await self._get_user_info(platform_user_id)
         return user_info.get("name")
@@ -220,7 +221,7 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
     # === Private Methods ===
 
     async def _get_user_info(self, open_id: str) -> dict:
-        """获取用户信息（带缓存）"""
+        """Get user information with an in-memory cache."""
         if open_id in self._user_cache:
             return self._user_cache[open_id]
 
@@ -232,7 +233,7 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
         self, msg_type: str, content_str: str
     ) -> tuple[str, MessageType, list[str], list[dict]]:
         """
-        解析消息内容
+        Parse message content.
 
         Returns:
             (content, message_type, mentions, attachments)
@@ -258,7 +259,7 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
             attachments.append({
                 "type": "image",
                 "key": image_key,
-                "url": "",  # 需要额外 API 获取
+                "url": "",  # Requires an additional API call.
             })
             return f"[图片: {image_key}]", MessageType.IMAGE, mentions, attachments
 
@@ -276,7 +277,7 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
             return f"[{msg_type}]", MessageType.TEXT, mentions, attachments
 
     def _extract_post_text(self, content: dict) -> str:
-        """从富文本中提取纯文本"""
+        """Extract plain text from Feishu rich text content."""
         texts = []
 
         title = content.get("title", "")
@@ -297,7 +298,7 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
         return " ".join(texts)
 
     def _parse_timestamp(self, timestamp_str: str) -> datetime:
-        """解析飞书时间戳（毫秒）"""
+        """Parse a Feishu timestamp in milliseconds."""
         if not timestamp_str:
             return datetime.now(UTC)
 
@@ -309,13 +310,13 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
 
     def _build_feishu_card(self, card: UnifiedCard) -> dict:
         """
-        将 UnifiedCard 转换为飞书卡片格式
+        Convert UnifiedCard to the Feishu card format.
 
         Args:
-            card: 统一卡片格式
+            card: Unified card model.
 
         Returns:
-            飞书卡片 JSON
+            Feishu card JSON.
         """
         builder = CardBuilder()
 
@@ -352,7 +353,7 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
                     "value": {
                         "action": action.action_id,
                         **action.value,
-                        **card.context,  # 透传上下文
+                        **card.context,  # Forward callback context.
                     },
                 })
             builder.add_action_buttons(buttons)
@@ -360,7 +361,7 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
         return builder.build()
 
     def _get_header_template(self, status_color: Optional[str]) -> str:
-        """根据状态颜色获取卡片头部模板"""
+        """Map a status color to a Feishu card header template."""
         color_map = {
             "green": "green",
             "orange": "orange",
@@ -371,7 +372,7 @@ class FeishuPlatformAdapter(BasePlatformAdapter):
         return color_map.get(status_color or "", "blue")
 
     def _map_action_style(self, style: CardActionStyle) -> str:
-        """将 CardActionStyle 映射为飞书按钮类型"""
+        """Map CardActionStyle to a Feishu button type."""
         style_map = {
             CardActionStyle.PRIMARY: "primary",
             CardActionStyle.DANGER: "danger",

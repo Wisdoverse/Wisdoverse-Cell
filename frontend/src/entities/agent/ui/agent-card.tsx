@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/shared/ui/badge";
 import { cn } from "@/lib/utils";
 import type { AgentMeta, AgentRuntimeStatus } from "../model/types";
 import { AgentAvatar } from "./agent-avatar";
@@ -23,17 +23,23 @@ const statusLabels: Record<string, string> = {
 
 const kindLabels: Record<string, string> = {
   organization_role: "Role",
+  business_runtime_agent: "Agent",
   capability_module: "Module",
   integration_gateway: "Gateway",
   system_worker: "System",
 };
 
 export function AgentCard({ meta, runtime, onClick, className }: AgentCardProps) {
-  const kindLabel = meta.agentKind
-    ? (kindLabels[meta.agentKind] ?? meta.agentKind)
-    : meta.source === "control-plane"
-      ? "Role"
-      : "Module";
+  const kindLabel =
+    meta.implemented === false
+      ? "Reserved"
+      : meta.businessAgent
+        ? "Agent"
+        : meta.agentKind
+          ? (kindLabels[meta.agentKind] ?? meta.agentKind)
+          : meta.source === "control-plane"
+            ? "Role"
+            : "Module";
 
   return (
     <button

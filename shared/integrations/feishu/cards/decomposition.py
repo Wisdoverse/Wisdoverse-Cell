@@ -1,4 +1,4 @@
-"""Decomposition Cards - 任务拆解审批卡片"""
+"""Decomposition approval cards."""
 from datetime import UTC, datetime
 
 from .builder import CardBuilder, truncate_card_if_needed

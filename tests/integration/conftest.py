@@ -44,28 +44,28 @@ def _is_ci_mode() -> bool:
 @pytest.fixture(scope="session")
 def ai_core_process() -> Generator[subprocess.Popen | None, None, None]:
     """
-    Start AI Core as subprocess for integration tests.
+    Start the requirement manager agent as a subprocess for integration tests.
 
     In CI mode, services are started by the CI script, so this fixture
-    yields None. For local development, it starts the AI Core server.
+    yields None. For local development, it starts the requirements service.
     """
     if _is_ci_mode():
         yield None
         return
 
-    # Local development: start AI Core
+    # Local development: start requirement manager agent
     ai_core_url = os.environ.get("AI_CORE_URL", "http://localhost:8000")
 
     # Check if already running
     try:
         requests.get(f"{ai_core_url}/health", timeout=2)
-        print("AI Core already running, skipping subprocess start")
+        print("Requirements capability already running, skipping subprocess start")
         yield None
         return
     except requests.exceptions.RequestException:
         pass
 
-    # Start AI Core
+    # Start requirement manager agent
     env = os.environ.copy()
     env.update({
         "POSTGRES_HOST": os.environ.get("POSTGRES_HOST", "localhost"),
@@ -80,7 +80,7 @@ def ai_core_process() -> Generator[subprocess.Popen | None, None, None]:
     proc = subprocess.Popen(
         [
             "python", "-m", "uvicorn",
-            "agents.capabilities.requirements.app.main:app",
+            "agents.requirement_manager.app.main:app",
             "--host", "0.0.0.0",
             "--port", "8000",
         ],
@@ -93,7 +93,7 @@ def ai_core_process() -> Generator[subprocess.Popen | None, None, None]:
     if not _wait_for_service(ai_core_url, timeout=60):
         proc.terminate()
         proc.wait()
-        pytest.fail("AI Core failed to start within 60 seconds")
+        pytest.fail("Requirements capability failed to start within 60 seconds")
 
     yield proc
 
@@ -114,7 +114,7 @@ def gateway_process(ai_core_process) -> Generator[subprocess.Popen | None, None,
     In CI mode, services are started by the CI script, so this fixture
     yields None. For local development, it starts the Gateway server.
 
-    Depends on ai_core_process to ensure AI Core is started first.
+    Depends on ai_core_process to ensure the requirement manager agent is started first.
     """
     if _is_ci_mode():
         yield None
@@ -184,13 +184,13 @@ def integration_services(ai_core_process, gateway_process):
     """
     Ensure all integration services are running.
 
-    Use this fixture in tests that need both AI Core and Gateway.
+    Use this fixture in tests that need both the requirement manager agent and Gateway.
     """
     ai_core_url = os.environ.get("AI_CORE_URL", "http://localhost:8000")
     gateway_url = os.environ.get("GATEWAY_URL", "http://localhost:8080")
 
     # Final verification
-    assert _wait_for_service(ai_core_url, timeout=5), "AI Core not available"
+    assert _wait_for_service(ai_core_url, timeout=5), "Requirements capability not available"
     assert _wait_for_service(gateway_url, timeout=5), "Gateway not available"
 
     return {

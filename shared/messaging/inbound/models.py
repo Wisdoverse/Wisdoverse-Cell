@@ -1,7 +1,8 @@
 """
-Gateway Models - 跨平台统一消息模型
+Gateway models for cross-platform unified messaging.
 
-定义跨平台消息抽象，用于飞书、企微、Web 等平台的统一处理。
+Defines message abstractions for unified handling across Feishu, WeCom, Web,
+and other platforms.
 """
 from datetime import datetime
 from enum import Enum
@@ -13,54 +14,54 @@ from shared.models.platform import Platform
 
 
 class MessageType(str, Enum):
-    """消息类型"""
+    """Message type."""
 
     TEXT = "text"
     IMAGE = "image"
     FILE = "file"
-    POST = "post"  # 富文本
+    POST = "post"  # Rich text.
     CARD = "card"
 
 
 class CardActionStyle(str, Enum):
-    """卡片按钮样式"""
+    """Card button style."""
 
-    PRIMARY = "primary"  # 蓝色
-    DANGER = "danger"  # 红色
-    DEFAULT = "default"  # 灰色
+    PRIMARY = "primary"  # Blue.
+    DANGER = "danger"  # Red.
+    DEFAULT = "default"  # Gray.
 
 
 class UnifiedMessage(BaseModel):
-    """跨平台统一入站消息"""
+    """Unified inbound message across platforms."""
 
-    # 来源
+    # Source.
     platform: Platform
     message_id: str
 
-    # 会话
+    # Conversation.
     chat_id: str
     chat_type: str = "private"  # "private" / "group"
 
-    # 发送者
+    # Sender.
     sender_id: str
     sender_name: str = ""
-    user_id: Optional[str] = None  # 统一用户 ID (映射后填充)
+    user_id: Optional[str] = None  # Unified user ID, filled after mapping.
 
-    # 内容
+    # Content.
     message_type: MessageType = MessageType.TEXT
     content: str = ""
     mentions: list[str] = Field(default_factory=list)
     attachments: list[dict] = Field(default_factory=list)
 
-    # 时间
+    # Time.
     timestamp: datetime
 
-    # 原始数据
+    # Raw data.
     raw_data: dict = Field(default_factory=dict, exclude=True)
 
 
 class CardAction(BaseModel):
-    """卡片操作按钮"""
+    """Card action button."""
 
     label: str
     action_id: str
@@ -69,44 +70,44 @@ class CardAction(BaseModel):
 
 
 class UnifiedCard(BaseModel):
-    """跨平台统一出站卡片"""
+    """Unified outbound card across platforms."""
 
     title: str
     content: str  # Markdown
 
-    # 状态
+    # State.
     status: Optional[str] = None
     status_color: Optional[str] = None  # "orange" / "green" / "red"
     priority: Optional[str] = None
 
-    # 字段
-    fields: list[dict] = Field(default_factory=list)  # [{"label": "分类", "value": "功能"}]
+    # Fields.
+    fields: list[dict] = Field(default_factory=list)  # Example: [{"label": "Category", "value": "Feature"}].
 
-    # 按钮
+    # Buttons.
     actions: list[CardAction] = Field(default_factory=list)
 
-    # 上下文
+    # Context.
     context: dict = Field(default_factory=dict)
 
 
 class UnifiedAction(BaseModel):
-    """跨平台统一回调操作"""
+    """Unified callback action across platforms."""
 
     platform: Platform
     action_id: str
     message_id: str
 
-    # 操作者
+    # Operator.
     operator_id: str
     user_id: Optional[str] = None
 
-    # 数据
+    # Data.
     value: dict = Field(default_factory=dict)
     raw_data: dict = Field(default_factory=dict, exclude=True)
 
 
 class AgentResponse(BaseModel):
-    """Agent 响应"""
+    """Agent response."""
 
     text: Optional[str] = None
     card: Optional[UnifiedCard] = None
@@ -114,7 +115,7 @@ class AgentResponse(BaseModel):
 
 
 class ActionResponse(BaseModel):
-    """Action 处理响应"""
+    """Action handling response."""
 
     update_card: bool = False
     card: Optional[UnifiedCard] = None

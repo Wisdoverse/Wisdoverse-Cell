@@ -8,11 +8,20 @@ import asyncio
 from collections.abc import Callable
 from typing import Any
 
-from shared.schemas.event import Event, EventMetadata
+from shared.schemas.event import Event, EventMetadata, EventTypes
 
 from ..a2a.client.client import A2AClient
 from ..a2a.models import DataPart, FilePart, Message, Task, TaskStatus, TextPart
 from ..a2a.registry.registry import AgentRegistry
+
+_TASK_STATUS_EVENT_TYPES = {
+    TaskStatus.SUBMITTED: EventTypes.A2A_TASK_SUBMITTED,
+    TaskStatus.WORKING: EventTypes.A2A_TASK_WORKING,
+    TaskStatus.INPUT_REQUIRED: EventTypes.A2A_TASK_INPUT_REQUIRED,
+    TaskStatus.COMPLETED: EventTypes.A2A_TASK_COMPLETED,
+    TaskStatus.FAILED: EventTypes.A2A_TASK_FAILED,
+    TaskStatus.CANCELED: EventTypes.A2A_TASK_CANCELED,
+}
 
 
 class EventA2AMapping:
@@ -232,14 +241,7 @@ class EventBusA2ABridge:
             Event with task result.
         """
         # Determine event type based on task status
-        if task.status.state == TaskStatus.COMPLETED:
-            event_type = "a2a.task.completed"
-        elif task.status.state == TaskStatus.FAILED:
-            event_type = "a2a.task.failed"
-        elif task.status.state == TaskStatus.CANCELED:
-            event_type = "a2a.task.canceled"
-        else:
-            event_type = f"a2a.task.{task.status.state.value}"
+        event_type = _TASK_STATUS_EVENT_TYPES[task.status.state]
 
         # Extract result data
         result_data: dict[str, Any] = {
@@ -295,7 +297,7 @@ class EventBusA2ABridge:
     ) -> None:
         """Publish error as event."""
         error_event = Event(
-            event_type="a2a.task.error",
+            event_type=EventTypes.A2A_TASK_ERROR,
             source_agent=self._source_agent_id,
             payload={
                 "error": str(error),
@@ -349,7 +351,7 @@ class EventBusA2ABridge:
         except Exception as e:
             return [
                 Event(
-                    event_type="a2a.task.error",
+                    event_type=EventTypes.A2A_TASK_ERROR,
                     source_agent=self._source_agent_id,
                     payload={
                         "error": str(e),

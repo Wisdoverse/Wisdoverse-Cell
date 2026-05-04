@@ -1,4 +1,4 @@
-"""Verify channel_gateway compat layer after move to messaging/outbound."""
+"""Verify channel_gateway compat layer after gateway/runtime split."""
 
 
 def test_registry_same_class():

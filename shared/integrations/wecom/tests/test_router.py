@@ -1,4 +1,3 @@
-# shared/integrations/wecom/tests/test_router.py
 """Tests for WeCom webhook router."""
 
 import sys as _sys
@@ -26,6 +25,21 @@ def client(app):
 
 
 class TestWecomRouter:
+    def test_signature_verification_uses_wecom_protocol_contract(self):
+        token = "token"
+        timestamp = "123"
+        nonce = "abc"
+        encrypted = "encrypted"
+        expected = "eb6446007684a9d284aae2904e88bc1f41a60caa"
+
+        assert _wecom_router_mod._verify_wecom_signature(
+            expected,
+            timestamp,
+            nonce,
+            encrypted,
+            token,
+        )
+
     def test_url_verification(self, client):
         with patch.object(_wecom_router_mod, "settings") as mock_settings:
             mock_settings.wecom_enabled = False

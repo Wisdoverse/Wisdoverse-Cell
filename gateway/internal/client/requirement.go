@@ -3,6 +3,8 @@ package client
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"time"
 
 	pb "github.com/Wisdoverse/project-cell/gateway/api/proto"
@@ -154,9 +156,17 @@ func (c *RequirementClient) SearchRequirements(ctx context.Context, keyword, cha
 		PageSize: pageSize,
 	})
 	if err != nil {
-		c.logger.Error("search requirements failed", zap.String("keyword", keyword), zap.Error(err))
+		c.logger.Error("search requirements failed", zap.String("keyword_hash", shortLogHash(keyword)), zap.Error(err))
 		return nil, err
 	}
 
 	return resp, nil
+}
+
+func shortLogHash(value string) string {
+	if value == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(value))
+	return fmt.Sprintf("%x", sum)[:12]
 }

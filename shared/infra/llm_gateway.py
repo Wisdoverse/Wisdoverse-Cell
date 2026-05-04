@@ -8,22 +8,23 @@ All agents access LLMs through this gateway. It provides:
 4. Circuit breaker protection.
 5. Durable usage records.
 6. Budget controls with model downgrade support.
-7. A future extension point for multiple model providers.
+7. LiteLLM routing for multiple model providers.
 """
 import asyncio
+import json
 import random
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any, Callable, Optional
-
-import anthropic
-from anthropic import APIStatusError, AsyncAnthropic, RateLimitError
 
 from ..config import settings
 from ..control_plane.context import get_current_run_context
+from ..observability.privacy import hash_identifier, redact_sensitive_text
 from ..utils.logger import get_logger
 from .audit_log import AuditAction, audit_log
+from .budget_events import publish_budget_usage_recorded
 from .circuit_breaker import CircuitBreaker, CircuitBreakerError
 from .llm_errors import (
     ContentSizeError,
@@ -33,10 +34,12 @@ from .llm_errors import (
     default_retry_config,
 )
 from .metrics import (
+    LLM_COST_DOLLARS_TOTAL,
     LLM_DAILY_COST_DOLLARS,
     LLM_ERROR_TOTAL,
     LLM_FALLBACK_TOTAL,
     LLM_REQUEST_DURATION,
+    LLM_TOKEN_TOTAL,
 )
 
 logger = get_logger("llm_gateway")
@@ -46,6 +49,24 @@ _REDIS_COST_KEY_PREFIX = "llm_cost"
 
 # Retryable HTTP status codes
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 529}
+
+_LLM_RETRY_DECISIONS = {
+    LLMErrorCategory.RATE_LIMIT: "retry_with_backoff_exhausted",
+    LLMErrorCategory.OVERLOADED: "retry_with_backoff_or_fallback_exhausted",
+    LLMErrorCategory.NETWORK: "retry_with_backoff_exhausted",
+    LLMErrorCategory.AUTH: "do_not_retry_until_provider_auth_is_fixed",
+    LLMErrorCategory.CONTENT_SIZE: "do_not_retry_until_prompt_is_reduced",
+    LLMErrorCategory.OTHER: "do_not_retry_without_investigation",
+}
+
+_LLM_OPERATOR_ACTIONS = {
+    LLMErrorCategory.RATE_LIMIT: "reduce_request_rate_or_increase_provider_quota",
+    LLMErrorCategory.OVERLOADED: "check_provider_health_or_switch_model_route",
+    LLMErrorCategory.NETWORK: "check_provider_network_path",
+    LLMErrorCategory.AUTH: "check_provider_api_key_and_model_route",
+    LLMErrorCategory.CONTENT_SIZE: "reduce_prompt_size_or_enable_compaction",
+    LLMErrorCategory.OTHER: "inspect_error_fingerprint_and_provider_status",
+}
 
 
 @dataclass
@@ -84,20 +105,32 @@ def _is_retryable_error(exception: BaseException) -> bool:
     Return whether an exception is retryable.
 
     Retryable errors include:
-    - RateLimitError (429)
-    - InternalServerError (500)
-    - APIConnectionError (network issue)
-    - APIStatusError with status code in RETRYABLE_STATUS_CODES
+    - Rate limits (429)
+    - Provider overload/server errors (500/502/503/529)
+    - Network errors
     """
-    if isinstance(exception, RateLimitError):
+    category = classify_error(exception)
+    if category in {
+        LLMErrorCategory.RATE_LIMIT,
+        LLMErrorCategory.OVERLOADED,
+        LLMErrorCategory.NETWORK,
+    }:
         return True
-    if isinstance(exception, anthropic.InternalServerError):
-        return True
-    if isinstance(exception, anthropic.APIConnectionError):
-        return True
-    if isinstance(exception, APIStatusError):
-        return exception.status_code in RETRYABLE_STATUS_CODES
-    return False
+    status_code = getattr(exception, "status_code", None)
+    response = getattr(exception, "response", None)
+    if status_code is None and response is not None:
+        status_code = getattr(response, "status_code", None)
+    return status_code in RETRYABLE_STATUS_CODES
+
+
+class _LiteLLMMessagesClient:
+    """Compatibility wrapper exposing a messages.create-style API."""
+
+    def __init__(self, gateway: "LLMGateway"):
+        self._gateway = gateway
+
+    async def create(self, **create_kwargs: Any) -> Any:
+        return await self._gateway._litellm_messages_create(create_kwargs)
 
 
 class LLMGateway:
@@ -108,12 +141,10 @@ class LLMGateway:
     - Exponential backoff retry: 1s -> 2s -> 4s, up to three retries.
     - Circuit breaker: opens after five consecutive failures, then probes after 60s.
     - Cost tracking: records token usage for each call.
-    - Fully async: uses the AsyncAnthropic client.
+    - Fully async: uses LiteLLM's OpenAI-compatible async completion API.
 
-    Claude is currently supported. Future providers may include:
-    - Local models (Ollama)
-    - OpenAI
-    - Other models
+    LiteLLM is the only supported provider boundary. Agents must not instantiate
+    provider SDK clients directly.
 
     Usage:
         gateway = LLMGateway()
@@ -136,37 +167,32 @@ class LLMGateway:
         Initialize the LLM gateway.
 
         Args:
-            api_key: Anthropic API key, defaults to settings.
-            base_url: Anthropic API base URL (e.g. OneAPI proxy)
+            api_key: Optional provider API key override for LiteLLM routes.
+            base_url: Optional LiteLLM/provider proxy base URL.
             timeout: Client timeout in seconds
             failure_threshold: Circuit breaker failure threshold.
             recovery_timeout: Circuit breaker recovery timeout in seconds.
         """
-        self.api_key = api_key or settings.anthropic_api_key.get_secret_value()
-
-        # Normalize base_url: strip trailing /v1 for the SDK
-        resolved_base_url = base_url or settings.anthropic_base_url
-        if resolved_base_url:
-            resolved_base_url = resolved_base_url.rstrip("/")
-            if resolved_base_url.endswith("/v1"):
-                resolved_base_url = resolved_base_url[:-3]
-
-        # Data residency check: in production, anthropic_base_url must point
-        # to an approved proxy, not directly to api.anthropic.com.
-        if settings.require_anthropic_proxy:
-            if not resolved_base_url or "api.anthropic.com" in (resolved_base_url or ""):
-                raise ValueError(
-                    "ANTHROPIC_BASE_URL must be set to an approved proxy when "
-                    "REQUIRE_ANTHROPIC_PROXY=true. Direct access to api.anthropic.com "
-                    "is not allowed for data residency compliance."
-                )
-
-        # Use the async client to avoid blocking the event loop.
-        self.async_client = AsyncAnthropic(
-            api_key=self.api_key,
-            base_url=resolved_base_url if resolved_base_url else None,
-            timeout=timeout,
+        self.provider = "litellm"
+        self._explicit_api_key = api_key
+        self._provider_api_keys = {
+            "anthropic": self._secret_setting("anthropic_api_key"),
+            "openai": self._secret_setting("openai_api_key"),
+            "openrouter": self._secret_setting("openrouter_api_key"),
+            "gemini": self._secret_setting("gemini_api_key")
+            or self._secret_setting("google_api_key"),
+        }
+        self.api_key = api_key or self._provider_api_keys["anthropic"]
+        self.timeout = timeout
+        litellm_api_base = base_url or getattr(settings, "litellm_api_base", "")
+        self._litellm_api_base = (
+            litellm_api_base.rstrip("/") if isinstance(litellm_api_base, str) else ""
         )
+
+        # Compatibility surface for tests and legacy callers that patch
+        # ``gateway.async_client.messages.create``. The implementation still
+        # routes through LiteLLM only.
+        self.async_client = SimpleNamespace(messages=_LiteLLMMessagesClient(self))
 
         # Circuit breaker.
         self._circuit_breaker = CircuitBreaker(
@@ -180,6 +206,296 @@ class LLMGateway:
 
         # Redis client for distributed cost tracking (lazy-initialized)
         self._redis = None
+
+    @staticmethod
+    def _secret_setting(name: str) -> str:
+        """Read a Settings secret value without coupling to SecretStr in tests."""
+        value = getattr(settings, name, "")
+        if hasattr(value, "get_secret_value"):
+            return value.get_secret_value()
+        return str(value or "")
+
+    @staticmethod
+    def _redact_sensitive_text(text: str) -> str:
+        """Remove secrets and direct PII-like identifiers before provider calls."""
+        return redact_sensitive_text(text)
+
+    def _sanitize_prompt_payload(self, value: Any) -> Any:
+        """Recursively sanitize text values that will be sent to an LLM."""
+        if isinstance(value, str):
+            return self._redact_sensitive_text(value)
+        if isinstance(value, list):
+            return [self._sanitize_prompt_payload(item) for item in value]
+        if isinstance(value, tuple):
+            return tuple(self._sanitize_prompt_payload(item) for item in value)
+        if isinstance(value, dict):
+            return {
+                key: self._sanitize_prompt_payload(item)
+                for key, item in value.items()
+            }
+        return value
+
+    def _provider_for_model(self, model: str) -> str:
+        """Return the LiteLLM provider implied by a model name."""
+        normalized = model.strip().lower()
+        if normalized.startswith("openrouter/"):
+            return "openrouter"
+        if normalized.startswith(("claude-", "anthropic/")):
+            return "anthropic"
+        if normalized.startswith(("openai/", "azure/", "gpt-", "o1", "o3", "o4")):
+            return "openai"
+        if normalized.startswith(("gemini/", "google/", "vertex_ai/")):
+            return "gemini"
+        return "generic"
+
+    def _api_key_for_model(self, model: str) -> str:
+        """Choose the API key that matches the selected LiteLLM route."""
+        if self._explicit_api_key:
+            return self._explicit_api_key
+        if self._litellm_api_base and self._provider_api_keys["openai"]:
+            return self._provider_api_keys["openai"]
+        provider = self._provider_for_model(model)
+        return self._provider_api_keys.get(provider, "")
+
+    def _normalize_litellm_model(self, model: str) -> str:
+        """Map native Claude model names to LiteLLM's provider/model format."""
+        if "/" in model:
+            return model
+        if model.startswith("claude-"):
+            return f"anthropic/{model}"
+        return model
+
+    def _anthropic_model_for_cost(self, model: str) -> str:
+        """Strip LiteLLM provider prefix when matching existing Claude price table."""
+        if model.startswith("anthropic/"):
+            return model.split("/", 1)[1]
+        return model
+
+    def _record_llm_success_metrics(
+        self,
+        *,
+        model: str,
+        agent_id: str,
+        input_tokens: int,
+        output_tokens: int,
+        cost_usd: float,
+        latency_ms: int,
+    ) -> None:
+        """Emit Prometheus metrics for successful LLM usage."""
+        LLM_REQUEST_DURATION.labels(model=model, agent_id=agent_id).observe(
+            latency_ms / 1000.0
+        )
+        LLM_TOKEN_TOTAL.labels(
+            model=model,
+            agent_id=agent_id,
+            token_type="input",
+        ).inc(input_tokens)
+        LLM_TOKEN_TOTAL.labels(
+            model=model,
+            agent_id=agent_id,
+            token_type="output",
+        ).inc(output_tokens)
+        LLM_COST_DOLLARS_TOTAL.labels(model=model, agent_id=agent_id).inc(cost_usd)
+
+    def _system_blocks_to_text(self, system: Any) -> str:
+        if not system:
+            return ""
+        if isinstance(system, str):
+            return system
+        parts: list[str] = []
+        for block in system:
+            if isinstance(block, dict):
+                text = block.get("text") or block.get("content")
+            else:
+                text = getattr(block, "text", None) or getattr(block, "content", None)
+            if text:
+                parts.append(str(text))
+        return "\n\n".join(parts)
+
+    def _anthropic_content_to_openai_messages(self, role: str, content: Any) -> list[dict]:
+        """Convert Anthropic-style message content into OpenAI-compatible messages."""
+        if isinstance(content, str):
+            return [{"role": role, "content": content}]
+        if not isinstance(content, list):
+            return [{"role": role, "content": str(content)}]
+
+        text_parts: list[str] = []
+        tool_calls: list[dict] = []
+        tool_result_messages: list[dict] = []
+
+        for block in content:
+            block_type = block.get("type") if isinstance(block, dict) else getattr(block, "type", None)
+            if block_type == "text":
+                text = block.get("text") if isinstance(block, dict) else getattr(block, "text", "")
+                if text:
+                    text_parts.append(str(text))
+            elif block_type == "tool_use":
+                tool_id = block.get("id") if isinstance(block, dict) else getattr(block, "id", "")
+                name = block.get("name") if isinstance(block, dict) else getattr(block, "name", "")
+                tool_input = block.get("input") if isinstance(block, dict) else getattr(block, "input", {})
+                tool_calls.append({
+                    "id": tool_id,
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "arguments": json.dumps(tool_input or {}, ensure_ascii=False),
+                    },
+                })
+            elif block_type == "tool_result":
+                tool_use_id = (
+                    block.get("tool_use_id")
+                    if isinstance(block, dict)
+                    else getattr(block, "tool_use_id", "")
+                )
+                result_content = (
+                    block.get("content")
+                    if isinstance(block, dict)
+                    else getattr(block, "content", "")
+                )
+                tool_result_messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_use_id,
+                    "content": result_content if isinstance(result_content, str) else str(result_content),
+                })
+
+        if tool_result_messages:
+            messages = []
+            if text_parts:
+                messages.append({"role": role, "content": "\n".join(text_parts)})
+            messages.extend(tool_result_messages)
+            return messages
+
+        message: dict[str, Any] = {"role": role, "content": "\n".join(text_parts) or None}
+        if tool_calls:
+            message["tool_calls"] = tool_calls
+        return [message]
+
+    def _messages_to_litellm(self, *, system: Any = None, messages: list[dict]) -> list[dict]:
+        converted: list[dict] = []
+        system_text = self._system_blocks_to_text(system)
+        if system_text:
+            converted.append({"role": "system", "content": system_text})
+        for message in messages:
+            converted.extend(
+                self._anthropic_content_to_openai_messages(
+                    str(message.get("role", "user")),
+                    message.get("content", ""),
+                )
+            )
+        return converted
+
+    def _tools_to_litellm(self, tools: list[dict] | None) -> list[dict] | None:
+        """Convert Anthropic tool schemas to OpenAI function tool schemas."""
+        if not tools:
+            return None
+        converted: list[dict] = []
+        for tool in tools:
+            if tool.get("type") == "function" and "function" in tool:
+                converted.append(tool)
+                continue
+            converted.append({
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool.get("description", ""),
+                    "parameters": tool.get("input_schema", {"type": "object", "properties": {}}),
+                },
+            })
+        return converted
+
+    def _litellm_kwargs(self, create_kwargs: dict) -> dict:
+        model = self._normalize_litellm_model(create_kwargs["model"])
+        kwargs = {
+            "model": model,
+            "messages": self._messages_to_litellm(
+                system=create_kwargs.get("system"),
+                messages=create_kwargs.get("messages", []),
+            ),
+            "max_tokens": create_kwargs.get("max_tokens"),
+            "temperature": create_kwargs.get("temperature"),
+        }
+        tools = self._tools_to_litellm(create_kwargs.get("tools"))
+        if tools:
+            kwargs["tools"] = tools
+        api_base = self._litellm_api_base
+        if api_base:
+            kwargs["api_base"] = api_base
+        api_key = self._api_key_for_model(model)
+        if api_key:
+            kwargs["api_key"] = api_key
+        return {key: value for key, value in kwargs.items() if value is not None}
+
+    def _response_value(self, obj: Any, key: str, default: Any = None) -> Any:
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
+    def _adapt_litellm_response(self, response: Any) -> Any:
+        """Adapt OpenAI Chat Completion responses to the Anthropic-like shape we use."""
+        choices = self._response_value(response, "choices", []) or []
+        choice = choices[0] if choices else {}
+        message = self._response_value(choice, "message", {}) or {}
+        content_text = self._response_value(message, "content", "") or ""
+        tool_calls = self._response_value(message, "tool_calls", None) or []
+
+        content_blocks: list[Any] = []
+        if content_text:
+            content_blocks.append(SimpleNamespace(type="text", text=content_text))
+
+        for tool_call in tool_calls:
+            function = self._response_value(tool_call, "function", {}) or {}
+            raw_arguments = self._response_value(function, "arguments", "{}") or "{}"
+            try:
+                parsed_arguments = json.loads(raw_arguments)
+            except (TypeError, json.JSONDecodeError):
+                parsed_arguments = {"raw_arguments": str(raw_arguments)}
+            content_blocks.append(
+                SimpleNamespace(
+                    type="tool_use",
+                    id=self._response_value(tool_call, "id", ""),
+                    name=self._response_value(function, "name", ""),
+                    input=parsed_arguments,
+                )
+            )
+
+        usage = self._response_value(response, "usage", None) or {}
+        input_tokens = self._response_value(
+            usage,
+            "prompt_tokens",
+            self._response_value(usage, "input_tokens", 0),
+        )
+        output_tokens = self._response_value(
+            usage,
+            "completion_tokens",
+            self._response_value(usage, "output_tokens", 0),
+        )
+        stop_reason = "tool_use" if tool_calls else self._response_value(choice, "finish_reason", "stop")
+        if stop_reason == "stop":
+            stop_reason = "end_turn"
+
+        return SimpleNamespace(
+            content=content_blocks,
+            usage=SimpleNamespace(
+                input_tokens=input_tokens or 0,
+                output_tokens=output_tokens or 0,
+            ),
+            stop_reason=stop_reason,
+        )
+
+    async def _litellm_messages_create(self, create_kwargs: dict) -> Any:
+        try:
+            from litellm import acompletion
+        except ImportError as exc:
+            raise RuntimeError(
+                "LLMGateway requires the litellm package. "
+                "Install dependencies with `pip install -r requirements.txt`."
+            ) from exc
+
+        response = await acompletion(**self._litellm_kwargs(create_kwargs))
+        return self._adapt_litellm_response(response)
+
+    async def _provider_messages_create(self, create_kwargs: dict) -> Any:
+        return await self.async_client.messages.create(**create_kwargs)
 
     async def complete(
         self,
@@ -222,8 +538,10 @@ class LLMGateway:
 
         Raises:
             CircuitBreakerError: When the circuit breaker is open.
-            anthropic.APIError: When the API call fails after retries are exhausted.
+            Exception: When the provider call fails after retries are exhausted.
         """
+        prompt = self._sanitize_prompt_payload(prompt)
+        system_prompt = self._sanitize_prompt_payload(system_prompt)
         model = model or settings.default_model
         start_time = time.time()
         run_context = get_current_run_context()
@@ -294,15 +612,20 @@ class LLMGateway:
                 reservation=budget_reservation,
                 cost_usd=cost_usd,
                 model=model,
+                source_agent_id=agent_id,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 run_id=resolved_run_id,
                 trace_id=trace_id,
             )
 
-            # Prometheus instrumentation
-            LLM_REQUEST_DURATION.labels(model=model, agent_id=agent_id).observe(
-                latency_ms / 1000.0
+            self._record_llm_success_metrics(
+                model=model,
+                agent_id=agent_id,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=cost_usd,
+                latency_ms=latency_ms,
             )
 
             logger.info(
@@ -351,7 +674,14 @@ class LLMGateway:
                     )
 
             # Extract text response.
-            return response.content[0].text
+            text_parts = []
+            for block in response.content:
+                block_type = getattr(block, "type", None)
+                if not isinstance(block_type, str) and hasattr(block, "text"):
+                    block_type = "text"
+                if block_type == "text" and getattr(block, "text", None):
+                    text_parts.append(block.text)
+            return "".join(text_parts)
 
         except ContentSizeError:
             # Content-size is not a service failure — don't trip breaker
@@ -361,7 +691,9 @@ class LLMGateway:
             # All retries+fallback exhausted — record one breaker failure
             self._circuit_breaker.record_failure()
             latency_ms = int((time.time() - start_time) * 1000)
-            error_message = str(e)
+            error_message = self._safe_provider_error_message(e)
+            category = classify_error(e)
+            error_category = category.value
 
             logger.error(
                 "llm_call_failed",
@@ -369,7 +701,11 @@ class LLMGateway:
                 task_type=task_type,
                 model=model,
                 latency_ms=latency_ms,
-                error=error_message,
+                error_category=error_category,
+                retry_decision=_LLM_RETRY_DECISIONS[category],
+                operator_action=_LLM_OPERATOR_ACTIONS[category],
+                error_type=type(e).__name__,
+                error_fingerprint=hash_identifier(str(e), length=16),
             )
 
             if persist_callback:
@@ -433,7 +769,7 @@ class LLMGateway:
             while attempt < strategy.max_attempts:
                 attempt += 1
                 try:
-                    return await self.async_client.messages.create(**create_kwargs)
+                    return await self._provider_messages_create(create_kwargs)
                 except Exception as exc:
                     last_exc = exc
                     category = classify_error(exc)
@@ -566,7 +902,7 @@ class LLMGateway:
         Low-level messages.create wrapper with circuit breaker, retry, and cost tracking.
 
         Unlike ``complete()``, this accepts the full messages array, tools list,
-        and returns the raw Anthropic response object — suitable for tool-calling
+        and returns an Anthropic-like response object — suitable for tool-calling
         loops and streaming scenarios.
 
         Args:
@@ -586,12 +922,14 @@ class LLMGateway:
             run_id: Optional control-plane agent run ID for usage linkage.
 
         Returns:
-            Raw Anthropic Message response.
+            Anthropic-like message response.
 
         Raises:
             CircuitBreakerError: When circuit breaker is open.
-            anthropic.APIError: On unrecoverable API errors.
+            Exception: On unrecoverable provider errors.
         """
+        system = self._sanitize_prompt_payload(system)
+        messages = self._sanitize_prompt_payload(messages)
         model = model or settings.chat_model
         start_time = time.time()
         run_context = get_current_run_context()
@@ -676,15 +1014,20 @@ class LLMGateway:
                 reservation=budget_reservation,
                 cost_usd=cost_usd,
                 model=model,
+                source_agent_id=agent_id,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 run_id=resolved_run_id,
                 trace_id=trace_id,
             )
 
-            # Prometheus instrumentation
-            LLM_REQUEST_DURATION.labels(model=model, agent_id=agent_id).observe(
-                latency_ms / 1000.0
+            self._record_llm_success_metrics(
+                model=model,
+                agent_id=agent_id,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=cost_usd,
+                latency_ms=latency_ms,
             )
 
             logger.info(
@@ -715,8 +1058,22 @@ class LLMGateway:
         except ContentSizeError:
             raise
 
-        except Exception:
+        except Exception as e:
             self._circuit_breaker.record_failure()
+            latency_ms = int((time.time() - start_time) * 1000)
+            category = classify_error(e)
+            logger.error(
+                "llm_call_failed",
+                agent_id=agent_id,
+                task_type=task_type,
+                model=model,
+                latency_ms=latency_ms,
+                error_category=category.value,
+                retry_decision=_LLM_RETRY_DECISIONS[category],
+                operator_action=_LLM_OPERATOR_ACTIONS[category],
+                error_type=type(e).__name__,
+                error_fingerprint=hash_identifier(str(e), length=16),
+            )
             raise
 
     async def _call_messages_with_retry(self, kwargs: dict, _agent_id: str = "unknown"):
@@ -828,6 +1185,7 @@ class LLMGateway:
         reservation: ControlPlaneBudgetReservation | None,
         cost_usd: float,
         model: str,
+        source_agent_id: str,
         input_tokens: int,
         output_tokens: int,
         run_id: str | None,
@@ -841,11 +1199,12 @@ class LLMGateway:
             from shared.control_plane.database import control_plane_db_manager
             from shared.control_plane.repository import ControlPlaneRepository
 
+            budget_event: dict[str, Any] | None = None
             async with control_plane_db_manager.session() as session:
                 repo = ControlPlaneRepository(session)
                 if reservation is not None:
                     guard = BudgetGuard(repo)
-                    await guard.record_usage(
+                    usage = await guard.record_usage(
                         company_id=reservation.company_id,
                         budget_id=reservation.budget_id,
                         cost_usd=cost_usd,
@@ -855,6 +1214,18 @@ class LLMGateway:
                         run_id=run_id,
                         trace_id=trace_id,
                     )
+                    budget_event = {
+                        "company_id": reservation.company_id,
+                        "usage_id": usage.usage_id,
+                        "budget_id": reservation.budget_id,
+                        "cost_usd": cost_usd,
+                        "model": model,
+                        "source_agent_id": source_agent_id,
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "run_id": run_id,
+                        "trace_id": trace_id,
+                    }
                 if run_id is not None:
                     run = await repo.add_agent_run_usage(
                         run_id,
@@ -868,6 +1239,8 @@ class LLMGateway:
                             run_id=run_id,
                             trace_id=trace_id,
                         )
+            if budget_event is not None:
+                await publish_budget_usage_recorded(**budget_event)
         except Exception as exc:
             logger.warning(
                 "llm_control_plane_usage_record_failed",
@@ -983,6 +1356,15 @@ class LLMGateway:
         import asyncio
         asyncio.create_task(self._track_usage_redis(today, agent_id, input_tokens, output_tokens))
 
+    def _safe_provider_error_message(self, exc: BaseException) -> str:
+        """Return operator-useful provider failure evidence without raw text."""
+        category = classify_error(exc).value
+        error_type = type(exc).__name__
+        fingerprint = hash_identifier(str(exc), length=16)
+        if fingerprint:
+            return f"{category}:{error_type}:sha256:{fingerprint}"
+        return f"{category}:{error_type}"
+
     async def _track_usage_redis(self, today: str, agent_id: str, input_tokens: int, output_tokens: int):
         """Persist usage counters in Redis HASH for cross-worker accuracy."""
         r = await self._get_redis()
@@ -1014,6 +1396,7 @@ class LLMGateway:
     def estimate_cost(self, input_tokens: int, output_tokens: int, model: str = None) -> float:
         """Estimate cost in USD."""
         model = model or settings.default_model
+        model = self._anthropic_model_for_cost(model)
 
         # Claude pricing. Approximate values; check official pricing for current rates.
         pricing = {

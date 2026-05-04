@@ -1,8 +1,8 @@
 """
-OpenClawClient - OpenClaw Gateway WebSocket 客户端
+OpenClawClient - OpenClaw Gateway WebSocket client
 
-通过 WebSocket 连接 OpenClaw Gateway，使用 JSON-RPC 协议通信。
-支持自动重连、设备握手认证和事件回调。
+Connects to OpenClaw Gateway over WebSocket and communicates with JSON-RPC.
+Supports automatic reconnects, device handshake authentication, and event callbacks.
 """
 import asyncio
 import json
@@ -20,9 +20,9 @@ EventHandler = Callable[[str, dict], Coroutine[Any, Any, None]]
 
 class OpenClawClient:
     """
-    OpenClaw Gateway WebSocket 客户端
+    OpenClaw Gateway WebSocket client.
 
-    使用方式:
+    Usage:
         client = OpenClawClient(
             gateway_url="ws://127.0.0.1:18789",
             device_id="projectcell-001",
@@ -57,11 +57,11 @@ class OpenClawClient:
         return self._connected
 
     def on_event(self, handler: EventHandler) -> None:
-        """注册事件处理回调"""
+        """Register an event handler callback."""
         self._event_handlers.append(handler)
 
     async def connect(self) -> None:
-        """连接到 OpenClaw Gateway 并完成握手"""
+        """Connect to OpenClaw Gateway and complete the handshake."""
         self._closing = False
         delay = 1.0
 
@@ -90,7 +90,7 @@ class OpenClawClient:
                 delay = min(delay * 2, self._reconnect_max_delay)
 
     async def disconnect(self) -> None:
-        """断开连接"""
+        """Disconnect from OpenClaw Gateway."""
         self._closing = True
         self._connected = False
         if self._receive_task and not self._receive_task.done():
@@ -112,20 +112,20 @@ class OpenClawClient:
         timeout: float = 30.0,
     ) -> dict:
         """
-        发送 JSON-RPC 请求并等待响应
+        Send a JSON-RPC request and wait for the response.
 
         Args:
-            method: RPC 方法名
-            params: 参数字典
-            timeout: 超时秒数
+            method: RPC method name.
+            params: Parameter dictionary.
+            timeout: Timeout in seconds.
 
         Returns:
-            响应 result 字典
+            Response result dictionary.
 
         Raises:
-            ConnectionError: 未连接
-            TimeoutError: 请求超时
-            RuntimeError: RPC 错误
+            ConnectionError: The client is not connected.
+            TimeoutError: The request timed out.
+            RuntimeError: The RPC returned an error.
         """
         if not self._ws or not self._connected:
             raise ConnectionError("Not connected to OpenClaw Gateway")
@@ -157,11 +157,11 @@ class OpenClawClient:
 
     async def send_notification(self, method: str, params: Optional[dict] = None) -> None:
         """
-        发送 JSON-RPC 通知（无响应）
+        Send a JSON-RPC notification without waiting for a response.
 
         Args:
-            method: RPC 方法名
-            params: 参数字典
+            method: RPC method name.
+            params: Parameter dictionary.
         """
         if not self._ws or not self._connected:
             raise ConnectionError("Not connected to OpenClaw Gateway")
@@ -178,7 +178,7 @@ class OpenClawClient:
     # === Private Methods ===
 
     async def _handshake(self) -> None:
-        """完成 OpenClaw Gateway 握手"""
+        """Complete the OpenClaw Gateway handshake."""
         assert self._ws is not None
 
         handshake = {
@@ -206,7 +206,7 @@ class OpenClawClient:
         logger.info("openclaw_handshake_ok", device_id=self._device_id)
 
     async def _receive_loop(self) -> None:
-        """接收消息循环"""
+        """Receive and dispatch incoming WebSocket messages."""
         assert self._ws is not None
 
         try:
@@ -214,7 +214,10 @@ class OpenClawClient:
                 try:
                     msg = json.loads(raw)
                 except json.JSONDecodeError:
-                    logger.warning("openclaw_invalid_json", raw=str(raw)[:200])
+                    logger.warning(
+                        "openclaw_invalid_json",
+                        raw_length=len(str(raw)),
+                    )
                     continue
 
                 if "id" in msg and msg["id"] in self._pending:
@@ -229,7 +232,7 @@ class OpenClawClient:
             self._connected = False
 
     def _handle_response(self, msg: dict) -> None:
-        """处理 JSON-RPC 响应"""
+        """Handle a JSON-RPC response."""
         request_id = msg["id"]
         future = self._pending.pop(request_id, None)
         if future is None or future.done():
@@ -246,7 +249,7 @@ class OpenClawClient:
             future.set_result(msg.get("result", {}))
 
     async def _handle_event(self, msg: dict) -> None:
-        """分发事件到处理器"""
+        """Dispatch an OpenClaw event to registered handlers."""
         method = msg.get("method", "")
         params = msg.get("params", {})
 

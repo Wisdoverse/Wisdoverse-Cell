@@ -5,6 +5,7 @@ Drop-in replacement for the Redis EventBus implementing EventBusProtocol
 (connect, disconnect, publish, subscribe async generator).
 """
 import asyncio
+import hashlib
 from typing import AsyncGenerator
 
 import nats
@@ -23,16 +24,25 @@ logger = get_logger(__name__)
 
 STREAM_NAME = "PROJECT_EVENTS"
 SUBJECT_PREFIX = "events"
+_PROCESSED_EVENT_CACHE_LIMIT = 10_000
 
 
 class NATSEventBus:
     """NATS JetStream EventBus implementation."""
 
-    def __init__(self, nats_url: str, consumer_name: str = "requirement-manager"):
+    def __init__(
+        self,
+        nats_url: str,
+        consumer_name: str = "projectcell",
+        stream_replicas: int = 1,
+    ):
         self._nats_url = nats_url
         self._consumer_name = consumer_name
+        self._stream_replicas = stream_replicas
         self._nc: nats.NATS | None = None
         self._js = None
+        self._processed_event_ids: set[str] = set()
+        self._processed_event_order: list[str] = []
 
     @property
     def is_connected(self) -> bool:
@@ -44,6 +54,16 @@ class NATSEventBus:
             raise RuntimeError(
                 "NATSEventBus.connect() must be called before use"
             )
+
+    def _remember_processed_event(self, event_id: str) -> None:
+        """Keep a bounded in-process cache of successfully handled events."""
+        if event_id in self._processed_event_ids:
+            return
+        self._processed_event_ids.add(event_id)
+        self._processed_event_order.append(event_id)
+        while len(self._processed_event_order) > _PROCESSED_EVENT_CACHE_LIMIT:
+            expired = self._processed_event_order.pop(0)
+            self._processed_event_ids.discard(expired)
 
     # -- lifecycle callbacks ---------------------------------------------------
 
@@ -88,11 +108,15 @@ class NATSEventBus:
                     retention="limits",
                     max_age=7 * 24 * 3600 * 1_000_000_000,  # 7 days in nanoseconds
                     storage="file",
-                    num_replicas=3,
+                    num_replicas=self._stream_replicas,
                     discard="old",
                 )
             )
-            logger.info("nats_stream_created", stream=STREAM_NAME)
+            logger.info(
+                "nats_stream_created",
+                stream=STREAM_NAME,
+                replicas=self._stream_replicas,
+            )
 
         logger.info("nats_event_bus_connected", servers=servers)
 
@@ -108,6 +132,7 @@ class NATSEventBus:
         subject = f"{SUBJECT_PREFIX}.{event.event_type}"
         data = event.model_dump_json().encode()
         headers = {}
+        headers["Nats-Msg-Id"] = event.event_id
         if event.metadata and event.metadata.trace_id:
             headers["trace-id"] = event.metadata.trace_id
 
@@ -170,13 +195,27 @@ class NATSEventBus:
                             "nats_event_parse_error",
                             error=str(e),
                             subject=msg.subject,
-                            data_preview=msg.data[:200] if msg.data else None,
+                            payload_bytes=len(msg.data) if msg.data else 0,
+                            payload_sha256=(
+                                hashlib.sha256(msg.data).hexdigest() if msg.data else None
+                            ),
                         )
                         await msg.nak()
                         continue
 
+                    if event.event_id in self._processed_event_ids:
+                        logger.info(
+                            "nats_event_duplicate_skipped",
+                            event_id=event.event_id,
+                            event_type=event.event_type,
+                            subject=msg.subject,
+                        )
+                        await msg.ack()
+                        continue
+
                     yield event
 
+                    self._remember_processed_event(event.event_id)
                     try:
                         await msg.ack()
                     except Exception as e:
@@ -235,3 +274,11 @@ class NATSEventBus:
                 error=str(e),
             )
             return -1
+
+    async def get_dead_letter_count(self) -> int:
+        """NATS uses native redelivery; no Redis-style DLQ stream is exposed."""
+        return 0
+
+    async def list_dead_letters(self, limit: int = 50) -> list[Event]:
+        """NATS uses native redelivery; no Redis-style DLQ stream is exposed."""
+        return []

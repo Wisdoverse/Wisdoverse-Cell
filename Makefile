@@ -7,52 +7,65 @@ PYTEST ?= python -m pytest
 PYTEST_PUBLIC_PATHS = \
 	tests/unit/test_config_secrets.py \
 	tests/unit/test_middleware.py \
+	agents/requirement_manager/tests/integrations/feishu \
 	shared/integrations/feishu/tests \
 	shared/integrations/wecom/tests \
 	shared/tests/test_event_payloads.py \
-	agents/capabilities/requirements/tests/test_grpc_servicer.py
+	agents/requirement_manager/tests/test_grpc_servicer.py
 
 PYTEST_UNIT_PATHS = \
 	tests/unit \
 	shared/tests/unit \
 	shared/infra/tests/test_vector_store.py \
 	shared/tests/test_event_payloads.py \
+	agents/requirement_manager/tests/integrations/feishu \
 	shared/integrations/feishu/tests \
 	shared/integrations/wecom/tests \
-	agents/capabilities/requirements/tests/test_grpc_servicer.py
+	agents/requirement_manager/tests/test_grpc_servicer.py
 
 PYTEST_UNIT_FULL_ARGS = \
 	tests/unit \
 	shared/tests/unit \
+	shared/capabilities/*/tests/unit \
+	services/*/*/tests/unit \
+	agents/*/tests/unit \
 	agents/*/*/tests/unit \
-	skills/tests \
+	agents/requirement_manager/skills/tests/compat_root \
+	agents/requirement_manager/tests/integrations/feishu \
 	shared/integrations/feishu/tests \
 	shared/integrations/wecom/tests \
-	agents/capabilities/requirements/tests/test_grpc_servicer.py \
-	--ignore=skills/tests/test_skills_integration.py
+	agents/requirement_manager/tests/test_grpc_servicer.py \
+	--ignore=agents/requirement_manager/skills/tests/compat_root/test_skills_integration.py
 
 PYTEST_INTEGRATION_PATHS = \
 	tests/integration \
 	shared/tests/integration \
+	shared/capabilities/*/tests/integration \
+	services/*/*/tests/integration \
+	agents/*/tests/integration \
 	agents/*/*/tests/integration \
 	shared/messaging/outbound/tests/integration
 
 PYTEST_E2E_PATHS = \
 	tests/e2e \
-	agents/capabilities/requirements/tests/e2e
+	agents/requirement_manager/tests/e2e
 
 # === Proto Generation ===
 
 proto: proto-python proto-go
 
 proto-python:
-	@echo "Generating Python gRPC code..."
+	@echo "Generating Python requirements gRPC code..."
 	python -m grpc_tools.protoc \
-		-I shared/grpc/proto \
-		--python_out=shared/grpc/generated \
-		--grpc_python_out=shared/grpc/generated \
-		shared/grpc/proto/requirement.proto
-	@echo "Python gRPC code generated."
+		-I agents/requirement_manager/grpc/proto \
+		--python_out=agents/requirement_manager/grpc \
+		--grpc_python_out=agents/requirement_manager/grpc \
+		agents/requirement_manager/grpc/proto/requirement.proto
+	sed -i 's/^import requirement_pb2/from agents.requirement_manager.grpc import requirement_pb2/' \
+		agents/requirement_manager/grpc/requirement_pb2_grpc.py
+	sed -i '/from google.protobuf.internal import builder as _builder/a\\' \
+		agents/requirement_manager/grpc/requirement_pb2.py
+	@echo "Python requirements gRPC code generated."
 
 proto-go:
 	@echo "Generating Go gRPC code..."
@@ -70,10 +83,10 @@ setup:
 	.venv/bin/pip install -r requirements.txt
 
 dev:
-	uvicorn agents.capabilities.requirements.app.main:app --reload --port 8000
+	uvicorn agents.requirement_manager.app.main:app --reload --port 8000
 
 grpc-server:
-	python -m shared.grpc.server
+	python -m agents.requirement_manager.grpc.server
 
 # === Testing ===
 
@@ -167,27 +180,27 @@ logs:
 	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) logs -f
 
 logs-app:
-	docker compose $(COMPOSE_APP) logs -f
+	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) logs -f
 
 ps:
 	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) ps
 
 # Build
 build:
-	docker compose $(COMPOSE_APP) build
+	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) build
 
 build-no-cache:
-	docker compose $(COMPOSE_APP) build --no-cache
+	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) build --no-cache
 
 # Scaling
 scale-gateway: ## Scale Gateway replicas (usage: make scale-gateway N=5)
-	docker compose $(COMPOSE_APP) up -d --scale gateway=$(N) --no-recreate
+	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) up -d --scale gateway=$(N) --no-recreate
 
-scale-ai-core: ## Scale AI Core replicas (usage: make scale-ai-core N=5)
-	docker compose $(COMPOSE_APP) up -d --scale ai-core=$(N) --no-recreate
+scale-ai-core: ## Scale requirement manager agent replicas (ai-core runtime id; usage: make scale-ai-core N=5)
+	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) up -d --scale ai-core=$(N) --no-recreate
 
 scale-web: ## Scale Web frontend replicas (usage: make scale-web N=3)
-	docker compose $(COMPOSE_APP) up -d --scale web=$(N) --no-recreate
+	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) up -d --scale web=$(N) --no-recreate
 
 
 # Monitoring (optional — needs base for infra exporters)
@@ -256,7 +269,7 @@ help:
 	@echo "  make ps              - Show running containers"
 	@echo "  make build           - Build Docker images"
 	@echo "  make scale-gateway N=5  - Scale Gateway replicas"
-	@echo "  make scale-ai-core N=5  - Scale AI Core replicas"
+	@echo "  make scale-ai-core N=5  - Scale requirement manager agent replicas (ai-core runtime id)"
 	@echo ""
 	@echo "Docker (Legacy):"
 	@echo "  make up              - Start with root docker-compose.yml"

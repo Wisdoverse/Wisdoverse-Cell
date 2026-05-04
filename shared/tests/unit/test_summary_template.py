@@ -1,12 +1,12 @@
-"""StructuredSummaryTemplate 单元测试
+"""StructuredSummaryTemplate unit tests.
 
-测试覆盖:
-1. 默认模板生成 system prompt 包含 9 个结构化段落
-2. 从对话中提取结构化输入
-3. 解析 LLM 的结构化响应
-4. 未找到结构标记时回退为纯文本
-5. 自定义段落配置
-6. 与 summarize_history 集成（结构化输出作为 boundary content）
+Coverage:
+1. Default template system prompt contains 9 structured sections.
+2. Structured input extraction from conversation messages.
+3. Structured LLM response parsing.
+4. Plain-text fallback when no section markers are found.
+5. Custom section configuration.
+6. Integration with summarize_history, using structured output as boundary content.
 """
 
 import pytest
@@ -144,23 +144,23 @@ class TestIntegrationWithCompressor:
         assert len(system_prompt) > 100  # Not a trivial prompt
 
         # 2. Simulate LLM response with structured output
-        mock_response = """## 用户意图
-查询项目任务并更新进度
+        mock_response = """## User Intent
+Query project tasks and update progress
 
-## 工具调用
+## Tool Calls
 list_tasks, update_progress
 
-## 关键数据
-- 5个活跃任务
-- 2个已完成
+## Key Data
+- 5 active tasks
+- 2 completed tasks
 
-## 待办事项
-继续更新剩余任务"""
+## Open Tasks
+Continue updating remaining tasks"""
 
         # 3. Parse and format as boundary content
         sections = parse_structured_summary(mock_response)
         boundary_content = template.format_boundary(sections)
 
-        assert "[对话已压缩]" in boundary_content
-        assert "用户意图" in boundary_content
-        assert "待办事项" in boundary_content
+        assert "[Conversation compacted]" in boundary_content
+        assert "User Intent" in boundary_content
+        assert "Open Tasks" in boundary_content

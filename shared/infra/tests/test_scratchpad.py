@@ -1,4 +1,6 @@
 """Tests for Scratchpad file-based state management."""
+from types import SimpleNamespace
+
 import pytest
 import pytest_asyncio
 
@@ -68,6 +70,31 @@ async def test_append_decision_log(scratchpad):
     content = await scratchpad.read_decision_log()
     assert "Dispatched dev-agent" in content
     assert "QA requested" in content
+
+
+@pytest.mark.asyncio
+async def test_update_records_decisions_in_log_and_workflow(scratchpad):
+    await scratchpad.write_workflow("wf_001", "Existing context")
+    decision = SimpleNamespace(
+        action="dispatch_task",
+        target_agent="dev-agent",
+        task_id="task_001",
+        workflow_id="wf_001",
+        reasoning="PRD approved",
+        instruction="Implement the approved requirement",
+    )
+
+    await scratchpad.update([decision])
+
+    decision_log = await scratchpad.read_decision_log()
+    assert "action: dispatch_task" in decision_log
+    assert "target_agent: dev-agent" in decision_log
+    assert "workflow_id: wf_001" in decision_log
+    assert "reasoning: PRD approved" in decision_log
+
+    workflow = await scratchpad.read_workflow("wf_001")
+    assert "Existing context" in workflow
+    assert "instruction: Implement the approved requirement" in workflow
 
 
 @pytest.mark.asyncio

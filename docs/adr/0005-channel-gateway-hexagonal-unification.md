@@ -10,7 +10,8 @@ The messaging layer previously had three overlapping channel systems:
 
 - `shared/services/channels/` for low-level channel abstractions.
 - `shared/services/gateway/` for inbound message gateway behavior.
-- `shared/services/channel_gateway/` for outbound adapter behavior.
+- `services/gateways/channel/` for the channel gateway runtime boundary.
+- `shared/messaging/outbound/` for reusable outbound adapter behavior.
 
 That overlap caused import ambiguity, duplicated type definitions, and
 cross-dependencies that were hard to test independently.

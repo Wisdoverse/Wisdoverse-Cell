@@ -14,7 +14,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+} from "@/shared/ui/collapsible";
 import type { AgentFleetFiltersState } from "./agent-fleet-filters";
 
 interface AgentFleetOverviewProps {
@@ -25,9 +25,10 @@ interface AgentFleetOverviewProps {
 
 const kindOrder: Record<string, number> = {
   organization_role: 0,
-  integration_gateway: 1,
-  capability_module: 2,
-  system_worker: 3,
+  business_runtime_agent: 1,
+  integration_gateway: 2,
+  capability_module: 3,
+  system_worker: 4,
 };
 
 export function AgentFleetOverview({
@@ -42,6 +43,9 @@ export function AgentFleetOverview({
   function matchesFilters(agent: AgentMeta): boolean {
     const runtime = runtimes[agent.id];
     if (filters.status !== "all" && runtime?.status !== filters.status) {
+      return false;
+    }
+    if (filters.agentKind !== "all" && agent.agentKind !== filters.agentKind) {
       return false;
     }
 

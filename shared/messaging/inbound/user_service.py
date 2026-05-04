@@ -1,15 +1,17 @@
 # shared/services/gateway/user_service.py
 """
-UserService - 用户身份管理服务
+UserService - user identity management service.
 
-负责跨平台用户身份映射，通过邮箱关联不同平台账号。
+Handles cross-platform user identity mapping and links platform accounts by
+email.
 """
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Optional
 
+from shared.core.ids import IDPrefix, generate_id
 from shared.db.repository import UserRepository
 from shared.models.user import User
-from shared.utils.id_generator import IDPrefix, generate_id
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from .models import Platform
@@ -24,15 +26,15 @@ logger = get_logger("gateway.user_service")
 
 class UserService:
     """
-    用户身份管理服务
+    User identity management service.
 
-    职责：
-    1. 平台用户 ID → 统一用户映射
-    2. 自动创建/关联用户
-    3. 缓存用户信息
+    Responsibilities:
+    1. Map platform user IDs to unified users.
+    2. Create or link users automatically.
+    3. Cache user information.
     """
 
-    CACHE_TTL = 3600  # 1 小时缓存
+    CACHE_TTL = 3600  # One-hour cache.
     CACHE_PREFIX = "user"
 
     def __init__(
@@ -43,16 +45,16 @@ class UserService:
     ):
         """
         Args:
-            db: DatabaseManager 实例
-            redis: Redis 客户端（用于缓存）
-            adapters: 平台适配器字典
+            db: DatabaseManager instance.
+            redis: Redis client used for caching.
+            adapters: Platform adapter dictionary.
         """
         self.db = db
         self.redis = redis
         self.adapters = adapters or {}
 
     def set_adapters(self, adapters: dict[Platform, "BasePlatformAdapter"]) -> None:
-        """设置平台适配器（避免循环依赖）"""
+        """Set platform adapters and avoid circular imports."""
         self.adapters = adapters
 
     async def resolve_user(
@@ -61,50 +63,54 @@ class UserService:
         platform_user_id: str,
     ) -> User:
         """
-        解析平台用户 → 统一用户
+        Resolve a platform user to a unified user.
 
-        流程：
-        1. 查缓存
-        2. 查数据库（按平台 ID）
-        3. 无记录 → 调 API 获取邮箱 → 查/建用户
+        Flow:
+        1. Check cache.
+        2. Query the database by platform ID.
+        3. If missing, call the platform API for email, then find or create the user.
 
         Args:
-            platform: 平台类型
-            platform_user_id: 平台用户 ID
+            platform: Platform type.
+            platform_user_id: Platform user ID.
 
         Returns:
-            统一用户对象
+            Unified user object.
         """
-        # 1. 查缓存
+        # 1. Check cache.
         cache_key = self._cache_key(platform, platform_user_id)
         if self.redis:
             cached = await self.redis.get(cache_key)
             if cached:
-                logger.debug("user_cache_hit", platform=platform.value, user_id=platform_user_id)
+                logger.debug(
+                    "user_cache_hit",
+                    platform=platform.value,
+                    user_hash=hash_identifier(platform_user_id),
+                )
                 return self._deserialize_user(cached)
 
-        # 2. 查数据库
+        # 2. Query database.
         async with self.db.session() as session:
             repo = UserRepository(session)
 
             user = await repo.get_by_platform_id(platform, platform_user_id)
 
             if not user:
-                # 3. 创建或关联用户
+                # 3. Create or link user.
                 user = await self._create_or_link_user(
                     repo, platform, platform_user_id
                 )
 
-            # 更新活跃时间
+            # Update active timestamp.
             user.last_active_at = datetime.now(UTC)
             user.last_active_platform = platform.value
             await repo.update(user)
             await session.commit()
 
-            # 刷新以获取完整数据
+            # Refresh to load the full model.
             await session.refresh(user)
 
-        # 写缓存
+        # Write cache.
         if self.redis:
             await self.redis.setex(
                 cache_key,
@@ -115,7 +121,7 @@ class UserService:
         return user
 
     async def get_user_by_id(self, user_id: str) -> Optional[User]:
-        """通过统一用户 ID 获取用户"""
+        """Get a user by unified user ID."""
         async with self.db.session() as session:
             repo = UserRepository(session)
             return await repo.get_by_id(user_id)
@@ -125,7 +131,7 @@ class UserService:
         platform: Platform,
         platform_user_id: str,
     ) -> None:
-        """使缓存失效"""
+        """Invalidate a cached user mapping."""
         if self.redis:
             cache_key = self._cache_key(platform, platform_user_id)
             await self.redis.delete(cache_key)
@@ -139,34 +145,35 @@ class UserService:
         platform_user_id: str,
     ) -> User:
         """
-        创建新用户或关联到已有用户
+        Create a new user or link to an existing user.
 
-        通过邮箱查找已有用户进行关联，否则创建新用户。
+        Uses email to find and link an existing user; otherwise creates a new
+        user.
         """
         adapter = self.adapters.get(platform)
         if not adapter:
             logger.warning("adapter_not_found", platform=platform.value)
             return await self._create_new_user(repo, platform, platform_user_id, None, "Unknown")
 
-        # 获取用户信息
+        # Fetch user info.
         email = await adapter.get_user_email(platform_user_id)
         name = await adapter.get_user_name(platform_user_id) or "Unknown"
 
         if email:
-            # 尝试通过邮箱找已有用户
+            # Try to find an existing user by email.
             existing_user = await repo.get_by_email(email)
             if existing_user:
-                # 关联平台账号
+                # Link the platform account.
                 self._set_platform_id(existing_user, platform, platform_user_id)
                 logger.info(
                     "user_linked",
-                    user_id=existing_user.id,
+                    user_hash=hash_identifier(existing_user.id),
                     platform=platform.value,
-                    platform_user_id=platform_user_id,
+                    platform_user_hash=hash_identifier(platform_user_id),
                 )
                 return existing_user
 
-        # 创建新用户
+        # Create a new user.
         return await self._create_new_user(repo, platform, platform_user_id, email, name)
 
     async def _create_new_user(
@@ -177,7 +184,7 @@ class UserService:
         email: Optional[str],
         name: str,
     ) -> User:
-        """创建新用户"""
+        """Create a new user."""
         user = User(
             id=generate_id(IDPrefix.USER),
             email=email,
@@ -189,10 +196,10 @@ class UserService:
 
         logger.info(
             "user_created",
-            user_id=user.id,
+            user_hash=hash_identifier(user.id),
             platform=platform.value,
-            platform_user_id=platform_user_id,
-            email=email,
+            platform_user_hash=hash_identifier(platform_user_id),
+            email_hash=hash_identifier(email),
         )
 
         return user
@@ -203,7 +210,7 @@ class UserService:
         platform: Platform,
         platform_user_id: str,
     ) -> None:
-        """设置用户的平台 ID"""
+        """Set the user's platform ID."""
         if platform == Platform.FEISHU:
             user.feishu_open_id = platform_user_id
         elif platform == Platform.WECOM:
@@ -212,11 +219,11 @@ class UserService:
             user.web_user_id = platform_user_id
 
     def _cache_key(self, platform: Platform, platform_user_id: str) -> str:
-        """生成缓存 key"""
+        """Generate a cache key."""
         return f"{self.CACHE_PREFIX}:{platform.value}:{platform_user_id}"
 
     def _serialize_user(self, user: User) -> str:
-        """序列化用户对象用于缓存"""
+        """Serialize a user object for cache storage."""
         import json
         return json.dumps({
             "id": user.id,
@@ -234,7 +241,7 @@ class UserService:
         })
 
     def _deserialize_user(self, data: str | bytes) -> User:
-        """从缓存反序列化用户对象"""
+        """Deserialize a user object from cache."""
         import json
         if isinstance(data, bytes):
             data = data.decode("utf-8")
@@ -254,7 +261,7 @@ class UserService:
             last_active_platform=obj.get("last_active_platform"),
         )
 
-        # 解析时间
+        # Parse timestamps.
         if obj.get("created_at"):
             user.created_at = datetime.fromisoformat(obj["created_at"])
         if obj.get("last_active_at"):

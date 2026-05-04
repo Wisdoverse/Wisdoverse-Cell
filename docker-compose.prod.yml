@@ -11,6 +11,7 @@
 #   - Stricter resource limits
 #   - No debug ports exposed
 #   - Health check optimizations
+#   - Explicit INTERNAL_TRANSPORT_PROTECTION declaration
 #
 # =============================================================================
 
@@ -18,6 +19,7 @@ services:
   ai-core:
     image: ${REGISTRY}projectcell/ai-core:${VERSION}
     build: !reset null
+    container_name: !reset null
     environment:
       DEBUG: "false"
       LOG_LEVEL: INFO
@@ -44,6 +46,7 @@ services:
   gateway:
     image: ${REGISTRY}projectcell/gateway:${VERSION}
     build: !reset null
+    container_name: !reset null
     environment:
       GATEWAY_SERVER_MODE: release
       GATEWAY_LOG_LEVEL: info
@@ -66,7 +69,184 @@ services:
         delay: 5s
         max_attempts: 3
 
+  sync-agent:
+    image: ${REGISTRY}projectcell/sync-agent:${VERSION}
+    build: !reset null
+    container_name: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:?SYNC_AGENT_DB_PASSWORD is required}
+    deploy:
+      replicas: ${SYNC_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  analysis-agent:
+    image: ${REGISTRY}projectcell/analysis-agent:${VERSION}
+    build: !reset null
+    container_name: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:?ANALYSIS_AGENT_DB_PASSWORD is required}
+    deploy:
+      replicas: ${ANALYSIS_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  pjm-agent:
+    image: ${REGISTRY}projectcell/pjm-agent:${VERSION}
+    build: !reset null
+    container_name: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${PM_AGENT_DB_PASSWORD:?PM_AGENT_DB_PASSWORD is required}
+    deploy:
+      replicas: ${PM_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  chat-agent:
+    image: ${REGISTRY}projectcell/chat-agent:${VERSION}
+    build: !reset null
+    container_name: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:?CHAT_AGENT_DB_PASSWORD is required}
+    deploy:
+      replicas: ${CHAT_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  qa-agent:
+    image: ${REGISTRY}projectcell/qa-agent:${VERSION}
+    build: !reset null
+    container_name: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${QA_AGENT_DB_PASSWORD:?QA_AGENT_DB_PASSWORD is required}
+    deploy:
+      replicas: ${QA_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  dev-agent:
+    image: ${REGISTRY}projectcell/dev-agent:${VERSION}
+    build: !reset null
+    container_name: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${DEV_AGENT_DB_PASSWORD:?DEV_AGENT_DB_PASSWORD is required}
+    deploy:
+      replicas: ${DEV_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  evolution-agent:
+    image: ${REGISTRY}projectcell/evolution-agent:${VERSION}
+    build: !reset null
+    container_name: !reset null
+    environment:
+      DEBUG: "false"
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:?EVOLUTION_AGENT_DB_PASSWORD is required}
+    deploy:
+      replicas: ${EVOLUTION_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
   postgres:
+    environment:
+      APP_ENV: production
+      CHAT_AGENT_DB_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:?CHAT_AGENT_DB_PASSWORD is required}
+      PM_AGENT_DB_PASSWORD: ${PM_AGENT_DB_PASSWORD:?PM_AGENT_DB_PASSWORD is required}
+      SYNC_AGENT_DB_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:?SYNC_AGENT_DB_PASSWORD is required}
+      ANALYSIS_AGENT_DB_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:?ANALYSIS_AGENT_DB_PASSWORD is required}
+      QA_AGENT_DB_PASSWORD: ${QA_AGENT_DB_PASSWORD:?QA_AGENT_DB_PASSWORD is required}
+      DEV_AGENT_DB_PASSWORD: ${DEV_AGENT_DB_PASSWORD:?DEV_AGENT_DB_PASSWORD is required}
+      EVOLUTION_AGENT_DB_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:?EVOLUTION_AGENT_DB_PASSWORD is required}
     ports: !reset []  # Don't expose in production
     deploy:
       resources:

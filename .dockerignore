@@ -52,7 +52,10 @@ secrets/
 # ------------------------------------------------------------------------------
 # Testing & Coverage
 # ------------------------------------------------------------------------------
+tests/
+**/tests/
 .pytest_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 .tox/
@@ -71,6 +74,12 @@ docs/
 # ------------------------------------------------------------------------------
 # Local Development
 # ------------------------------------------------------------------------------
+.ai_context/
+.claude/
+.playwright-mcp/
+.ralph/
+.remember/
+.worktrees/
 .mise.toml
 .tool-versions
 Makefile
@@ -115,3 +124,5 @@ docker/prometheus/
 frontend/node_modules
 frontend/.next
 frontend/.env.local
+frontend/next-env.d.ts
+frontend/tsconfig.tsbuildinfo

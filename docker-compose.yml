@@ -2,19 +2,19 @@
 # Wisdoverse Cell - Docker Compose (Base Configuration)
 # =============================================================================
 #
-# 大厂标准配置:
-# - 环境变量外部化 (.env)
-# - 资源限制 (CPU/Memory)
-# - 健康检查
-# - 日志配置
-# - 网络隔离
-# - 安全最佳实践
+# Production-grade defaults:
+# - Externalized environment variables (.env)
+# - CPU and memory limits
+# - Health checks
+# - Structured log rotation
+# - Network isolation
+# - Security-oriented defaults
 #
 # Usage:
-#   docker compose up -d                     # 启动所有服务
-#   docker compose --profile monitoring up   # 启动监控组件
-#   docker compose logs -f gateway           # 查看日志
-#   docker compose down -v                   # 停止并清理
+#   docker compose up -d                     # Start all services
+#   docker compose --profile monitoring up   # Start monitoring stack
+#   docker compose logs -f gateway           # Follow gateway logs
+#   docker compose down -v                   # Stop and remove volumes
 #
 # =============================================================================
 
@@ -30,6 +30,32 @@ x-python-mirror-args: &python-mirror-args
   PIP_INDEX_URL: ${PIP_INDEX_URL:-}
   PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
   APT_MIRROR: ${APT_MIRROR:-}
+
+x-llm-env: &llm-env
+  LLM_PROVIDER: ${LLM_PROVIDER:-litellm}
+  DEFAULT_MODEL: ${DEFAULT_MODEL:-anthropic/claude-sonnet-4-20250514}
+  CHAT_MODEL: ${CHAT_MODEL:-anthropic/claude-sonnet-4-20250514}
+  SUMMARY_MODEL: ${SUMMARY_MODEL:-anthropic/claude-haiku-4-5-20251001}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  LITELLM_API_BASE: ${LITELLM_API_BASE:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+
+x-app-security-env: &app-security-env
+  SECRET_KEY: ${SECRET_KEY:-dev-only-change-in-production}
+  PM_API_KEY: ${PM_API_KEY:-}
+  INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
+  INTERNAL_TRANSPORT_PROTECTION: ${INTERNAL_TRANSPORT_PROTECTION:-}
+  A2A_JWT_SECRET: ${A2A_JWT_SECRET:-dev-only-change-in-production}
+  CONTROL_PLANE_ENABLED: ${CONTROL_PLANE_ENABLED:-false}
+  CONTROL_PLANE_COMPANY_ID: ${CONTROL_PLANE_COMPANY_ID:-cmp_projectcell}
+  CONTROL_PLANE_APPROVAL_ENFORCED: ${CONTROL_PLANE_APPROVAL_ENFORCED:-false}
+  CONTROL_PLANE_LLM_BUDGET_ENFORCED: ${CONTROL_PLANE_LLM_BUDGET_ENFORCED:-false}
+  CONTROL_PLANE_TOOL_BUDGET_ENFORCED: ${CONTROL_PLANE_TOOL_BUDGET_ENFORCED:-false}
+  CONTROL_PLANE_LOCAL_ADAPTER_ENABLED: ${CONTROL_PLANE_LOCAL_ADAPTER_ENABLED:-false}
+  CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST: ${CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST:-}
 
 x-healthcheck-defaults: &healthcheck-defaults
   interval: 30s
@@ -57,6 +83,13 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-projectcell}
       POSTGRES_USER: ${POSTGRES_USER:-projectcell}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      CHAT_AGENT_DB_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:-chat_agent_dev}
+      PM_AGENT_DB_PASSWORD: ${PM_AGENT_DB_PASSWORD:-pjm_agent_dev}
+      SYNC_AGENT_DB_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:-sync_agent_dev}
+      ANALYSIS_AGENT_DB_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:-analysis_agent_dev}
+      QA_AGENT_DB_PASSWORD: ${QA_AGENT_DB_PASSWORD:-qa_agent_dev}
+      DEV_AGENT_DB_PASSWORD: ${DEV_AGENT_DB_PASSWORD:-dev_agent_dev}
+      EVOLUTION_AGENT_DB_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:-evolution_agent_dev}
       PGDATA: /var/lib/postgresql/data/pgdata
       # Performance tuning
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
@@ -88,14 +121,18 @@ services:
     image: redis:8-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-redis
     hostname: redis
-    command: >
-      redis-server
-      --appendonly yes
-      --maxmemory 256mb
-      --maxmemory-policy noeviction
-      --requirepass ${REDIS_PASSWORD:-}
-      --tcp-keepalive 60
-      --timeout 0
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        REDIS_ARGS="--appendonly yes --maxmemory 256mb --maxmemory-policy noeviction --tcp-keepalive 60 --timeout 0"
+        if [ -n "$$REDIS_PASSWORD" ]; then
+          exec redis-server $$REDIS_ARGS --requirepass "$$REDIS_PASSWORD"
+        fi
+        exec redis-server $$REDIS_ARGS
     volumes:
       - redis_data:/data
     ports:
@@ -104,7 +141,7 @@ services:
       - backend
     healthcheck:
       <<: *healthcheck-defaults
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "if [ -n \"$${REDIS_PASSWORD:-}\" ]; then redis-cli -a \"$${REDIS_PASSWORD}\" ping; else redis-cli ping; fi"]
       interval: 10s
     deploy:
       <<: *deploy-defaults
@@ -188,7 +225,7 @@ services:
       API_HOST: "0.0.0.0"
       API_PORT: "8000"
       # LLM
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      <<: [*llm-env, *app-security-env]
       # Application
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
@@ -197,6 +234,7 @@ services:
       # Tracing (optional)
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-}
       OTEL_SERVICE_NAME: ai-core
+      EVENT_BUS_CONSUMER_NAME: requirement-manager
       # Inter-service communication
       PM_AGENT_URL: http://pjm-agent:8012
     ports:
@@ -304,7 +342,7 @@ services:
       - "com.projectcell.version=${VERSION:-dev}"
 
   # ===========================================================================
-  # PM System Agents
+  # Business runtime agents and support services
   # ===========================================================================
 
   sync-agent:
@@ -335,6 +373,7 @@ services:
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
       FEISHU_BITABLE_APP_TOKEN: ${FEISHU_BITABLE_APP_TOKEN:-}
       FEISHU_BITABLE_TABLE_ID: ${FEISHU_BITABLE_TABLE_ID:-}
+      <<: *app-security-env
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
     ports:
@@ -390,6 +429,7 @@ services:
       FEISHU_PM_APP_TOKEN: ${FEISHU_PM_APP_TOKEN:-}
       FEISHU_PM_TASK_TABLE_ID: ${FEISHU_PM_TASK_TABLE_ID:-}
       FEISHU_REPORT_CHAT_ID: ${FEISHU_REPORT_CHAT_ID:-}
+      <<: *app-security-env
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
     ports:
@@ -415,6 +455,60 @@ services:
     stop_grace_period: 35s
     labels:
       - "com.projectcell.service=analysis-agent"
+      - "com.projectcell.tier=application"
+
+  evolution-agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agents
+      target: evolution-agent
+      args:
+        <<: *python-mirror-args
+        VERSION: ${VERSION:-dev}
+        BUILD_DATE: ${BUILD_DATE:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    image: ${REGISTRY:-}projectcell/evolution-agent:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-evolution-agent
+    hostname: evolution-agent
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_USER: ${EVOLUTION_AGENT_DB_USER:-evolution_agent}
+      POSTGRES_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:-evolution_agent_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "7"
+      <<: [*llm-env, *app-security-env]
+      EVOLUTION_ENABLED: ${EVOLUTION_ENABLED:-true}
+      EVOLUTION_COLLABORATION_ENABLED: ${EVOLUTION_COLLABORATION_ENABLED:-false}
+      APP_ENV: ${APP_ENV:-development}
+      DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: evolution-agent
+      EVENT_BUS_CONSUMER_NAME: evolution-agent
+    ports:
+      - "${EVOLUTION_AGENT_PORT:-8016}:8016"
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "curl", "-f", "http://localhost:8016/health/ready"]
+    deploy:
+      <<: *deploy-defaults
+      update_config:
+        order: start-first
+        failure_action: rollback
+        parallelism: 1
+    logging: *default-logging
+    restart: unless-stopped
+    stop_grace_period: 35s
+    labels:
+      - "com.projectcell.service=evolution-agent"
       - "com.projectcell.tier=application"
 
   pjm-agent:
@@ -450,12 +544,13 @@ services:
       FEISHU_REPORT_CHAT_ID: ${FEISHU_REPORT_CHAT_ID:-}
       OPENPROJECT_URL: ${OPENPROJECT_URL:-}
       OPENPROJECT_API_KEY: ${OPENPROJECT_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      <<: [*llm-env, *app-security-env]
       DECOMPOSE_PROJECT_IDS: ${DECOMPOSE_PROJECT_IDS:-}
       DECOMPOSE_NOTIFY_OPEN_ID: ${DECOMPOSE_NOTIFY_OPEN_ID:-}
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: pjm-agent
+      EVENT_BUS_CONSUMER_NAME: pjm-agent
     ports:
       - "${PM_AGENT_PORT:-8012}:8012"
     networks:
@@ -509,13 +604,14 @@ services:
       GITLAB_QA_TOKEN: ${GITLAB_QA_TOKEN:-}
       QA_FEISHU_WEBHOOK_URL: ${QA_FEISHU_WEBHOOK_URL:-}
       QA_HIGH_SEVERITY_CHECKS: ${QA_HIGH_SEVERITY_CHECKS:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      <<: [*llm-env, *app-security-env]
       FEISHU_APP_ID: ${FEISHU_APP_ID:-}
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
       FEISHU_WEBHOOK_URL: ${FEISHU_WEBHOOK_URL:-}
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: qa-agent
+      EVENT_BUS_CONSUMER_NAME: qa-agent
     ports:
       - "${QA_AGENT_PORT:-8014}:8014"
     networks:
@@ -564,8 +660,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "6"
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      <<: [*llm-env, *app-security-env]
       DEV_GITLAB_API_URL: ${GITLAB_API_URL:-}
       DEV_GITLAB_PROJECT_ID: ${GITLAB_PROJECT_ID:-0}
       DEV_GITLAB_TOKEN: ${GITLAB_DEV_TOKEN:-}
@@ -573,6 +668,8 @@ services:
       AGENTFORGE_TOKEN: ${AGENTFORGE_TOKEN:-}
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: dev-agent
+      EVENT_BUS_CONSUMER_NAME: dev-agent
     ports:
       - "${DEV_AGENT_PORT:-8015}:8015"
     networks:
@@ -624,8 +721,7 @@ services:
       FEISHU_APP_ID: ${FEISHU_APP_ID:-}
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
       FEISHU_VERIFY_SIGNATURE: "false"  # Gateway handles verification
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      <<: [*llm-env, *app-security-env]
       OPENPROJECT_URL: ${OPENPROJECT_URL:-}
       OPENPROJECT_API_KEY: ${OPENPROJECT_API_KEY:-}
       FEISHU_BITABLE_APP_TOKEN: ${FEISHU_BITABLE_APP_TOKEN:-}

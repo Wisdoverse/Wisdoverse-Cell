@@ -1,2 +1,2 @@
-"""Deprecated: use agents.capabilities.requirements.skills.help"""
-from agents.capabilities.requirements.skills.help import *  # noqa: F401,F403
+"""Deprecated: use agents.requirement_manager.skills.help"""
+from agents.requirement_manager.skills.help import *  # noqa: F401,F403

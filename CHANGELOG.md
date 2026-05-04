@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - LLM Gateway: tenacity replaced by custom `_call_with_recovery()` loop enabling model fallback and ReactiveCompact mid-retry
 - Context Compressor: 3-layer pipeline (MicroCompact → L1 trim → L2 summarize)
 - chat_agent: migrated from ad-hoc 90-line tool loop to ConversationEngine
-- chat_agent system prompt: restructured following Claude Code pattern (Identity → System → Tasks → Style), aligned with Coordinator architecture (chat_agent = 前台, not CEO)
+- chat_agent system prompt: restructured following Claude Code pattern (Identity → System → Tasks → Style), aligned with Coordinator architecture (chat_agent = front desk, not CEO)
 
 ### Fixed
 - ContentSizeError detection: correctly matches HTTP 400 BadRequestError via message pattern (not HTTP 413)
@@ -47,7 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Runtime versions: Python 3.13, Go 1.25, PostgreSQL 18, Redis 8
 - **Agent decoupling**: `requirement_manager` no longer imports `pjm_agent` directly; uses HTTP REST via `PMAgentClient`
 - **channel_gateway**: moved from `agents/` to `shared/services/channel_gateway/` (infrastructure, not a business agent)
-- Chat Agent: all LLM calls via centralized LLMGateway (no direct `anthropic.Anthropic()`)
+- Chat Agent: all LLM calls via centralized LLMGateway (no direct provider SDK clients)
 - Tiered model strategy: Sonnet (chat), Opus (decompose), Haiku (summary) — 58% cost reduction
 - PMAgent God Class split into DecompositionOrchestrator
 - APScheduler: all agents use `workers=1`, jobs with `replace_existing=True`

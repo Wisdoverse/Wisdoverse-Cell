@@ -14,6 +14,10 @@ class DSARRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     user_id: str = Field(..., min_length=1, description="User open_id")
+    approval_id: str | None = Field(
+        default=None,
+        description="Approved control-plane approval id for destructive DSAR actions",
+    )
 
 
 class DSARResult(BaseModel):

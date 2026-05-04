@@ -1,7 +1,8 @@
 # =============================================================================
 # Cloud-Native Application Layer
 # =============================================================================
-# Gateway (Go) + AI Core (Python) with Traefik service discovery labels
+# Gateway (Go) + requirement manager agent with Traefik service discovery labels.
+# The ai-core service id is kept for runtime compatibility.
 # =============================================================================
 
 x-logging: &default-logging
@@ -16,9 +17,35 @@ x-python-mirror-args: &python-mirror-args
   PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
   APT_MIRROR: ${APT_MIRROR:-}
 
+x-llm-env: &llm-env
+  LLM_PROVIDER: ${LLM_PROVIDER:-litellm}
+  DEFAULT_MODEL: ${DEFAULT_MODEL:-anthropic/claude-sonnet-4-20250514}
+  CHAT_MODEL: ${CHAT_MODEL:-anthropic/claude-sonnet-4-20250514}
+  SUMMARY_MODEL: ${SUMMARY_MODEL:-anthropic/claude-haiku-4-5-20251001}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  LITELLM_API_BASE: ${LITELLM_API_BASE:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+
+x-app-security-env: &app-security-env
+  SECRET_KEY: ${SECRET_KEY:-dev-only-change-in-production}
+  PM_API_KEY: ${PM_API_KEY:-}
+  INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
+  INTERNAL_TRANSPORT_PROTECTION: ${INTERNAL_TRANSPORT_PROTECTION:-}
+  A2A_JWT_SECRET: ${A2A_JWT_SECRET:-dev-only-change-in-production}
+  CONTROL_PLANE_ENABLED: ${CONTROL_PLANE_ENABLED:-false}
+  CONTROL_PLANE_COMPANY_ID: ${CONTROL_PLANE_COMPANY_ID:-cmp_projectcell}
+  CONTROL_PLANE_APPROVAL_ENFORCED: ${CONTROL_PLANE_APPROVAL_ENFORCED:-false}
+  CONTROL_PLANE_LLM_BUDGET_ENFORCED: ${CONTROL_PLANE_LLM_BUDGET_ENFORCED:-false}
+  CONTROL_PLANE_TOOL_BUDGET_ENFORCED: ${CONTROL_PLANE_TOOL_BUDGET_ENFORCED:-false}
+  CONTROL_PLANE_LOCAL_ADAPTER_ENABLED: ${CONTROL_PLANE_LOCAL_ADAPTER_ENABLED:-false}
+  CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST: ${CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST:-}
+
 services:
   # ===========================================================================
-  # AI Core — Python FastAPI (Requirement Manager)
+# Requirement manager agent (HTTP + gRPC), using the ai-core runtime service id.
   # ===========================================================================
   ai-core:
     build:
@@ -43,7 +70,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       # NATS / Event Bus
       NATS_URL: nats://nats-1:4222,nats://nats-2:4222,nats://nats-3:4222
+      NATS_STREAM_REPLICAS: "3"
       EVENT_BUS_BACKEND: ${EVENT_BUS_BACKEND:-redis}
+      EVENT_BUS_CONSUMER_NAME: requirement-manager
       # Database Read Replica (optional, for read/write split)
       DB_READ_HOST: ${DB_READ_HOST:-}
       DB_READ_PORT: ${DB_READ_PORT:-5432}
@@ -55,7 +84,7 @@ services:
       API_HOST: "0.0.0.0"
       API_PORT: "8000"
       # LLM
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      <<: [*llm-env, *app-security-env]
       # Application
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
@@ -124,7 +153,7 @@ services:
       GATEWAY_SERVER_MODE: ${GATEWAY_MODE:-release}
       GATEWAY_SERVER_READ_TIMEOUT: 30s
       GATEWAY_SERVER_WRITE_TIMEOUT: 30s
-      # gRPC to AI Core
+      # gRPC to requirement manager agent
       GATEWAY_GRPC_AI_SERVICE_ADDR: ai-core:50051
       GATEWAY_GRPC_TIMEOUT: 30s
       GATEWAY_GRPC_MAX_RETRIES: 3
@@ -183,6 +212,413 @@ services:
       - "traefik.http.services.gateway.loadbalancer.server.port=8080"
       - "traefik.http.services.gateway.loadbalancer.healthCheck.path=/health"
       - "traefik.http.services.gateway.loadbalancer.healthCheck.interval=10s"
+
+  # ===========================================================================
+  # Business runtime agents and support capability modules
+  # ===========================================================================
+  sync-agent:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile.agents
+      target: sync-agent
+      args:
+        <<: *python-mirror-args
+        VERSION: ${VERSION:-dev}
+        BUILD_DATE: ${BUILD_DATE:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    image: ${REGISTRY:-}projectcell/sync-agent:${VERSION:-latest}
+    hostname: sync-agent
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_USER: ${SYNC_AGENT_DB_USER:-sync_agent}
+      POSTGRES_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:-sync_agent_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "3"
+      OPENPROJECT_URL: ${OPENPROJECT_URL:-}
+      OPENPROJECT_API_KEY: ${OPENPROJECT_API_KEY:-}
+      FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      FEISHU_BITABLE_APP_TOKEN: ${FEISHU_BITABLE_APP_TOKEN:-}
+      FEISHU_BITABLE_TABLE_ID: ${FEISHU_BITABLE_TABLE_ID:-}
+      <<: *app-security-env
+      APP_ENV: ${APP_ENV:-development}
+      DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: sync-agent
+      EVENT_BUS_CONSUMER_NAME: sync-agent
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      replicas: ${SYNC_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging: *default-logging
+    stop_grace_period: 35s
+    restart: unless-stopped
+
+  analysis-agent:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile.agents
+      target: analysis-agent
+      args:
+        <<: *python-mirror-args
+        VERSION: ${VERSION:-dev}
+        BUILD_DATE: ${BUILD_DATE:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    image: ${REGISTRY:-}projectcell/analysis-agent:${VERSION:-latest}
+    hostname: analysis-agent
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_USER: ${ANALYSIS_AGENT_DB_USER:-analysis_agent}
+      POSTGRES_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:-analysis_agent_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "4"
+      FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      FEISHU_PM_APP_TOKEN: ${FEISHU_PM_APP_TOKEN:-}
+      FEISHU_PM_TASK_TABLE_ID: ${FEISHU_PM_TASK_TABLE_ID:-}
+      FEISHU_REPORT_CHAT_ID: ${FEISHU_REPORT_CHAT_ID:-}
+      <<: [*llm-env, *app-security-env]
+      APP_ENV: ${APP_ENV:-development}
+      DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: analysis-agent
+      EVENT_BUS_CONSUMER_NAME: analysis-agent
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8011/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      replicas: ${ANALYSIS_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging: *default-logging
+    stop_grace_period: 35s
+    restart: unless-stopped
+
+  pjm-agent:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile.agents
+      target: pjm-agent
+      args:
+        <<: *python-mirror-args
+        VERSION: ${VERSION:-dev}
+        BUILD_DATE: ${BUILD_DATE:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    image: ${REGISTRY:-}projectcell/pjm-agent:${VERSION:-latest}
+    hostname: pjm-agent
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_USER: ${PM_AGENT_DB_USER:-pjm_agent}
+      POSTGRES_PASSWORD: ${PM_AGENT_DB_PASSWORD:-pjm_agent_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "2"
+      FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      FEISHU_PM_APP_TOKEN: ${FEISHU_PM_APP_TOKEN:-}
+      FEISHU_PM_MEMBER_TABLE_ID: ${FEISHU_PM_MEMBER_TABLE_ID:-}
+      FEISHU_PM_PROJECT_TABLE_ID: ${FEISHU_PM_PROJECT_TABLE_ID:-}
+      FEISHU_PM_TASK_TABLE_ID: ${FEISHU_PM_TASK_TABLE_ID:-}
+      FEISHU_PM_WORKLOAD_TABLE_ID: ${FEISHU_PM_WORKLOAD_TABLE_ID:-}
+      FEISHU_PM_RULES_TABLE_ID: ${FEISHU_PM_RULES_TABLE_ID:-}
+      FEISHU_REPORT_CHAT_ID: ${FEISHU_REPORT_CHAT_ID:-}
+      OPENPROJECT_URL: ${OPENPROJECT_URL:-}
+      OPENPROJECT_API_KEY: ${OPENPROJECT_API_KEY:-}
+      <<: [*llm-env, *app-security-env]
+      DECOMPOSE_PROJECT_IDS: ${DECOMPOSE_PROJECT_IDS:-}
+      DECOMPOSE_NOTIFY_OPEN_ID: ${DECOMPOSE_NOTIFY_OPEN_ID:-}
+      APP_ENV: ${APP_ENV:-development}
+      DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: pjm-agent
+      EVENT_BUS_CONSUMER_NAME: pjm-agent
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8012/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      replicas: ${PM_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging: *default-logging
+    stop_grace_period: 35s
+    restart: unless-stopped
+
+  chat-agent:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile.agents
+      target: chat-agent
+      args:
+        <<: *python-mirror-args
+        VERSION: ${VERSION:-dev}
+        BUILD_DATE: ${BUILD_DATE:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    image: ${REGISTRY:-}projectcell/chat-agent:${VERSION:-latest}
+    hostname: chat-agent
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_USER: ${CHAT_AGENT_DB_USER:-chat_agent}
+      POSTGRES_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:-chat_agent_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "1"
+      FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      FEISHU_VERIFY_SIGNATURE: "false"
+      <<: [*llm-env, *app-security-env]
+      OPENPROJECT_URL: ${OPENPROJECT_URL:-}
+      OPENPROJECT_API_KEY: ${OPENPROJECT_API_KEY:-}
+      FEISHU_BITABLE_APP_TOKEN: ${FEISHU_BITABLE_APP_TOKEN:-}
+      FEISHU_BITABLE_TABLE_ID: ${FEISHU_BITABLE_TABLE_ID:-}
+      FEISHU_BITABLE_MEMBER_TABLE_ID: ${FEISHU_BITABLE_MEMBER_TABLE_ID:-}
+      FEISHU_BITABLE_CATEGORY_TABLE_ID: ${FEISHU_BITABLE_CATEGORY_TABLE_ID:-}
+      FEISHU_BITABLE_REPORT_TABLE_ID: ${FEISHU_BITABLE_REPORT_TABLE_ID:-}
+      APP_ENV: ${APP_ENV:-development}
+      DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: chat-agent
+      EVENT_BUS_CONSUMER_NAME: chat-agent
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8013/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      replicas: ${CHAT_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging: *default-logging
+    stop_grace_period: 35s
+    restart: unless-stopped
+
+  qa-agent:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile.agents
+      target: qa-agent
+      args:
+        <<: *python-mirror-args
+        VERSION: ${VERSION:-dev}
+        BUILD_DATE: ${BUILD_DATE:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    image: ${REGISTRY:-}projectcell/qa-agent:${VERSION:-latest}
+    hostname: qa-agent
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_USER: ${QA_AGENT_DB_USER:-qa_agent}
+      POSTGRES_PASSWORD: ${QA_AGENT_DB_PASSWORD:-qa_agent_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "5"
+      GITLAB_API_URL: ${GITLAB_API_URL:-}
+      GITLAB_PROJECT_ID: ${GITLAB_PROJECT_ID:-}
+      GITLAB_QA_TOKEN: ${GITLAB_QA_TOKEN:-}
+      QA_FEISHU_WEBHOOK_URL: ${QA_FEISHU_WEBHOOK_URL:-}
+      QA_HIGH_SEVERITY_CHECKS: ${QA_HIGH_SEVERITY_CHECKS:-}
+      <<: [*llm-env, *app-security-env]
+      FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      FEISHU_WEBHOOK_URL: ${FEISHU_WEBHOOK_URL:-}
+      APP_ENV: ${APP_ENV:-development}
+      DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: qa-agent
+      EVENT_BUS_CONSUMER_NAME: qa-agent
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8014/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      replicas: ${QA_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging: *default-logging
+    stop_grace_period: 35s
+    restart: unless-stopped
+
+  dev-agent:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile.agents
+      target: dev-agent
+      args:
+        <<: *python-mirror-args
+        VERSION: ${VERSION:-dev}
+        BUILD_DATE: ${BUILD_DATE:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    image: ${REGISTRY:-}projectcell/dev-agent:${VERSION:-latest}
+    hostname: dev-agent
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_USER: ${DEV_AGENT_DB_USER:-dev_agent}
+      POSTGRES_PASSWORD: ${DEV_AGENT_DB_PASSWORD:-dev_agent_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "6"
+      <<: [*llm-env, *app-security-env]
+      DEV_GITLAB_API_URL: ${GITLAB_API_URL:-}
+      DEV_GITLAB_PROJECT_ID: ${GITLAB_PROJECT_ID:-0}
+      DEV_GITLAB_TOKEN: ${GITLAB_DEV_TOKEN:-}
+      AGENTFORGE_API_URL: ${AGENTFORGE_API_URL:-http://localhost:4010}
+      AGENTFORGE_TOKEN: ${AGENTFORGE_TOKEN:-}
+      APP_ENV: ${APP_ENV:-development}
+      DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: dev-agent
+      EVENT_BUS_CONSUMER_NAME: dev-agent
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8015/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      replicas: ${DEV_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging: *default-logging
+    stop_grace_period: 35s
+    restart: unless-stopped
+
+  evolution-agent:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile.agents
+      target: evolution-agent
+      args:
+        <<: *python-mirror-args
+        VERSION: ${VERSION:-dev}
+        BUILD_DATE: ${BUILD_DATE:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    image: ${REGISTRY:-}projectcell/evolution-agent:${VERSION:-latest}
+    hostname: evolution-agent
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_USER: ${EVOLUTION_AGENT_DB_USER:-evolution_agent}
+      POSTGRES_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:-evolution_agent_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "7"
+      <<: [*llm-env, *app-security-env]
+      EVOLUTION_ENABLED: ${EVOLUTION_ENABLED:-true}
+      EVOLUTION_COLLABORATION_ENABLED: ${EVOLUTION_COLLABORATION_ENABLED:-false}
+      APP_ENV: ${APP_ENV:-development}
+      DEBUG: ${DEBUG:-false}
+      OTEL_SERVICE_NAME: evolution-agent
+      EVENT_BUS_CONSUMER_NAME: evolution-agent
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8016/health/ready"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      replicas: ${EVOLUTION_AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging: *default-logging
+    stop_grace_period: 35s
+    restart: unless-stopped
 
   # ===========================================================================
   # Web — Next.js Frontend

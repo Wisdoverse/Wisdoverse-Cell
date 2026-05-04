@@ -12,34 +12,42 @@ Wisdoverse Cell separates organization-role agents from service modules:
 | Kind | Meaning | Examples |
 |------|---------|----------|
 | `organization_role` | Business role that owns intent, tradeoffs, escalation, and user interaction policy | CEO, CTO, CPO, COO, PM |
-| `capability_module` | Deployed service that performs bounded work | requirements, sync, analysis, quality, development, evolution |
+| `business_runtime_agent` | Independently deployed agent that owns business work outcomes | requirement manager, PJM, QA, Dev |
+| `capability_module` | Deployed support boundary that performs bounded work | sync, analysis, evolution |
 | `integration_gateway` | User or platform traffic gateway | user interaction gateway, channel gateway |
 | `system_worker` | Internal orchestration worker | coordinator |
 
-Capability modules are not organization-role agents. They are invoked by role
-agents, gateways, scheduler jobs, or control-plane work items.
+Real business runtime agents such as requirement manager, PJM, QA, and Dev
+live under `agents/`. Support capabilities live under `shared/capabilities/`.
+Gateways and orchestration workers live under `services/`.
 
 ## 2. Package Layout
 
-New deployable modules should follow the current categorized `agents/` layout:
+New real business agents should live directly under `agents/`. New shared
+support capabilities should live under `shared/capabilities/`.
 
 ```text
 agents/
-  gateways/
-    user_interaction/
-    channel/
-  orchestration/
-    coordinator/
-  capabilities/
-    my_capability/
-      app/
-      api/
-      core/
-      service/
-      models/
-      db/
-      tests/
-      Dockerfile
+  my_agent/
+    app/
+    api/
+    core/
+    service/
+    models/
+    db/
+    tests/
+    Dockerfile
+
+shared/capabilities/
+  my_capability/
+    app/
+    api/
+    core/
+    service/
+    models/
+    db/
+    tests/
+    Dockerfile
 ```
 
 Recommended module structure:
@@ -128,7 +136,7 @@ middleware, lifecycle behavior, DSAR routes, and the authenticated
 ```python
 from shared.app import create_agent_app
 
-from agents.capabilities.my_capability.service.agent import MyCapabilityAgent
+from shared.capabilities.my_capability.service.agent import MyCapabilityAgent
 
 agent = MyCapabilityAgent()
 app = create_agent_app(agent=agent)
@@ -170,6 +178,9 @@ already has one.
 - Tool definitions belong in the API `tools` parameter where supported.
 - Prompts should teach strategy, constraints, and escalation policy; do not
   duplicate the full tool inventory inside the prompt.
+- Wrap user, integration, retrieved, or runtime source data in explicit
+  untrusted-data boundaries and state that content inside those boundaries is
+  data, not instructions.
 - Preserve user-facing output language requirements explicitly, for example:
   "Reply in Simplified Chinese unless the user asks otherwise."
 - Never log prompts that may contain secrets, PII, customer text, or credentials.

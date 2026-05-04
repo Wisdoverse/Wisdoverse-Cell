@@ -1,0 +1,55 @@
+import type { ApprovalRequest } from "@/lib/api/types";
+
+export const MOCK_APPROVALS: ApprovalRequest[] = [
+  {
+    id: "apr-001",
+    source_agent_id: "requirement-manager",
+    approval_type: "technical",
+    title: "Confirm requirement REQ-041",
+    summary:
+      "User login feature extracted from Q1 meeting notes. Priority: High.",
+    urgency: "normal",
+    status: "pending",
+    created_at: new Date(Date.now() - 15 * 60000).toISOString(),
+  },
+  {
+    id: "apr-002",
+    source_agent_id: "requirement-manager",
+    approval_type: "technical",
+    title: "Confirm requirement REQ-042",
+    summary: "Payment integration API specification from technical review.",
+    urgency: "urgent",
+    status: "pending",
+    created_at: new Date(Date.now() - 5 * 60000).toISOString(),
+  },
+  {
+    id: "apr-003",
+    source_agent_id: "requirement-manager",
+    approval_type: "finance",
+    title: "Q1 budget allocation review",
+    summary: "Projected spend exceeds budget by 15%. Needs finance approval.",
+    urgency: "urgent",
+    status: "pending",
+    created_at: new Date(Date.now() - 25 * 60000).toISOString(),
+  },
+  {
+    id: "apr-004",
+    source_agent_id: "requirement-manager",
+    approval_type: "legal",
+    title: "Data processing agreement review",
+    summary: "New vendor DPA needs legal review before signing.",
+    urgency: "low",
+    status: "pending",
+    created_at: new Date(Date.now() - 60 * 60000).toISOString(),
+  },
+  {
+    id: "apr-005",
+    source_agent_id: "requirement-manager",
+    approval_type: "customer",
+    title: "Customer response template",
+    summary: "Automated response template for feature request inquiries.",
+    urgency: "normal",
+    status: "pending",
+    created_at: new Date(Date.now() - 45 * 60000).toISOString(),
+  },
+];

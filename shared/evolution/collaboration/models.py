@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from shared.utils.id_generator import generate_id
+from shared.core.ids import generate_id
 
 
 class PatternStatus(str, Enum):

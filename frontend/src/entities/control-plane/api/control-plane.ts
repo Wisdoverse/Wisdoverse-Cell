@@ -5,10 +5,14 @@ import type {
   ControlPlaneArtifactListResponse,
   ControlPlaneBudgetUsageListResponse,
   ControlPlaneDecisionListResponse,
+  ControlPlaneEvolutionProposalListResponse,
   ControlPlaneGoalListResponse,
   ControlPlaneRunListResponse,
   ControlPlaneTimelineResponse,
   ControlPlaneWorkItemListResponse,
+  EvolutionApprovalState,
+  EvolutionRolloutState,
+  EvolutionTier,
 } from "../model/types";
 
 export interface ControlPlaneGoalFilters {
@@ -53,6 +57,14 @@ export interface ControlPlaneArtifactFilters {
   goal_id?: string;
   work_item_id?: string;
   created_by_agent_id?: string;
+  limit?: number;
+}
+
+export interface ControlPlaneEvolutionProposalFilters {
+  tier?: EvolutionTier;
+  approval_state?: EvolutionApprovalState;
+  rollout_state?: EvolutionRolloutState;
+  scope?: string;
   limit?: number;
 }
 
@@ -101,6 +113,15 @@ export function listControlPlaneArtifacts(
 ): Promise<ControlPlaneArtifactListResponse> {
   return apiClient.get<ControlPlaneArtifactListResponse>(
     "/control-plane/artifacts",
+    filters,
+  );
+}
+
+export function listControlPlaneEvolutionProposals(
+  filters?: ControlPlaneEvolutionProposalFilters,
+): Promise<ControlPlaneEvolutionProposalListResponse> {
+  return apiClient.get<ControlPlaneEvolutionProposalListResponse>(
+    "/control-plane/evolution-proposals",
     filters,
   );
 }

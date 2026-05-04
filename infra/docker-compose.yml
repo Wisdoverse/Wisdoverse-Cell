@@ -75,12 +75,12 @@ services:
       - projectcell-internal
 
   # ============================================================================
-  # Requirement Manager Agent
+  # Requirements capability (legacy standalone service)
   # ============================================================================
   requirement-manager:
     build:
       context: ..
-      dockerfile: agents/capabilities/requirements/Dockerfile
+      dockerfile: agents/requirement_manager/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
@@ -130,17 +130,17 @@ services:
       - /tmp
 
   # ============================================================================
-  # Future Agents (Templates)
+  # Future Capability Services (Templates)
   # ============================================================================
 
-  # dev-assistant:
+  # dev-agent:
   #   build:
   #     context: ..
-  #     dockerfile: agents/dev_assistant/Dockerfile
-  #   image: projectcell/dev-assistant:${VERSION:-latest}
-  #   container_name: projectcell-dev-assistant
+  #     dockerfile: agents/dev_agent/Dockerfile
+  #   image: projectcell/dev-agent:${VERSION:-latest}
+  #   container_name: projectcell-dev-agent
   #   ports:
-  #     - "${DEV_ASSISTANT_PORT:-8002}:8000"
+  #     - "${DEV_AGENT_PORT:-8015}:8015"
   #   env_file:
   #     - ../.env
   #   environment:

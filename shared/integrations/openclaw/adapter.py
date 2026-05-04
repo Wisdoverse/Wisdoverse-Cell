@@ -1,12 +1,12 @@
 """
-OpenClawChannelAdapter - OpenClaw 渠道适配器
+OpenClawChannelAdapter - OpenClaw channel adapter.
 
-将 OpenClawClient 适配为 MessageChannel 接口，
-使所有 Agent 可通过 ChannelRegistry 发送 OpenClaw 消息。
+Adapts OpenClawClient to the MessageChannel interface so agents can send
+OpenClaw messages through ChannelRegistry.
 """
 from typing import TYPE_CHECKING
 
-from shared.integrations.channels import (
+from shared.core.channels import (
     ChannelCard,
     ChannelMessage,
     ChannelResponse,
@@ -22,10 +22,10 @@ logger = get_logger("openclaw.adapter")
 
 class OpenClawChannelAdapter(MessageChannel):
     """
-    OpenClaw 渠道适配器
+    OpenClaw channel adapter.
 
-    将 OpenClawClient 适配为 MessageChannel 接口，
-    供 Agent 通过 ChannelRegistry.get("openclaw") 使用。
+    Adapts OpenClawClient to MessageChannel for
+    ChannelRegistry.get("openclaw").
     """
 
     def __init__(self, client: "OpenClawClient"):
@@ -36,7 +36,7 @@ class OpenClawChannelAdapter(MessageChannel):
         return "openclaw"
 
     async def send_message(self, user_id: str, content: ChannelMessage) -> str:
-        """发送文本/Markdown 消息"""
+        """Send a text or Markdown message."""
         result = await self._client.send_request(
             "channel.sendText",
             params={
@@ -48,7 +48,7 @@ class OpenClawChannelAdapter(MessageChannel):
         return result.get("message_id", "")
 
     async def send_card(self, user_id: str, card: ChannelCard) -> str:
-        """发送卡片消息"""
+        """Send a card message."""
         openclaw_card = self._convert_card(card)
         result = await self._client.send_request(
             "channel.sendCard",
@@ -60,7 +60,7 @@ class OpenClawChannelAdapter(MessageChannel):
         return result.get("message_id", "")
 
     async def update_card(self, message_id: str, card: ChannelCard) -> bool:
-        """更新已发送的卡片"""
+        """Update a sent card."""
         openclaw_card = self._convert_card(card)
         result = await self._client.send_request(
             "channel.updateCard",
@@ -72,11 +72,11 @@ class OpenClawChannelAdapter(MessageChannel):
         return result.get("success", False)
 
     async def handle_callback(self, payload: dict) -> ChannelResponse:
-        """处理回调"""
+        """Handle a card callback."""
         return ChannelResponse(success=True)
 
     def _convert_card(self, card: ChannelCard) -> dict:
-        """将 ChannelCard 转换为 OpenClaw 卡片格式"""
+        """Convert ChannelCard to the OpenClaw card format."""
         openclaw_card: dict = {
             "card_id": card.card_id,
             "title": card.title,

@@ -15,8 +15,8 @@ from shared.config import settings
 from shared.control_plane.adapter_registry import DEFAULT_ADAPTER_REGISTRY
 from shared.control_plane.models import AgentRun, AgentRunStatus, AuditEvent
 from shared.control_plane.repository import ControlPlaneRepository
+from shared.core.ids import IDPrefix, generate_id
 from shared.schemas.event import EventTypes
-from shared.utils.id_generator import IDPrefix, generate_id
 from shared.utils.logger import get_logger
 
 logger = get_logger("control_plane.agent_runner")
@@ -340,6 +340,8 @@ class ControlPlaneAgentRunner:
         headers = {}
         if settings.internal_service_key:
             headers["X-Internal-Key"] = settings.internal_service_key
+        if request.get("trace_id"):
+            headers["X-Trace-ID"] = str(request["trace_id"])
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(url, json=request, headers=headers)
             response.raise_for_status()

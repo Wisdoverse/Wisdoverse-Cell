@@ -84,7 +84,7 @@ Event(
 ### Agents
 - Inherit `BaseAgent`
 - Implement `handle_event()`, `startup()`, `shutdown()`
-- Use LLMGateway for all Claude API calls (never direct `anthropic.Anthropic()`)
+- Use LLMGateway for all model calls; never instantiate provider SDK clients directly.
 - Register tools with `@register_tool("name")`
 
 ### Inter-Agent Communication

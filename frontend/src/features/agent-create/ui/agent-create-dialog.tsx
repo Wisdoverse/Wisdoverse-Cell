@@ -8,30 +8,32 @@ import { toast } from "sonner";
 import {
   createControlPlaneAgent,
   DOMAIN_LIST,
+  ORGANIZATION_ROLE_TEMPLATES,
   type AgentDomain,
   type AgentInteractionMode,
   type AgentKind,
   type AgentMeta,
 } from "@/entities/agent";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/shared/ui/dialog";
+import { Input } from "@/shared/ui/input";
+import { Label } from "@/shared/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+} from "@/shared/ui/select";
+import { Textarea } from "@/shared/ui/textarea";
 
 interface AgentCreateDialogProps {
   availableAgents: AgentMeta[];
@@ -63,6 +65,7 @@ const ROLE_OPTIONS = [
 
 const AGENT_KIND_OPTIONS = [
   "organization_role",
+  "business_runtime_agent",
   "capability_module",
   "integration_gateway",
   "system_worker",
@@ -79,6 +82,8 @@ const CONTEXT_SOURCE_OPTIONS = [
   "event_bus",
   "scratchpad",
 ] as const;
+
+const CUSTOM_TEMPLATE_VALUE = "custom";
 
 function defaultInteractionMode(agentKind: AgentKind): AgentInteractionMode {
   if (agentKind === "organization_role") return "routed";
@@ -112,6 +117,7 @@ export function AgentCreateDialog({
   const [submitting, setSubmitting] = useState(false);
   const [agentIdTouched, setAgentIdTouched] = useState(false);
   const [form, setForm] = useState({
+    roleTemplate: CUSTOM_TEMPLATE_VALUE,
     agentId: "",
     displayName: "",
     agentKind: "organization_role" as AgentKind,
@@ -130,6 +136,8 @@ export function AgentCreateDialog({
     contextSources: "control_plane",
     capabilities: "",
     responsibilities: "",
+    subscribedEvents: "",
+    publishedEvents: "",
   });
 
   const sortedAgents = useMemo(
@@ -139,6 +147,7 @@ export function AgentCreateDialog({
 
   function resetForm() {
     setForm({
+      roleTemplate: CUSTOM_TEMPLATE_VALUE,
       agentId: "",
       displayName: "",
       agentKind: "organization_role",
@@ -157,6 +166,8 @@ export function AgentCreateDialog({
       contextSources: "control_plane",
       capabilities: "",
       responsibilities: "",
+      subscribedEvents: "",
+      publishedEvents: "",
     });
     setAgentIdTouched(false);
   }
@@ -191,6 +202,8 @@ export function AgentCreateDialog({
         context_sources: parseLines(form.contextSources),
         capabilities: parseLines(form.capabilities),
         responsibilities: parseLines(form.responsibilities),
+        subscribed_events: parseLines(form.subscribedEvents),
+        published_events: parseLines(form.publishedEvents),
         created_by: "frontend",
       });
       toast.success(t("createSuccess"));
@@ -215,10 +228,60 @@ export function AgentCreateDialog({
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{t("createAgent")}</DialogTitle>
+          <DialogDescription>{t("createAgentDescription")}</DialogDescription>
         </DialogHeader>
 
         <form className="space-y-5" onSubmit={onSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label>{t("roleTemplate")}</Label>
+              <Select
+                value={form.roleTemplate}
+                onValueChange={(roleTemplate) => {
+                  const template = ORGANIZATION_ROLE_TEMPLATES.find(
+                    (item) => item.agentId === roleTemplate,
+                  );
+                  if (!template) {
+                    setForm((current) => ({
+                      ...current,
+                      roleTemplate: CUSTOM_TEMPLATE_VALUE,
+                    }));
+                    return;
+                  }
+                  setForm((current) => ({
+                    ...current,
+                    roleTemplate,
+                    agentId: template.agentId,
+                    displayName: template.displayName,
+                    agentKind: template.agentKind,
+                    interactionMode: template.interactionMode,
+                    role: template.role,
+                    title: template.title,
+                    domain: template.domain,
+                    reportsTo: "none",
+                    adapterType: current.adapterType || "http",
+                    contextSources: "control_plane",
+                    subscribedEvents: "",
+                    publishedEvents: "",
+                  }));
+                  setAgentIdTouched(true);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={CUSTOM_TEMPLATE_VALUE}>
+                    {t("customRole")}
+                  </SelectItem>
+                  {ORGANIZATION_ROLE_TEMPLATES.map((template) => (
+                    <SelectItem key={template.agentId} value={template.agentId}>
+                      {template.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="agent-name">{t("agentName")}</Label>
               <Input
@@ -228,6 +291,7 @@ export function AgentCreateDialog({
                   const displayName = event.target.value;
                   setForm((current) => ({
                     ...current,
+                    roleTemplate: CUSTOM_TEMPLATE_VALUE,
                     displayName,
                     agentId: agentIdTouched
                       ? current.agentId
@@ -247,6 +311,7 @@ export function AgentCreateDialog({
                   setAgentIdTouched(true);
                   setForm((current) => ({
                     ...current,
+                    roleTemplate: CUSTOM_TEMPLATE_VALUE,
                     agentId: slugify(event.target.value),
                   }));
                 }}
@@ -503,6 +568,38 @@ export function AgentCreateDialog({
                   setForm((current) => ({
                     ...current,
                     responsibilities: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="agent-subscribed-events">
+                {t("subscribedEvents")}
+              </Label>
+              <Textarea
+                id="agent-subscribed-events"
+                rows={4}
+                value={form.subscribedEvents}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    subscribedEvents: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="agent-published-events">
+                {t("publishedEvents")}
+              </Label>
+              <Textarea
+                id="agent-published-events"
+                rows={4}
+                value={form.publishedEvents}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    publishedEvents: event.target.value,
                   }))
                 }
               />

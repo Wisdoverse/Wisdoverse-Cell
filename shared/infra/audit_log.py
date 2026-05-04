@@ -18,6 +18,8 @@ class AuditAction(str, Enum):
     LLM_CALL = "llm_call"
     EVENT_HANDLED = "event_handled"
     EVENT_FAILED = "event_failed"
+    REQUEST_HANDLED = "request_handled"
+    REQUEST_FAILED = "request_failed"
     TOOL_EXECUTED = "tool_executed"
     APPROVAL_REQUESTED = "approval_requested"
     APPROVAL_GRANTED = "approval_granted"

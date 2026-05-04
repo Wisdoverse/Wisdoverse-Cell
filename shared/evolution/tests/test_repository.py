@@ -444,6 +444,25 @@ class TestExperimentRepo:
         assert active.traffic_pct == 15
 
     @pytest.mark.asyncio
+    async def test_get_experiment_by_id(self, db_session: AsyncSession):
+        repo = EvolutionRepository(db_session)
+
+        await repo.save_experiment(
+            experiment_id="exp_by_id",
+            agent_id="pjm-agent",
+            skill_id="decompose-task",
+            control_version=1,
+            candidate_version=2,
+        )
+
+        experiment = await repo.get_experiment_by_id("exp_by_id")
+        missing = await repo.get_experiment_by_id("missing")
+
+        assert experiment is not None
+        assert experiment.experiment_id == "exp_by_id"
+        assert missing is None
+
+    @pytest.mark.asyncio
     async def test_get_active_experiment_returns_none(self, db_session: AsyncSession):
         repo = EvolutionRepository(db_session)
         active = await repo.get_active_experiment("nonexistent", "nonexistent")

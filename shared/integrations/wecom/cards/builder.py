@@ -1,29 +1,29 @@
-# shared/services/wecom/cards/builder.py
+# shared/integrations/wecom/cards/builder.py
 """
-WecomCardBuilder - 企业微信模板卡片构建器
+WecomCardBuilder - WeCom template card builder.
 
-企业微信使用模板卡片，与飞书的交互卡片不同。
-主要限制：
-- 最多 2 个按钮
-- 固定的模板结构
+WeCom uses template cards rather than Feishu-style interactive cards.
+Key constraints:
+- At most two buttons.
+- Fixed template structure.
 """
 import json
 from typing import Literal
 
-from shared.integrations.channels import ChannelCard
+from shared.core.channels import ChannelCard
 
 
 class WecomCardBuilder:
     """
-    企业微信模板卡片构建器
+    WeCom template card builder.
 
-    使用方式:
+    Usage:
         card = (
             WecomCardBuilder()
-            .set_title("标题")
-            .set_description("描述")
-            .add_button("确认", "confirm", style=1)
-            .add_button("拒绝", "reject", style=2)
+            .set_title("Title")
+            .set_description("Description")
+            .add_button("Confirm", "confirm", style=1)
+            .add_button("Reject", "reject", style=2)
             .build()
         )
     """
@@ -39,17 +39,17 @@ class WecomCardBuilder:
         self._buttons: list[dict] = []
 
     def set_title(self, title: str) -> "WecomCardBuilder":
-        """设置主标题"""
+        """Set the main title."""
         self._title = title
         return self
 
     def set_description(self, description: str) -> "WecomCardBuilder":
-        """设置副标题/描述"""
+        """Set the subtitle or description."""
         self._description = description
         return self
 
     def set_source(self, desc: str) -> "WecomCardBuilder":
-        """设置来源描述"""
+        """Set the source description."""
         self._source_desc = desc
         return self
 
@@ -59,7 +59,7 @@ class WecomCardBuilder:
         value: str,
         content_type: int = 0,
     ) -> "WecomCardBuilder":
-        """添加横向内容项"""
+        """Add a horizontal content item."""
         self._horizontal_content.append({
             "keyname": key,
             "value": value,
@@ -73,7 +73,7 @@ class WecomCardBuilder:
         key: str,
         style: Literal[1, 2, 3] = 1,
     ) -> "WecomCardBuilder":
-        """添加按钮（最多2个）"""
+        """Add a button, capped by the WeCom template limit."""
         if len(self._buttons) >= self.MAX_BUTTONS:
             return self
 
@@ -85,7 +85,7 @@ class WecomCardBuilder:
         return self
 
     def build(self) -> dict:
-        """构建企微模板卡片"""
+        """Build a WeCom template card."""
         card = {
             "card_type": self._card_type,
             "source": {
@@ -107,17 +107,17 @@ class WecomCardBuilder:
 
     @classmethod
     def from_channel_card(cls, card: ChannelCard) -> dict:
-        """从通用 ChannelCard 转换为企微模板卡片"""
+        """Convert a generic ChannelCard to a WeCom template card."""
         builder = cls()
         builder.set_title(card.title)
 
-        # 提取描述（第一个 text 元素）
+        # Use the first text element as the description.
         for element in card.elements:
             if element.element_type == "text" and element.content:
                 builder.set_description(element.content)
                 break
 
-        # 提取字段
+        # Convert field elements.
         for element in card.elements:
             if element.element_type == "field" and element.fields:
                 for field in element.fields:
@@ -126,7 +126,7 @@ class WecomCardBuilder:
                         value=field.get("value", "")
                     )
 
-        # 转换按钮
+        # Convert buttons.
         for action in card.actions[:cls.MAX_BUTTONS]:
             style = 1
             if action.style == "danger":

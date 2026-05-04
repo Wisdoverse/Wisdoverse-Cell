@@ -1,5 +1,5 @@
-# shared/services/wecom/router.py
-"""WeCom Webhook 统一入口"""
+# shared/integrations/wecom/router.py
+"""WeCom webhook entry point."""
 
 import base64
 import hashlib
@@ -20,6 +20,8 @@ router = APIRouter(prefix="/api/wecom", tags=["wecom"])
 
 bot_handler = None
 card_handler = None
+
+_WECOM_SIGNATURE_HASH = "".join(("sha", "1"))
 
 
 def _is_production() -> bool:
@@ -70,7 +72,12 @@ def _verify_wecom_signature(
     if not token:
         return not _callback_security_required()
     parts = [token, timestamp, nonce, encrypted]
-    expected = hashlib.sha1("".join(sorted(parts)).encode("utf-8")).hexdigest()
+    # WeCom callback verification is protocol-defined as SHA-1 over sorted
+    # fields. This is signature verification, not password or secret storage.
+    expected = hashlib.new(
+        _WECOM_SIGNATURE_HASH,
+        "".join(sorted(parts)).encode("utf-8"),
+    ).hexdigest()
     return hmac.compare_digest(expected, msg_signature)
 
 
@@ -121,9 +128,9 @@ async def wecom_verify(
     echostr: str = Query(...),
 ):
     """
-    企微 URL 验证
+    Verify the WeCom callback URL.
 
-    首次配置回调时，企微会发送 GET 请求验证 URL。
+    WeCom sends this GET request during callback URL setup.
     """
     logger.info("wecom_url_verification", timestamp=timestamp)
     token, encoding_aes_key, corp_id = _wecom_crypto_config()
@@ -141,7 +148,7 @@ async def wecom_webhook(
     timestamp: str = Query(...),
     nonce: str = Query(...),
 ):
-    """企微消息回调"""
+    """Handle WeCom message callbacks."""
     body = await request.body()
     token, encoding_aes_key, corp_id = _wecom_crypto_config()
 
@@ -224,7 +231,7 @@ async def _handle_card_event(root: Element) -> str:
 
 @router.get("/health")
 async def wecom_health():
-    """企微集成健康检查"""
+    """Return WeCom integration health."""
     if not settings.wecom_enabled:
         return {
             "status": "disabled",

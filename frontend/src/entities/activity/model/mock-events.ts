@@ -1,0 +1,60 @@
+import type { ActivityEvent } from "@/lib/api/types";
+
+export const MOCK_ACTIVITY_EVENTS: ActivityEvent[] = [
+  {
+    id: "evt-001",
+    agent_id: "requirement-manager",
+    event_type: "requirement.extracted",
+    description: "extracted requirement REQ-042 from meeting notes",
+    payload: {},
+    timestamp: new Date(Date.now() - 2 * 60000).toISOString(),
+  },
+  {
+    id: "evt-002",
+    agent_id: "requirement-manager",
+    event_type: "requirement.confirmed",
+    description: "confirmed requirement REQ-038",
+    payload: {},
+    timestamp: new Date(Date.now() - 5 * 60000).toISOString(),
+  },
+  {
+    id: "evt-003",
+    agent_id: "requirement-manager",
+    event_type: "approval.requested",
+    description: "sent approval request for REQ-041",
+    payload: {},
+    timestamp: new Date(Date.now() - 15 * 60000).toISOString(),
+  },
+  {
+    id: "evt-004",
+    agent_id: "requirement-manager",
+    event_type: "requirement.extracted",
+    description: "extracted requirement REQ-040 from customer feedback",
+    payload: {},
+    timestamp: new Date(Date.now() - 45 * 60000).toISOString(),
+  },
+  {
+    id: "evt-005",
+    agent_id: "requirement-manager",
+    event_type: "requirement.confirmed",
+    description: "confirmed requirement REQ-037",
+    payload: {},
+    timestamp: new Date(Date.now() - 90 * 60000).toISOString(),
+  },
+  {
+    id: "evt-006",
+    agent_id: "requirement-manager",
+    event_type: "requirement.extracted",
+    description: "extracted 3 requirements from product review document",
+    payload: {},
+    timestamp: new Date(Date.now() - 25 * 3600000).toISOString(),
+  },
+  {
+    id: "evt-007",
+    agent_id: "requirement-manager",
+    event_type: "requirement.rejected",
+    description: "requirement REQ-035 rejected as duplicate",
+    payload: {},
+    timestamp: new Date(Date.now() - 26 * 3600000).toISOString(),
+  },
+];

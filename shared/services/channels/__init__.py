@@ -1,5 +1,6 @@
-"""Deprecated: use shared.integrations.channels"""
-from shared.integrations.channels import (
+"""Deprecated: use shared.core.channels."""
+
+from shared.core.channels import (
     CardAction,
     CardElement,
     ChannelCard,

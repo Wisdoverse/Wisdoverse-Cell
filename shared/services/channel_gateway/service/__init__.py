@@ -1,2 +1,2 @@
-"""Deprecated: use shared.messaging.outbound.service"""
-from shared.messaging.outbound.service import *  # noqa: F401,F403
+"""Deprecated: use services.gateways.channel.service"""
+from services.gateways.channel.service import *  # noqa: F401,F403

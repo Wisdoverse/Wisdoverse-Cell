@@ -15,7 +15,8 @@
 /SUPPORT.md @Wisdoverse/security
 
 /agents/ @Wisdoverse/ai-runtime
-/agents/capabilities/requirements/ @Wisdoverse/ai-runtime
+/agents/requirement_manager/ @Wisdoverse/ai-runtime
+/services/ @Wisdoverse/platform
 /shared/ @Wisdoverse/platform
 /shared/integrations/ @Wisdoverse/integrations
 /gateway/ @Wisdoverse/gateway

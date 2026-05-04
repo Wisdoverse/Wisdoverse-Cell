@@ -14,7 +14,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
-from shared.utils.id_generator import generate_id
+from shared.core.ids import generate_id
 
 # ── Cost table (USD per token) ──────────────────────────────────────────────
 
@@ -149,6 +149,7 @@ class ExperimentStatus(str, Enum):
     """Lifecycle status of an A/B experiment."""
 
     RUNNING = "running"
+    PROMOTED = "promoted"
     CONCLUDED = "concluded"
     ROLLED_BACK = "rolled_back"
 

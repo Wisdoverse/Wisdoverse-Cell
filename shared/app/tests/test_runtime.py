@@ -221,6 +221,18 @@ class TestEvolutionPlugin:
         result = plugin.wrap_agent(agent)
         assert result is agent
 
+    def test_enabled_wraps_agent_with_self_reflector(self, monkeypatch):
+        from shared.evolution.config import evolution_settings
+        from shared.evolution.evolved_agent import EvolvedAgent
+
+        monkeypatch.setattr(evolution_settings, "enabled", True)
+
+        agent = FakeAgent()
+        result = EvolutionPlugin().wrap_agent(agent)
+
+        assert isinstance(result, EvolvedAgent)
+        assert result.agent_id == agent.agent_id
+
 
 class TestHealthCheck:
     @pytest.mark.asyncio
@@ -430,6 +442,40 @@ class TestShutdownTimeout:
 
 
 class TestHealthCheckAggregation:
+    @pytest.mark.asyncio
+    async def test_agent_health_checks_are_namespaced(self):
+        class AgentWithHealth(FakeAgent):
+            async def health_check(self):
+                return {
+                    "database": True,
+                    "config": False,
+                    "cache": HealthCheckResult("degraded", "slow"),
+                }
+
+        agent = AgentWithHealth()
+        rt = AgentRuntime(agent)
+        await rt.startup()
+        checks = await rt.health_check()
+        assert checks["agent.database"].status == "ok"
+        assert checks["agent.config"].status == "down"
+        assert checks["agent.cache"].status == "degraded"
+        assert checks["agent.cache"].detail == "slow"
+        await rt.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_agent_health_error_produces_error_key(self):
+        class BadHealthAgent(FakeAgent):
+            async def health_check(self):
+                raise RuntimeError("database exploded")
+
+        agent = BadHealthAgent()
+        rt = AgentRuntime(agent)
+        await rt.startup()
+        checks = await rt.health_check()
+        assert checks["agent._error"].status == "down"
+        assert checks["agent._error"].detail == "RuntimeError"
+        await rt.shutdown()
+
     @pytest.mark.asyncio
     async def test_namespaced_keys(self):
         class MyPlugin(RuntimePlugin):

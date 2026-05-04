@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from shared.utils.id_generator import IDPrefix, generate_id
+from shared.core.ids import IDPrefix, generate_id
 
 
 def _now() -> datetime:
@@ -45,6 +45,7 @@ class WorkItemPriority(StrEnum):
 
 class AgentKind(StrEnum):
     ORGANIZATION_ROLE = "organization_role"
+    BUSINESS_RUNTIME_AGENT = "business_runtime_agent"
     CAPABILITY_MODULE = "capability_module"
     INTEGRATION_GATEWAY = "integration_gateway"
     SYSTEM_WORKER = "system_worker"
@@ -182,6 +183,8 @@ class AgentRole(ControlPlaneModel):
     context_sources: list[str] = Field(default_factory=list)
     capabilities: list[str] = Field(default_factory=list)
     responsibilities: list[str] = Field(default_factory=list)
+    subscribed_events: list[str] = Field(default_factory=list)
+    published_events: list[str] = Field(default_factory=list)
     permissions: list[str] = Field(default_factory=list)
     budget_policy_id: str | None = None
     escalation_policy: dict[str, Any] = Field(default_factory=dict)
@@ -261,7 +264,7 @@ class ApprovalRequest(ControlPlaneModel):
     reason: str
     risk: str
     rollback_note: str
-    affected_resources: list[str] = Field(default_factory=list)
+    affected_resources: list[str] = Field(min_length=1)
     artifact_links: list[str] = Field(default_factory=list)
     run_id: str | None = None
     work_item_id: str | None = None
@@ -318,6 +321,13 @@ class BudgetPolicy(ControlPlaneModel):
             raise ValueError("budget limit must be positive")
         return value
 
+    @field_validator("warning_threshold")
+    @classmethod
+    def _warning_threshold_must_be_ratio(cls, value: float) -> float:
+        if value <= 0 or value > 1:
+            raise ValueError("budget warning threshold must be within (0, 1]")
+        return value
+
 
 class BudgetUsage(ControlPlaneModel):
     usage_id: str = Field(default_factory=lambda: generate_id(IDPrefix.BUDGET_USAGE))
@@ -331,6 +341,20 @@ class BudgetUsage(ControlPlaneModel):
     trace_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=_now)
+
+    @field_validator("cost_usd")
+    @classmethod
+    def _cost_must_be_non_negative(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("budget usage cost must be non-negative")
+        return value
+
+    @field_validator("input_tokens", "output_tokens")
+    @classmethod
+    def _tokens_must_be_non_negative(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("budget usage tokens must be non-negative")
+        return value
 
 
 class AuditEvent(ControlPlaneModel):

@@ -10,6 +10,7 @@ import {
   listControlPlaneArtifacts,
   listControlPlaneBudgetUsage,
   listControlPlaneDecisions,
+  listControlPlaneEvolutionProposals,
   listControlPlaneGoals,
   listControlPlaneRuns,
   listControlPlaneWorkItems,
@@ -24,6 +25,7 @@ import type {
   ControlPlaneArtifactListResponse,
   ControlPlaneBudgetUsageListResponse,
   ControlPlaneDecisionListResponse,
+  ControlPlaneEvolutionProposalListResponse,
   ControlPlaneGoalListResponse,
   ControlPlaneTimelineResponse,
   ControlPlaneWorkbenchSummary,
@@ -185,6 +187,12 @@ export function useControlPlaneWorkbench() {
     () => getControlPlaneTimeline({ run_id: activeRunId, limit: 100 }),
   );
 
+  const evolutionProposalsQuery =
+    useSWR<ControlPlaneEvolutionProposalListResponse>(
+      ["control-plane-evolution-proposals", { limit: 25 }],
+      () => listControlPlaneEvolutionProposals({ limit: 25 }),
+    );
+
   const selectGoal = useCallback((goalId: string) => {
     setSelectedGoalId(goalId);
     setSelectedWorkItemId(undefined);
@@ -206,12 +214,14 @@ export function useControlPlaneWorkbench() {
       approvalsQuery.mutate(),
       budgetUsageQuery.mutate(),
       timelineQuery.mutate(),
+      evolutionProposalsQuery.mutate(),
     ]);
   }, [
     approvalsQuery,
     artifactsQuery,
     budgetUsageQuery,
     decisionsQuery,
+    evolutionProposalsQuery,
     goalsQuery,
     runsQuery,
     timelineQuery,
@@ -265,6 +275,8 @@ export function useControlPlaneWorkbench() {
     runs,
     decisions: decisionsQuery.data?.decisions ?? [],
     artifacts: artifactsQuery.data?.artifacts ?? [],
+    evolutionProposals:
+      evolutionProposalsQuery.data?.evolution_proposals ?? [],
     approvals: approvalsQuery.data?.approvals ?? [],
     budgetUsage: budgetUsageQuery.data?.usage ?? [],
     timeline: timelineQuery.data?.timeline ?? [],
@@ -291,6 +303,7 @@ export function useControlPlaneWorkbench() {
       approvalsQuery.isLoading ||
       budgetUsageQuery.isLoading ||
       timelineQuery.isLoading,
+    isEvolutionLoading: evolutionProposalsQuery.isLoading,
     error:
       goalsQuery.error ||
       workItemsQuery.error ||
@@ -299,7 +312,8 @@ export function useControlPlaneWorkbench() {
       artifactsQuery.error ||
       approvalsQuery.error ||
       budgetUsageQuery.error ||
-      timelineQuery.error,
+      timelineQuery.error ||
+      evolutionProposalsQuery.error,
   };
 }
 

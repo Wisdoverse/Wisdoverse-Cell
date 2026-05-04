@@ -1,0 +1,2 @@
+"""QA agent adapter wiring."""
+

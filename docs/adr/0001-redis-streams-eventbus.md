@@ -17,6 +17,9 @@ Migrate to Redis Streams (XADD/XREADGROUP) which provides:
 - **Message persistence** — messages stay in stream until trimmed
 - **Replay** — consumers can re-read from any position
 - **Pending entries** — acts as dead letter queue for failed processing
+- **Pending reclaim** — consumers use `XAUTOCLAIM` to take over messages left
+  pending by crashed or restarted consumers after
+  `EVENT_BUS_PENDING_CLAIM_IDLE_MS`
 - **Observability** — XINFO/XPENDING for monitoring lag and health
 - **Approximate trimming** — MAXLEN ~10000 for bounded memory
 
@@ -26,6 +29,13 @@ Migrate to Redis Streams (XADD/XREADGROUP) which provides:
 - Messages survive consumer restarts (re-delivered from pending)
 - Multiple consumer groups work without manual fan-out code
 - Built-in monitoring via get_pending_count()
+- Idle pending messages are reclaimed in bounded batches controlled by
+  `EVENT_BUS_PENDING_CLAIM_COUNT`
+- The effective pending reclaim idle time is clamped above
+  `EVENT_HANDLER_TIMEOUT_SECONDS` to avoid concurrent duplicate processing for
+  long-running handlers.
+- Processed event IDs are remembered per consumer group for a bounded
+  idempotency window so successful replay does not re-run the same handler.
 - Simpler publish() — single XADD replaces LPUSH + smembers loop
 
 ### Negative

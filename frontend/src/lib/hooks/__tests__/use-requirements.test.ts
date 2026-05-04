@@ -13,7 +13,10 @@ vi.mock("@/lib/api/requirements", () => ({
 
 // Import the mocked module and the hooks (which depend on it)
 import { listRequirements, getRequirement } from "@/lib/api/requirements";
-import { useRequirements, useRequirement } from "@/lib/hooks/use-requirements";
+import {
+  useRequirement,
+  useRequirements,
+} from "@/entities/requirement/model/use-requirements";
 
 const mockListRequirements = vi.mocked(listRequirements);
 const mockGetRequirement = vi.mocked(getRequirement);

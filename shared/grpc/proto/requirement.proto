@@ -4,27 +4,27 @@ package requirement;
 
 option go_package = "github.com/Wisdoverse/project-cell/gateway/api/proto/requirement";
 
-// RequirementService - Python AI Core 暴露的需求管理服务
+// RequirementService exposes the requirement manager agent boundary.
 service RequirementService {
-  // 需求提取（LLM）
+  // Extract requirements from source content with LLM assistance.
   rpc ExtractRequirements(ExtractRequest) returns (ExtractResponse);
 
-  // 需求列表
+  // List requirements.
   rpc ListRequirements(ListRequest) returns (ListResponse);
 
-  // 获取单个需求
+  // Get one requirement.
   rpc GetRequirement(GetRequest) returns (Requirement);
 
-  // 确认需求
+  // Confirm a requirement.
   rpc ConfirmRequirement(ConfirmRequest) returns (OperationResponse);
 
-  // 拒绝需求
+  // Reject a requirement.
   rpc RejectRequirement(RejectRequest) returns (OperationResponse);
 
-  // 搜索需求
+  // Search requirements.
   rpc SearchRequirements(SearchRequest) returns (SearchResponse);
 
-  // 健康检查
+  // Check capability health.
   rpc HealthCheck(HealthRequest) returns (HealthResponse);
 }
 
@@ -112,5 +112,5 @@ message HealthRequest {}
 message HealthResponse {
   bool healthy = 1;
   string version = 2;
-  map<string, bool> services = 3;  // db, redis, llm
+  map<string, bool> services = 3;  // db, agent
 }

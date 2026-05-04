@@ -1,12 +1,12 @@
-# shared/services/feishu/adapter.py
+# shared/integrations/feishu/adapter.py
 """
-FeishuChannelAdapter - 飞书渠道适配器
+FeishuChannelAdapter - Feishu channel adapter.
 
-将飞书客户端适配为 MessageChannel 接口。
+Adapts the Feishu client to the MessageChannel interface.
 """
 from typing import TYPE_CHECKING
 
-from shared.integrations.channels import (
+from shared.core.channels import (
     ChannelCard,
     ChannelMessage,
     ChannelResponse,
@@ -24,28 +24,29 @@ logger = get_logger("feishu.adapter")
 
 class FeishuChannelAdapter(MessageChannel):
     """
-    飞书渠道适配器
+    Feishu channel adapter.
 
-    将 FeishuClient 适配为 MessageChannel 接口。
+    Adapts FeishuClient to MessageChannel.
     """
 
     def __init__(self, client: "FeishuClient"):
         """
         Args:
-            client: FeishuClient 实例
+            client: FeishuClient instance.
         """
         self._client = client
 
     @property
     def channel_name(self) -> str:
-        """渠道标识"""
+        """Return the channel name."""
         return "feishu"
 
     async def send_message(self, user_id: str, content: ChannelMessage) -> str:
         """
-        发送消息
+        Send a message.
 
-        飞书使用 send_card 或 reply_message，这里简化为 send_card。
+        Feishu uses send_card or reply_message; this adapter routes through
+        send_card for the generic channel boundary.
         """
         builder = CardBuilder()
         if content.message_type == "markdown":
@@ -62,9 +63,9 @@ class FeishuChannelAdapter(MessageChannel):
 
     async def send_card(self, user_id: str, card: ChannelCard) -> str:
         """
-        发送卡片
+        Send a card.
 
-        将通用 ChannelCard 转换为飞书卡片格式。
+        Converts a generic ChannelCard to Feishu card format.
         """
         feishu_card = self._convert_to_feishu_card(card)
         return await self._client.send_card(
@@ -74,20 +75,21 @@ class FeishuChannelAdapter(MessageChannel):
         )
 
     async def update_card(self, message_id: str, card: ChannelCard) -> bool:
-        """更新卡片"""
+        """Update a card."""
         feishu_card = self._convert_to_feishu_card(card)
         return await self._client.update_card(message_id, feishu_card)
 
     async def handle_callback(self, payload: dict) -> ChannelResponse:
         """
-        处理回调
+        Handle a callback.
 
-        注意：实际回调处理在 CardHandler 中，这里仅返回成功。
+        Actual callback handling lives in CardHandler; this boundary only
+        acknowledges the callback.
         """
         return ChannelResponse(success=True)
 
     def _convert_to_feishu_card(self, card: ChannelCard) -> dict:
-        """将通用卡片转换为飞书格式"""
+        """Convert a generic ChannelCard to Feishu format."""
         builder = CardBuilder()
         builder.set_header(card.title, template="blue")
 

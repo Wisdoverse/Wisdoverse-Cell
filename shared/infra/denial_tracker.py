@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 
 from prometheus_client import Counter
 
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 logger = get_logger("denial_tracker")
@@ -59,7 +60,7 @@ class DenialTracker:
         logger.info(
             "denial_recorded",
             agent_id=agent_id,
-            user_id=user_id,
+            user_hash=hash_identifier(user_id),
             action_type=action_type,
         )
 
@@ -80,7 +81,7 @@ class DenialTracker:
         logger.debug(
             "denial_cache_hit",
             agent_id=agent_id,
-            user_id=user_id,
+            user_hash=hash_identifier(user_id),
             action_type=action_type,
         )
         return data
@@ -102,5 +103,10 @@ class DenialTracker:
             if cursor == 0:
                 break
 
-        logger.info("denials_cleared", agent_id=agent_id, user_id=user_id, count=count)
+        logger.info(
+            "denials_cleared",
+            agent_id=agent_id,
+            user_hash=hash_identifier(user_id),
+            count=count,
+        )
         return count

@@ -278,6 +278,9 @@ def create_agent_app(
     async def agent_request(request: Request):
         """Generic internal request boundary for deployed agent services."""
         payload = await request.json()
+        trace_id = request.headers.get("X-Trace-ID")
+        if isinstance(payload, dict) and trace_id and not payload.get("trace_id"):
+            payload = {**payload, "trace_id": trace_id}
         result = await runtime.agent.handle_request(payload)
         return JSONResponse(content=result)
 

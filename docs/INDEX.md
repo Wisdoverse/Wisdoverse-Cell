@@ -1,6 +1,6 @@
 # Wisdoverse Cell Documentation Index
 
-> Last updated: 2026-05-02
+> Last updated: 2026-05-03
 >
 > This is the entry point for Wisdoverse Cell documentation. Documentation is English-first. Non-English text should be limited to locale values, quoted source text, external platform contracts, and multilingual fixtures.
 
@@ -27,10 +27,11 @@ surfaces that currently exist.
 |---------|-----------------|-------|
 | Product contract | [SPEC](../SPEC.md) | Defines the control-plane goal and non-negotiable service boundaries |
 | Product vocabulary | [Product Model](./overview/product-model.md) | Defines goals, work items, agent roles, runs, decisions, artifacts, budgets, approvals, and audit trails |
-| System architecture | [Architecture Overview](./overview/architecture.md) | Maps the frontend, gateway, independently deployed agents, shared runtime, control-plane ledger, and adapters |
+| Repository layout | [Project Layout](./overview/project-layout.md) | Maps source roots, current structure drift, cleanup phases, and ignored local-only paths |
+| System architecture | [Architecture Overview](./overview/architecture.md) | Maps architecture boundary rules, frontend, gateway, independently deployed agents, shared runtime, control-plane ledger, and adapters |
 | Operator API | [API Reference](./guides/api-reference.md#control-plane-api) | Documents `/api/v1/control-plane/*`, `/agent/request`, wakeups, scheduler ticks, approvals, budgets, and timelines |
 | Event contract | [Event Catalog](./guides/event-catalog.md#30-control-plane-domain) | Documents control-plane events and producer/consumer expectations |
-| Operations | [Operations Guide](./guides/operations.md#9-control-plane-operations) | Documents migrations, runtime switches, local-adapter fail-closed policy, heartbeat execution, and run evidence |
+| Operations | [Operations Guide](./guides/operations.md#10-control-plane-operations) | Documents migrations, runtime switches, local-adapter fail-closed policy, heartbeat execution, and run evidence |
 | Frontend workbench | [`frontend/src/app/[locale]/(app)/workflows/`](<../frontend/src/app/[locale]/(app)/workflows/>) | Operator entry point backed by Feature-Sliced Design slices under `entities/`, `features/`, and `widgets/` |
 
 ---
@@ -42,7 +43,8 @@ For onboarding, architecture, and shared terminology.
 | Document | Purpose |
 |----------|---------|
 | [Product Model](./overview/product-model.md) | Control-plane vocabulary and implemented foundation: goals, org chart, work items, runs, governance, budgets, audit logs |
-| [Architecture Overview](./overview/architecture.md) | Current system architecture, communication model, control-plane runtime, frontend slices, and deployment topology |
+| [Project Layout](./overview/project-layout.md) | Repository source roots, architecture cleanup roadmap, docs map, and local-only file policy |
+| [Architecture Overview](./overview/architecture.md) | Current system architecture, boundary rules, communication model, control-plane runtime, frontend slices, and deployment topology |
 | [Onboarding Guide](./overview/onboarding.md) | First 30 minutes, first day, first week |
 | [Glossary](./overview/glossary.md) | Core terminology grouped by domain |
 
@@ -127,6 +129,7 @@ docs/
 ├── INDEX.md
 ├── overview/
 ├── adr/
+├── examples/
 ├── guides/
 └── workflows/
 ```

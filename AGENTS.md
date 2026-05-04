@@ -7,7 +7,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env                              # Fill in secrets
 make up-infra                                     # Start PG/Redis/NATS/Milvus
-make dev                                          # Start the requirements capability
+make dev                                          # Start the requirement manager agent
 ```
 
 ## Part 1: The Board of Directors
@@ -42,37 +42,38 @@ L3 collaboration optimization. Stronger models should strengthen the system.
 
 ```
 agents/
+  requirement_manager/        # Real business runtime agent: requirements, PRD, local Feishu flow
+  pjm_agent/                  # Real business runtime agent: task decomposition and reporting
+  qa_agent/                   # Real business runtime agent: QA acceptance and quality checks
+  dev_agent/                  # Real business runtime agent: AgentForge delivery execution
+services/
   gateways/
     user_interaction/         # User-facing chat and Feishu webhook gateway
     channel/                  # Multi-channel messaging gateway
   orchestration/
     coordinator/              # Cross-module event orchestration worker
-  capabilities/
-    requirements/             # Requirement extraction, confirmation, and PRD capability
-    sync/                     # OpenProject <-> Feishu context sync capability
-    analysis/                 # Risk detection and operating analytics capability
-    project_management/       # Task decomposition, approval, alert, and reporting capability
-    quality/                  # QA acceptance capability
-    development/              # AgentForge development execution capability
-    evolution/                # Self-evolution analysis and recommendation capability
 gateway/                      # Go + Gin API Gateway
 frontend/                     # Next.js 16 + React 19
 shared/
+  capabilities/               # Shared support capabilities; not business agents
+    sync/                     # Sync runtime; OpenProject and Feishu Bitable boundaries stay split inside core/
+    analysis/                 # Risk detection and operating analytics capability
+    evolution/                # Self-evolution analysis and recommendation capability
   app/                        # AgentRuntime + create_agent_app (plugin architecture)
   control_plane/              # RoleAgent / capability module ledger, runs, approvals, budgets
   api/                        # Shared API routes/schemas
-  core/messaging/             # Port interfaces (hexagonal architecture)
+  core/                       # Abstract ports/protocols; messaging ports live here
   db/                         # Shared database layer
   grpc/                       # gRPC proto + generated code
   messaging/{inbound,outbound}/ # Messaging gateway
-  integrations/{feishu,wecom,...}/ # Platform adapters
-  infra/                      # CircuitBreaker, AgentClient, VectorStore, Embedder
+  integrations/{feishu,wecom,...}/ # Platform adapters, including Feishu card renderers
+  infra/                      # CircuitBreaker, AgentClient, EventBus, LLM Gateway, VectorStore, Embedder
   middleware/                  # Shared middleware
   models/                     # Shared Pydantic models
   observability/              # Logging, tracing, metrics
   protocols/                  # Protocol definitions
   schemas/                    # Event, Agent, Error
-  services/                   # EventBus, LLM Gateway + compatibility layer
+  services/                   # Deprecated compatibility shims only; do not add new imports here
   utils/                      # Shared utilities
   evolution/                  # Three-level self-evolution system (L1/L2/L3)
     collaboration/            # L3 Agent Teams collaboration optimization
@@ -80,7 +81,56 @@ shared/
     seeds/                    # Agent Skill seed data
 ```
 
-**Stack**: FastAPI | Go+Gin | Next.js 16 | PostgreSQL 18 | Redis 8 (EventBus) | NATS JetStream | Milvus | Claude API | Traefik v3
+**Stack**: FastAPI | Go+Gin | Next.js 16 | PostgreSQL 18 | Redis 8 (EventBus) | NATS JetStream | Milvus | LiteLLM through LLM Gateway | Traefik v3
+
+### Architecture Boundary Rules
+
+This section is the repository architecture constitution. `SPEC.md`,
+`docs/overview/architecture.md`, and this file must stay aligned.
+
+Wisdoverse Cell uses Control Plane Architecture at repository level.
+
+Backend architecture:
+
+- Agent Service Boundary for runtime isolation
+- Strategic DDD for domain vocabulary and bounded contexts
+- Clean Architecture inside each agent service
+- Hexagonal Architecture for integrations and messaging
+- Do not model the backend as a traditional DDD monolith
+
+Frontend architecture:
+
+- Strict Feature-Sliced Design
+
+Agent role model:
+
+- Organization-role agents such as CEO, CTO, CPO, and COO are durable
+  `shared.control_plane.AgentRole` records and templates.
+- Real business runtime agents such as `requirement-manager`, `pjm-agent`,
+  `qa-agent`, and `dev-agent` live as root packages under `agents/`.
+- Capability services such as sync, analysis, and evolution are independently
+  deployable support modules under `shared/capabilities/`. The sync runtime
+  must keep OpenProject synchronization and Feishu Bitable synchronization as
+  separate bounded capabilities, even when a compatibility endpoint orchestrates
+  both.
+- Runtime metadata and AgentRole templates belong to
+  `shared/control_plane/agent_catalog.py`.
+
+Rules:
+
+1. Agents must not directly import another independently deployed agent.
+2. Agents communicate through HTTP clients or EventBus events.
+3. External platforms must be accessed through ports and adapters.
+4. `shared/control_plane` owns durable product objects: `Goal`, `WorkItem`, `AgentRole`, `AgentRun`, `Approval`, `Budget`, `Artifact`, `AuditEvent`.
+5. `shared/core` owns abstract ports and protocols.
+6. `shared/integrations` owns platform adapters.
+7. `shared/utils` must not contain business logic.
+8. Frontend route files must stay thin.
+9. Frontend domain data belongs to `entities`.
+10. Frontend user actions belong to `features`.
+11. Frontend composed operator surfaces belong to `widgets`.
+12. All cross-boundary contracts must be documented in `SPEC.md`, API docs, or the Event Catalog.
+13. Runtime identifiers such as `projectcell`, `project-cell`, `project_cell`, and existing agent IDs must not be renamed during directory cleanup.
 
 ## Part 4: Coding Standards
 
@@ -98,10 +148,15 @@ user-facing product copy while an i18n path is being migrated.
 
 **Agents**: Inherit `BaseAgent`, implement `handle_event()`, `startup()`, `shutdown()`. Use `create_agent_app()` for FastAPI entry (see `shared/app/`). Scheduler jobs must call `runtime.agent` not `_raw_agent`.
 
-**Agent Layout**: Keep `agents/` grouped by real runtime boundary:
-`gateways/`, `orchestration/`, and `capabilities/`. Do not add top-level
-compatibility packages such as `chat_agent/`, `pjm_agent/`, or
-`requirement_manager/`; use the canonical package paths shown in Part 3.
+**Agent Layout**: Keep only real business runtime agents under `agents/`.
+Gateway and orchestration services belong under `services/`; reusable support
+capabilities belong under `shared/capabilities/`. Root-level `agents/*`
+packages must be deployable agents with stable runtime identifiers, not
+compatibility aliases. Within an agent package, external HTTP/SDK clients live
+under `adapters/`; `core/` should depend on ports or injected collaborators.
+Feishu card schema builders and reusable Feishu card renderers are shared
+platform integration capabilities under `shared/integrations/feishu/cards/`;
+agent and gateway code should inject them through service-local ports.
 
 **Human-in-the-Loop**: Finance | Legal | Customer | Technical (must approve)
 
@@ -111,7 +166,7 @@ compatibility packages such as `chat_agent/`, `pjm_agent/`, or
 
 ```bash
 make test                                          # Python tests
-make dev                                           # uvicorn --reload (requirements capability)
+make dev                                           # uvicorn --reload (requirement manager agent)
 make gateway-dev                                   # Go gateway dev
 make frontend-dev                                  # Next.js dev
 make up-dev                                        # Docker Compose all services
@@ -124,32 +179,3 @@ make load-smoke                                    # k6 smoke test (10 VUs)
 make clean                                         # Remove all containers + prune
 ruff check agents/ shared/                         # Lint
 ```
-
-## Part 6: Living Memory
-
-### Lessons Learned
-
-* **[2026-01 Agent ID]**: kebab-case (`requirement-manager`)
-* **[2026-01 Git]**: Create feature branch BEFORE any changes; never commit directly to `main`
-* **[2026-04 Public Mainline]**: `main` is the public-first trunk; `intern-archive` is read-only and must not be merged back
-* **[2026-01 datetime]**: Use `datetime.now(UTC)` not deprecated `datetime.utcnow()`
-* **[2026-01 Code Quality]**: Run `code-simplifier` before committing feature branches
-* **[2026-03 Hexagonal Architecture]**: `shared/core/messaging/` = Port, `shared/messaging/` = orchestration, `shared/integrations/` = Adapter
-* **[2026-03 Import Migration]**: Use `patch.object(module, "attr")` not `patch("string.path")` - resilient to directory moves
-* **[2026-03 Compat Stubs]**: Old files -> `"""Deprecated: use new.path"""\nfrom new.path import *` for zero-consumer-change migration
-* **[2026-03 Feature Flags]**: `settings.use_new_delivery_service` for outbound path rollback
-* **[2026-03 CI Lint]**: `scripts/lint_deprecated_imports.py` blocks new deprecated imports in MR
-* **[2026-03 RuntimePlugin]**: Extend agent capabilities via plugins (`runtime.use(MyPlugin())`), not by modifying runtime
-* **[2026-03 Evolution]**: `shared/evolution/` = three-level self-evolution (L1 Skill/Prompt, L2 Architecture, L3 Collaboration)
-* **[2026-03 Vector DB]**: Milvus (not Chroma). Use `shared/infra/milvus_store.py` + `shared/infra/embedder.py`
-* **[2026-04 LLM Error Taxonomy]**: `shared/infra/llm_errors.py` - 6 error categories (rate_limit/overloaded/network/auth/content_size/other) with per-category `RetryStrategy`. Anthropic returns HTTP 400 (not 413) for prompt-too-long - detect via message pattern matching in `classify_error()`.
-* **[2026-04 ContentSizeError]**: Plain `Exception` subclass, NOT `anthropic.APIStatusError` (avoids coupling to SDK constructor that requires `httpx.Response`). Chain original via `__cause__`.
-* **[2026-04 Custom Retry]**: `_call_with_recovery()` in `llm_gateway.py` replaces tenacity. Enables model fallback mid-retry and ReactiveCompact on content_size. Circuit breaker records 1 failure after ALL retries+fallback exhausted.
-* **[2026-04 Context Compression 3-Layer]**: MicroCompact (free, block-count tool_result clearing) -> L1 trim -> L2 summarize -> ReactiveCompact (emergency on prompt-too-long). `micro_compact()` and `reactive_compact()` in `context_compressor.py`.
-* **[2026-04 ConversationEngine]**: `shared/infra/conversation_engine.py` - shared multi-turn tool loop with AsyncGenerator events. Per-request lifetime, not singleton. Caller creates per request with `messages=loaded_history`, extracts `engine.messages` after `run()`.
-* **[2026-04 User Gateway]**: The user interaction gateway handles simple queries directly and escalates complex cross-module workflows to the Coordinator. The prompt teaches operation strategy, not tool lists.
-* **[2026-05 Agent Org]**: CEO/CTO/CPO/COO are first-class `organization_role` AgentRole records. Sync, quality, requirements, development, and similar deployed services are `capability_module` records. Do not present capability modules as organization roles.
-* **[2026-04 Prompt Style]**: Follow Claude Code pattern - tool definitions via API `tools` param, prompt teaches usage STRATEGY not tool list. Sections: System -> Doing Tasks -> Executing Actions -> Output Efficiency. Include anti-patterns ("do not...").
-* **[2026-05 Language]**: The repository is English-first. Prompts, docs, comments, API descriptions, and contribution text should be English unless the text is a locale value, external contract, quoted user content, or multilingual test fixture.
-
-> *v2026.04.03-compact*

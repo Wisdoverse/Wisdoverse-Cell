@@ -6,6 +6,7 @@ import pytest
 
 from shared.infra.audit_log import AuditAction
 from shared.infra.llm_gateway import LLMGateway
+from tests.helpers.provider_errors import anthropic_like as anthropic
 
 
 @pytest.fixture
@@ -73,8 +74,6 @@ class TestCostCapExceededEmitsAudit:
 class TestFailedLLMCallNoAudit:
     @pytest.mark.asyncio
     async def test_failed_llm_call_no_audit(self, gateway):
-        import anthropic
-
         with (
             patch.object(
                 gateway.async_client.messages,
@@ -97,3 +96,79 @@ class TestFailedLLMCallNoAudit:
                 )
 
             mock_audit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_complete_failure_logs_safe_provider_error(self, gateway):
+        raw_secret = "SECRET_PROMPT_FRAGMENT user@example.com"
+        persist_callback = MagicMock()
+
+        with (
+            patch.object(
+                gateway.async_client.messages,
+                "create",
+                new_callable=AsyncMock,
+                side_effect=anthropic.APIError(
+                    message=f"provider rejected prompt: {raw_secret}",
+                    request=MagicMock(),
+                    body=None,
+                ),
+            ),
+            patch("shared.infra.llm_gateway.logger") as mock_logger,
+        ):
+            with pytest.raises(anthropic.APIError):
+                await gateway.complete(
+                    prompt=f"Please process {raw_secret}",
+                    agent_id="test-agent",
+                    task_type="test",
+                    persist_callback=persist_callback,
+                    trace_id="trace-safe-error",
+                )
+
+        error_kwargs = mock_logger.error.call_args.kwargs
+        assert "error" not in error_kwargs
+        assert error_kwargs["error_category"] == "other"
+        assert error_kwargs["retry_decision"] == "do_not_retry_without_investigation"
+        assert error_kwargs["operator_action"] == "inspect_error_fingerprint_and_provider_status"
+        assert error_kwargs["error_type"] == "APIError"
+        assert "error_fingerprint" in error_kwargs
+        assert raw_secret not in str(error_kwargs)
+
+        usage_data = persist_callback.call_args.args[0]
+        assert usage_data.success is False
+        assert usage_data.error_message.startswith("other:APIError:sha256:")
+        assert raw_secret not in usage_data.error_message
+
+    @pytest.mark.asyncio
+    async def test_create_messages_failure_logs_operator_guidance(self, gateway):
+        raw_secret = "SECRET_PROMPT_FRAGMENT user@example.com"
+
+        with (
+            patch.object(
+                gateway.async_client.messages,
+                "create",
+                new_callable=AsyncMock,
+                side_effect=anthropic.AuthenticationError(
+                    message=f"invalid key: {raw_secret}",
+                    response=MagicMock(status_code=401),
+                    body=None,
+                ),
+            ) as mock_create,
+            patch.object(gateway, "_get_redis", new_callable=AsyncMock, return_value=None),
+            patch("shared.infra.llm_gateway.logger") as mock_logger,
+        ):
+            with pytest.raises(anthropic.AuthenticationError):
+                await gateway.create_messages(
+                    agent_id="test-agent",
+                    messages=[{"role": "user", "content": f"Please process {raw_secret}"}],
+                    trace_id="trace-safe-messages-error",
+                )
+
+        error_kwargs = mock_logger.error.call_args.kwargs
+        assert "error" not in error_kwargs
+        assert error_kwargs["error_category"] == "auth"
+        assert error_kwargs["retry_decision"] == "do_not_retry_until_provider_auth_is_fixed"
+        assert error_kwargs["operator_action"] == "check_provider_api_key_and_model_route"
+        assert error_kwargs["error_type"] == "AuthenticationError"
+        assert "error_fingerprint" in error_kwargs
+        assert raw_secret not in str(error_kwargs)
+        assert mock_create.call_count == 1

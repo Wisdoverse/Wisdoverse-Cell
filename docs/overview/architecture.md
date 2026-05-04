@@ -14,7 +14,37 @@ The product view is a control plane for company operations:
 Mission -> Goals -> Work Items -> Agent Runs -> Decisions -> Audit Trail
 ```
 
-This control-plane layer is implemented through the existing runtime and integration boundaries: Requirement Manager turns intent into structured requirements, PJM decomposes and tracks work, Sync Agent keeps OpenProject and Feishu aligned, Chat Agent receives user interaction, Dev Agent bridges delivery workflows, QA Agent verifies outcomes, and Evolution Agent proposes improvements.
+This control-plane layer is implemented through explicit runtime and integration boundaries: the requirement manager agent turns intent into structured requirements, the PJM agent decomposes and tracks work, the sync runtime hosts separate OpenProject and Feishu Bitable synchronization boundaries, the user interaction gateway receives users, the dev agent bridges delivery workflows, the QA agent verifies outcomes, and the evolution capability proposes improvements.
+
+## Architecture Boundary Rules
+
+Wisdoverse Cell uses Control Plane Architecture at repository level.
+
+Backend architecture:
+
+- Agent Service Boundary for runtime isolation
+- Strategic DDD for domain vocabulary and bounded contexts
+- Clean Architecture inside each agent service
+- Hexagonal Architecture for integrations and messaging
+
+Frontend architecture:
+
+- Strict Feature-Sliced Design
+
+Rules:
+
+1. Agents must not directly import another independently deployed agent.
+2. Agents communicate through HTTP clients or EventBus events.
+3. External platforms must be accessed through ports and adapters.
+4. `shared/control_plane` owns durable product objects: `Goal`, `WorkItem`, `AgentRole`, `AgentRun`, `Approval`, `Budget`, `Artifact`, `AuditEvent`.
+5. `shared/core` owns abstract ports and protocols.
+6. `shared/integrations` owns platform adapters.
+7. `shared/utils` must not contain business logic.
+8. Frontend route files must stay thin.
+9. Frontend domain data belongs to `entities`.
+10. Frontend user actions belong to `features`.
+11. Frontend composed operator surfaces belong to `widgets`.
+12. All cross-boundary contracts must be documented in `SPEC.md`, API docs, or the Event Catalog.
 
 ```mermaid
 graph TB
@@ -30,14 +60,14 @@ graph TB
     end
 
     subgraph Agent Layer
-        RM[requirements capability]
+        RM[requirement manager agent]
         SA[sync capability]
         AA[analysis capability]
-        PM[project management capability]
+        PM[PJM agent]
         CA[user interaction gateway]
-        EA[evolution capability]
-        QA[quality capability]
-        DA[development capability]
+        EA[evolution capability :8016]
+        QA[QA agent]
+        DA[Dev agent]
     end
 
     subgraph Shared Infrastructure
@@ -48,7 +78,7 @@ graph TB
         BG[BudgetGuard]
         AG[Approval Gates]
         EB[EventBus - Redis Streams]
-        LLM[LLM Gateway - Claude API]
+        LLM[LLM Gateway - LiteLLM]
         VS[VectorStore - Milvus]
         RT[AgentRuntime + Plugins]
     end
@@ -112,17 +142,22 @@ Agent fleet modeling is split into two layers:
 | Layer | Meaning |
 |-------|---------|
 | Organization role agents | CEO/CTO/CPO/COO/PM-style `AgentRole` records that own intent, tradeoffs, user interaction policy, and business decisions |
-| Capability modules | Existing services such as sync, QA, requirement extraction, analysis, development execution, and evolution analysis |
+| Root business runtime agents | `requirement-manager`, `pjm-agent`, `qa-agent`, and `dev-agent`; these live directly under `agents/` and own business work outcomes |
+| Support capability modules | Existing services such as sync, analysis, and evolution analysis |
 
-Capability modules SHOULD be invoked by role agents, gateways, schedulers, or
-work items. They SHOULD NOT be presented as organization roles unless they have
-a direct role-level interaction contract.
+Support capability modules SHOULD be invoked by role agents, root business
+agents, gateways, schedulers, or work items. They SHOULD NOT be presented as
+organization roles unless they have a direct role-level interaction contract.
 
 ---
 
 ## 3. Communication Model
 
 Agents communicate through synchronous and asynchronous boundaries. Synchronous calls use `AgentClient` over HTTP REST (see ADR-0004) for request/response workflows. Asynchronous collaboration uses Redis Streams EventBus with consumer groups for event-driven decoupling.
+Redis EventBus exposes pending counts plus a `dlq.failed` stream for handler
+failures and malformed messages. Consumers must remain idempotent because
+delivery is at least once; handlers should use stable `event_id` or a
+domain-level idempotency key when mutating durable state.
 
 Control-plane wakeups add a third boundary: the control-plane API creates an
 `AgentRun`, resolves adapter policy, calls a deployed `/agent/request` endpoint
@@ -156,12 +191,13 @@ Current control-plane slices:
 
 | Slice | Responsibility |
 |-------|----------------|
-| `entities/control-plane` | Goals, work items, runs, decisions, artifacts, approvals, budgets, audit timeline |
+| `entities/control-plane` | Goals, work items, runs, decisions, artifacts, approvals, budgets, evolution proposals, audit timeline |
 | `entities/agent` | Agent kind, interaction mode, context source, registry, and control-plane agent API hooks |
+| `entities/activity`, `entities/approval`, `entities/question`, `entities/requirement`, `entities/usage` | Domain fixtures, filters, and API hooks for operator surfaces |
 | `features/agent-create` | Operator-created role/module dialog with organization-role vs capability-module separation |
 | `features/agent-wakeup` | Manual agent wakeup action |
-| `widgets/control-plane-workbench` | `/[locale]/workflows` operator console |
-| `widgets/agent-fleet` and `widgets/agent-detail` | Agent fleet and detail surfaces |
+| `widgets/control-plane-workbench` | `/[locale]/workflows` operator console, including evolution proposal visibility |
+| `widgets/agent-fleet`, `widgets/agent-detail`, `widgets/requirements`, and other page widgets | Composed operator surfaces used by thin route files |
 
 Route-level code should not own control-plane state directly; it should compose
 widgets and pass only route/search parameters.
@@ -170,15 +206,29 @@ widgets and pass only route/search parameters.
 
 ## 5. Hexagonal Architecture
 
-The messaging system follows hexagonal architecture (see ADR-0005), decoupling core ports from external adapters. `shared/core/messaging/` defines port interfaces, `shared/messaging/` handles inbound/outbound orchestration, and `shared/integrations/` implements platform adapters. This layering allows platform adapters to be replaced without changing core logic.
+The messaging system follows hexagonal architecture (see ADR-0005), decoupling core ports from external adapters. `shared/core/messaging/` defines messaging port interfaces, `shared/core/channels/` defines channel message/card abstractions, `shared/core/ids.py` defines stable runtime and control-plane ID contracts, `shared/core/integration_ports.py` defines external platform ports for OpenProject, Feishu Bitable, Feishu messaging, Feishu contact lookup, Feishu webhooks, GitLab MR creation, and GitLab MR notes, `shared/messaging/` handles inbound/outbound orchestration, and `shared/integrations/` implements platform adapters. This layering allows platform adapters to be replaced without changing core logic.
+
+Inside a root business agent, service-specific external clients live under the
+agent's own `adapters/` package. The agent `core/` package owns business and
+application logic and should depend on ports or injected collaborators rather
+than constructing HTTP clients directly.
 
 ```
 shared/core/messaging/   -> Port interfaces (abstract)
+shared/core/channels/    -> Channel message/card abstractions
+shared/core/ids.py       -> Stable runtime and control-plane ID contracts
+shared/core/integration_ports.py -> External platform ports (abstract)
 shared/messaging/inbound/ -> Inbound orchestration
 shared/messaging/outbound/ -> Outbound orchestration
-shared/integrations/feishu/ -> Feishu adapter
+shared/integrations/feishu/ -> Feishu adapter, including shared Feishu card renderers
 shared/integrations/wecom/ -> WeCom adapter
+agents/<agent>/adapters/ -> Agent-local external adapters
 ```
+
+Feishu interactive-card payload construction is a shared platform integration
+capability. Agent cores should expose business-level card-rendering ports, while
+service entry points inject concrete renderers from
+`shared/integrations/feishu/cards/`.
 
 ---
 
@@ -190,13 +240,18 @@ Each agent has its own PostgreSQL user with minimal privileges and a dedicated R
 
 ## 7. Self-Evolution
 
-The self-evolution system has three layers: L1 optimizes skills and prompts, L2 proposes architecture improvements, and L3 optimizes multi-agent collaboration patterns. Implementation lives in `shared/evolution/` and `agents/capabilities/evolution/`.
+The self-evolution system has three layers: L1 optimizes skills and prompts, L2 proposes architecture improvements, and L3 optimizes multi-agent collaboration patterns. Implementation lives in `shared/evolution/` and `shared/capabilities/evolution/`.
 
 ---
 
 ## 8. Agent Runtime Framework
 
 `create_agent_app()` creates a standardized FastAPI application in one line, including lifecycle management and middleware. `AgentRuntime` manages agent lifecycle and plugins. `RuntimePlugin` is the extension point, following the open-closed principle. `EvolvedAgent` wraps `BaseAgent` to inject self-evolution capabilities. `ControlPlanePlugin` is opt-in and records `AgentRun` lifecycle evidence without forcing every agent to import ledger code directly.
+
+The shared `LLMGateway` is the only supported model access boundary for agent
+code. It routes all model calls through LiteLLM. Agents must not instantiate
+provider SDK clients directly; retries, budgets, circuit breaking, provider
+routing, and usage evidence stay inside the gateway.
 
 ```python
 # One-line agent creation
@@ -217,10 +272,13 @@ All services are orchestrated through Docker Compose. Traefik v3 handles routing
 ```
 Traefik :443/:80
   ├── /api/*        -> gateway :8080
-  ├── /agent/rm/*   -> requirements capability :8000
+  ├── /agent/rm/*   -> requirement manager agent :8000
   ├── /agent/sync/* -> sync capability :8010
-  ├── /agent/pm/*   -> project management capability :8012
-  ├── /agent/qa/*   -> quality capability :8014
-  ├── /agent/dev/*  -> development capability :8015
+  ├── /agent/analysis/* -> analysis capability :8011
+  ├── /agent/pm/*   -> PJM agent :8012
+  ├── /agent/chat/* -> user interaction gateway :8013
+  ├── /agent/qa/*   -> QA agent :8014
+  ├── /agent/dev/*  -> Dev agent :8015
+  ├── /agent/evolution/* -> evolution capability :8016
   └── ...           -> other deployed agents
 ```

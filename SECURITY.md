@@ -29,8 +29,8 @@ If you discover a security vulnerability, please report it responsibly:
 
 ### Data Protection
 - **PII Handling**: open_id hashed in logs, never in LLM prompts
-- **Data Residency**: `REQUIRE_ANTHROPIC_PROXY=true` enforces approved proxy
-- **DSAR**: Data Subject Access Request API (详见下方 DSAR 章节)
+- **Data Residency**: route model traffic through an approved LiteLLM proxy
+- **DSAR**: Data Subject Access Request API. See the DSAR section below.
 - **Transport**: External TLS should terminate at the reverse proxy or platform
   ingress. Internal Compose gRPC traffic runs on the private backend network by
   default; use mTLS or a service mesh before carrying internal traffic over an
@@ -50,63 +50,72 @@ If you discover a security vulnerability, please report it responsibly:
 - **Network**: Backend network is internal-only
 - **Monitoring**: 51 Prometheus alert rules including security alerts
 
-## DSAR (数据主体访问请求)
+## DSAR (Data Subject Access Requests)
 
-符合 GDPR / PIPL 要求，提供数据主体权利请求处理能力。
+The DSAR API supports data subject rights workflows for GDPR and PIPL
+compliance.
 
-### 支持的操作
+### Supported Operations
 
-| 操作 | 端点 | 说明 |
+| Operation | Endpoint | Description |
 |------|------|------|
-| 数据查询 | `POST /api/dsar/export` | 导出用户所有数据 (JSON) |
-| 数据删除 | `POST /api/dsar/delete?confirm=true` | 删除/匿名化用户数据 |
-| 删除预检 | `POST /api/dsar/delete` | dry-run 预检受影响记录 |
+| Data export | `POST /api/dsar/export` | Export all user data as JSON |
+| Data deletion | `POST /api/dsar/delete?confirm=true` | Delete or anonymize user data |
+| Deletion preview | `POST /api/dsar/delete` | Dry-run preview of affected records |
 
-### 数据范围
+### Data Scope
 
-DSAR 请求覆盖以下数据源：
+DSAR requests cover these data sources:
 
-- **Chat Agent**: 聊天记录、用户偏好
-- **PJM Agent**: 任务分配记录、审批记录
-- **Sync Agent**: 同步日志中的用户关联数据
-- **Requirement Manager**: 需求提取中的用户上下文
+- **Chat Agent**: chat history and user preferences
+- **PJM Agent**: task assignment records and approval records
+- **Sync Agent**: user-linked data in synchronization logs
+- **Requirements capability**: user context captured during requirement extraction
 
-### 处理流程
+### Processing Flow
 
-1. 每个 Agent 挂载自己的 `shared.api.dsar_router`
-2. Agent 通过本地 `DSARService` 和 `DSARHandler` 导出或删除本服务持有的数据
-3. 删除默认 dry-run，必须显式传入 `confirm=true` 才会执行写操作
-4. 运营方汇总各 Agent 处理结果，30 天内响应请求人
+1. Each agent mounts its own `shared.api.dsar_router`.
+2. Each agent exports or deletes data it owns through its local `DSARService`
+   and `DSARHandler`.
+3. Deletion defaults to dry-run mode. Write operations require
+   `confirm=true`.
+4. Operators aggregate per-agent results and respond to the requester within
+   30 days.
 
-### 数据保留
+### Data Retention
 
-| 数据类型 | 保留期限 | 说明 |
+| Data Type | Retention | Notes |
 |----------|----------|------|
-| 聊天记录 | 90 天 | 到期自动归档 |
-| 审计日志 | 365 天 | 法律合规要求 |
-| LLM 调用日志 | 30 天 | 仅保留元数据，不含 prompt 内容 |
-| 事件队列 | 24 小时 | Redis Streams TTL |
+| Chat history | 90 days | Archived automatically after expiry |
+| Audit logs | 365 days | Legal and compliance retention |
+| LLM call logs | 30 days | Metadata only, no prompt content |
+| Event queues | 24 hours | Redis Streams TTL |
 
-## LLM 数据出境合规
+## LLM Cross-Border Data Compliance
 
-### 代理管控
+### Proxy Enforcement
 
 ```bash
-# .env 配置 — 强制通过合规代理访问 Claude API
-REQUIRE_ANTHROPIC_PROXY=true
-ANTHROPIC_BASE_URL=https://claude-proxy.example.com/v1
+# .env configuration: route LLM traffic through the approved LiteLLM proxy.
+LITELLM_API_BASE=https://llm-proxy.example.com/v1
 ```
 
-- 启用 `REQUIRE_ANTHROPIC_PROXY=true` 时，`LLMGateway` 启动检查 `ANTHROPIC_BASE_URL` 是否为合规代理地址
-- 若未配置或指向官方 API，启动时抛出异常阻止服务运行
-- 代理服务器负责日志记录、数据脱敏、地域管控
+- `LLMGateway` sends provider requests through `LITELLM_API_BASE` when it is
+  configured.
+- Production deployments should set `LITELLM_API_BASE` to the approved regional
+  proxy instead of routing directly to provider APIs.
+- The proxy is responsible for logging, data masking, and regional controls.
 
-### LLM Prompt 安全
+### LLM Prompt Security
 
-- **禁止传入 PII**: `open_id`、手机号、邮箱等不得进入 LLM prompt
-- **XML Delimiter 隔离**: 用户输入用 `<user_input>` 标签隔离，防止 prompt 注入
-- **AI 内容标识**: Agent 生成的内容标注 "AI 生成，仅供参考"
-- **输出过滤**: 系统 prompt 和内部信息不得在回复中泄露
+- **No PII in prompts**: `open_id`, phone numbers, email addresses, and similar
+  identifiers must not enter LLM prompts.
+- **XML delimiter isolation**: user input is wrapped in `<user_input>` tags to
+  reduce prompt-injection risk.
+- **AI content labeling**: agent-generated content is labeled as
+  "AI generated, for reference only".
+- **Output filtering**: system prompts and internal information must not be
+  exposed in responses.
 
 ## Dependency Management
 

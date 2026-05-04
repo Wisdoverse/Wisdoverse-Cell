@@ -475,6 +475,9 @@ class TestExperiment:
         assert concluded.status == ExperimentStatus.CONCLUDED
         assert concluded.concluded_at is not None
 
+        promoted = exp.model_copy(update={"status": ExperimentStatus.PROMOTED})
+        assert promoted.status == ExperimentStatus.PROMOTED
+
         rolled_back = exp.model_copy(
             update={"status": ExperimentStatus.ROLLED_BACK}
         )
@@ -482,6 +485,7 @@ class TestExperiment:
 
     def test_status_enum_values(self):
         assert ExperimentStatus.RUNNING == "running"
+        assert ExperimentStatus.PROMOTED == "promoted"
         assert ExperimentStatus.CONCLUDED == "concluded"
         assert ExperimentStatus.ROLLED_BACK == "rolled_back"
 

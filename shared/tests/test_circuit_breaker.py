@@ -1,12 +1,12 @@
 """
-断路器单元测试
+Circuit breaker unit tests.
 
-测试覆盖:
-1. 状态转换: CLOSED → OPEN → HALF_OPEN → CLOSED
-2. 失败计数和阈值
-3. 恢复超时
-4. 线程安全
-5. 手动重置
+Coverage:
+1. State transitions: CLOSED -> OPEN -> HALF_OPEN -> CLOSED
+2. Failure count and threshold
+3. Recovery timeout
+4. Thread safety
+5. Manual reset
 """
 import time
 from threading import Thread
@@ -15,38 +15,38 @@ from shared.infra.circuit_breaker import CircuitBreaker, CircuitBreakerError, Ci
 
 
 class TestCircuitBreakerBasic:
-    """基础功能测试"""
+    """Basic behavior tests."""
 
     def test_initial_state_is_closed(self):
-        """初始状态应为 CLOSED"""
+        """Initial state is CLOSED."""
         breaker = CircuitBreaker()
         assert breaker.state == CircuitState.CLOSED
         assert breaker.failure_count == 0
 
     def test_can_execute_when_closed(self):
-        """CLOSED 状态应允许执行"""
+        """CLOSED state allows execution."""
         breaker = CircuitBreaker()
         assert breaker.can_execute() is True
 
     def test_success_resets_failure_count(self):
-        """成功应重置失败计数"""
+        """Success resets failure count."""
         breaker = CircuitBreaker(failure_threshold=5)
 
-        # 记录一些失败
+        # Record failures.
         breaker.record_failure()
         breaker.record_failure()
         assert breaker.failure_count == 2
 
-        # 成功后重置
+        # Reset after success.
         breaker.record_success()
         assert breaker.failure_count == 0
 
 
 class TestCircuitBreakerOpenState:
-    """断路器打开状态测试"""
+    """Open state tests."""
 
     def test_opens_after_threshold_failures(self):
-        """连续失败达到阈值后应打开"""
+        """Circuit opens after threshold failures."""
         breaker = CircuitBreaker(failure_threshold=3)
 
         for _ in range(3):
@@ -56,10 +56,10 @@ class TestCircuitBreakerOpenState:
         assert breaker.failure_count == 3
 
     def test_rejects_when_open(self):
-        """OPEN 状态应拒绝执行"""
+        """OPEN state rejects execution."""
         breaker = CircuitBreaker(failure_threshold=2, recovery_timeout=60)
 
-        # 触发打开
+        # Trigger open state.
         breaker.record_failure()
         breaker.record_failure()
 
@@ -67,7 +67,7 @@ class TestCircuitBreakerOpenState:
         assert breaker.can_execute() is False
 
     def test_does_not_open_before_threshold(self):
-        """未达到阈值不应打开"""
+        """Circuit does not open before threshold."""
         breaker = CircuitBreaker(failure_threshold=5)
 
         for _ in range(4):
@@ -78,72 +78,72 @@ class TestCircuitBreakerOpenState:
 
 
 class TestCircuitBreakerHalfOpenState:
-    """半开状态测试"""
+    """Half-open state tests."""
 
     def test_transitions_to_half_open_after_timeout(self):
-        """超时后应转换为 HALF_OPEN"""
+        """Circuit transitions to HALF_OPEN after timeout."""
         breaker = CircuitBreaker(failure_threshold=2, recovery_timeout=1)
 
-        # 触发打开
+        # Trigger open state.
         breaker.record_failure()
         breaker.record_failure()
         assert breaker.state == CircuitState.OPEN
 
-        # 等待恢复超时
+        # Wait for recovery timeout.
         time.sleep(1.1)
 
-        # 检查是否可执行（会触发状态转换）
+        # Checking execution triggers the state transition.
         assert breaker.can_execute() is True
         assert breaker.state == CircuitState.HALF_OPEN
 
     def test_closes_on_success_in_half_open(self):
-        """HALF_OPEN 状态成功后应关闭"""
+        """HALF_OPEN state closes after success."""
         breaker = CircuitBreaker(failure_threshold=2, recovery_timeout=1)
 
-        # 触发打开
+        # Trigger open state.
         breaker.record_failure()
         breaker.record_failure()
 
-        # 等待恢复
+        # Wait for recovery.
         time.sleep(1.1)
-        breaker.can_execute()  # 触发转换到 HALF_OPEN
+        breaker.can_execute()  # Triggers transition to HALF_OPEN.
 
-        # 成功后关闭
+        # Close after success.
         breaker.record_success()
         assert breaker.state == CircuitState.CLOSED
         assert breaker.failure_count == 0
 
     def test_reopens_on_failure_in_half_open(self):
-        """HALF_OPEN 状态失败后应重新打开"""
+        """HALF_OPEN state reopens after failure."""
         breaker = CircuitBreaker(failure_threshold=2, recovery_timeout=1)
 
-        # 触发打开
+        # Trigger open state.
         breaker.record_failure()
         breaker.record_failure()
 
-        # 等待恢复
+        # Wait for recovery.
         time.sleep(1.1)
-        breaker.can_execute()  # 触发转换到 HALF_OPEN
+        breaker.can_execute()  # Triggers transition to HALF_OPEN.
         assert breaker.state == CircuitState.HALF_OPEN
 
-        # 失败后重新打开
+        # Reopen after failure.
         breaker.record_failure()
         assert breaker.state == CircuitState.OPEN
 
 
 class TestCircuitBreakerReset:
-    """手动重置测试"""
+    """Manual reset tests."""
 
     def test_reset_closes_circuit(self):
-        """reset 应关闭断路器"""
+        """reset closes the circuit."""
         breaker = CircuitBreaker(failure_threshold=2)
 
-        # 触发打开
+        # Trigger open state.
         breaker.record_failure()
         breaker.record_failure()
         assert breaker.state == CircuitState.OPEN
 
-        # 重置
+        # Reset.
         breaker.reset()
         assert breaker.state == CircuitState.CLOSED
         assert breaker.failure_count == 0
@@ -151,10 +151,10 @@ class TestCircuitBreakerReset:
 
 
 class TestCircuitBreakerStats:
-    """统计信息测试"""
+    """Statistics tests."""
 
     def test_get_stats(self):
-        """应返回正确的统计信息"""
+        """get_stats returns expected statistics."""
         breaker = CircuitBreaker(
             failure_threshold=5,
             recovery_timeout=60,
@@ -174,10 +174,10 @@ class TestCircuitBreakerStats:
 
 
 class TestCircuitBreakerThreadSafety:
-    """线程安全测试"""
+    """Thread safety tests."""
 
     def test_concurrent_failures(self):
-        """并发失败应正确计数"""
+        """Concurrent failures are counted correctly."""
         breaker = CircuitBreaker(failure_threshold=100)
 
         def record_failures():
@@ -196,7 +196,7 @@ class TestCircuitBreakerThreadSafety:
         assert breaker.state == CircuitState.OPEN
 
     def test_concurrent_success_and_failure(self):
-        """并发成功和失败应正确处理"""
+        """Concurrent success and failure operations are handled correctly."""
         breaker = CircuitBreaker(failure_threshold=1000)
 
         def mixed_operations():
@@ -211,21 +211,21 @@ class TestCircuitBreakerThreadSafety:
         for t in threads:
             t.join()
 
-        # 最后一次操作是 record_success，应该重置计数
-        # 但由于并发，实际结果可能不同
-        # 关键是不应该崩溃
+        # The last operation is record_success and should reset the count, but
+        # concurrency can make the exact result vary. The key assertion is that
+        # it does not crash.
         assert breaker.state in [CircuitState.CLOSED, CircuitState.OPEN]
 
 
 class TestCircuitBreakerError:
-    """断路器异常测试"""
+    """Circuit breaker error tests."""
 
     def test_error_message(self):
-        """异常应包含正确消息"""
+        """Error includes the provided message."""
         error = CircuitBreakerError("Custom message")
         assert str(error) == "Custom message"
 
     def test_default_message(self):
-        """默认消息"""
+        """Default message is present."""
         error = CircuitBreakerError()
         assert "Circuit breaker is open" in str(error)

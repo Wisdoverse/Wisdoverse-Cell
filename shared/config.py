@@ -75,12 +75,15 @@ class Settings(BaseSettings):
 
     # NATS JetStream
     nats_url: str = "nats://localhost:4222"
+    nats_stream_replicas: int = 1
     event_bus_backend: Literal["nats", "redis"] = "redis"
 
     @model_validator(mode="after")
     def _validate_nats_config(self) -> "Settings":
         if self.event_bus_backend == "nats" and not self.nats_url.strip():
             raise ValueError("nats_url must be set when event_bus_backend is 'nats'")
+        if self.nats_stream_replicas < 1:
+            raise ValueError("nats_stream_replicas must be >= 1")
         return self
 
     # Vector Database (Milvus)
@@ -92,11 +95,17 @@ class Settings(BaseSettings):
     chroma_port: int = 8000
 
     # ============ LLM Configuration ============
+    llm_provider: str = "litellm"  # Deprecated switch; LiteLLM is the only runtime path.
     anthropic_api_key: SecretStr = SecretStr("")
+    openai_api_key: SecretStr = SecretStr("")
+    openrouter_api_key: SecretStr = SecretStr("")
+    gemini_api_key: SecretStr = SecretStr("")
+    google_api_key: SecretStr = SecretStr("")
     default_model: str = "claude-opus-4-6"
     chat_model: str = "claude-sonnet-4-20250514"  # Conversations: $3/$15 per MTok
     decompose_model: str = "claude-opus-4-20250514"  # Complex decomposition: $15/$75
     summary_model: str = "claude-haiku-4-5-20251001"  # Summaries/reports: $1/$5
+    litellm_api_base: str = ""  # Optional LiteLLM/provider proxy base URL
 
     # Cost controls
     llm_daily_budget_usd: float = 10.0  # daily budget
@@ -211,6 +220,12 @@ class Settings(BaseSettings):
     secret_key: SecretStr = SecretStr("change-me-in-production")
     pm_api_key: str = ""  # X-API-Key for non-health endpoints; empty only in dev/test
     internal_service_key: str = ""  # X-Internal-Key for inter-service calls; empty only in dev/test
+    internal_transport_protection: Literal[
+        "",
+        "trusted_private_network",
+        "mtls",
+        "service_mesh",
+    ] = ""
 
     # ============ A2A Protocol Configuration ============
     a2a_enabled: bool = False
@@ -257,8 +272,13 @@ class Settings(BaseSettings):
     use_new_delivery_service: bool = False  # gray-release outbound DeliveryService
 
     # ============ Event Bus Configuration ============
+    event_bus_consumer_name: str = ""  # NATS durable consumer name; defaults to OTEL_SERVICE_NAME
     event_bus_queue_max_length: int = 10_000  # Max events per consumer-group queue
     event_bus_queue_ttl_seconds: int = 86_400  # Queue key expiry (24h)
+    event_bus_pending_claim_idle_ms: int = 360_000  # Redis Streams pending reclaim idle time
+    event_bus_pending_claim_count: int = 10  # Max pending messages to reclaim per stream poll
+    event_bus_processed_event_ttl_seconds: int = 604_800  # Event replay idempotency window
+    event_bus_processing_lock_ttl_seconds: int = 360  # In-flight event idempotency lock TTL
     event_loop_max_backoff_seconds: int = 60  # Max retry backoff for agent event loops
     event_handler_timeout_seconds: int = 300  # 5 min default per event handler
 
@@ -285,16 +305,84 @@ class Settings(BaseSettings):
     sync_agent_port: int = 8010
     pjm_agent_url: str = "http://pjm-agent:8012"
 
-    # ============ Claude API (OneAPI Proxy) ============
+    # ============ Deprecated provider-specific proxy settings ============
+    # Kept only so old .env files keep loading. Use LITELLM_API_BASE instead.
     anthropic_base_url: str = ""
-    require_anthropic_proxy: bool = False  # Set True in production for data residency
+    require_anthropic_proxy: bool = False
 
     @model_validator(mode="after")
     def _fail_closed_for_production_secrets(self) -> "Settings":
         if self.app_env.lower() not in {"production", "prod"}:
             return self
 
+        def _empty_secret(value: SecretStr | None) -> bool:
+            return value is None or not value.get_secret_value().strip()
+
+        def _selected_llm_providers() -> set[str]:
+            providers: set[str] = set()
+            for model in {
+                self.default_model,
+                self.chat_model,
+                self.decompose_model,
+                self.summary_model,
+            }:
+                normalized = model.strip().lower()
+                if not normalized:
+                    continue
+                if normalized.startswith("openrouter/"):
+                    providers.add("openrouter")
+                elif normalized.startswith(("claude-", "anthropic/")):
+                    providers.add("anthropic")
+                elif normalized.startswith(("openai/", "azure/", "gpt-", "o1", "o3", "o4")):
+                    providers.add("openai")
+                elif normalized.startswith(("gemini/", "google/", "vertex_ai/")):
+                    providers.add("gemini")
+                else:
+                    providers.add("generic")
+            return providers
+
+        def _missing_llm_access_secrets() -> list[str]:
+            provider_keys = {
+                "anthropic": [("ANTHROPIC_API_KEY", self.anthropic_api_key)],
+                "openai": [("OPENAI_API_KEY", self.openai_api_key)],
+                "openrouter": [("OPENROUTER_API_KEY", self.openrouter_api_key)],
+                "gemini": [
+                    ("GEMINI_API_KEY", self.gemini_api_key),
+                    ("GOOGLE_API_KEY", self.google_api_key),
+                ],
+            }
+
+            # LiteLLM proxy deployments commonly use OPENAI_API_KEY as the
+            # proxy auth token regardless of the upstream model provider.
+            if self.litellm_api_base.strip() and not _empty_secret(self.openai_api_key):
+                return []
+
+            missing: list[str] = []
+            for provider in sorted(_selected_llm_providers()):
+                keys = provider_keys.get(provider)
+                if keys is None:
+                    if all(
+                        _empty_secret(secret)
+                        for _, secret in [
+                            ("ANTHROPIC_API_KEY", self.anthropic_api_key),
+                            ("OPENAI_API_KEY", self.openai_api_key),
+                            ("OPENROUTER_API_KEY", self.openrouter_api_key),
+                            ("GEMINI_API_KEY", self.gemini_api_key),
+                            ("GOOGLE_API_KEY", self.google_api_key),
+                        ]
+                    ):
+                        missing.append("LLM_PROVIDER_API_KEY")
+                    continue
+                if all(_empty_secret(secret) for _, secret in keys):
+                    missing.append(" or ".join(name for name, _ in keys))
+            return missing
+
         missing: list[str] = []
+        if _empty_secret(self.postgres_password):
+            missing.append("POSTGRES_PASSWORD")
+        if _empty_secret(self.redis_password):
+            missing.append("REDIS_PASSWORD")
+        missing.extend(_missing_llm_access_secrets())
         if self.secret_key.get_secret_value() in {
             "",
             "change-me-in-production",
@@ -305,16 +393,32 @@ class Settings(BaseSettings):
             missing.append("PM_API_KEY")
         if not self.internal_service_key.strip():
             missing.append("INTERNAL_SERVICE_KEY")
+        if not self.internal_transport_protection:
+            missing.append("INTERNAL_TRANSPORT_PROTECTION")
+        if not self.control_plane_enabled:
+            missing.append("CONTROL_PLANE_ENABLED")
+        if not self.control_plane_approval_enforced:
+            missing.append("CONTROL_PLANE_APPROVAL_ENFORCED")
         if self.a2a_jwt_secret.get_secret_value() in {
             "",
             "change-me-in-production-a2a",
             "dev-only-change-in-production",
         }:
             missing.append("A2A_JWT_SECRET")
+        if self.feishu_enabled:
+            if not self.feishu_verify_signature:
+                missing.append("FEISHU_VERIFY_SIGNATURE")
+            if _empty_secret(self.feishu_encrypt_key):
+                missing.append("FEISHU_ENCRYPT_KEY")
+        if self.wecom_enabled:
+            if _empty_secret(self.wecom_token):
+                missing.append("WECOM_TOKEN")
+            if _empty_secret(self.wecom_encoding_aes_key):
+                missing.append("WECOM_ENCODING_AES_KEY")
 
         if missing:
             names = ", ".join(missing)
-            raise ValueError(f"production settings require non-default secrets: {names}")
+            raise ValueError(f"production settings require explicit security values: {names}")
         return self
 
     # ============ Dev Agent Configuration ============

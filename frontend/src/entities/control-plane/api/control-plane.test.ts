@@ -5,6 +5,7 @@ import {
   getControlPlaneTimeline,
   listControlPlaneArtifacts,
   listControlPlaneBudgetUsage,
+  listControlPlaneEvolutionProposals,
   listControlPlaneGoals,
   listControlPlaneRuns,
   listControlPlaneWorkItems,
@@ -64,6 +65,23 @@ describe("control-plane API client", () => {
       run_id: "run_1",
       limit: 50,
     });
+  });
+
+  it("uses the control-plane evolution proposal list path", async () => {
+    await listControlPlaneEvolutionProposals({
+      tier: "L2",
+      approval_state: "pending",
+      limit: 25,
+    });
+
+    expect(getMock).toHaveBeenCalledWith(
+      "/control-plane/evolution-proposals",
+      {
+        tier: "L2",
+        approval_state: "pending",
+        limit: 25,
+      },
+    );
   });
 
   it("uses durable approval action endpoints", async () => {

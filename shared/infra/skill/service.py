@@ -61,7 +61,10 @@ class SkillService:
         # 1. Try to match message to a skill
         match = await self.matcher.match(message.content)
         if not match:
-            logger.debug(f"No skill matched for message: {message.content[:50]}...")
+            logger.debug(
+                "No skill matched for inbound message length=%s",
+                len(message.content or ""),
+            )
             return None
 
         logger.info(f"Skill matched: {match.skill.name} ({match.match_type}, confidence={match.confidence})")

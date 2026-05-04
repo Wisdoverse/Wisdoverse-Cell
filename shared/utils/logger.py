@@ -9,6 +9,13 @@ from typing import Optional
 
 import structlog
 
+from shared.observability.privacy import redact_for_observability
+
+
+def redact_log_event(logger, method_name: str, event_dict: dict) -> dict:
+    """Structlog processor that redacts secrets and direct PII before rendering."""
+    return redact_for_observability(event_dict)
+
 
 def get_logger(name: Optional[str] = None) -> structlog.BoundLogger:
     """
@@ -49,13 +56,19 @@ def setup_logging(
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
         structlog.processors.UnicodeDecoder(),
+        redact_log_event,
     ]
 
     if json_format:
         processors.append(structlog.processors.JSONRenderer())
     else:
-        processors.append(structlog.dev.ConsoleRenderer())
+        processors.append(
+            structlog.dev.ConsoleRenderer(
+                exception_formatter=structlog.dev.plain_traceback,
+            )
+        )
 
     structlog.configure(
         processors=processors,  # type: ignore[arg-type]

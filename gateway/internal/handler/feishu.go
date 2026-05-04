@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Wisdoverse/project-cell/gateway/internal/client"
@@ -61,7 +62,6 @@ func NewFeishuHandler(
 
 // Webhook handles POST /api/feishu/webhook
 func (h *FeishuHandler) Webhook(c *gin.Context) {
-	// Read body
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		h.logger.Error("failed to read body", zap.Error(err))
@@ -69,7 +69,27 @@ func (h *FeishuHandler) Webhook(c *gin.Context) {
 		return
 	}
 
-	// Verify signature if enabled
+	parseBody := body
+	encryptedBody := false
+	if decrypted, encrypted, err := h.decryptWebhookBody(body); err != nil {
+		h.logger.Warn("failed to decrypt feishu webhook body", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"code": -1, "msg": "invalid encrypted body"})
+		return
+	} else if encrypted {
+		parseBody = decrypted
+		encryptedBody = true
+	}
+
+	var req feishu.WebhookRequest
+	if encryptedBody {
+		parsed, err := h.parseWebhookRequest(parseBody)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": -1, "msg": "invalid json"})
+			return
+		}
+		req = *parsed
+	}
+
 	if h.cfg.VerifySignature {
 		if h.cfg.EncryptKey == "" {
 			h.logger.Error("feishu signature verification is enabled without encrypt_key")
@@ -80,26 +100,29 @@ func (h *FeishuHandler) Webhook(c *gin.Context) {
 		nonce := c.GetHeader("X-Lark-Request-Nonce")
 		signature := c.GetHeader("X-Lark-Signature")
 
-		if !feishu.VerifySignature(timestamp, nonce, h.cfg.EncryptKey, body, signature) {
+		isUnsignedEncryptedChallenge := encryptedBody &&
+			req.Type == feishu.EventTypeURLVerification &&
+			timestamp == "" && nonce == "" && signature == ""
+		if !isUnsignedEncryptedChallenge && !feishu.VerifySignature(timestamp, nonce, h.cfg.EncryptKey, body, signature) {
 			h.logger.Warn("invalid signature")
 			c.JSON(http.StatusUnauthorized, gin.H{"code": -1, "msg": "invalid signature"})
 			return
 		}
 	}
 
-	// Parse request
-	var req feishu.WebhookRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		h.logger.Error("failed to parse request", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"code": -1, "msg": "invalid json"})
-		return
+	if !encryptedBody {
+		parsed, err := h.parseWebhookRequest(parseBody)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": -1, "msg": "invalid json"})
+			return
+		}
+		req = *parsed
 	}
 
-	// Store raw body for potential forwarding
-	c.Set("rawBody", body)
+	c.Set("rawBody", parseBody)
 
-	// Handle different request types
-	// Feishu v2.0 events have no "type" field but have "header"
+	// Handle different request types. Feishu v2.0 events have no "type" field
+	// but have "header".
 	if req.Type == "" && req.Header != nil {
 		req.Type = feishu.EventTypeCallback
 	}
@@ -123,6 +146,32 @@ func (h *FeishuHandler) Webhook(c *gin.Context) {
 		h.logger.Warn("unknown request type", zap.String("type", req.Type))
 		c.JSON(http.StatusOK, gin.H{"code": 0})
 	}
+}
+
+func (h *FeishuHandler) decryptWebhookBody(body []byte) ([]byte, bool, error) {
+	var wrapper struct {
+		Encrypt string `json:"encrypt"`
+	}
+	if err := json.Unmarshal(body, &wrapper); err != nil || wrapper.Encrypt == "" {
+		return body, false, nil
+	}
+	if h.cfg.EncryptKey == "" {
+		return nil, true, fmt.Errorf("encrypt key is required")
+	}
+	decrypted, err := feishu.DecryptMessage(wrapper.Encrypt, h.cfg.EncryptKey)
+	if err != nil {
+		return nil, true, err
+	}
+	return decrypted, true, nil
+}
+
+func (h *FeishuHandler) parseWebhookRequest(body []byte) (*feishu.WebhookRequest, error) {
+	var req feishu.WebhookRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		h.logger.Error("failed to parse request", zap.Error(err))
+		return nil, err
+	}
+	return &req, nil
 }
 
 // handleURLVerification handles the URL verification challenge.
@@ -170,15 +219,15 @@ func (h *FeishuHandler) handleMessageEvent(c *gin.Context, req *feishu.WebhookRe
 		if err != nil {
 			h.logger.Warn("dedup check failed", zap.Error(err))
 		} else if isDup {
-			h.logger.Debug("duplicate message ignored", zap.String("message_id", msg.MessageID))
+			h.logger.Debug("duplicate message ignored", zap.String("message_id_hash", shortLogHash(msg.MessageID)))
 			c.JSON(http.StatusOK, gin.H{"code": 0})
 			return
 		}
 	}
 
 	h.logger.Info("message received",
-		zap.String("message_id", msg.MessageID),
-		zap.String("chat_id", msg.ChatID),
+		zap.String("message_id_hash", shortLogHash(msg.MessageID)),
+		zap.String("chat_id_hash", shortLogHash(msg.ChatID)),
 		zap.String("message_type", msg.MessageType),
 	)
 
@@ -196,11 +245,12 @@ func (h *FeishuHandler) handleMessageEvent(c *gin.Context, req *feishu.WebhookRe
 	// Try to match a skill
 	match := h.matcher.Match(content)
 	if match != nil {
-		h.logger.Info("skill matched",
+		fields := []zap.Field{
 			zap.String("skill", match.SkillName),
 			zap.String("match_type", match.MatchType),
-			zap.Any("params", match.Parameters),
-		)
+		}
+		fields = append(fields, stringMapSummaryFields("params", match.Parameters)...)
+		h.logger.Info("skill matched", fields...)
 
 		// Execute skill via gRPC
 		h.executeSkill(c, match, &event)
@@ -208,7 +258,10 @@ func (h *FeishuHandler) handleMessageEvent(c *gin.Context, req *feishu.WebhookRe
 	}
 
 	// No skill matched - forward to chat-agent
-	h.logger.Info("no skill matched, forwarding to chat-agent", zap.String("content", content))
+	h.logger.Info("no skill matched, forwarding to chat-agent",
+		zap.String("content_hash", shortLogHash(content)),
+		zap.Int("content_len", len(content)),
+	)
 	h.forwardToChatAgent(c)
 }
 
@@ -221,15 +274,13 @@ func (h *FeishuHandler) executeSkill(c *gin.Context, match *service.SkillMatch, 
 	switch match.SkillName {
 	case "list":
 		// Get page from params or default to 1
-		page := 1
+		page := int32(1)
 		if p, ok := match.Parameters["page"]; ok {
-			if pInt, err := parseInt(p); err == nil {
-				page = pInt
-			}
+			page = parsePageParam(p)
 		}
 
 		// List pending requirements
-		resp, err := h.reqClient.ListRequirements(ctx, "PENDING", int32(page), 5)
+		resp, err := h.reqClient.ListRequirements(ctx, "PENDING", page, 5)
 		if err != nil {
 			h.logger.Error("list requirements failed", zap.Error(err))
 			c.JSON(http.StatusOK, gin.H{"code": 0})
@@ -255,7 +306,7 @@ func (h *FeishuHandler) executeSkill(c *gin.Context, match *service.SkillMatch, 
 		}
 
 		// Build and send card
-		card := feishu.BuildRequirementsListCard(requirements, page, int(resp.TotalPages), int(resp.Total))
+		card := feishu.BuildRequirementsListCard(requirements, int(page), int(resp.TotalPages), int(resp.Total))
 		if err := h.feishuClient.SendCard(ctx, "chat_id", chatID, card); err != nil {
 			h.logger.Error("send card failed", zap.Error(err))
 		}
@@ -344,15 +395,62 @@ func (h *FeishuHandler) executeSkill(c *gin.Context, match *service.SkillMatch, 
 		c.JSON(http.StatusOK, gin.H{"code": 0})
 
 	case "search":
-		keyword := match.Parameters["keyword"]
-		h.logger.Info("search requested", zap.String("keyword", keyword))
-		// TODO: Implement search via gRPC
+		if h.reqClient == nil {
+			c.JSON(http.StatusOK, gin.H{"code": 0})
+			return
+		}
+		keyword := strings.TrimSpace(match.Parameters["keyword"])
+		h.logger.Info("search requested", zap.String("keyword_hash", shortLogHash(keyword)))
+		if keyword == "" {
+			card := feishu.NewCardBuilder().
+				SetHeader("⚠️ 搜索关键词为空", "orange").
+				AddMarkdown("请输入 `/search <关键词>` 搜索需求。").
+				Build()
+			if err := h.feishuClient.ReplyCard(ctx, messageID, card); err != nil {
+				h.logger.Error("send search usage card failed", zap.Error(err))
+			}
+			c.JSON(http.StatusOK, gin.H{"code": 0})
+			return
+		}
+
+		resp, err := h.reqClient.SearchRequirements(ctx, keyword, chatID, 1, 5)
+		if err != nil {
+			h.logger.Error("search requirements failed", zap.Error(err))
+			c.JSON(http.StatusOK, gin.H{"code": 0})
+			return
+		}
+
+		requirements := make([]feishu.Requirement, len(resp.Requirements))
+		for i, r := range resp.Requirements {
+			requirements[i] = feishu.Requirement{
+				ID:          r.Id,
+				Title:       r.Title,
+				Description: r.Description,
+				Status:      r.Status,
+				Priority:    r.Priority,
+				Category:    r.Category,
+			}
+		}
+
+		card := feishu.BuildRequirementsSearchCard(keyword, requirements, int(resp.Total))
+		if err := h.feishuClient.ReplyCard(ctx, messageID, card); err != nil {
+			h.logger.Error("send search card failed", zap.Error(err))
+		}
+
 		c.JSON(http.StatusOK, gin.H{"code": 0})
 
 	default:
 		h.logger.Debug("skill not implemented", zap.String("skill", match.SkillName))
 		c.JSON(http.StatusOK, gin.H{"code": 0})
 	}
+}
+
+func shortLogHash(value string) string {
+	if value == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(value))
+	return fmt.Sprintf("%x", sum)[:12]
 }
 
 // parseInt converts string to int with error handling.
@@ -449,11 +547,8 @@ func (h *FeishuHandler) dispatchCardAction(c *gin.Context, actx *cardActionConte
 			c.JSON(http.StatusOK, gin.H{"code": 0})
 			return
 		}
-		page := 1
-		if p, ok := actx.actionValue["page"].(float64); ok {
-			page = int(p)
-		}
-		resp, err := h.reqClient.ListRequirements(reqCtx, "PENDING", int32(page), 5)
+		page := parsePageActionValue(actx.actionValue["page"])
+		resp, err := h.reqClient.ListRequirements(reqCtx, "PENDING", page, 5)
 		if err != nil {
 			h.logger.Error("list page failed", zap.Error(err))
 			c.JSON(http.StatusOK, gin.H{"code": 0})
@@ -466,7 +561,7 @@ func (h *FeishuHandler) dispatchCardAction(c *gin.Context, actx *cardActionConte
 				Status: r.Status, Priority: r.Priority, Category: r.Category,
 			}
 		}
-		card := feishu.BuildRequirementsListCard(requirements, page, int(resp.TotalPages), int(resp.Total))
+		card := feishu.BuildRequirementsListCard(requirements, int(page), int(resp.TotalPages), int(resp.Total))
 		respond(c, card)
 
 	case "confirm_bitable_update":
@@ -533,8 +628,10 @@ func (h *FeishuHandler) handleCardActionTrigger(c *gin.Context, req *feishu.Webh
 	}
 
 	h.logger.Info("card action trigger",
-		zap.String("operator", event.Operator.OpenID),
-		zap.Any("value", event.Action.Value),
+		zap.String("operator_hash", shortLogHash(event.Operator.OpenID)),
+	)
+	h.logger.Debug("card action trigger value",
+		mapSummaryFields("value", event.Action.Value)...,
 	)
 
 	actx := &cardActionContext{
@@ -565,8 +662,11 @@ func (h *FeishuHandler) handleCardAction(c *gin.Context, req *feishu.WebhookRequ
 	}
 
 	h.logger.Info("card action",
-		zap.String("user_id", action.UserID),
-		zap.Any("value", action.Action.Value),
+		zap.String("user_id_hash", shortLogHash(action.UserID)),
+		zap.String("open_id_hash", shortLogHash(action.OpenID)),
+	)
+	h.logger.Debug("card action value",
+		mapSummaryFields("value", action.Action.Value)...,
 	)
 
 	actx := &cardActionContext{
@@ -684,7 +784,7 @@ func (h *FeishuHandler) forwardBitableConfirm(recordID string, value map[string]
 		// instead of an error so the user knows the operation is still running.
 		if ctx.Err() == context.DeadlineExceeded {
 			h.logger.Warn("bitable confirm timed out, returning processing card",
-				zap.String("record_id", recordID))
+				zap.String("record_id_hash", shortLogHash(recordID)))
 			return buildProcessingCard()
 		}
 		h.logger.Error("bitable confirm forward failed", zap.Error(err))
@@ -706,7 +806,9 @@ func (h *FeishuHandler) forwardBitableConfirm(recordID string, value map[string]
 
 	// Check HTTP status before parsing — non-200 responses are error JSON, not cards
 	if resp.StatusCode != http.StatusOK {
-		h.logger.Error("bitable confirm bad status", zap.Int("status", resp.StatusCode), zap.String("body", string(respBody)))
+		fields := []zap.Field{zap.Int("status", resp.StatusCode)}
+		fields = append(fields, bytesFingerprintFields("body", respBody)...)
+		h.logger.Error("bitable confirm bad status", fields...)
 		return feishu.NewCardBuilder().
 			SetHeader("⚠️ 操作失败", "red").
 			AddMarkdown(fmt.Sprintf("更新服务返回错误 (HTTP %d)", resp.StatusCode)).
@@ -724,14 +826,14 @@ func (h *FeishuHandler) forwardBitableConfirm(recordID string, value map[string]
 
 	// Guard against empty card from round-trip (would cause Feishu 200340)
 	if card.Header == nil && len(card.Elements) == 0 {
-		h.logger.Error("bitable confirm returned empty card", zap.String("body", string(respBody)))
+		h.logger.Error("bitable confirm returned empty card", bytesFingerprintFields("body", respBody)...)
 		return feishu.NewCardBuilder().
 			SetHeader("⚠️ 操作失败", "red").
 			AddMarkdown("更新服务返回了空响应").
 			Build()
 	}
 
-	h.logger.Info("bitable confirm forwarded", zap.String("record_id", recordID))
+	h.logger.Info("bitable confirm forwarded", zap.String("record_id_hash", shortLogHash(recordID)))
 	return &card
 }
 
@@ -802,7 +904,9 @@ func (h *FeishuHandler) forwardBitableCreate(value map[string]interface{}, opera
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		h.logger.Error("bitable create bad status", zap.Int("status", resp.StatusCode), zap.String("body", string(respBody)))
+		fields := []zap.Field{zap.Int("status", resp.StatusCode)}
+		fields = append(fields, bytesFingerprintFields("body", respBody)...)
+		h.logger.Error("bitable create bad status", fields...)
 		return feishu.NewCardBuilder().
 			SetHeader("⚠️ 操作失败", "red").
 			AddMarkdown(fmt.Sprintf("创建服务返回错误 (HTTP %d)", resp.StatusCode)).
@@ -819,7 +923,7 @@ func (h *FeishuHandler) forwardBitableCreate(value map[string]interface{}, opera
 	}
 
 	if card.Header == nil && len(card.Elements) == 0 {
-		h.logger.Error("bitable create returned empty card", zap.String("body", string(respBody)))
+		h.logger.Error("bitable create returned empty card", bytesFingerprintFields("body", respBody)...)
 		return feishu.NewCardBuilder().
 			SetHeader("⚠️ 操作失败", "red").
 			AddMarkdown("创建服务返回了空响应").
@@ -952,10 +1056,9 @@ func (h *FeishuHandler) forwardDecompositionAction(wpID int, action string, oper
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		h.logger.Error("decomposition action bad status",
-			zap.Int("status", resp.StatusCode),
-			zap.String("body", string(respBody)),
-		)
+		fields := []zap.Field{zap.Int("status", resp.StatusCode)}
+		fields = append(fields, bytesFingerprintFields("body", respBody)...)
+		h.logger.Error("decomposition action bad status", fields...)
 		return feishu.NewCardBuilder().
 			SetHeader("⚠️ 操作失败", "red").
 			AddMarkdown(fmt.Sprintf("PJM Agent 返回错误 (HTTP %d)", resp.StatusCode)).

@@ -93,6 +93,8 @@ class AgentRoleTable(ControlPlaneBase):
     context_sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     capabilities: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     responsibilities: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    subscribed_events: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    published_events: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     permissions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     budget_policy_id: Mapped[str | None] = mapped_column(String(48), nullable=True)
     escalation_policy: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)

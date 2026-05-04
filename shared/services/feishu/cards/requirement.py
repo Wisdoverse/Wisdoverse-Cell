@@ -1,7 +1,29 @@
-"""Deprecated: use shared.integrations.feishu.cards.requirement"""
-import importlib
-import sys
+"""Deprecated: use shared.integrations.feishu.cards.requirement."""
 
-_real = importlib.import_module("shared.integrations.feishu.cards.requirement")
-sys.modules[__name__] = _real
-sys.modules["shared.services.feishu.cards.requirement"] = _real
+from shared.integrations.feishu.cards.requirement import (
+    FeishuRequirementCardRenderer,
+    build_batch_confirmation_card,
+    build_batch_result_card,
+    build_bot_help_card,
+    build_calendar_reminder_card,
+    build_prd_preview_card,
+    build_requirement_confirmed_card,
+    build_requirement_detail_card,
+    build_requirement_extracted_card,
+    build_requirement_list_card,
+    build_requirement_rejected_card,
+)
+
+__all__ = [
+    "FeishuRequirementCardRenderer",
+    "build_batch_confirmation_card",
+    "build_batch_result_card",
+    "build_bot_help_card",
+    "build_calendar_reminder_card",
+    "build_prd_preview_card",
+    "build_requirement_confirmed_card",
+    "build_requirement_detail_card",
+    "build_requirement_extracted_card",
+    "build_requirement_list_card",
+    "build_requirement_rejected_card",
+]

@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 requirement_manager was directly importing and calling pjm_agent's Python objects
-in-process (`from agents.capabilities.project_management.service.agent import agent`). This created
+in-process (`from agents.pjm_agent.service.agent import agent`). This created
 deployment coupling: both agents had to run in the same process, pjm_agent code
 had to be COPY'd into requirement_manager's Docker image, and independent scaling
 was impossible.
@@ -19,7 +19,7 @@ address (`pjm_agent_addr`).
 ## Decision
 All inter-agent **synchronous** calls use HTTP REST APIs. Each agent exposes its
 own FastAPI endpoints. Callers use typed HTTP clients (e.g., `PMAgentClient`)
-from `shared/services/agent_client.py`.
+from `shared/infra/agent_client.py`.
 
 **Asynchronous** communication continues to use Redis Streams EventBus.
 
@@ -43,6 +43,20 @@ Each agent's URL is configured via environment variable:
 
 All inter-agent HTTP calls include `X-Internal-Key` header for authentication,
 verified by the receiving agent's middleware.
+
+Production settings must also declare the selected internal transport
+protection boundary through `INTERNAL_TRANSPORT_PROTECTION`:
+
+- `trusted_private_network`: internal HTTP traffic stays on a private Docker,
+  Kubernetes, or equivalent network that is not reachable from untrusted hosts.
+- `service_mesh`: an external mesh provides authenticated service-to-service
+  transport protection.
+- `mtls`: mTLS is terminated by the service or sidecar proxy.
+
+Production startup fails closed when this value is not declared. If any
+inter-agent path crosses an untrusted network, use `service_mesh` or `mtls`;
+`trusted_private_network` is only valid when the deployment network itself is
+the trust boundary.
 
 ## Consequences
 

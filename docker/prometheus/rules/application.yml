@@ -153,7 +153,8 @@ groups:
           summary: "{{ $labels.job }} LLM API failure rate exceeds 10%"
           description: >-
             LLM API error rate for {{ $labels.job }} is {{ $value | humanizePercentage }}
-            over the last 5 minutes. Claude API may be degraded or rate-limited.
+            over the last 5 minutes. The configured LLM provider may be degraded
+            or rate-limited.
           runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/llm-api-failure"
 
       # -- LLM API Warning Failure Rate (> 5%) -------------------------------
@@ -214,7 +215,7 @@ groups:
           summary: "{{ $labels.job }} LLM P95 response time exceeds 30s"
           description: >-
             LLM P95 latency for {{ $labels.job }} is {{ $value | humanizeDuration }}.
-            Claude API may be experiencing increased load.
+            The configured LLM provider may be experiencing increased load.
           runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/llm-high-latency"
 
   # ---------------------------------------------------------------------------

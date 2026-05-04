@@ -1,8 +1,8 @@
-# shared/services/wecom/config.py
+# shared/integrations/wecom/config.py
 """
-WecomConfig - 企业微信配置
+WecomConfig - WeCom configuration.
 
-从环境变量加载企业微信相关配置。
+Loads WeCom-related configuration from environment variables.
 """
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -10,9 +10,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class WecomConfig(BaseSettings):
     """
-    企业微信配置
+    WeCom configuration.
 
-    环境变量前缀: WECOM_
+    Environment variable prefix: WECOM_
     """
     model_config = SettingsConfigDict(
         env_prefix="WECOM_",
@@ -20,35 +20,35 @@ class WecomConfig(BaseSettings):
         extra="ignore",
     )
 
-    # 必填配置
-    corp_id: str = Field(default="", description="企业 ID")
-    agent_id: int = Field(default=0, description="应用 AgentId")
-    secret: str = Field(default="", description="应用 Secret")
-    token: str = Field(default="", description="回调 Token")
-    encoding_aes_key: str = Field(default="", description="回调 EncodingAESKey")
+    # Required configuration.
+    corp_id: str = Field(default="", description="Corporate ID")
+    agent_id: int = Field(default=0, description="Application AgentId")
+    secret: str = Field(default="", description="Application secret")
+    token: str = Field(default="", description="Callback token")
+    encoding_aes_key: str = Field(default="", description="Callback EncodingAESKey")
 
-    # 可选配置
-    enabled: bool = Field(default=False, description="是否启用企微集成")
+    # Optional configuration.
+    enabled: bool = Field(default=False, description="Enable WeCom integration")
     api_base_url: str = Field(
         default="https://qyapi.weixin.qq.com/cgi-bin",
-        description="API 基础 URL"
+        description="API base URL"
     )
     token_refresh_buffer: int = Field(
         default=300,
-        description="Token 刷新缓冲时间（秒）"
+        description="Token refresh buffer in seconds"
     )
 
-    # 功能开关
-    bot_enabled: bool = Field(default=True, description="启用 Bot 消息处理")
-    card_enabled: bool = Field(default=True, description="启用卡片回调处理")
+    # Feature flags.
+    bot_enabled: bool = Field(default=True, description="Enable bot message handling")
+    card_enabled: bool = Field(default=True, description="Enable card callback handling")
 
 
-# 全局配置实例
+# Global configuration instance.
 _wecom_config: WecomConfig | None = None
 
 
 def get_wecom_config() -> WecomConfig:
-    """获取企微配置单例"""
+    """Get the WeCom configuration singleton."""
     global _wecom_config
     if _wecom_config is None:
         _wecom_config = WecomConfig()

@@ -1,6 +1,6 @@
 """Delivery metrics -- module-level prometheus counters.
 
-Follows the project pattern from agents/capabilities/requirements/app/metrics.py.
+Follows the project pattern from agents/requirement_manager/app/metrics.py.
 Module-level to avoid prometheus_client duplicate registration errors.
 """
 from prometheus_client import Counter, Histogram
