@@ -13,7 +13,6 @@ All agents access LLMs through this gateway. It provides:
 import asyncio
 import json
 import random
-import re
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -22,7 +21,7 @@ from typing import Any, Callable, Optional
 
 from ..config import settings
 from ..control_plane.context import get_current_run_context
-from ..observability.privacy import hash_identifier
+from ..observability.privacy import hash_identifier, redact_sensitive_text
 from ..utils.logger import get_logger
 from .audit_log import AuditAction, audit_log
 from .budget_events import publish_budget_usage_recorded
@@ -50,30 +49,6 @@ _REDIS_COST_KEY_PREFIX = "llm_cost"
 
 # Retryable HTTP status codes
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 529}
-
-_EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
-_PHONE_CANDIDATE_RE = re.compile(r"(?<!\w)\+?\d[\d .()/-]{9,}\d(?!\w)")
-_PLATFORM_ID_RE = re.compile(r"\b(?:ou|oc|on|un)_[A-Za-z0-9_-]{8,}\b")
-_JWT_RE = re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b")
-_API_KEY_RE = re.compile(
-    r"\b(?:sk-[A-Za-z0-9_-]{16,}|"
-    r"sk-ant-[A-Za-z0-9_-]{16,}|"
-    r"gsk_[A-Za-z0-9_-]{16,}|"
-    r"ghp_[A-Za-z0-9_]{16,}|"
-    r"glpat-[A-Za-z0-9_-]{16,}|"
-    r"xox[baprs]-[A-Za-z0-9-]{16,})\b"
-)
-_BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/-]+=*")
-_SECRET_ASSIGNMENT_RE = re.compile(
-    r"(?i)\b("
-    r"(?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|"
-    r"authorization|client[_-]?secret)"
-    r"\s*[:=]\s*)([\"']?)[^\s,\"'}\]]+"
-)
-_URL_SECRET_QUERY_RE = re.compile(
-    r"(?i)([?&](?:access[_-]?token|refresh[_-]?token|token|api[_-]?key|key|"
-    r"secret|signature|password|auth|code)=)[^&#\s]+"
-)
 
 _LLM_RETRY_DECISIONS = {
     LLMErrorCategory.RATE_LIMIT: "retry_with_backoff_exhausted",
@@ -243,21 +218,7 @@ class LLMGateway:
     @staticmethod
     def _redact_sensitive_text(text: str) -> str:
         """Remove secrets and direct PII-like identifiers before provider calls."""
-        redacted = _EMAIL_RE.sub("[REDACTED_EMAIL]", text)
-        redacted = _PLATFORM_ID_RE.sub("[REDACTED_PLATFORM_ID]", redacted)
-        redacted = _JWT_RE.sub("[REDACTED_SECRET]", redacted)
-        redacted = _API_KEY_RE.sub("[REDACTED_SECRET]", redacted)
-        redacted = _BEARER_RE.sub("Bearer [REDACTED_SECRET]", redacted)
-        redacted = _URL_SECRET_QUERY_RE.sub(r"\1[REDACTED_SECRET]", redacted)
-        redacted = _SECRET_ASSIGNMENT_RE.sub(r"\1\2[REDACTED_SECRET]", redacted)
-
-        def _redact_phone(match: re.Match[str]) -> str:
-            digits = re.sub(r"\D", "", match.group(0))
-            if len(digits) >= 11:
-                return "[REDACTED_PHONE]"
-            return match.group(0)
-
-        return _PHONE_CANDIDATE_RE.sub(_redact_phone, redacted)
+        return redact_sensitive_text(text)
 
     def _sanitize_prompt_payload(self, value: Any) -> Any:
         """Recursively sanitize text values that will be sent to an LLM."""
