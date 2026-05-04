@@ -30,6 +30,21 @@ class HardenedAgent(BaseAgent):
         self._agent = agent
         self._validator = InputValidator(max_payload_bytes=settings.max_payload_size_bytes)
 
+    @staticmethod
+    def _trace_id_from_request(request: dict) -> str | None:
+        trace_id = request.get("trace_id")
+        if isinstance(trace_id, str):
+            return trace_id
+        metadata = request.get("metadata")
+        if isinstance(metadata, dict) and isinstance(metadata.get("trace_id"), str):
+            return metadata["trace_id"]
+        return None
+
+    @staticmethod
+    def _request_action(request: dict) -> str:
+        action = request.get("action", "")
+        return str(action)[:64] if action else ""
+
     async def handle_event(self, event: Event) -> list[Event]:
         # 1. Validate input
         try:
@@ -71,7 +86,41 @@ class HardenedAgent(BaseAgent):
     # ── Delegated methods ────────────────────────────────────────────────────
 
     async def handle_request(self, request: dict) -> dict:
-        return await self._agent.handle_request(request)
+        trace_id = self._trace_id_from_request(request)
+        action = self._request_action(request)
+
+        try:
+            self._validator.validate(request)
+        except InputValidationError:
+            audit_log(
+                action=AuditAction.INJECTION_BLOCKED,
+                agent_id=self.agent_id,
+                detail={"request_action": action},
+                trace_id=trace_id,
+            )
+            raise
+
+        try:
+            result = await self._agent.handle_request(request)
+        except Exception as exc:
+            audit_log(
+                action=AuditAction.REQUEST_FAILED,
+                agent_id=self.agent_id,
+                detail={
+                    "request_action": action,
+                    "error_type": type(exc).__name__,
+                },
+                trace_id=trace_id,
+            )
+            raise
+
+        audit_log(
+            action=AuditAction.REQUEST_HANDLED,
+            agent_id=self.agent_id,
+            detail={"request_action": action},
+            trace_id=trace_id,
+        )
+        return result
 
     async def startup(self) -> None:
         await self._agent.startup()
