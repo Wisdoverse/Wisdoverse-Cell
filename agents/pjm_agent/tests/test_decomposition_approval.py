@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from agents.pjm_agent.core.decomposition_orchestrator import (
     DecompositionOrchestrator,
 )
+from shared.schemas.event import Event, EventTypes
 
 
 @pytest.mark.asyncio
@@ -169,3 +170,90 @@ async def test_reject_decomposition_requires_operator_for_control_plane_rejectio
         "control_plane_approval_id": "appr_pjm_1",
     }
     approval_gate.reject_for_sensitive_action.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_handle_decompose_skips_in_progress_write_replay():
+    decompose_service = MagicMock()
+    decompose_service.decompose = AsyncMock()
+    orchestrator = DecompositionOrchestrator(
+        db_manager=_db_manager_with_session(),
+        op_writer=MagicMock(),
+        decompose_service=decompose_service,
+        push_service=MagicMock(),
+        create_event_fn=MagicMock(),
+        event_bus=MagicMock(),
+    )
+    repo = MagicMock()
+    repo.get_by_wp_id = AsyncMock(return_value=SimpleNamespace(status="writing"))
+    repo.delete_by_wp_id = AsyncMock()
+
+    event = Event.create(
+        event_type=EventTypes.SYNC_TASK_NEEDS_DECOMPOSE,
+        source_agent="sync-agent",
+        payload={
+            "wp_id": 123,
+            "project_id": 456,
+            "subject": "Split feature",
+            "wp_type": "Feature",
+        },
+    )
+
+    with patch(
+        "agents.pjm_agent.core.decomposition_orchestrator.DecompositionRepository",
+        return_value=repo,
+    ):
+        result = await orchestrator.handle_decompose(event)
+
+    assert result == []
+    repo.delete_by_wp_id.assert_not_awaited()
+    decompose_service.decompose.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_retry_decompose_allows_write_failed_records():
+    op_client = MagicMock()
+    op_client.get_work_package = AsyncMock(
+        return_value={
+            "subject": "Split feature",
+            "description": {"raw": "Break it down"},
+            "_links": {
+                "type": {"title": "Feature"},
+                "project": {"title": "Cell"},
+                "assignee": {"title": "Alice"},
+            },
+        }
+    )
+    event_bus = MagicMock()
+    event_bus.publish = AsyncMock()
+    orchestrator = DecompositionOrchestrator(
+        db_manager=_db_manager_with_session(),
+        op_writer=MagicMock(),
+        decompose_service=MagicMock(),
+        push_service=MagicMock(),
+        create_event_fn=MagicMock(),
+        event_bus=event_bus,
+        op_client=op_client,
+    )
+    repo = MagicMock()
+    repo.get_by_wp_id = AsyncMock(
+        return_value=SimpleNamespace(
+            status="write_failed",
+            project_id=456,
+            assignee_id=789,
+        )
+    )
+    repo.delete_by_wp_id = AsyncMock(return_value=True)
+
+    with patch(
+        "agents.pjm_agent.core.decomposition_orchestrator.DecompositionRepository",
+        return_value=repo,
+    ):
+        result = await orchestrator.retry_decompose(123)
+
+    assert result == {"status": "retrying", "wp_id": 123}
+    repo.delete_by_wp_id.assert_awaited_once_with(123)
+    event_bus.publish.assert_awaited_once()
+    published = event_bus.publish.await_args.args[0]
+    assert published.event_type == EventTypes.SYNC_TASK_NEEDS_DECOMPOSE
+    assert published.payload["assignee_id"] == 789

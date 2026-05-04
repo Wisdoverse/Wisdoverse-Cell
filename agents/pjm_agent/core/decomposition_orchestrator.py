@@ -72,7 +72,7 @@ class DecompositionOrchestrator:
         async with self._db_manager.session() as session:
             repo = DecompositionRepository(session)
             existing = await repo.get_by_wp_id(wp_id)
-            if existing and existing.status in ("pending", "approved"):
+            if existing and existing.status in ("pending", "writing", "approved", "write_failed"):
                 logger.info("decompose_skip_duplicate", wp_id=wp_id, status=existing.status)
                 return []
             # Allow failed/rejected to retry — delete old record
@@ -536,8 +536,13 @@ class DecompositionOrchestrator:
             record = await repo.get_by_wp_id(wp_id)
             if not record:
                 return {"error": "record not found"}
-            if record.status not in ("failed", "rejected"):
-                return {"error": f"cannot retry status '{record.status}', only failed/rejected"}
+            if record.status not in ("failed", "rejected", "write_failed"):
+                return {
+                    "error": (
+                        f"cannot retry status '{record.status}', "
+                        "only failed/rejected/write_failed"
+                    )
+                }
             project_id = record.project_id
             assignee_id = record.assignee_id
             await repo.delete_by_wp_id(wp_id)
