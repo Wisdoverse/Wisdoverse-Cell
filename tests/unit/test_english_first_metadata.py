@@ -26,6 +26,9 @@ ENGLISH_FIRST_DOCS = (
     Path("SPEC.md"),
     Path("README.md"),
     Path("docs"),
+    Path("agents"),
+    Path("services"),
+    Path("shared"),
     Path("docker-compose.override.cn.yml"),
     Path(".env.example"),
 )
@@ -120,6 +123,8 @@ def test_docs_and_docker_guidance_are_english_first() -> None:
             continue
         files = [root] if root.is_file() else list(root.rglob("*.md"))
         for path in files:
+            if "tests" in path.parts or "fixtures" in path.parts:
+                continue
             if HAN.search(path.read_text(encoding="utf-8")):
                 offenders.append(str(path))
 
