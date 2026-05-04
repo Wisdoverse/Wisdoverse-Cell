@@ -875,6 +875,20 @@ def test_event_catalog_uses_canonical_runtime_event_names() -> None:
         assert event_type not in catalog
 
 
+def test_event_catalog_documents_all_runtime_event_types() -> None:
+    """Every EventTypes constant is a cross-boundary contract."""
+    catalog = Path("docs/guides/event-catalog.md").read_text()
+    event_types = {
+        value
+        for name, value in vars(EventTypes).items()
+        if name.isupper() and isinstance(value, str)
+    }
+
+    missing = sorted(event_type for event_type in event_types if event_type not in catalog)
+
+    assert missing == []
+
+
 def test_event_catalog_documents_channel_gateway_event_names() -> None:
     catalog = Path("docs/guides/event-catalog.md").read_text()
     channel_event_types = {
