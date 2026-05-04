@@ -321,6 +321,13 @@ class BudgetPolicy(ControlPlaneModel):
             raise ValueError("budget limit must be positive")
         return value
 
+    @field_validator("warning_threshold")
+    @classmethod
+    def _warning_threshold_must_be_ratio(cls, value: float) -> float:
+        if value <= 0 or value > 1:
+            raise ValueError("budget warning threshold must be within (0, 1]")
+        return value
+
 
 class BudgetUsage(ControlPlaneModel):
     usage_id: str = Field(default_factory=lambda: generate_id(IDPrefix.BUDGET_USAGE))
@@ -334,6 +341,20 @@ class BudgetUsage(ControlPlaneModel):
     trace_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=_now)
+
+    @field_validator("cost_usd")
+    @classmethod
+    def _cost_must_be_non_negative(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("budget usage cost must be non-negative")
+        return value
+
+    @field_validator("input_tokens", "output_tokens")
+    @classmethod
+    def _tokens_must_be_non_negative(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("budget usage tokens must be non-negative")
+        return value
 
 
 class AuditEvent(ControlPlaneModel):
