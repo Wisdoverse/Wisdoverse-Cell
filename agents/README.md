@@ -34,7 +34,7 @@ Catalog entries use separate flags for separate concerns:
 
 | Field | Meaning |
 |-------|---------|
-| `agent_kind` | Control-plane architecture kind: organization role, capability module, gateway, or worker. |
+| `agent_kind` | Control-plane architecture kind: organization role, business runtime agent, capability module, gateway, or worker. |
 | `implemented` | The package has an actual runtime implementation, not only a reserved boundary. |
 | `business_agent` | The agent owns business work outcomes, not only gateway, sync, analytics, or system orchestration support. |
 
@@ -45,10 +45,10 @@ The implemented business runtime agents are `requirement-manager`, `pjm-agent`,
 
 | Path | Runtime role | Control-plane kind |
 |------|--------------|--------------------|
-| [`requirement_manager/`](requirement_manager/) | Requirement extraction, confirmation, PRD, and local Feishu flow | `capability_module` business agent |
-| [`pjm_agent/`](pjm_agent/) | Task decomposition, approval preparation, alerts, and reports | `capability_module` business agent |
-| [`qa_agent/`](qa_agent/) | QA acceptance and quality verification | `capability_module` business agent |
-| [`dev_agent/`](dev_agent/) | AgentForge-backed delivery execution | `capability_module` business agent |
+| [`requirement_manager/`](requirement_manager/) | Requirement extraction, confirmation, PRD, and local Feishu flow | `business_runtime_agent` |
+| [`pjm_agent/`](pjm_agent/) | Task decomposition, approval preparation, alerts, and reports | `business_runtime_agent` |
+| [`qa_agent/`](qa_agent/) | QA acceptance and quality verification | `business_runtime_agent` |
+| [`dev_agent/`](dev_agent/) | AgentForge-backed delivery execution | `business_runtime_agent` |
 
 Non-agent runtime code lives elsewhere:
 
@@ -92,6 +92,7 @@ Use `agent_kind` to distinguish runtime modules from organization-role agents:
 | `agent_kind` | Meaning |
 |--------------|---------|
 | `organization_role` | Durable role agent record managed by the control plane |
+| `business_runtime_agent` | Root deployable business agent under `agents/` |
 | `capability_module` | Independently deployed capability service |
 | `integration_gateway` | User-facing or platform-facing gateway service |
 | `system_worker` | Internal orchestration or background worker |

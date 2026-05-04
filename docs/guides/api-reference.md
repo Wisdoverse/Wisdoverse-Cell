@@ -1,6 +1,6 @@
 # Wisdoverse Cell API Reference
 
-Last updated: 2026-05-02
+Last updated: 2026-05-04
 
 This page documents the current HTTP surface at a contract level. English is
 the primary language for API descriptions. Response examples may include
@@ -204,6 +204,22 @@ Primary prefix: `/api/v1`.
 | `GET` | `/api/v1/pm/decompose/{wp_id}` | Read decomposition status |
 | `POST` | `/api/v1/pm/decompose/{wp_id}/approve` | Approve decomposition; body should include `operator` for approval evidence |
 | `POST` | `/api/v1/pm/decompose/{wp_id}/reject` | Reject decomposition; body should include `operator` and may include `reason` |
+
+Decomposition status responses use these workflow states:
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Decomposition is waiting for human approval before OpenProject writes |
+| `writing` | Approved decomposition is currently being written to OpenProject |
+| `approved` | OpenProject write succeeded |
+| `rejected` | Human rejected the proposed decomposition |
+| `failed` | Decomposition generation failed before approval |
+| `write_failed` | Decomposition was approved, but the OpenProject write failed |
+
+`POST /api/v1/pm/decompose/{wp_id}/retry` is allowed only for `failed`,
+`rejected`, and `write_failed` records. Event replay of
+`sync.task-needs-decompose` skips `pending`, `writing`, `approved`, and
+`write_failed` records to avoid duplicate OpenProject side effects.
 
 ## User Interaction Gateway API
 

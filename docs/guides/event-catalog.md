@@ -1,6 +1,6 @@
 # Wisdoverse Cell Event Catalog
 
-Last updated: 2026-05-03
+Last updated: 2026-05-04
 
 This catalog documents event names, producers, consumers, and payload
 expectations. English is the primary documentation language. Event names remain
@@ -267,6 +267,26 @@ the original work. `pm.tasks-ready-for-dev` is a command-style handoff to the
 dev agent and must include the decomposed task list. `pm.prd-ready` is consumed
 by the coordinator when an upstream PRD generation boundary has already produced
 the product document.
+
+`pm.decompose-completed` reports the current decomposition state for a work
+package. Event payload `status` values are `pending`, `approved`, `rejected`,
+and `write_failed`. The PJM repository also uses `writing` as an internal
+persisted status while writing approved decomposition output to OpenProject.
+Replayed `sync.task-needs-decompose` events must not delete or rerun records in
+`pending`, `writing`, `approved`, or `write_failed`; operators retry failed
+write attempts explicitly through the PJM retry API, which republishes
+`sync.task-needs-decompose` after deleting the stale record.
+
+Example `pm.decompose-completed` payload:
+
+```json
+{
+  "wp_id": 12345,
+  "status": "write_failed",
+  "user_story_count": 0,
+  "task_count": 0
+}
+```
 
 Example `pm.decomposition-failed` payload:
 
