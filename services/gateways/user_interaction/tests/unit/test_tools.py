@@ -114,6 +114,41 @@ async def test_sync_now_publishes_event(executor):
     published_event = mock_bus.publish.call_args[0][0]
     assert published_event.event_type == "sync.trigger"
     assert published_event.source_agent == "chat-agent"
+    assert published_event.payload["scope"] == "full"
+
+
+@pytest.mark.asyncio
+async def test_sync_openproject_publishes_scoped_event(executor):
+    """sync_openproject publishes an OpenProject-scoped sync.trigger event."""
+    mock_bus = AsyncMock()
+    mock_bus.connect = AsyncMock()
+    mock_bus.publish = AsyncMock(return_value=True)
+
+    with patch.object(_event_bus_mod, "event_bus", mock_bus):
+        result_str = await executor.execute("sync_openproject", {})
+
+    result = json.loads(result_str)
+    assert result["success"] is True
+    published_event = mock_bus.publish.call_args[0][0]
+    assert published_event.event_type == "sync.trigger"
+    assert published_event.payload["scope"] == "openproject"
+
+
+@pytest.mark.asyncio
+async def test_sync_feishu_bitable_publishes_scoped_event(executor):
+    """sync_feishu_bitable publishes a Bitable-scoped sync.trigger event."""
+    mock_bus = AsyncMock()
+    mock_bus.connect = AsyncMock()
+    mock_bus.publish = AsyncMock(return_value=True)
+
+    with patch.object(_event_bus_mod, "event_bus", mock_bus):
+        result_str = await executor.execute("sync_feishu_bitable", {})
+
+    result = json.loads(result_str)
+    assert result["success"] is True
+    published_event = mock_bus.publish.call_args[0][0]
+    assert published_event.event_type == "sync.trigger"
+    assert published_event.payload["scope"] == "feishu_bitable"
 
 
 @pytest.mark.asyncio

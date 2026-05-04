@@ -273,7 +273,17 @@ TOOLS = [
     },
     {
         "name": "sync_now",
-        "description": "Run one synchronization immediately.",
+        "description": "Run the compatibility full synchronization immediately.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "sync_openproject",
+        "description": "Run only the OpenProject work-package to Feishu Bitable projection sync.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "sync_feishu_bitable",
+        "description": "Run only the Feishu Bitable subtask progress to OpenProject sync.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
     {
@@ -714,8 +724,12 @@ async def _handle_propose_bitable_create(fields: dict, context: dict, table_id: 
     }, ensure_ascii=False)
 
 
-@register_tool("sync_now")
-async def _handle_sync_now() -> str:
+async def _publish_sync_trigger(
+    *,
+    scope: str,
+    success_message: str,
+    failure_message: str,
+) -> str:
     from shared.infra.event_bus import event_bus
     from shared.schemas.event import Event, EventTypes
 
@@ -723,12 +737,39 @@ async def _handle_sync_now() -> str:
     event = Event.create(
         event_type=EventTypes.SYNC_TRIGGER,
         source_agent="chat-agent",
-        payload={"triggered_by": "chat_tool"},
+        payload={"triggered_by": "chat_tool", "scope": scope},
     )
     ok = await event_bus.publish(event)
     if ok:
-        return json.dumps({"success": True, "message": "同步任务已触发"}, ensure_ascii=False)
-    return json.dumps({"error": "同步触发失败"}, ensure_ascii=False)
+        return json.dumps({"success": True, "message": success_message}, ensure_ascii=False)
+    return json.dumps({"error": failure_message}, ensure_ascii=False)
+
+
+@register_tool("sync_now")
+async def _handle_sync_now() -> str:
+    return await _publish_sync_trigger(
+        scope="full",
+        success_message="同步任务已触发",
+        failure_message="同步触发失败",
+    )
+
+
+@register_tool("sync_openproject")
+async def _handle_sync_openproject() -> str:
+    return await _publish_sync_trigger(
+        scope="openproject",
+        success_message="OpenProject 同步任务已触发",
+        failure_message="OpenProject 同步触发失败",
+    )
+
+
+@register_tool("sync_feishu_bitable")
+async def _handle_sync_feishu_bitable() -> str:
+    return await _publish_sync_trigger(
+        scope="feishu_bitable",
+        success_message="飞书多维表格同步任务已触发",
+        failure_message="飞书多维表格同步触发失败",
+    )
 
 
 @register_tool("search_feishu_user")

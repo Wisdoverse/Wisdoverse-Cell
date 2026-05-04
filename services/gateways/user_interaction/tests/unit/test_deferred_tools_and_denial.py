@@ -3,7 +3,7 @@
 TDD: These tests are written FIRST, before the implementation.
 
 E3 tests:
-- _build_tool_registry marks the correct 5 tools as deferred
+- _build_tool_registry marks the expected tools as deferred
 - to_anthropic_schemas is used in LLM calls (not raw TOOLS)
 - tool_search handling adds tools to active_deferred and validator
 - tool_search result is passed back as tool_result JSON
@@ -25,6 +25,8 @@ import pytest
 
 _DEFERRED_TOOL_NAMES = {
     "sync_now",
+    "sync_openproject",
+    "sync_feishu_bitable",
     "add_bitable_field",
     "list_card_operations",
     "search_feishu_user",
@@ -85,7 +87,7 @@ def chat_service():
 
 
 class TestBuildToolRegistry:
-    """_build_tool_registry should mark exactly the 5 specified tools as deferred."""
+    """_build_tool_registry should mark the specified tools as deferred."""
 
     def test_deferred_tools_match_spec(self, chat_service):
         registry = chat_service._registry

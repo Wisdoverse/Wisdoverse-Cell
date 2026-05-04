@@ -75,6 +75,8 @@ MAX_HISTORY = 40
 
 _DEFERRED_TOOL_NAMES = {
     "sync_now",
+    "sync_openproject",
+    "sync_feishu_bitable",
     "add_bitable_field",
     "list_card_operations",
     "search_feishu_user",

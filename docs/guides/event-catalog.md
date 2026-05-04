@@ -242,6 +242,9 @@ Example `channel.message.delivered` payload:
 include `scope=full`, `scope=openproject`, or `scope=feishu_bitable`; the
 hyphenated alias `feishu-bitable` is accepted only for inbound compatibility.
 If no scope is provided, the sync runtime runs the compatibility full sync.
+The user interaction gateway exposes separate deferred tools for these
+boundaries: `sync_now` emits `scope=full`, `sync_openproject` emits
+`scope=openproject`, and `sync_feishu_bitable` emits `scope=feishu_bitable`.
 
 `sync.started`, `sync.completed`, and `sync.failed` always include the resolved
 `scope` so project-management and analysis consumers can tell whether the event
