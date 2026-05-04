@@ -419,6 +419,26 @@ def test_agent_core_does_not_import_platform_adapters_directly() -> None:
                 )
 
 
+def test_agent_core_does_not_import_agent_local_adapters_directly() -> None:
+    """Agent core depends on ports and injected collaborators, not adapters."""
+    for agent_root in AGENT_ROOTS:
+        root = Path("agents") / agent_root / "core"
+        if not root.exists():
+            continue
+        for path in _python_files(root):
+            tree = ast.parse(path.read_text(), filename=str(path))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ImportFrom):
+                    continue
+                module = node.module or ""
+                is_relative_adapter = node.level >= 1 and module.startswith("adapters")
+                is_absolute_adapter = module.startswith(f"agents.{agent_root}.adapters")
+                assert not (is_relative_adapter or is_absolute_adapter), (
+                    f"{path} imports agent-local adapter module {module}; "
+                    "inject a port or bind adapters from the service/app layer"
+                )
+
+
 def test_agent_service_does_not_import_agent_local_integrations_directly() -> None:
     for agent_root in AGENT_ROOTS:
         root = Path("agents") / agent_root / "service"
