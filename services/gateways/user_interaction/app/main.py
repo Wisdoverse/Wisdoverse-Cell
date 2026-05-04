@@ -8,11 +8,11 @@ from fastapi import Depends
 from shared.app import create_agent_app
 from shared.app.plugins.infra_health import InfraHealthPlugin
 from shared.config import settings
+from shared.integrations.feishu.cards.tools import FeishuToolCardRenderer
 from shared.middleware.internal_auth import verify_internal_key
 from shared.schemas.agent import BaseAgent
 from shared.utils.logger import get_logger
 
-from ..adapters.feishu_cards import FeishuToolCardRenderer
 from ..api.bitable import router as bitable_router
 from ..api.daily_progress import router as daily_progress_router
 from ..api.webhook import router as webhook_router

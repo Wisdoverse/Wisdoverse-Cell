@@ -8,9 +8,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from services.gateways.user_interaction.adapters.feishu_cards import (
-    FeishuToolCardRenderer,
-)
 from services.gateways.user_interaction.api.bitable import (
     ConfirmRequest,
     CreateRequest,
@@ -20,6 +17,9 @@ from services.gateways.user_interaction.api.bitable import (
 )
 from services.gateways.user_interaction.core.card_ports import (
     configure_tool_card_renderer,
+)
+from shared.integrations.feishu.cards.tools import (
+    FeishuToolCardRenderer,
 )
 
 

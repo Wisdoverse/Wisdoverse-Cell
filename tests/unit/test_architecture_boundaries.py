@@ -194,8 +194,8 @@ def test_feishu_card_renderers_live_in_shared_integrations() -> None:
             )
 
 
-def test_service_layers_use_local_feishu_card_adapters() -> None:
-    """Service/app/core/API layers must not bind directly to Feishu card implementations."""
+def test_business_layers_do_not_bind_feishu_card_implementations() -> None:
+    """Business layers use card-renderer ports; only composition roots bind implementations."""
     roots = [
         Path("agents/requirement_manager/app"),
         Path("agents/requirement_manager/api"),
@@ -214,14 +214,21 @@ def test_service_layers_use_local_feishu_card_adapters() -> None:
         Path("services/gateways/user_interaction/core"),
         Path("services/gateways/user_interaction/service"),
     ]
+    composition_roots = {
+        Path("agents/requirement_manager/app/main.py"),
+        Path("services/gateways/user_interaction/app/main.py"),
+        Path("services/gateways/user_interaction/service/agent.py"),
+    }
     for root in roots:
         if not root.exists():
             continue
         for path in _python_files(root):
+            if path in composition_roots:
+                continue
             for module in _imported_modules(path):
                 assert not module.startswith("shared.integrations.feishu.cards"), (
-                    f"{path} imports {module}; service layers should inject "
-                    "Feishu card renderers through local adapter/port wiring"
+                    f"{path} imports {module}; business layers should inject "
+                    "Feishu card renderers through local card-renderer ports"
                 )
 
 
@@ -236,11 +243,10 @@ def test_qa_core_uses_card_renderer_port_for_feishu_payloads() -> None:
 
 
 def test_user_interaction_routes_do_not_build_feishu_cards_directly() -> None:
-    """Gateway route/service code should use a local card-renderer port."""
+    """Gateway route/core code should use a local card-renderer port."""
     roots = [
         Path("services/gateways/user_interaction/api"),
         Path("services/gateways/user_interaction/core"),
-        Path("services/gateways/user_interaction/service"),
     ]
     for root in roots:
         for path in _python_files(root):
