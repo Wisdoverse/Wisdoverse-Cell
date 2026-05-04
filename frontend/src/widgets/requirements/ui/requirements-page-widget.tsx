@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { BatchActions } from "@/components/requirements/batch-actions";
-import { ConfirmDialog } from "@/components/requirements/confirm-dialog";
-import { RejectSheet } from "@/components/requirements/reject-sheet";
-import { RequirementsFilters } from "@/components/requirements/requirements-filters";
-import { RequirementsTable } from "@/components/requirements/requirements-table";
+import { RequirementsFilters } from "./requirements-filters";
+import { RequirementsTable } from "@/entities/requirement";
+import {
+  BatchActions,
+  ConfirmDialog,
+  RejectSheet,
+} from "@/features/requirement-review";
 import { PageHeader } from "@/shared/ui/page-header";
 import { useRequirements } from "@/entities/requirement/model/use-requirements";
 import type { RequirementFilters } from "@/lib/api/types";

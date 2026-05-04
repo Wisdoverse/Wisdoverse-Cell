@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { RequirementsTable } from "@/components/requirements/requirements-table";
+import { RequirementsTable } from "./requirements-table";
 import type { Requirement } from "@/lib/api/types";
 
 // next-intl and next/navigation are globally mocked in setup.ts.

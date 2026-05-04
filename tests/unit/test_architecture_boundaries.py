@@ -748,6 +748,55 @@ def test_frontend_user_action_components_live_in_features() -> None:
         assert "@/components/ingest/" not in source
 
 
+def test_frontend_requirements_ui_lives_in_fsd_slices() -> None:
+    entity_components = (
+        "change-history",
+        "context-messages",
+        "requirement-header",
+        "requirement-info",
+        "requirements-table",
+        "similar-requirements",
+    )
+    feature_components = ("batch-actions", "confirm-dialog", "reject-sheet")
+    widget_components = ("requirements-filters",)
+
+    for component in entity_components:
+        assert not (
+            Path("frontend/src/components/requirements") / f"{component}.tsx"
+        ).exists()
+        assert (
+            Path("frontend/src/entities/requirement/ui") / f"{component}.tsx"
+        ).exists()
+
+    for component in feature_components:
+        assert not (
+            Path("frontend/src/components/requirements") / f"{component}.tsx"
+        ).exists()
+        assert (
+            Path("frontend/src/features/requirement-review/ui")
+            / f"{component}.tsx"
+        ).exists()
+
+    for component in widget_components:
+        assert not (
+            Path("frontend/src/components/requirements") / f"{component}.tsx"
+        ).exists()
+        assert (
+            Path("frontend/src/widgets/requirements/ui") / f"{component}.tsx"
+        ).exists()
+
+    assert not Path(
+        "frontend/src/components/requirements/__tests__/requirements-table.test.tsx"
+    ).exists()
+    assert Path(
+        "frontend/src/entities/requirement/ui/requirements-table.test.tsx"
+    ).exists()
+
+    for path in Path("frontend/src").rglob("*.ts*"):
+        source = path.read_text()
+        assert "@/components/requirements/" not in source
+
+
 def test_event_catalog_uses_canonical_runtime_event_names() -> None:
     catalog = Path("docs/guides/event-catalog.md").read_text()
     expected = {

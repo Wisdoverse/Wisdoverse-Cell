@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { ChangeHistory } from "@/components/requirements/change-history";
-import { ConfirmDialog } from "@/components/requirements/confirm-dialog";
-import { ContextMessages } from "@/components/requirements/context-messages";
-import { RejectSheet } from "@/components/requirements/reject-sheet";
-import { RequirementHeader } from "@/components/requirements/requirement-header";
-import { RequirementInfo } from "@/components/requirements/requirement-info";
-import { SimilarRequirements } from "@/components/requirements/similar-requirements";
+import {
+  ChangeHistory,
+  ContextMessages,
+  RequirementHeader,
+  RequirementInfo,
+  SimilarRequirements,
+} from "@/entities/requirement";
+import { ConfirmDialog, RejectSheet } from "@/features/requirement-review";
 import { PriorityBadge } from "@/entities/requirement/ui/priority-badge";
 import { StatusBadge } from "@/entities/requirement/ui/status-badge";
 import { Badge } from "@/shared/ui/badge";
