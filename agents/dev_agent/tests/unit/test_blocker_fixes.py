@@ -66,9 +66,8 @@ def _make_mock_session():
 
 class TestStartupDoesNotCrash:
     @pytest.mark.asyncio
-    async def test_on_startup_uses_create_tables_not_initialize(self):
-        """Verify _on_startup calls create_tables() (which exists on
-        BaseDatabaseManager) and not initialize() (which doesn't exist)."""
+    async def test_on_startup_creates_tables_in_development(self):
+        """Development startup may create local tables."""
         from agents.dev_agent.app import main as main_module
 
         mock_db = AsyncMock()
@@ -80,6 +79,7 @@ class TestStartupDoesNotCrash:
             patch.object(main_module, "settings") as mock_settings,
             patch.object(main_module, "_start_scheduler", AsyncMock()),
         ):
+            mock_settings.app_env = "development"
             mock_settings.agentforge_api_url = ""
             mock_settings.dev_gitlab_api_url = ""
             mock_settings.dev_gitlab_project_id = ""
@@ -87,8 +87,29 @@ class TestStartupDoesNotCrash:
             await main_module._on_startup(mock_runtime)
 
         mock_db.create_tables.assert_awaited_once()
-        # Verify initialize is NOT called (it doesn't exist)
-        assert not hasattr(mock_db, "initialize") or not mock_db.initialize.called
+
+    @pytest.mark.asyncio
+    async def test_on_startup_does_not_create_tables_outside_development(self):
+        """Shared environments rely on Alembic-managed schemas."""
+        from agents.dev_agent.app import main as main_module
+
+        mock_db = AsyncMock()
+        mock_db.create_tables = AsyncMock()
+        mock_runtime = MagicMock()
+
+        with (
+            patch.object(main_module, "db_manager", mock_db),
+            patch.object(main_module, "settings") as mock_settings,
+            patch.object(main_module, "_start_scheduler", AsyncMock()),
+        ):
+            mock_settings.app_env = "production"
+            mock_settings.agentforge_api_url = ""
+            mock_settings.dev_gitlab_api_url = ""
+            mock_settings.dev_gitlab_project_id = ""
+
+            await main_module._on_startup(mock_runtime)
+
+        mock_db.create_tables.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_on_startup_creates_clients_and_wires_agent(self):
@@ -106,6 +127,7 @@ class TestStartupDoesNotCrash:
             patch.object(main_module, "ForgeClient") as MockForge,
             patch.object(main_module, "GitLabClient") as MockGitLab,
         ):
+            mock_settings.app_env = "development"
             mock_settings.agentforge_api_url = "http://forge"
             mock_settings.agentforge_token = MagicMock()
             mock_settings.agentforge_token.get_secret_value.return_value = "tok"

@@ -367,7 +367,24 @@ global flush operations.
 4. Check budget enforcement state.
 5. Check the LiteLLM proxy and active provider status if failures are external.
 
-## 9. Control Plane Operations
+## 9. Database Schema Operations
+
+Production-like environments must apply Alembic migrations before enabling
+agent services. The Alembic chain owns the control-plane ledger, requirement
+manager tables, business runtime agent operational tables, user-interaction
+gateway tables, sync and analysis capability tables, and self-evolution tables.
+
+```bash
+alembic upgrade head
+alembic check
+```
+
+Development services may call `create_tables()` for local bootstrap when
+`APP_ENV=development`. Staging and production services should log
+`schema_managed_by_alembic` and fail visibly if a required table is missing.
+Do not rely on service startup to create or mutate production schemas.
+
+## 10. Control Plane Operations
 
 The control-plane ledger is opt-in until migrations are applied and the operator
 API is ready for the target environment.
@@ -442,7 +459,7 @@ EventBus failure visibility:
   Redis DLQ stream. Malformed NATS payload logs include payload length and a
   SHA-256 fingerprint, not raw event content.
 
-## 10. Local E2E Verification
+## 11. Local E2E Verification
 
 Use real browser E2E after Docker, routing, authentication, or frontend route
 changes. The frontend Playwright suite enables local development credentials
@@ -470,7 +487,7 @@ port. When the frontend server is already running and has the correct auth
 environment, use `PLAYWRIGHT_BASE_URL=<url>` to reuse it instead of starting a
 second dev server.
 
-## 11. Command Reference
+## 12. Command Reference
 
 ```bash
 make up-dev

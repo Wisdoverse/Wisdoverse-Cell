@@ -61,9 +61,12 @@ async def _on_startup(runtime) -> None:
     """Initialize DB, services, and wire them into the agent."""
     global _forge_client, _gitlab_client
 
-    # Initialize database (create tables if not managed by Alembic)
-    await db_manager.create_tables()
-    logger.info("dev_agent_db_initialized")
+    # Development can create local tables; shared environments use Alembic.
+    if settings.app_env == "development":
+        await db_manager.create_tables()
+        logger.info("dev_agent_db_initialized")
+    else:
+        logger.info("schema_managed_by_alembic", agent_id="dev-agent")
 
     # Create ForgeClient
     if settings.agentforge_api_url:
