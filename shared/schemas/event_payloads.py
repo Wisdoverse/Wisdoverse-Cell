@@ -150,6 +150,110 @@ class MeetingUploadedPayload(BaseModel):
     source_id: str | None = None
 
 
+# ============ Development, testing, and delivery events ============
+
+class CodeReviewedPayload(BaseModel):
+    """code.reviewed event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    agent_name: str = ""
+    commit_sha: str | None = Field(default=None, min_length=7, max_length=40)
+    mr_iid: int | None = Field(default=None, ge=1)
+    gitlab_project_id: int | None = Field(default=None, ge=1)
+    review_status: Literal["approved", "changes_requested", "commented", "unknown"] = "unknown"
+    findings: list[dict] = Field(default_factory=list)
+
+
+class FeatureCompletedPayload(BaseModel):
+    """feature.completed event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    feature_id: str | None = None
+    title: str = ""
+    completed_by: str | None = None
+    artifact_links: list[str] = Field(default_factory=list)
+    summary: str = ""
+
+
+class TestResultPayload(BaseModel):
+    """test.passed / test.failed event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    test_run_id: str | None = None
+    suite: str = ""
+    status: Literal["passed", "failed"] | None = None
+    passed: int = Field(default=0, ge=0)
+    failed: int = Field(default=0, ge=0)
+    duration_seconds: float | None = Field(default=None, ge=0)
+    report_uri: str | None = None
+
+
+class DeploymentEventPayload(BaseModel):
+    """deployment.started / deployment.completed event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    deployment_id: str | None = None
+    environment: str = ""
+    version: str | None = None
+    status: Literal["started", "completed", "failed", "unknown"] = "unknown"
+    started_by: str | None = None
+    artifact_links: list[str] = Field(default_factory=list)
+
+
+# ============ Operations and customer events ============
+
+class DeviceEventPayload(BaseModel):
+    """device.online / device.offline / device.alert event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    device_id: str | None = None
+    status: Literal["online", "offline", "alert", "unknown"] = "unknown"
+    severity: Literal["critical", "high", "medium", "low", "info"] = "info"
+    message: str = ""
+    metadata: dict = Field(default_factory=dict)
+
+
+class LeadQualifiedPayload(BaseModel):
+    """lead.qualified event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    lead_id: str | None = None
+    source_system: str = ""
+    qualification_score: float | None = Field(default=None, ge=0, le=1)
+    owner: str | None = None
+    summary: str = ""
+
+
+class DealWonPayload(BaseModel):
+    """deal.won event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    deal_id: str | None = None
+    customer_id: str | None = None
+    amount: float | None = Field(default=None, ge=0)
+    currency: str = "USD"
+    owner: str | None = None
+
+
+class TicketCreatedPayload(BaseModel):
+    """ticket.created event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    ticket_id: str | None = None
+    customer_id: str | None = None
+    priority: Literal["low", "medium", "high", "critical"] = "medium"
+    subject: str = ""
+    source_system: str = ""
+
+
 # ============ Control-plane ledger events ============
 
 class CompanyEventPayload(BaseModel):
@@ -411,6 +515,30 @@ class EvolutionPatternApprovedPayload(BaseModel):
     user_id: str | None = None
     approval_id: str | None = None
     control_plane_approval_id: str | None = None
+
+
+class EvolutionPatternShadowCompletePayload(BaseModel):
+    """evolution.pattern-shadow-complete event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    pattern_id: str
+    shadow_run_id: str | None = None
+    success: bool = False
+    evidence: dict = Field(default_factory=dict)
+    risk: str = ""
+
+
+class ExecutionTracedPayload(BaseModel):
+    """execution.traced event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    trace_id: str
+    agent_id: str | None = None
+    run_id: str | None = None
+    summary: str = ""
+    evidence: dict = Field(default_factory=dict)
 
 
 class DLQFailedPayload(BaseModel):
@@ -802,6 +930,18 @@ EVENT_PAYLOAD_MODELS = {
     "sprint.started": SprintStartedPayload,
     "sprint.completed": SprintCompletedPayload,
     "meeting.uploaded": MeetingUploadedPayload,
+    "code.reviewed": CodeReviewedPayload,
+    "feature.completed": FeatureCompletedPayload,
+    "test.passed": TestResultPayload,
+    "test.failed": TestResultPayload,
+    "deployment.started": DeploymentEventPayload,
+    "deployment.completed": DeploymentEventPayload,
+    "device.online": DeviceEventPayload,
+    "device.offline": DeviceEventPayload,
+    "device.alert": DeviceEventPayload,
+    "lead.qualified": LeadQualifiedPayload,
+    "deal.won": DealWonPayload,
+    "ticket.created": TicketCreatedPayload,
     "company.created": CompanyEventPayload,
     "company.updated": CompanyEventPayload,
     "goal.created": GoalEventPayload,
@@ -830,6 +970,8 @@ EVENT_PAYLOAD_MODELS = {
     "evolution.human-feedback": EvolutionHumanFeedbackPayload,
     "evolution.pattern-proposed": EvolutionPatternProposedPayload,
     "evolution.pattern-approved": EvolutionPatternApprovedPayload,
+    "evolution.pattern-shadow-complete": EvolutionPatternShadowCompletePayload,
+    "execution.traced": ExecutionTracedPayload,
     "dlq.failed": DLQFailedPayload,
     "sync.trigger": SyncTriggerPayload,
     "sync.started": SyncStartedPayload,

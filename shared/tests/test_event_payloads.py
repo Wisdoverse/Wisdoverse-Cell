@@ -143,6 +143,40 @@ class TestEventTypes:
         assert EventTypes.A2A_TASK_ERROR == "a2a.task.error"
 
 
+class TestEventPayloadRegistry:
+    def test_all_event_type_constants_have_payload_contracts(self):
+        event_types = {
+            value
+            for name, value in vars(EventTypes).items()
+            if name.isupper() and isinstance(value, str)
+        }
+
+        missing = sorted(event_types - set(EVENT_PAYLOAD_MODELS))
+
+        assert missing == []
+
+    def test_legacy_event_contracts_validate_against_registered_models(self):
+        examples = {
+            "code.reviewed": {},
+            "deal.won": {},
+            "deployment.completed": {},
+            "deployment.started": {},
+            "device.alert": {},
+            "device.offline": {},
+            "device.online": {},
+            "evolution.pattern-shadow-complete": {"pattern_id": "pat_1"},
+            "execution.traced": {"trace_id": "trace_1"},
+            "feature.completed": {},
+            "lead.qualified": {},
+            "test.failed": {},
+            "test.passed": {},
+            "ticket.created": {},
+        }
+
+        for event_type, payload in examples.items():
+            assert validate_event_payload(event_type, payload) is not None
+
+
 # ============ DevTaskInfo ============
 
 class TestDevTaskInfo:
