@@ -103,6 +103,22 @@ def test_runtime_code_uses_canonical_shared_paths() -> None:
                 )
 
 
+def test_app_entrypoints_use_runtime_public_started_property() -> None:
+    roots = [
+        Path("agents"),
+        Path("services"),
+        Path("shared/capabilities"),
+    ]
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in root.rglob("app/main.py"):
+            source = path.read_text()
+            assert "runtime._started" not in source, (
+                f"{path} reads AgentRuntime private startup state; use runtime.is_started"
+            )
+
+
 def test_runtime_code_uses_core_channel_abstractions() -> None:
     roots = [Path("agents"), Path("services"), Path("shared")]
     compat_paths = {

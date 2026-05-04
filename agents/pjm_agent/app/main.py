@@ -47,7 +47,7 @@ app = create_agent_app(
 def _get_agent() -> BaseAgent:
     """Get the runtime-wrapped agent. Scheduler jobs call this to go through EvolvedAgent."""
     runtime = getattr(app.state, "runtime", None)
-    if runtime is None or not runtime._started:
+    if runtime is None or not runtime.is_started:
         raise RuntimeError(
             "Agent runtime not initialized; scheduler fired before startup completed"
         )
