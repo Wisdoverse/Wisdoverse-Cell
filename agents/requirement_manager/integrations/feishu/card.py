@@ -1,7 +1,7 @@
 """
-CardHandler - 处理卡片按钮回调
+CardHandler for Feishu card button callbacks.
 
-处理用户在消息卡片中的点击操作。
+Handles user actions submitted from interactive message cards.
 """
 
 from shared.integrations.feishu.cards.decomposition import (
@@ -23,9 +23,9 @@ logger = get_logger("feishu.handlers.card")
 
 class CardHandler:
     """
-    卡片回调处理器
+    Feishu card callback handler.
 
-    action value 约定：
+    Action value contract:
     - {"action": "confirm_requirement", "req_id": "xxx"}
     - {"action": "reject_requirement", "req_id": "xxx"}
     - {"action": "view_detail", "req_id": "xxx"}
@@ -45,13 +45,13 @@ class CardHandler:
 
     async def handle_action(self, data: dict) -> dict:
         """
-        处理卡片动作
+        Handle an interactive card action.
 
         Args:
-            data: 飞书卡片回调数据
+            data: Feishu card callback data.
 
         Returns:
-            响应数据（toast 和/或 card）
+            Response payload with toast and/or card data.
         """
         action = data.get("action", {})
         action_value = action.get("value", {})

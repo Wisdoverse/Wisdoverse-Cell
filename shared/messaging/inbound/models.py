@@ -81,7 +81,7 @@ class UnifiedCard(BaseModel):
     priority: Optional[str] = None
 
     # Fields.
-    fields: list[dict] = Field(default_factory=list)  # [{"label": "分类", "value": "功能"}]
+    fields: list[dict] = Field(default_factory=list)  # Example: [{"label": "Category", "value": "Feature"}].
 
     # Buttons.
     actions: list[CardAction] = Field(default_factory=list)

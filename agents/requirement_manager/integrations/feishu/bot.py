@@ -1,11 +1,11 @@
 """
-BotHandler - 处理 @机器人 消息
+BotHandler for @bot message events.
 
-支持的指令：
-- 直接发送文本 → 提取需求
-- /help → 显示帮助
-- /list → 列出待确认需求
-- /export → 导出 PRD
+Supported commands:
+- Plain text: extract requirements
+- /help: show help
+- /list: list pending requirements
+- /export: export PRD
 """
 import json
 import re
@@ -25,9 +25,9 @@ logger = get_logger("feishu.handlers.bot")
 
 class BotHandler:
     """
-    Bot 消息处理器
+    Feishu bot message handler.
 
-    处理用户 @机器人 发送的消息。
+    Handles messages that users send to the bot.
     """
 
     COMMAND_PATTERN = re.compile(r"^/(\w+)(?:\s+(.*))?$")
@@ -38,10 +38,10 @@ class BotHandler:
 
     async def handle_message(self, data: dict) -> None:
         """
-        处理收到的消息
+        Handle an inbound Feishu message event.
 
         Args:
-            data: 飞书消息事件数据
+            data: Feishu message event data.
         """
         message = data.get("message", {})
         message_id = message.get("message_id", "")

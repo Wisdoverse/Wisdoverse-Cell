@@ -5,7 +5,7 @@ Supports international and Chinese LLM providers.
 Auto-detects available provider from environment variables.
 
 International: Anthropic, OpenAI, Google Gemini, OpenRouter
-China:         Zhipu (智谱), MiniMax, Deepseek, Qwen (通义千问), Baichuan, Moonshot
+China:         Zhipu, MiniMax, DeepSeek, Qwen, Baichuan, Moonshot
 Local:         Ollama
 """
 

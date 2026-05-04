@@ -1,8 +1,10 @@
 """Static checks for English-first runtime metadata."""
 
 import ast
+import io
 import os
 import re
+import tokenize
 from pathlib import Path
 
 HAN = re.compile(r"[\u4e00-\u9fff]")
@@ -27,16 +29,6 @@ ENGLISH_FIRST_DOCS = (
     Path("docker-compose.override.cn.yml"),
     Path(".env.example"),
 )
-INTERNAL_ENGLISH_FIRST_FILES = (
-    Path("shared/capabilities/sync/core/progress.py"),
-    Path("shared/capabilities/sync/db/repository.py"),
-    Path("agents/requirement_manager/service/__init__.py"),
-    Path("shared/messaging/outbound/models/messages.py"),
-    Path("shared/tests/test_agent_loop_breaker.py"),
-    Path("shared/db/tests/__init__.py"),
-    Path("agents/qa_agent/tests/conftest.py"),
-)
-
 
 def _repo_files() -> list[Path]:
     files: list[Path] = []
@@ -87,6 +79,16 @@ def _api_route_files() -> list[Path]:
     ]
 
 
+def _python_code_files() -> list[Path]:
+    return [
+        path
+        for path in _repo_files()
+        if path.suffix == ".py"
+        and "tests" not in path.parts
+        and "fixtures" not in path.parts
+    ]
+
+
 def _literal_parts(node: ast.AST) -> list[str]:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return [node.value]
@@ -126,7 +128,7 @@ def test_docs_and_docker_guidance_are_english_first() -> None:
 
 def test_internal_comments_and_docstrings_are_english_first() -> None:
     offenders: list[str] = []
-    for path in INTERNAL_ENGLISH_FIRST_FILES:
+    for path in _python_code_files():
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source, filename=str(path))
         for node in [tree, *ast.walk(tree)]:
@@ -138,10 +140,9 @@ def test_internal_comments_and_docstrings_are_english_first() -> None:
             docstring = ast.get_docstring(node)
             if docstring and HAN.search(docstring):
                 offenders.append(f"{path}:{getattr(node, 'lineno', 1)}")
-        for lineno, line in enumerate(source.splitlines(), start=1):
-            comment = line.split("#", 1)[1] if "#" in line else ""
-            if HAN.search(comment):
-                offenders.append(f"{path}:{lineno}")
+        for token in tokenize.generate_tokens(io.StringIO(source).readline):
+            if token.type == tokenize.COMMENT and HAN.search(token.string):
+                offenders.append(f"{path}:{token.start[0]}")
 
     assert offenders == []
 

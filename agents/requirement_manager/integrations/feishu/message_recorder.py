@@ -28,7 +28,7 @@ class MessageRecorder:
     """Message recorder with filtering, deduplication, and persistence."""
 
     SKIP_MESSAGE_TYPES = {"sticker", "system", "share_card", "share_user"}
-    MIN_TEXT_LENGTH = 3  # Skip "好", "OK", "+1"
+    MIN_TEXT_LENGTH = 3  # Skip very short acknowledgements such as "OK" or "+1".
 
     def __init__(self, feishu_client, db: DatabaseManager, session_manager=None):
         self.client = feishu_client

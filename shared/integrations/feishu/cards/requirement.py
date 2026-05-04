@@ -544,13 +544,13 @@ def build_batch_result_card(
     operator_name: str,
 ) -> dict:
     """
-    构建批量操作结果卡片
+    Build a batch operation result card.
 
     Args:
-        action_type: 操作类型 ("confirm" or "reject")
-        success_count: 成功数量
-        failed_count: 失败数量
-        operator_name: 操作者名称
+        action_type: Operation type ("confirm" or "reject").
+        success_count: Number of successful operations.
+        failed_count: Number of failed operations.
+        operator_name: Operator display name.
     """
     builder = CardBuilder()
 
