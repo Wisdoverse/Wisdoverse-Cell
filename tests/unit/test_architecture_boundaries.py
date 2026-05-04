@@ -467,6 +467,31 @@ def test_frontend_domain_hooks_are_imported_from_entities() -> None:
         assert "@/lib/hooks" not in source, f"{path} imports legacy hooks"
 
 
+def test_frontend_legacy_domain_hooks_are_compatibility_reexports() -> None:
+    """Legacy hook paths must not own domain API or SWR state."""
+    hooks_root = Path("frontend/src/lib/hooks")
+    for path in hooks_root.glob("*.ts"):
+        source = path.read_text()
+        assert "@/lib/api" not in source, f"{path} imports API clients"
+        assert "useSWR" not in source, f"{path} owns SWR state"
+        assert "@/entities/" in source, f"{path} should re-export an entity hook"
+
+
+def test_frontend_legacy_top_level_hooks_are_compatibility_reexports() -> None:
+    """Canonical shared UI hooks live under frontend/src/shared."""
+    hooks_root = Path("frontend/src/hooks")
+    for path in hooks_root.glob("*.ts"):
+        source = path.read_text()
+        assert "@/shared/" in source, f"{path} should re-export shared code"
+        assert "React.use" not in source, f"{path} owns hook implementation logic"
+
+    for path in Path("frontend/src").rglob("*.ts*"):
+        if path.parts[:3] == ("frontend", "src", "hooks"):
+            continue
+        source = path.read_text()
+        assert "@/hooks/" not in source, f"{path} imports legacy top-level hooks"
+
+
 def test_frontend_fsd_dependency_direction() -> None:
     forbidden_by_root = {
         Path("frontend/src/entities"): ("@/features", "@/widgets"),

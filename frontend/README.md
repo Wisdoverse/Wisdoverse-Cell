@@ -65,9 +65,9 @@ frontend/
 |-- src/entities/     # Domain data, API hooks, models, and entity UI
 |-- src/features/     # User actions and intent-level UI flows
 |-- src/widgets/      # Composed operator surfaces assembled from slices
-|-- src/components/   # Legacy/common component surface; avoid new domain work here
-|-- src/lib/          # API client, auth, telemetry, registries, and neutral utilities
-|-- src/lib/hooks/    # Compatibility re-exports; new domain hooks live in entities
+|-- src/shared/       # Business-neutral UI primitives, providers, and foundations
+|-- src/lib/          # API transport, auth, telemetry, registries, and neutral utilities
+|-- src/lib/hooks/    # Compatibility re-exports only; domain hook logic lives in entities
 |-- src/i18n/         # Locale routing and request configuration
 |-- src/messages/     # Locale message catalogs
 |-- src/test/         # Test setup and shared test utilities
@@ -84,13 +84,12 @@ The frontend follows strict Feature-Sliced Design.
   `src/entities/<domain>/`.
 - User actions live in `src/features/<action>/`.
 - Full operator surfaces live in `src/widgets/<surface>/`.
-- Business-neutral foundations belong in shared UI, `src/lib/`, or a future
-  `src/shared/` slice. Do not place product behavior in generic helpers.
-- `src/components/` is a compatibility surface for existing screens and common
-  UI. New domain-specific work should move toward `entities`, `features`, or
-  `widgets`.
-- `src/lib/hooks/` is compatibility-only for older imports. New code should
-  import domain hooks from `src/entities/<domain>/model/`.
+- Business-neutral UI primitives, providers, and UI-only hooks live in
+  `src/shared/`.
+- `src/components/` is retired. Do not add files there.
+- `src/hooks/` and `src/lib/hooks/` are compatibility-only re-export surfaces.
+  New code imports canonical shared UI hooks from `src/shared/` and domain hooks
+  from `src/entities/<domain>/model/`.
 - Frontend code calls documented HTTP/API contracts and typed hooks. It must not
   import backend, agent, adapter, database, or LLM implementation modules.
 - Preserve runtime identifiers exactly, including names such as `projectcell`,
@@ -102,7 +101,7 @@ The frontend follows strict Feature-Sliced Design.
 Recommended dependency direction:
 
 ```text
-src/app -> src/widgets -> src/features -> src/entities -> src/lib and src/components/ui
+src/app -> src/widgets -> src/features -> src/entities -> src/shared and src/lib
 ```
 
 `entities` must not import from `features` or `widgets`. `features` should not
