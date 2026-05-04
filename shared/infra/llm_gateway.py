@@ -21,6 +21,7 @@ from typing import Any, Callable, Optional
 
 from ..config import settings
 from ..control_plane.context import get_current_run_context
+from ..observability.privacy import hash_identifier
 from ..utils.logger import get_logger
 from .audit_log import AuditAction, audit_log
 from .budget_events import publish_budget_usage_recorded
@@ -650,7 +651,8 @@ class LLMGateway:
             # All retries+fallback exhausted — record one breaker failure
             self._circuit_breaker.record_failure()
             latency_ms = int((time.time() - start_time) * 1000)
-            error_message = str(e)
+            error_message = self._safe_provider_error_message(e)
+            error_category = classify_error(e).value
 
             logger.error(
                 "llm_call_failed",
@@ -658,7 +660,9 @@ class LLMGateway:
                 task_type=task_type,
                 model=model,
                 latency_ms=latency_ms,
-                error=error_message,
+                error_category=error_category,
+                error_type=type(e).__name__,
+                error_fingerprint=hash_identifier(str(e), length=16),
             )
 
             if persist_callback:
@@ -1292,6 +1296,15 @@ class LLMGateway:
         # Fire-and-forget Redis tracking for cross-worker accuracy
         import asyncio
         asyncio.create_task(self._track_usage_redis(today, agent_id, input_tokens, output_tokens))
+
+    def _safe_provider_error_message(self, exc: BaseException) -> str:
+        """Return operator-useful provider failure evidence without raw text."""
+        category = classify_error(exc).value
+        error_type = type(exc).__name__
+        fingerprint = hash_identifier(str(exc), length=16)
+        if fingerprint:
+            return f"{category}:{error_type}:sha256:{fingerprint}"
+        return f"{category}:{error_type}"
 
     async def _track_usage_redis(self, today: str, agent_id: str, input_tokens: int, output_tokens: int):
         """Persist usage counters in Redis HASH for cross-worker accuracy."""

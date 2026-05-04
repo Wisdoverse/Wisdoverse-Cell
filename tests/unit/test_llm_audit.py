@@ -96,3 +96,42 @@ class TestFailedLLMCallNoAudit:
                 )
 
             mock_audit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_complete_failure_logs_safe_provider_error(self, gateway):
+        raw_secret = "SECRET_PROMPT_FRAGMENT user@example.com"
+        persist_callback = MagicMock()
+
+        with (
+            patch.object(
+                gateway.async_client.messages,
+                "create",
+                new_callable=AsyncMock,
+                side_effect=anthropic.APIError(
+                    message=f"provider rejected prompt: {raw_secret}",
+                    request=MagicMock(),
+                    body=None,
+                ),
+            ),
+            patch("shared.infra.llm_gateway.logger") as mock_logger,
+        ):
+            with pytest.raises(anthropic.APIError):
+                await gateway.complete(
+                    prompt=f"Please process {raw_secret}",
+                    agent_id="test-agent",
+                    task_type="test",
+                    persist_callback=persist_callback,
+                    trace_id="trace-safe-error",
+                )
+
+        error_kwargs = mock_logger.error.call_args.kwargs
+        assert "error" not in error_kwargs
+        assert error_kwargs["error_category"] == "other"
+        assert error_kwargs["error_type"] == "APIError"
+        assert "error_fingerprint" in error_kwargs
+        assert raw_secret not in str(error_kwargs)
+
+        usage_data = persist_callback.call_args.args[0]
+        assert usage_data.success is False
+        assert usage_data.error_message.startswith("other:APIError:sha256:")
+        assert raw_secret not in usage_data.error_message
