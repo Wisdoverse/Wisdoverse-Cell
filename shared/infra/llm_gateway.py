@@ -75,6 +75,24 @@ _URL_SECRET_QUERY_RE = re.compile(
     r"secret|signature|password|auth|code)=)[^&#\s]+"
 )
 
+_LLM_RETRY_DECISIONS = {
+    LLMErrorCategory.RATE_LIMIT: "retry_with_backoff_exhausted",
+    LLMErrorCategory.OVERLOADED: "retry_with_backoff_or_fallback_exhausted",
+    LLMErrorCategory.NETWORK: "retry_with_backoff_exhausted",
+    LLMErrorCategory.AUTH: "do_not_retry_until_provider_auth_is_fixed",
+    LLMErrorCategory.CONTENT_SIZE: "do_not_retry_until_prompt_is_reduced",
+    LLMErrorCategory.OTHER: "do_not_retry_without_investigation",
+}
+
+_LLM_OPERATOR_ACTIONS = {
+    LLMErrorCategory.RATE_LIMIT: "reduce_request_rate_or_increase_provider_quota",
+    LLMErrorCategory.OVERLOADED: "check_provider_health_or_switch_model_route",
+    LLMErrorCategory.NETWORK: "check_provider_network_path",
+    LLMErrorCategory.AUTH: "check_provider_api_key_and_model_route",
+    LLMErrorCategory.CONTENT_SIZE: "reduce_prompt_size_or_enable_compaction",
+    LLMErrorCategory.OTHER: "inspect_error_fingerprint_and_provider_status",
+}
+
 
 @dataclass
 class LLMUsageData:
@@ -713,7 +731,8 @@ class LLMGateway:
             self._circuit_breaker.record_failure()
             latency_ms = int((time.time() - start_time) * 1000)
             error_message = self._safe_provider_error_message(e)
-            error_category = classify_error(e).value
+            category = classify_error(e)
+            error_category = category.value
 
             logger.error(
                 "llm_call_failed",
@@ -722,6 +741,8 @@ class LLMGateway:
                 model=model,
                 latency_ms=latency_ms,
                 error_category=error_category,
+                retry_decision=_LLM_RETRY_DECISIONS[category],
+                operator_action=_LLM_OPERATOR_ACTIONS[category],
                 error_type=type(e).__name__,
                 error_fingerprint=hash_identifier(str(e), length=16),
             )
@@ -1076,8 +1097,22 @@ class LLMGateway:
         except ContentSizeError:
             raise
 
-        except Exception:
+        except Exception as e:
             self._circuit_breaker.record_failure()
+            latency_ms = int((time.time() - start_time) * 1000)
+            category = classify_error(e)
+            logger.error(
+                "llm_call_failed",
+                agent_id=agent_id,
+                task_type=task_type,
+                model=model,
+                latency_ms=latency_ms,
+                error_category=category.value,
+                retry_decision=_LLM_RETRY_DECISIONS[category],
+                operator_action=_LLM_OPERATOR_ACTIONS[category],
+                error_type=type(e).__name__,
+                error_fingerprint=hash_identifier(str(e), length=16),
+            )
             raise
 
     async def _call_messages_with_retry(self, kwargs: dict, _agent_id: str = "unknown"):
