@@ -1,4 +1,5 @@
 """Tests for channel gateway agent."""
+from datetime import UTC, datetime
 from typing import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock
 
@@ -9,12 +10,17 @@ from services.gateways.channel.service.agent import (
     get_agent,
 )
 from shared.messaging.outbound.core.base_adapter import BaseChannelAdapter
-from shared.messaging.outbound.core.enums import ChannelCapability, ChannelStatus
+from shared.messaging.outbound.core.enums import ChannelCapability, ChannelStatus, ChatType
 from shared.messaging.outbound.core.registry import AdapterRegistry
-from shared.messaging.outbound.models.events import ChannelEventTypes
+from shared.messaging.outbound.models.events import (
+    CHANNEL_EVENT_PAYLOAD_MODELS,
+    ChannelEventTypes,
+)
 from shared.messaging.outbound.models.messages import (
+    ChatContext,
     DeliveryResult,
     InboundMessage,
+    MessageAuthor,
     OutboundMessage,
 )
 from shared.schemas.agent import BaseAgent
@@ -75,6 +81,15 @@ class TestChannelGatewayAgentClass:
         assert ChannelEventTypes.MESSAGE_INBOUND in agent.published_events
         assert ChannelEventTypes.MESSAGE_DELIVERED in agent.published_events
         assert ChannelEventTypes.ADAPTER_STATUS in agent.published_events
+
+    def test_channel_event_types_have_payload_models(self):
+        event_types = {
+            value
+            for name, value in vars(ChannelEventTypes).items()
+            if name.isupper() and isinstance(value, str)
+        }
+
+        assert event_types == set(CHANNEL_EVENT_PAYLOAD_MODELS)
 
 
 class TestChannelGatewayAgentDependencyInjection:
@@ -154,6 +169,51 @@ class TestEventCreation:
         )
         assert event.source_agent == "channel-gateway"
         assert event.event_type == ChannelEventTypes.MESSAGE_DELIVERED
+
+    @pytest.mark.asyncio
+    async def test_publish_inbound_message_uses_json_payload_contract(self):
+        mock_bus = AsyncMock()
+        agent = ChannelGatewayAgent(
+            bus=mock_bus,
+            adapter_registry=AdapterRegistry(),
+        )
+        message = InboundMessage(
+            channel_id="fake",
+            platform_message_id="platform_msg_123",
+            author=MessageAuthor(platform_user_id="ou_user"),
+            chat=ChatContext(
+                platform_chat_id="chat_123",
+                chat_type=ChatType.GROUP,
+            ),
+            content="hello",
+            timestamp=datetime(2026, 5, 4, 12, 0, tzinfo=UTC),
+        )
+
+        await agent._publish_inbound_message(message)
+
+        mock_bus.publish.assert_awaited_once()
+        event = mock_bus.publish.await_args.args[0]
+        assert event.event_type == ChannelEventTypes.MESSAGE_INBOUND
+        assert event.payload["message"]["timestamp"] == "2026-05-04T12:00:00Z"
+
+    @pytest.mark.asyncio
+    async def test_publish_adapter_status_uses_registered_payload_contract(self):
+        mock_bus = AsyncMock()
+        agent = ChannelGatewayAgent(
+            bus=mock_bus,
+            adapter_registry=AdapterRegistry(),
+        )
+
+        await agent._publish_adapter_status("fake", "connected")
+
+        mock_bus.publish.assert_awaited_once()
+        event = mock_bus.publish.await_args.args[0]
+        assert event.event_type == ChannelEventTypes.ADAPTER_STATUS
+        assert event.payload == {
+            "channel_id": "fake",
+            "status": "connected",
+            "error_message": None,
+        }
 
 
 class TestOutboundEventHandling:

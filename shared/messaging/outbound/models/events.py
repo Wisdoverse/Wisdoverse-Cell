@@ -91,3 +91,17 @@ class AdapterStatusPayload(BaseModel):
     channel_id: str
     status: Literal["connected", "disconnected", "error", "reconnecting"]
     error_message: str | None = None
+
+
+CHANNEL_EVENT_PAYLOAD_MODELS = {
+    ChannelEventTypes.MESSAGE_INBOUND: MessageInboundPayload,
+    ChannelEventTypes.MESSAGE_OUTBOUND: MessageOutboundPayload,
+    ChannelEventTypes.MESSAGE_DELIVERED: MessageDeliveredPayload,
+    ChannelEventTypes.MESSAGE_EDITED: MessageEditedPayload,
+    ChannelEventTypes.MESSAGE_DELETED: MessageDeletedPayload,
+    ChannelEventTypes.REACTION_ADDED: ReactionPayload,
+    ChannelEventTypes.REACTION_REMOVED: ReactionPayload,
+    ChannelEventTypes.READ_RECEIPT: ReadReceiptPayload,
+    ChannelEventTypes.TYPING_STARTED: TypingStartedPayload,
+    ChannelEventTypes.ADAPTER_STATUS: AdapterStatusPayload,
+}

@@ -8,7 +8,11 @@ from services.gateways.channel.service.event_handlers import (
 )
 from shared.infra.event_bus import event_bus as default_event_bus
 from shared.messaging.outbound.core.registry import AdapterRegistry
-from shared.messaging.outbound.models.events import ChannelEventTypes
+from shared.messaging.outbound.models.events import (
+    AdapterStatusPayload,
+    ChannelEventTypes,
+    MessageInboundPayload,
+)
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event
 from shared.utils.logger import get_logger
@@ -166,9 +170,10 @@ class ChannelGatewayAgent(BaseAgent):
 
     async def _publish_inbound_message(self, message) -> None:
         """Publish inbound message event."""
+        payload = MessageInboundPayload(message=message)
         event = self.create_event(
             event_type=ChannelEventTypes.MESSAGE_INBOUND,
-            payload={"message": message.model_dump()},
+            payload=payload.model_dump(mode="json"),
         )
         try:
             await self._event_bus.publish(event)
@@ -179,13 +184,14 @@ class ChannelGatewayAgent(BaseAgent):
         self, channel_id: str, status: str, error_message: str | None = None
     ) -> None:
         """Publish adapter status event."""
+        payload = AdapterStatusPayload(
+            channel_id=channel_id,
+            status=status,
+            error_message=error_message,
+        )
         event = self.create_event(
             event_type=ChannelEventTypes.ADAPTER_STATUS,
-            payload={
-                "channel_id": channel_id,
-                "status": status,
-                "error_message": error_message,
-            },
+            payload=payload.model_dump(mode="json"),
         )
         try:
             await self._event_bus.publish(event)
