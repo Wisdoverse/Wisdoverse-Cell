@@ -260,6 +260,39 @@ class TestNATSEventBusSubscribe:
         mock_msg.ack.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_subscribe_skips_duplicate_after_successful_processing(self, connected_bus):
+        event = Event(
+            event_id="evt_replayed_after_ack_loss",
+            event_type="requirement.confirmed",
+            source_agent="test-agent",
+            payload={"data": "test"},
+        )
+        first_msg = MagicMock()
+        first_msg.data = event.model_dump_json().encode()
+        first_msg.subject = f"{SUBJECT_PREFIX}.requirement.confirmed"
+        first_msg.ack = AsyncMock()
+
+        replayed_msg = MagicMock()
+        replayed_msg.data = event.model_dump_json().encode()
+        replayed_msg.subject = f"{SUBJECT_PREFIX}.requirement.confirmed"
+        replayed_msg.ack = AsyncMock()
+
+        mock_sub = AsyncMock()
+        mock_sub.fetch = AsyncMock(
+            side_effect=[[first_msg, replayed_msg], asyncio.CancelledError()]
+        )
+        connected_bus._js.pull_subscribe = AsyncMock(return_value=mock_sub)
+
+        events = []
+        with pytest.raises(asyncio.CancelledError):
+            async for evt in connected_bus.subscribe(["requirement.confirmed"]):
+                events.append(evt)
+
+        assert [event.event_id for event in events] == ["evt_replayed_after_ack_loss"]
+        first_msg.ack.assert_awaited_once()
+        replayed_msg.ack.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_subscribe_naks_on_parse_error(self, connected_bus):
         mock_msg = MagicMock()
         mock_msg.data = b"invalid json{{"

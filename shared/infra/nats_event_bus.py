@@ -24,6 +24,7 @@ logger = get_logger(__name__)
 
 STREAM_NAME = "PROJECT_EVENTS"
 SUBJECT_PREFIX = "events"
+_PROCESSED_EVENT_CACHE_LIMIT = 10_000
 
 
 class NATSEventBus:
@@ -40,6 +41,8 @@ class NATSEventBus:
         self._stream_replicas = stream_replicas
         self._nc: nats.NATS | None = None
         self._js = None
+        self._processed_event_ids: set[str] = set()
+        self._processed_event_order: list[str] = []
 
     @property
     def is_connected(self) -> bool:
@@ -51,6 +54,16 @@ class NATSEventBus:
             raise RuntimeError(
                 "NATSEventBus.connect() must be called before use"
             )
+
+    def _remember_processed_event(self, event_id: str) -> None:
+        """Keep a bounded in-process cache of successfully handled events."""
+        if event_id in self._processed_event_ids:
+            return
+        self._processed_event_ids.add(event_id)
+        self._processed_event_order.append(event_id)
+        while len(self._processed_event_order) > _PROCESSED_EVENT_CACHE_LIMIT:
+            expired = self._processed_event_order.pop(0)
+            self._processed_event_ids.discard(expired)
 
     # -- lifecycle callbacks ---------------------------------------------------
 
@@ -190,8 +203,19 @@ class NATSEventBus:
                         await msg.nak()
                         continue
 
+                    if event.event_id in self._processed_event_ids:
+                        logger.info(
+                            "nats_event_duplicate_skipped",
+                            event_id=event.event_id,
+                            event_type=event.event_type,
+                            subject=msg.subject,
+                        )
+                        await msg.ack()
+                        continue
+
                     yield event
 
+                    self._remember_processed_event(event.event_id)
                     try:
                         await msg.ack()
                     except Exception as e:
