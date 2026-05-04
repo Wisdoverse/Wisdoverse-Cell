@@ -149,6 +149,7 @@ class ExperimentStatus(str, Enum):
     """Lifecycle status of an A/B experiment."""
 
     RUNNING = "running"
+    PROMOTED = "promoted"
     CONCLUDED = "concluded"
     ROLLED_BACK = "rolled_back"
 

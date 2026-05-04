@@ -1,6 +1,6 @@
 # Wisdoverse Cell Glossary
 
-This glossary defines the core terms used across Wisdoverse Cell. English definitions are primary; short Chinese notes are included only where they help map existing domain language.
+This glossary defines the core terms used across Wisdoverse Cell. Repository-facing definitions are English-first; non-English terms should appear only when they are stable external names, locale values, quoted source text, or fixtures.
 
 ---
 

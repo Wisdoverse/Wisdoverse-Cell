@@ -122,8 +122,11 @@ Human contributors and AI agents follow the same engineering workflow and qualit
 Documentation is English-first.
 
 - Public-facing docs should use English headings and English primary body text.
-- Chinese may be kept as a secondary note, glossary aid, or quoted source text.
-- When updating a mixed-language document, move the English explanation before the Chinese explanation.
+- Non-English text is allowed only for locale files, external platform field
+  names, quoted source content, multilingual test fixtures, and user-facing
+  product copy while an i18n path is being migrated.
+- When updating a mixed-language document, convert repository-facing guidance
+  to English instead of adding parallel non-English explanations.
 - New docs should not be Chinese-only.
 
 ---

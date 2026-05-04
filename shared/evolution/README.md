@@ -108,6 +108,10 @@ Agent receives Event
                     |
                     v
               CanaryRouter deploys as candidate (A/B test)
+                    |
+                    v
+              SkillOptimizer.check_experiment()
+              promotes or rolls back after enough samples
 ```
 
 The `evolution-agent` (L2) runs on a separate schedule, analyzing traces across all agents to propose architectural improvements. See `shared/capabilities/evolution/README.md`.
@@ -162,8 +166,13 @@ Circuit breaker that prevents runaway optimization:
 
 New skill versions are never deployed to 100% of traffic. The canary router:
 - Caps traffic to candidate versions at 30% (`Experiment.traffic_pct`)
-- Requires minimum 50 samples before concluding an experiment
-- Auto-rolls back if the candidate underperforms the control
+- Records candidate and control scores for each active experiment
+- Keeps routing deterministic by trace ID, so retries use the same skill version
+
+`SkillOptimizer.check_experiment()` concludes the experiment after both arms
+reach `Experiment.min_samples`. A candidate is promoted only when it meets
+`Experiment.min_improvement`; it is rolled back when degradation exceeds the
+rollback threshold.
 
 ### Human-in-the-Loop
 

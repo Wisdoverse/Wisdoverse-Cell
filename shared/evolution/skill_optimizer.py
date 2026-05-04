@@ -26,6 +26,8 @@ if TYPE_CHECKING:
 
 logger = get_logger("evolution.optimizer")
 
+_ROLLBACK_DEGRADATION_THRESHOLD = 0.10
+
 
 class SkillOptimizer:
     """Full-auto L1 optimization: reflect -> generate -> scan -> canary.
@@ -199,8 +201,72 @@ class SkillOptimizer:
         return True
 
     async def check_experiment(self, experiment_id: str) -> str:
-        """Check experiment results. Returns 'promote' | 'rollback' | 'continue'."""
-        # TODO: implement in integration phase
+        """Check experiment results and conclude safe rollout decisions.
+
+        Returns:
+            "promote" -- candidate reached the experiment's minimum improvement
+            "rollback" -- candidate degraded beyond the rollback threshold
+            "continue" -- more evidence is required
+            "no_experiment" -- no matching running experiment exists
+        """
+        if self._repo is not None:
+            return await self._check_experiment_with_repo(self._repo, experiment_id)
+
+        async with self._db_manager.session() as session:
+            repo = self._make_repo(session)
+            return await self._check_experiment_with_repo(repo, experiment_id)
+
+    async def _check_experiment_with_repo(self, repo, experiment_id: str) -> str:
+        experiment = await repo.get_experiment_by_id(experiment_id)
+        if experiment is None or experiment.status != "running":
+            return "no_experiment"
+
+        control_results = experiment.control_results or []
+        candidate_results = experiment.candidate_results or []
+        min_samples = int(getattr(experiment, "min_samples", 50) or 50)
+
+        if len(control_results) < min_samples or len(candidate_results) < min_samples:
+            return "continue"
+
+        control_mean = sum(control_results) / len(control_results)
+        candidate_mean = sum(candidate_results) / len(candidate_results)
+        min_improvement = float(getattr(experiment, "min_improvement", 0.05) or 0.0)
+
+        if candidate_mean >= control_mean + min_improvement:
+            await repo.promote_skill(
+                experiment.skill_id, str(experiment.candidate_version)
+            )
+            await repo.conclude_experiment(experiment_id, status="promoted")
+            await self._memory.record_optimization(
+                experiment.skill_id,
+                int(experiment.candidate_version),
+                True,
+                {
+                    "reason": "experiment_promoted",
+                    "experiment_id": experiment_id,
+                    "control_mean": round(control_mean, 4),
+                    "candidate_mean": round(candidate_mean, 4),
+                },
+            )
+            return "promote"
+
+        degradation = (control_mean - candidate_mean) / max(control_mean, 0.01)
+        if degradation > _ROLLBACK_DEGRADATION_THRESHOLD:
+            await repo.conclude_experiment(experiment_id, status="rolled_back")
+            await self._memory.record_optimization(
+                experiment.skill_id,
+                int(experiment.candidate_version),
+                False,
+                {
+                    "reason": "experiment_rolled_back",
+                    "experiment_id": experiment_id,
+                    "control_mean": round(control_mean, 4),
+                    "candidate_mean": round(candidate_mean, 4),
+                    "degradation": round(degradation, 4),
+                },
+            )
+            return "rollback"
+
         return "continue"
 
     # ── Private ────────────────────────────────────────────────────────────

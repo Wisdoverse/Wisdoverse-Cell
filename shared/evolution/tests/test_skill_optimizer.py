@@ -580,15 +580,97 @@ class TestGenerateCandidate:
         assert result is None
 
 
-# ── Test: check_experiment stub ──────────────────────────────────────────
+# ── Test: check_experiment ───────────────────────────────────────────────
 
 
 class TestCheckExperiment:
-    """check_experiment returns 'continue' (stub for now)."""
+    """check_experiment concludes canary rollout decisions."""
 
     @pytest.mark.asyncio
-    async def test_returns_continue(self):
-        """Stub always returns 'continue'."""
-        optimizer = build_optimizer()
+    async def test_returns_no_experiment_when_missing(self):
+        """Missing experiments are reported explicitly."""
+        repo = AsyncMock()
+        repo.get_experiment_by_id = AsyncMock(return_value=None)
+
+        optimizer = build_optimizer(repo=repo)
         result = await optimizer.check_experiment("exp-123")
+        assert result == "no_experiment"
+
+    @pytest.mark.asyncio
+    async def test_returns_continue_until_both_arms_have_min_samples(self):
+        """Experiments continue until both control and candidate have enough data."""
+        experiment = MagicMock()
+        experiment.status = "running"
+        experiment.control_results = [0.8, 0.9]
+        experiment.candidate_results = [0.9]
+        experiment.min_samples = 3
+
+        repo = AsyncMock()
+        repo.get_experiment_by_id = AsyncMock(return_value=experiment)
+
+        optimizer = build_optimizer(repo=repo)
+        result = await optimizer.check_experiment("exp-123")
+
         assert result == "continue"
+        repo.conclude_experiment.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_promotes_candidate_when_min_improvement_is_met(self):
+        """Winning candidates are promoted and the experiment is closed."""
+        experiment = MagicMock()
+        experiment.experiment_id = "exp-123"
+        experiment.status = "running"
+        experiment.skill_id = "decompose-task"
+        experiment.candidate_version = 2
+        experiment.control_results = [0.80] * 10
+        experiment.candidate_results = [0.90] * 10
+        experiment.min_samples = 10
+        experiment.min_improvement = 0.05
+
+        repo = AsyncMock()
+        repo.get_experiment_by_id = AsyncMock(return_value=experiment)
+        repo.promote_skill = AsyncMock()
+        repo.conclude_experiment = AsyncMock()
+
+        memory = AsyncMock()
+        memory.record_optimization = AsyncMock()
+
+        optimizer = build_optimizer(repo=repo, memory=memory)
+        result = await optimizer.check_experiment("exp-123")
+
+        assert result == "promote"
+        repo.promote_skill.assert_awaited_once_with("decompose-task", "2")
+        repo.conclude_experiment.assert_awaited_once_with(
+            "exp-123", status="promoted"
+        )
+        memory.record_optimization.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_rolls_back_candidate_when_degradation_exceeds_threshold(self):
+        """Clearly worse candidates are rolled back and recorded as failed."""
+        experiment = MagicMock()
+        experiment.experiment_id = "exp-456"
+        experiment.status = "running"
+        experiment.skill_id = "decompose-task"
+        experiment.candidate_version = 2
+        experiment.control_results = [0.90] * 10
+        experiment.candidate_results = [0.70] * 10
+        experiment.min_samples = 10
+        experiment.min_improvement = 0.05
+
+        repo = AsyncMock()
+        repo.get_experiment_by_id = AsyncMock(return_value=experiment)
+        repo.conclude_experiment = AsyncMock()
+
+        memory = AsyncMock()
+        memory.record_optimization = AsyncMock()
+
+        optimizer = build_optimizer(repo=repo, memory=memory)
+        result = await optimizer.check_experiment("exp-456")
+
+        assert result == "rollback"
+        repo.promote_skill.assert_not_called()
+        repo.conclude_experiment.assert_awaited_once_with(
+            "exp-456", status="rolled_back"
+        )
+        memory.record_optimization.assert_awaited_once()
