@@ -1,7 +1,7 @@
 """
-Service Layer - 服务层
+Requirement Manager service layer.
 
-包含 Agent 核心逻辑和事件处理器。
+Contains agent application logic and event handlers.
 """
 from .agent import RequirementManagerAgent, agent, get_agent
 

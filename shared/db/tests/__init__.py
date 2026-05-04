@@ -1,3 +1,3 @@
 """
-Database Tests - 数据库组件测试
+Database component tests.
 """

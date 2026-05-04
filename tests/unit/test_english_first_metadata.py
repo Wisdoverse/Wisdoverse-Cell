@@ -17,6 +17,15 @@ ENGLISH_FIRST_DOCS = (
     Path("docker-compose.override.cn.yml"),
     Path(".env.example"),
 )
+INTERNAL_ENGLISH_FIRST_FILES = (
+    Path("shared/capabilities/sync/core/progress.py"),
+    Path("shared/capabilities/sync/db/repository.py"),
+    Path("agents/requirement_manager/service/__init__.py"),
+    Path("shared/messaging/outbound/models/messages.py"),
+    Path("shared/tests/test_agent_loop_breaker.py"),
+    Path("shared/db/tests/__init__.py"),
+    Path("agents/qa_agent/tests/conftest.py"),
+)
 
 
 def _candidate_files() -> list[Path]:
@@ -73,6 +82,28 @@ def test_docs_and_docker_guidance_are_english_first() -> None:
         for path in files:
             if HAN.search(path.read_text(encoding="utf-8")):
                 offenders.append(str(path))
+
+    assert offenders == []
+
+
+def test_internal_comments_and_docstrings_are_english_first() -> None:
+    offenders: list[str] = []
+    for path in INTERNAL_ENGLISH_FIRST_FILES:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(path))
+        for node in [tree, *ast.walk(tree)]:
+            if not isinstance(
+                node,
+                ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef,
+            ):
+                continue
+            docstring = ast.get_docstring(node)
+            if docstring and HAN.search(docstring):
+                offenders.append(f"{path}:{getattr(node, 'lineno', 1)}")
+        for lineno, line in enumerate(source.splitlines(), start=1):
+            comment = line.split("#", 1)[1] if "#" in line else ""
+            if HAN.search(comment):
+                offenders.append(f"{path}:{lineno}")
 
     assert offenders == []
 

@@ -75,7 +75,7 @@ class OutboundMessage(BaseModel):
     reply_to_platform_message_id: str | None = None
     parse_mode: ParseMode = ParseMode.PLAIN
     silent: bool = False
-    trace_id: str | None = None          # 端到端链路追踪 ID
+    trace_id: str | None = None          # End-to-end trace ID.
 
 
 class DeliveryResult(BaseModel):

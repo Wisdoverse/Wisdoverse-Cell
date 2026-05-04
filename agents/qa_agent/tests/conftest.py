@@ -35,7 +35,7 @@ from agents.qa_agent.models.qa import QAAcceptanceResult, QAAcceptanceRun  # noq
 @pytest_asyncio.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """
-    测试用数据库会话
+    Test database session.
     """
     pg_host = os.environ.get("POSTGRES_HOST", "localhost")
     pg_port = os.environ.get("POSTGRES_PORT", "5433")

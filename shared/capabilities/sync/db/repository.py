@@ -1,5 +1,5 @@
 """
-SyncAgent Repository - 数据访问层
+SyncAgent repository layer.
 """
 from datetime import UTC, datetime, timedelta
 from typing import Optional

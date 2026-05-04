@@ -1,13 +1,13 @@
 """
-AgentLoopCircuitBreaker 单元测试
+AgentLoopCircuitBreaker unit tests.
 
-测试覆盖:
-1. 状态转换: CLOSED → HALF_OPEN → OPEN → (manual reset) → CLOSED
-2. 无进展检测 (no_progress_threshold)
-3. 重复错误检测 (same_error_threshold)
-4. Redis 持久化 (跨实例恢复)
-5. 状态转换历史记录
-6. 手动重置
+Coverage:
+1. State transitions: CLOSED → HALF_OPEN → OPEN → manual reset → CLOSED.
+2. No-progress detection via no_progress_threshold.
+3. Repeated-error detection via same_error_threshold.
+4. Redis persistence across instance recovery.
+5. State transition history.
+6. Manual reset.
 """
 import pytest
 
