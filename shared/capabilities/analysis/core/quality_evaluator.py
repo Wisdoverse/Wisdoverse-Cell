@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, Field
 
 from shared.core import BitableTablePort
+from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.utils.logger import get_logger
 
 from .config import AnalysisCoreConfig
@@ -137,9 +138,7 @@ class QualityEvaluator:
             "metadata and explain uncertainty. Return JSON only with keys "
             "'quality', 'comment', and 'confidence'. Use quality as one of "
             "'优秀', '合格', '需改进', '不合格'.\n\n"
-            "<untrusted_task_metadata_json>\n"
-            f"{json.dumps(payload, ensure_ascii=False)}\n"
-            "</untrusted_task_metadata_json>"
+            f"{wrap_untrusted_json('untrusted_task_metadata_json', payload)}"
         )
 
     def _safe_link_domain(self, link: str) -> str:
