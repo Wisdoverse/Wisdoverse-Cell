@@ -2,7 +2,7 @@
 import pytest
 from pydantic import ValidationError
 
-from shared.schemas.event import Event
+from shared.schemas.event import Event, EventMetadata
 
 
 class TestEventSchemaVersion:
@@ -44,6 +44,16 @@ class TestEventSchemaVersion:
         )
         restored = Event.model_validate_json(event.model_dump_json())
         assert restored.schema_version == "2.0"
+
+    def test_schema_version_must_be_non_empty(self):
+        for schema_version in ("", "   "):
+            with pytest.raises(ValidationError, match="schema_version must be present"):
+                Event(
+                    event_type="test.created",
+                    source_agent="test-agent",
+                    payload={},
+                    schema_version=schema_version,
+                )
 
     def test_create_factory_includes_schema_version(self):
         event = Event.create(
@@ -113,6 +123,12 @@ class TestEventSchemaVersion:
         )
         with pytest.raises(ValidationError):
             event.metadata.trace_id = "trace_002"  # type: ignore[misc]
+
+    def test_event_metadata_retry_count_must_be_non_negative(self):
+        with pytest.raises(ValidationError, match="retry_count must be"):
+            EventMetadata(retry_count=-1)
+
+        assert EventMetadata(retry_count=0).retry_count == 0
 
     def test_event_payload_is_recursively_read_only(self):
         event = Event.create(

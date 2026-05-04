@@ -90,6 +90,13 @@ class EventMetadata(BaseModel):
     retry_count: int = 0                 # retry count
     correlation_id: Optional[str] = None # correlation ID for request-response flows
 
+    @field_validator("retry_count")
+    @classmethod
+    def _validate_retry_count(cls, retry_count: int) -> int:
+        if retry_count < 0:
+            raise ValueError("retry_count must be greater than or equal to 0")
+        return retry_count
+
 
 class Event(BaseModel):
     """
@@ -147,6 +154,14 @@ class Event(BaseModel):
     def _freeze_payload(cls, payload: dict[str, Any]) -> dict[str, Any]:
         """Store event payloads as recursive read-only JSON-like data."""
         return _freeze_json_value(payload)
+
+    @field_validator("schema_version")
+    @classmethod
+    def _validate_schema_version(cls, schema_version: str) -> str:
+        """Require a non-empty schema version in every serialized event."""
+        if not schema_version.strip():
+            raise ValueError("schema_version must be present")
+        return schema_version
 
     @classmethod
     def create(
