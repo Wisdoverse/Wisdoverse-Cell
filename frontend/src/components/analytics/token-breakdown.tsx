@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
-import { AgentAvatar } from "@/components/shared/agent-avatar";
+import { AgentAvatar } from "@/entities/agent/ui/agent-display-avatar";
 import { getAllAgents } from "@/lib/registry/agents";
 import type { AgentMeta } from "@/lib/api/types";
 

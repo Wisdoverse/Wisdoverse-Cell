@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { ActivityItem } from "../activity-item";
+import { ActivityItem } from "./activity-item";
 import type { ActivityEvent } from "@/lib/api/types";
 
 const mockEvent: ActivityEvent = {

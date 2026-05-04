@@ -5,7 +5,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { DOMAIN_LIST } from "@/lib/registry/domains";
 import { getAgentsByDomain, getAllAgents } from "@/lib/registry/agents";
-import { AgentCard } from "@/components/shared/agent-card";
+import { AgentCard } from "@/entities/agent/ui/agent-display-card";
 import type { AgentRuntimeStatus, AgentMeta } from "@/lib/api/types";
 
 const MOCK_RUNTIME_LAST_ACTIVE_AT = "2026-05-03T02:00:00.000Z";

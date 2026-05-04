@@ -10,7 +10,7 @@ import {
   CardTitle,
   CardContent,
 } from "@/shared/ui/card";
-import { AgentStatusDot } from "@/components/shared/agent-status-dot";
+import { AgentStatusDot } from "@/entities/agent/ui/agent-display-status-dot";
 import { getAllAgents } from "@/lib/registry/agents";
 import type { AgentStatus } from "@/lib/api/types";
 

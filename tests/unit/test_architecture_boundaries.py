@@ -590,6 +590,53 @@ def test_frontend_requirement_ui_lives_in_requirement_entity() -> None:
         assert "@/components/shared/status-badge" not in source
 
 
+def test_frontend_agent_display_ui_lives_in_agent_entity() -> None:
+    legacy_components = (
+        "agent-avatar",
+        "agent-card",
+        "agent-status-dot",
+        "domain-badge",
+    )
+    for component in legacy_components:
+        assert not (
+            Path("frontend/src/components/shared") / f"{component}.tsx"
+        ).exists()
+
+    expected_entity_files = (
+        "agent-display-avatar",
+        "agent-display-card",
+        "agent-display-status-dot",
+        "domain-badge",
+    )
+    for component in expected_entity_files:
+        assert (Path("frontend/src/entities/agent/ui") / f"{component}.tsx").exists()
+
+    for path in Path("frontend/src").rglob("*.ts*"):
+        source = path.read_text()
+        for component in legacy_components:
+            assert f"@/components/shared/{component}" not in source
+
+
+def test_frontend_offline_banner_lives_in_shared_ui() -> None:
+    assert not Path("frontend/src/components/shared/offline-banner.tsx").exists()
+    assert Path("frontend/src/shared/ui/offline-banner.tsx").exists()
+
+
+def test_frontend_activity_and_approval_ui_live_in_entity_slices() -> None:
+    expected = {
+        "activity-item": Path("frontend/src/entities/activity/ui/activity-item.tsx"),
+        "approval-card": Path("frontend/src/entities/approval/ui/approval-card.tsx"),
+    }
+    for component, target in expected.items():
+        assert target.exists()
+        assert not (Path("frontend/src/components/shared") / f"{component}.tsx").exists()
+
+    for path in Path("frontend/src").rglob("*.ts*"):
+        source = path.read_text()
+        assert "@/components/shared/activity-item" not in source
+        assert "@/components/shared/approval-card" not in source
+
+
 def test_event_catalog_uses_canonical_runtime_event_names() -> None:
     catalog = Path("docs/guides/event-catalog.md").read_text()
     expected = {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { DomainBadge } from "../domain-badge";
+import { DomainBadge } from "./domain-badge";
 
 describe("DomainBadge", () => {
   it("renders domain label", () => {

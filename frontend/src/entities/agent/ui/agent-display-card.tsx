@@ -1,8 +1,8 @@
 "use client";
 
 import type { AgentMeta, AgentRuntimeStatus } from "@/lib/api/types";
-import { AgentAvatar } from "./agent-avatar";
-import { AgentStatusDot } from "./agent-status-dot";
+import { AgentAvatar } from "./agent-display-avatar";
+import { AgentStatusDot } from "./agent-display-status-dot";
 import { cn } from "@/lib/utils";
 
 interface AgentCardProps {

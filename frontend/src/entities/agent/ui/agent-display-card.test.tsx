@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { AgentCard } from "../agent-card";
+import { AgentCard } from "./agent-display-card";
 import type { AgentMeta, AgentRuntimeStatus } from "@/lib/api/types";
 
 const mockMeta: AgentMeta = {

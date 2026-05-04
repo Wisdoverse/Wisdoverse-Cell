@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
-import { AgentStatusDot } from "../agent-status-dot";
+import { AgentStatusDot } from "./agent-display-status-dot";
 
 describe("AgentStatusDot", () => {
   it("renders with running status", () => {

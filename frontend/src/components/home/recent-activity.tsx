@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowRight, ActivityIcon } from "lucide-react";
-import { ActivityItem } from "@/components/shared/activity-item";
+import { ActivityItem } from "@/entities/activity/ui/activity-item";
 import type { ActivityEvent } from "@/lib/api/types";
 
 const MOCK_EVENTS: ActivityEvent[] = [

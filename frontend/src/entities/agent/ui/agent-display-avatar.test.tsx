@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { AgentAvatar } from "../agent-avatar";
+import { AgentAvatar } from "./agent-display-avatar";
 
 describe("AgentAvatar", () => {
   it("renders short name", () => {

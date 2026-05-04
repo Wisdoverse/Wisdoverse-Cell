@@ -1,6 +1,6 @@
 import type { ActivityEvent } from "@/lib/api/types";
-import { AgentAvatar } from "./agent-avatar";
-import { DomainBadge } from "./domain-badge";
+import { AgentAvatar } from "@/entities/agent/ui/agent-display-avatar";
+import { DomainBadge } from "@/entities/agent/ui/domain-badge";
 import { AGENT_REGISTRY } from "@/lib/registry/agents";
 import { cn } from "@/lib/utils";
 

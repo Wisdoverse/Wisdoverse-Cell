@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowRight, InboxIcon } from "lucide-react";
-import { ApprovalCard } from "@/components/shared/approval-card";
+import { ApprovalCard } from "@/entities/approval/ui/approval-card";
 import { useApprovals } from "@/entities/approval/model/use-approvals";
 
 export function PendingApprovals() {
