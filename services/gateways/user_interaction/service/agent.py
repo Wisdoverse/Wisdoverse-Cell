@@ -3,6 +3,7 @@ import hashlib
 from typing import Optional
 
 from shared.config import settings as app_settings
+from shared.control_plane import ApprovalGateService
 from shared.infra.event_bus import EventBus, event_bus
 from shared.integrations.feishu.bitable import bitable_service
 from shared.integrations.feishu.cards.tools import FeishuToolCardRenderer
@@ -74,6 +75,7 @@ class ChatAgent(BaseAgent):
                 messenger=feishu_client,
                 contact_lookup=feishu_client,
                 card_renderer=card_renderer,
+                approval_gate=ApprovalGateService(source_agent_id=self.agent_id),
                 config=core_config,
             )
         )

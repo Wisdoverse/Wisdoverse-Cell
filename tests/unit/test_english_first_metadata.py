@@ -1,14 +1,24 @@
 """Static checks for English-first runtime metadata."""
 
 import ast
+import os
 import re
 from pathlib import Path
 
 HAN = re.compile(r"[\u4e00-\u9fff]")
 ASSIGNMENT = re.compile(r"(?:agent_name|description)\s*=\s*([\"'])(.*?)\1")
-APP_MAIN = tuple(Path(".").glob("**/app/main.py"))
-SERVICE_AGENTS = tuple(Path(".").glob("**/service/agent.py"))
-API_FILES = tuple(Path(".").glob("**/api/*.py"))
+SKIP_SCAN_DIRS = {
+    ".git",
+    ".mypy_cache",
+    ".next",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "node_modules",
+}
 ENGLISH_FIRST_DOCS = (
     Path("AGENTS.md"),
     Path("SPEC.md"),
@@ -25,6 +35,34 @@ INTERNAL_ENGLISH_FIRST_FILES = (
     Path("shared/tests/test_agent_loop_breaker.py"),
     Path("shared/db/tests/__init__.py"),
     Path("agents/qa_agent/tests/conftest.py"),
+)
+
+
+def _repo_files() -> list[Path]:
+    files: list[Path] = []
+    for root, dirs, names in os.walk("."):
+        dirs[:] = [name for name in dirs if name not in SKIP_SCAN_DIRS]
+        root_path = Path(root)
+        files.extend(root_path / name for name in names)
+    return files
+
+
+def _path_parts(path: Path) -> tuple[str, ...]:
+    return tuple(part for part in path.parts if part != ".")
+
+
+APP_MAIN = tuple(
+    path for path in _repo_files() if _path_parts(path)[-2:] == ("app", "main.py")
+)
+SERVICE_AGENTS = tuple(
+    path for path in _repo_files() if _path_parts(path)[-2:] == ("service", "agent.py")
+)
+API_FILES = tuple(
+    path
+    for path in _repo_files()
+    if len(_path_parts(path)) >= 2
+    and _path_parts(path)[-2] == "api"
+    and path.suffix == ".py"
 )
 
 

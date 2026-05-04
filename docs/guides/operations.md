@@ -420,6 +420,10 @@ Approval policy:
 - `ToolRegistry` blocks `is_destructive` or `requires_approval` tools before
   the handler runs when `CONTROL_PLANE_APPROVAL_ENFORCED=true` unless the tool
   context carries an already approved `approval_id`.
+- Gateway-local tools that are not executed through `ToolRegistry` must enforce
+  the same contract through an injected approval port. For example, Feishu
+  Bitable schema mutations require an approved control-plane approval id before
+  `create_field` runs.
 - Approval resolution must be append-only and visible in the control-plane
   timeline.
 

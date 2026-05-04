@@ -263,6 +263,16 @@ def test_user_interaction_routes_do_not_build_feishu_cards_directly() -> None:
             )
 
 
+def test_user_interaction_schema_mutations_use_control_plane_approval() -> None:
+    """Bitable schema mutations must not rely on ad hoc approval flags."""
+    path = Path("services/gateways/user_interaction/core/tools.py")
+    text = path.read_text()
+
+    assert "approved_sensitive_actions" not in text
+    assert "ensure_approved_for_sensitive_action" in text
+    assert "control_plane_approval_id" in text
+
+
 def test_sync_core_does_not_read_global_settings() -> None:
     root = Path("shared/capabilities/sync/core")
     for path in _python_files(root):

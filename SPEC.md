@@ -398,6 +398,8 @@ Approval categories:
   handling.
 - Technical: architecture changes, production deployment, destructive actions,
   or irreversible migration.
+- Feishu Bitable schema mutations are technical-impacting changes and MUST
+  verify a control-plane approval id before modifying table structure.
 
 Approval requests MUST include enough context for a human to decide: proposed
 action, reason, risk, affected resources, rollback or recovery note, and

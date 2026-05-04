@@ -15,6 +15,7 @@ from shared.core import (
 )
 from shared.utils.logger import get_logger
 
+from .approval_ports import SensitiveActionApprovalPort
 from .card_ports import ToolCardRendererPort
 from .config import UserInteractionCoreConfig
 from .ops_logger import record_op
@@ -60,6 +61,7 @@ class ToolDependencies:
     messenger: FeishuMessengerPort
     contact_lookup: FeishuContactLookupPort
     card_renderer: ToolCardRendererPort
+    approval_gate: SensitiveActionApprovalPort | None = None
     config: UserInteractionCoreConfig = field(default_factory=UserInteractionCoreConfig)
 
 
@@ -250,6 +252,10 @@ TOOLS = [
                     "default": 1,
                 },
                 "table_id": {"type": "string", "description": "Table ID. Defaults to the primary task table if omitted."},
+                "approval_id": {
+                    "type": "string",
+                    "description": "Approved control-plane approval id for this schema change.",
+                },
             },
             "required": ["field_name"],
         },
@@ -354,12 +360,33 @@ def register_tool(name: str):
     return decorator
 
 
-def _has_sensitive_action_approval(context: dict | None, action: str) -> bool:
+def _approval_id_from_context(context: dict | None, approval_id: str = "") -> str:
     context = context or {}
-    approved = context.get("approved_sensitive_actions", [])
-    if isinstance(approved, str):
-        approved = [approved]
-    return action in set(approved)
+    value = (
+        approval_id
+        or context.get("control_plane_approval_id")
+        or context.get("approval_id")
+        or ""
+    )
+    return str(value).strip()
+
+
+async def _ensure_sensitive_action_approved(
+    *,
+    context: dict | None,
+    approval_id: str = "",
+) -> bool:
+    resolved_approval_id = _approval_id_from_context(context, approval_id)
+    deps = _require_dependencies()
+    if not resolved_approval_id or deps.approval_gate is None:
+        return False
+    try:
+        await deps.approval_gate.ensure_approved_for_sensitive_action(
+            resolved_approval_id,
+        )
+    except PermissionError:
+        return False
+    return True
 
 
 class ToolExecutor:
@@ -494,9 +521,16 @@ async def _handle_query_pm_table(table_name: str, limit: int = 20) -> str:
 
 @register_tool("add_bitable_field")
 async def _handle_add_bitable_field(
-    field_name: str, field_type: int = 1, table_id: str = "", context: dict | None = None,
+    field_name: str,
+    field_type: int = 1,
+    table_id: str = "",
+    approval_id: str = "",
+    context: dict | None = None,
 ) -> str:
-    if not _has_sensitive_action_approval(context, "add_bitable_field"):
+    if not await _ensure_sensitive_action_approved(
+        context=context,
+        approval_id=approval_id,
+    ):
         return json.dumps(
             {
                 "error": (

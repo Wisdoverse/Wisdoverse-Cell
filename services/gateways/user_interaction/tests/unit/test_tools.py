@@ -41,6 +41,11 @@ class FakeToolCardRenderer:
         }
 
 
+class FakeApprovalGate:
+    def __init__(self):
+        self.ensure_approved_for_sensitive_action = AsyncMock(return_value=None)
+
+
 @pytest.fixture
 def tool_dependencies():
     from services.gateways.user_interaction.core.tools import (
@@ -53,6 +58,7 @@ def tool_dependencies():
     mock_messenger = AsyncMock()
     mock_contact_lookup = AsyncMock()
     card_renderer = FakeToolCardRenderer()
+    approval_gate = FakeApprovalGate()
     configure_tool_dependencies(
         ToolDependencies(
             op_client=mock_op,
@@ -60,6 +66,7 @@ def tool_dependencies():
             messenger=mock_messenger,
             contact_lookup=mock_contact_lookup,
             card_renderer=card_renderer,
+            approval_gate=approval_gate,
             config=UserInteractionCoreConfig.from_values(
                 redis_url="redis://redis:6379/2",
                 feishu_bitable_app_token="app-token",
@@ -76,6 +83,7 @@ def tool_dependencies():
         "messenger": mock_messenger,
         "contact_lookup": mock_contact_lookup,
         "card_renderer": card_renderer,
+        "approval_gate": approval_gate,
     }
     configure_tool_dependencies(None)
 
@@ -199,6 +207,8 @@ async def test_add_bitable_field_requires_technical_approval(executor, tool_depe
     assert "error" in result
     assert "技术审批" in result["error"]
     mock_bitable.create_field.assert_not_awaited()
+    approval_gate = tool_dependencies["approval_gate"]
+    approval_gate.ensure_approved_for_sensitive_action.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -214,7 +224,7 @@ async def test_add_bitable_field_allows_explicit_technical_approval(
         {"field_name": "New Field", "field_type": 1, "table_id": "tbl_1"},
         context={
             "user_id": "operator",
-            "approved_sensitive_actions": ["add_bitable_field"],
+            "control_plane_approval_id": "appr_schema_1",
         },
     )
 
@@ -226,6 +236,68 @@ async def test_add_bitable_field_allows_explicit_technical_approval(
         1,
         table_id="tbl_1",
     )
+    approval_gate = tool_dependencies["approval_gate"]
+    approval_gate.ensure_approved_for_sensitive_action.assert_awaited_once_with(
+        "appr_schema_1",
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_bitable_field_accepts_tool_input_approval_id(
+    executor, tool_dependencies
+):
+    """Tool input may carry the control-plane approval id."""
+    mock_bitable = tool_dependencies["bitable"]
+    mock_bitable.create_field = AsyncMock(return_value={"field_id": "fld_1"})
+
+    result_str = await executor.execute(
+        "add_bitable_field",
+        {
+            "field_name": "New Field",
+            "field_type": 1,
+            "table_id": "tbl_1",
+            "approval_id": "appr_schema_2",
+        },
+        context={"user_id": "operator"},
+    )
+
+    result = json.loads(result_str)
+    assert result["success"] is True
+    approval_gate = tool_dependencies["approval_gate"]
+    approval_gate.ensure_approved_for_sensitive_action.assert_awaited_once_with(
+        "appr_schema_2",
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_bitable_field_rejects_unapproved_control_plane_id(
+    executor, tool_dependencies
+):
+    """Rejected or pending control-plane approvals fail closed."""
+    mock_bitable = tool_dependencies["bitable"]
+    tool_dependencies["approval_gate"].ensure_approved_for_sensitive_action = AsyncMock(
+        side_effect=PermissionError("approval_required"),
+    )
+
+    result_str = await executor.execute(
+        "add_bitable_field",
+        {"field_name": "New Field", "field_type": 1, "approval_id": "appr_pending"},
+        context={"user_id": "operator"},
+    )
+
+    result = json.loads(result_str)
+    assert "error" in result
+    assert "技术审批" in result["error"]
+    mock_bitable.create_field.assert_not_awaited()
+    approval_gate = tool_dependencies["approval_gate"]
+    approval_gate.ensure_approved_for_sensitive_action.assert_awaited_once_with(
+        "appr_pending",
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_progress_rejects_negative_range(executor):
+    """Negative progress values return an error."""
 
     result_str = await executor.execute("update_work_package_progress", {
         "work_package_id": 1,
