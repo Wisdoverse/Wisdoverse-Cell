@@ -236,7 +236,7 @@ Primary prefix: `/api/v1`.
 | Development | `GET` | `/api/v1/dev/tasks/{wp_id}` | Read task detail |
 | Development | `POST` | `/api/v1/dev/tasks/{task_id}/retry` | Retry task |
 | Development | `POST` | `/api/v1/dev/tasks/{task_id}/cancel` | Cancel task |
-| Development | `POST` | `/api/v1/dev/tasks/{task_id}/approve` | Approve task |
+| Development | `POST` | `/api/v1/dev/tasks/{task_id}/approve` | Approve task; body may include `operator` and `approval_id` for control-plane approval evidence |
 | Evolution | `POST` | `/analyze` | Trigger global evolution analysis |
 
 ## Gateway and Integration APIs

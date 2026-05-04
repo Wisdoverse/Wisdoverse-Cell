@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -297,6 +298,33 @@ class TestRetryReentry:
 
 class TestApprovalContinuation:
     @pytest.mark.asyncio
+    async def test_approve_workflow_api_forwards_approval_context(self):
+        """The REST approval endpoint forwards human approval context to the agent."""
+        from agents.dev_agent.api import dev as dev_api
+
+        agent = MagicMock()
+        agent.handle_request = AsyncMock(return_value={"success": True})
+
+        with patch.object(dev_api, "_get_agent", return_value=agent):
+            result = await dev_api.approve_workflow(
+                "dev-high-1",
+                dev_api.ApproveWorkflowRequest(
+                    operator="human:lead",
+                    approval_id="appr_dev_1",
+                ),
+            )
+
+        assert result == {"success": True}
+        agent.handle_request.assert_awaited_once_with(
+            {
+                "action": "approve_workflow",
+                "task_id": "dev-high-1",
+                "approved_by": "human:lead",
+                "approval_id": "appr_dev_1",
+            }
+        )
+
+    @pytest.mark.asyncio
     async def test_approve_workflow_retrieves_plan_and_executes(self):
         """approve_workflow should retrieve stored plan and execute via ForgeClient."""
         agent, mock_session = _make_agent_with_db()
@@ -340,6 +368,110 @@ class TestApprovalContinuation:
         assert result["success"] is True
         mock_forge.create_workflow.assert_called_once()
         mock_forge.run_workflow.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_approve_workflow_requires_operator_for_control_plane_approval(self):
+        """A persisted control-plane approval cannot be resolved as anonymous api."""
+        agent, mock_session = _make_agent_with_db()
+
+        task = _make_mock_task(
+            task_id="dev-high-1",
+            status="awaiting_approval",
+            risk_level="HIGH",
+        )
+
+        wf_log = MagicMock()
+        wf_log.workflow_json = {
+            "name": "test-workflow",
+            "description": "test",
+            "nodes": [{"name": "step1", "type": "agent_task", "dependsOn": [], "config": {}}],
+            "control_plane_approval_id": "appr_dev_1",
+        }
+
+        mock_repo = AsyncMock(spec=DevTaskRepository)
+        mock_repo.get_by_id = AsyncMock(return_value=task)
+        mock_repo.update_status = AsyncMock(return_value=True)
+
+        mock_log_repo = AsyncMock(spec=DevWorkflowLogRepository)
+        mock_log_repo.get_by_task_id = AsyncMock(return_value=wf_log)
+
+        agent._approval_gate = MagicMock()
+        agent._approval_gate.approve_for_sensitive_action = AsyncMock()
+
+        with (
+            patch.object(agent, "_get_repo", return_value=mock_repo),
+            patch(
+                "agents.dev_agent.service.agent.DevWorkflowLogRepository",
+                return_value=mock_log_repo,
+            ),
+        ):
+            result = await agent.handle_request(
+                {"action": "approve_workflow", "task_id": "dev-high-1"}
+            )
+
+        assert result == {
+            "error": "approved_by required for control-plane approval",
+            "task_id": "dev-high-1",
+            "control_plane_approval_id": "appr_dev_1",
+        }
+        agent._approval_gate.approve_for_sensitive_action.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_approve_workflow_records_human_resolver_for_control_plane_approval(self):
+        """Control-plane approval resolution must record the human resolver identity."""
+        agent, mock_session = _make_agent_with_db()
+
+        task = _make_mock_task(
+            task_id="dev-high-1",
+            status="awaiting_approval",
+            risk_level="HIGH",
+        )
+
+        wf_log = MagicMock()
+        wf_log.workflow_json = {
+            "name": "test-workflow",
+            "description": "test",
+            "nodes": [{"name": "step1", "type": "agent_task", "dependsOn": [], "config": {}}],
+            "control_plane_approval_id": "appr_dev_1",
+        }
+
+        mock_repo = AsyncMock(spec=DevTaskRepository)
+        mock_repo.get_by_id = AsyncMock(return_value=task)
+        mock_repo.update_status = AsyncMock(return_value=True)
+
+        mock_log_repo = AsyncMock(spec=DevWorkflowLogRepository)
+        mock_log_repo.get_by_task_id = AsyncMock(return_value=wf_log)
+
+        mock_forge = AsyncMock()
+        mock_forge.create_workflow = AsyncMock(return_value="wf-approved")
+        mock_forge.run_workflow = AsyncMock()
+        agent._forge = mock_forge
+        agent._approval_gate = MagicMock()
+        agent._approval_gate.approve_for_sensitive_action = AsyncMock(
+            return_value=SimpleNamespace(approval_id="appr_dev_1")
+        )
+
+        with (
+            patch.object(agent, "_get_repo", return_value=mock_repo),
+            patch(
+                "agents.dev_agent.service.agent.DevWorkflowLogRepository",
+                return_value=mock_log_repo,
+            ),
+        ):
+            result = await agent.handle_request(
+                {
+                    "action": "approve_workflow",
+                    "task_id": "dev-high-1",
+                    "approved_by": "human:lead",
+                }
+            )
+
+        assert result["success"] is True
+        agent._approval_gate.approve_for_sensitive_action.assert_awaited_once_with(
+            "appr_dev_1",
+            resolved_by="human:lead",
+        )
+        mock_forge.create_workflow.assert_called_once()
 
 
 # --- C6: PJM event payload compatibility ---

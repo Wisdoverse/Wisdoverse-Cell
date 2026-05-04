@@ -1,11 +1,19 @@
 """REST API for dev_agent."""
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, ConfigDict
 
 from shared.utils.logger import get_logger
 
 router = APIRouter(prefix="/api/v1/dev", tags=["dev"])
 logger = get_logger("dev_agent.api")
+
+
+class ApproveWorkflowRequest(BaseModel):
+    model_config = ConfigDict(strict=False)
+
+    operator: str = ""
+    approval_id: str | None = None
 
 
 def _get_agent():
@@ -48,6 +56,12 @@ async def cancel_workflow(task_id: str):
 
 
 @router.post("/tasks/{task_id}/approve")
-async def approve_workflow(task_id: str):
+async def approve_workflow(task_id: str, body: ApproveWorkflowRequest | None = None):
     agent = _get_agent()
-    return await agent.handle_request({"action": "approve_workflow", "task_id": task_id})
+    request = {"action": "approve_workflow", "task_id": task_id}
+    if body is not None:
+        if body.operator:
+            request["approved_by"] = body.operator
+        if body.approval_id:
+            request["approval_id"] = body.approval_id
+    return await agent.handle_request(request)

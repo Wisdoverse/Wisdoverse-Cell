@@ -249,11 +249,17 @@ class DevAgent(BaseAgent):
                 approval_id = request.get("approval_id") or wf_log.workflow_json.get(
                     "control_plane_approval_id"
                 )
-                approved_by = request.get("approved_by") or request.get("operator") or "api"
+                approved_by = request.get("approved_by") or request.get("operator")
+                if approval_id and not approved_by:
+                    return {
+                        "error": "approved_by required for control-plane approval",
+                        "task_id": task_id,
+                        "control_plane_approval_id": approval_id,
+                    }
                 try:
                     approval_decision = await self._approval_gate.approve_for_sensitive_action(
                         approval_id,
-                        resolved_by=approved_by,
+                        resolved_by=approved_by or "api",
                     )
                 except ApprovalRequiredError as exc:
                     logger.warning(
