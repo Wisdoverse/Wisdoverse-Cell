@@ -258,7 +258,17 @@ class SyncAgent(BaseAgent):
                     error=str(e),
                 )
 
-            logger.info("sync_completed", result=result)
+            logger.info(
+                "sync_completed",
+                scope=scope,
+                status=result.get("status"),
+                synced_count=result.get("total_processed", result.get("processed", 0)),
+                error_count=len(
+                    result.get("op_to_feishu", {}).get("errors", [])
+                    + result.get("feishu_to_op", {}).get("errors", [])
+                    + result.get("errors", [])
+                ),
+            )
             if _metrics_available:
                 SYNC_RUNS.labels(
                     triggered_by=triggered_by, status="success",

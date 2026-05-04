@@ -185,7 +185,7 @@ class UnifiedGateway:
             "action_received",
             platform=platform.value,
             action_id=action.action_id,
-            operator_id=action.operator_id,
+            operator_hash=hash_identifier(action.operator_id),
         )
 
         # 2. Resolve user identity.
@@ -193,7 +193,11 @@ class UnifiedGateway:
             user = await self.user_service.resolve_user(platform, action.operator_id)
             action.user_id = user.id
         except Exception as e:
-            logger.warning("user_resolve_failed", error=str(e), operator_id=action.operator_id)
+            logger.warning(
+                "user_resolve_failed",
+                error=str(e),
+                operator_hash=hash_identifier(action.operator_id),
+            )
 
         # 3. Pass to Agent.
         if not self._action_handler:

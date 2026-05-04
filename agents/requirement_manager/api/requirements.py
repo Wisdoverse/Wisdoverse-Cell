@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from ..core.analyzer import analyzer
@@ -168,8 +169,8 @@ async def delete_requirement(
     logger.info(
         "requirement_deleted",
         requirement_id=requirement_id,
-        title=requirement.title,
-        deleted_by=request.deleted_by
+        title_hash=hash_identifier(requirement.title),
+        deleted_by_hash=hash_identifier(request.deleted_by),
     )
 
     return DeleteRequirementResponse(
@@ -211,8 +212,9 @@ async def search_requirements(
 
     logger.info(
         "semantic_search",
-        query=q,
-        results_count=len(items)
+        query_hash=hash_identifier(q),
+        query_length=len(q),
+        results_count=len(items),
     )
 
     return SemanticSearchResponse(
@@ -284,9 +286,9 @@ async def check_conflict(
 
     logger.info(
         "conflict_check",
-        title=request.title,
+        title_hash=hash_identifier(request.title),
         relation=result.relation.value,
-        confidence=result.confidence
+        confidence=result.confidence,
     )
 
     return ConflictCheckResponse(

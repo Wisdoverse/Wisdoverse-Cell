@@ -15,6 +15,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from shared.infra.llm_gateway import llm_gateway
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 logger = get_logger("comparator")
@@ -104,7 +105,8 @@ class RequirementComparator:
         if not similar:
             logger.info(
                 "no_similar_requirements",
-                title=new_title
+                title_hash=hash_identifier(new_title),
+                title_length=len(new_title),
             )
             return ComparisonResult(
                 relation=RelationType.NEW,
@@ -119,9 +121,10 @@ class RequirementComparator:
             # High similarity can return quickly as a likely duplicate.
             logger.info(
                 "high_similarity_detected",
-                title=new_title,
+                title_hash=hash_identifier(new_title),
+                title_length=len(new_title),
                 similar_id=top_similar["id"],
-                similarity=top_similar["similarity"]
+                similarity=top_similar["similarity"],
             )
             return ComparisonResult(
                 relation=RelationType.DUPLICATE,
@@ -168,8 +171,9 @@ class RequirementComparator:
 
         logger.info(
             "llm_conflict_analysis_started",
-            title=new_title,
-            similar_count=len(similar_requirements)
+            title_hash=hash_identifier(new_title),
+            title_length=len(new_title),
+            similar_count=len(similar_requirements),
         )
 
         try:
@@ -188,9 +192,10 @@ class RequirementComparator:
 
             logger.info(
                 "llm_conflict_analysis_completed",
-                title=new_title,
+                title_hash=hash_identifier(new_title),
+                title_length=len(new_title),
                 relation=result.relation.value,
-                confidence=result.confidence
+                confidence=result.confidence,
             )
 
             return result

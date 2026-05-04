@@ -50,7 +50,7 @@ async def record_op(
             "op_recorded",
             action=action,
             user_hash=hash_identifier(user_id),
-            result=result,
+            result_status=result,
         )
     except Exception as e:
         logger.error("op_record_failed", action=action, error=str(e))

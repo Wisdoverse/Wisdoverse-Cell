@@ -13,6 +13,7 @@ from sqlalchemy import Integer, and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from ..models import LLMUsage, Meeting, OpenQuestion, Requirement, RequirementStatus
@@ -323,7 +324,7 @@ class RequirementRepository:
         logger.info(
             "requirement_deleted_from_db",
             requirement_id=requirement_id,
-            title=requirement.title
+            title_hash=hash_identifier(requirement.title),
         )
 
         return requirement

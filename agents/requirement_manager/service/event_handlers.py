@@ -6,6 +6,7 @@ received events are routed through this module to the corresponding handler.
 """
 from typing import TYPE_CHECKING
 
+from shared.observability.privacy import hash_identifier
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
@@ -233,8 +234,9 @@ async def handle_meeting_uploaded(
     logger.info(
         "meeting_uploaded_received",
         event_id=event.event_id,
-        title=title,
-        content_length=len(content)
+        title_hash=hash_identifier(title),
+        title_length=len(str(title or "")),
+        content_length=len(content),
     )
 
     try:

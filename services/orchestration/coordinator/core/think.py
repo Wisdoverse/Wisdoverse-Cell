@@ -1,6 +1,7 @@
 """LLM-powered decision engine for Coordinator."""
 import json
 
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from .models import Decision
@@ -31,5 +32,9 @@ async def think(context: dict, *, llm) -> list[Decision]:
         decisions_data = parsed.get("decisions", [])
         return [Decision(**d) for d in decisions_data]
     except (json.JSONDecodeError, Exception):
-        logger.warning("coordinator_think_parse_error", raw_response=raw[:200])
+        logger.warning(
+            "coordinator_think_parse_error",
+            raw_response_hash=hash_identifier(raw, length=16),
+            raw_response_length=len(raw),
+        )
         return []

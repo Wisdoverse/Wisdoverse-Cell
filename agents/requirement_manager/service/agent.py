@@ -512,8 +512,8 @@ class RequirementManagerAgent(BaseAgent):
         logger.info(
             "requirement_deleted",
             requirement_id=requirement_id,
-            title=requirement.title,
-            deleted_by=deleted_by
+            title_hash=hash_identifier(requirement.title),
+            deleted_by_hash=hash_identifier(deleted_by),
         )
 
         # Publish event.

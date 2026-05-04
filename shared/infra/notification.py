@@ -151,7 +151,7 @@ class NotificationService:
             )
             logger.info(
                 "feishu_notification_sent",
-                title=title,
+                title_hash=hash_identifier(title),
                 receive_id_hash=hash_identifier(receive_id),
             )
             return True

@@ -13,6 +13,7 @@ from shared.config import settings
 from shared.infra.embedder import embedder as shared_embedder
 from shared.infra.milvus_store import MilvusVectorStore
 from shared.infra.vector_store import BaseVectorStore
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from ..core.embedder import embedder
@@ -135,7 +136,7 @@ class VectorStore:
             logger.debug(
                 "requirement_added_to_vector",
                 requirement_id=requirement_id,
-                title=title,
+                title_hash=hash_identifier(title),
             )
             return
 
@@ -152,7 +153,7 @@ class VectorStore:
         logger.debug(
             "requirement_added_to_vector",
             requirement_id=requirement_id,
-            title=title,
+            title_hash=hash_identifier(title),
         )
 
     async def add_requirements_batch(

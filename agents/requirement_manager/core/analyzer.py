@@ -10,6 +10,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 from shared.infra.llm_gateway import llm_gateway
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 logger = get_logger("analyzer")
@@ -136,11 +137,12 @@ class RequirementAnalyzer:
 
         logger.info(
             "analysis_completed",
-            title=title[:50],
+            title_hash=hash_identifier(title),
+            title_length=len(title),
             category=category,
             priority=priority,
             complexity=complexity,
-            risk=risk_level
+            risk=risk_level,
         )
 
         return AnalysisResult(

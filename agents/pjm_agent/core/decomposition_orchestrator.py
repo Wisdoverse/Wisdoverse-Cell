@@ -6,6 +6,7 @@ from shared.control_plane import (
     ApprovalRequiredError,
 )
 from shared.core import FeishuMessengerPort, OpenProjectWorkPackagePort
+from shared.observability.privacy import hash_identifier
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
@@ -233,7 +234,12 @@ class DecompositionOrchestrator:
             return []
 
         if check_result.detailed:
-            logger.info("task_check_detailed", wp_id=wp_id, reason=check_result.reason)
+            logger.info(
+                "task_check_detailed",
+                wp_id=wp_id,
+                reason_hash=hash_identifier(check_result.reason),
+                reason_length=len(check_result.reason),
+            )
             return []
 
         # Task not detailed enough — save and send approval card
@@ -359,7 +365,13 @@ class DecompositionOrchestrator:
                 )
                 story_count = len(wbs_result.get("subtasks", []))
                 task_count = sum(len(s.get("children", [])) for s in wbs_result.get("subtasks", []))
-            logger.info("decompose_written_to_op", wp_id=wp_id, result=op_result)
+            logger.info(
+                "decompose_written_to_op",
+                wp_id=wp_id,
+                story_count=story_count,
+                task_count=task_count,
+                result_keys=sorted(op_result.keys()),
+            )
             # Write succeeded — transition to "approved"
             async with self._db_manager.session() as session:
                 repo = DecompositionRepository(session)
@@ -614,7 +626,13 @@ class DecompositionOrchestrator:
                 return {"error": str(exc), "wp_id": wp_id}
             await repo.update_status(wp_id, "rejected", approved_by=rejected_by)
 
-        logger.info("decompose_rejected", wp_id=wp_id, by=rejected_by, reason=reason)
+        logger.info(
+            "decompose_rejected",
+            wp_id=wp_id,
+            operator_hash=hash_identifier(rejected_by),
+            reason_hash=hash_identifier(reason),
+            reason_length=len(reason),
+        )
         event = self._create_event(
             EventTypes.PM_DECOMPOSE_COMPLETED,
             {

@@ -15,6 +15,7 @@ from shared.integrations.feishu.cards.requirement import (
     build_requirement_list_card,
     build_requirement_rejected_card,
 )
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 logger = get_logger("feishu.handlers.card")
@@ -61,7 +62,7 @@ class CardHandler:
         logger.info(
             "card_action_received",
             action=action_type,
-            operator=operator_id
+            operator_hash=hash_identifier(operator_id),
         )
 
         try:
@@ -157,7 +158,11 @@ class CardHandler:
             confirmed_by=user_name
         )
 
-        logger.info("requirement_confirmed_via_card", req_id=req_id, by=user_name)
+        logger.info(
+            "requirement_confirmed_via_card",
+            req_id=req_id,
+            operator_hash=hash_identifier(operator_id),
+        )
 
         return {
             "toast": {
@@ -205,7 +210,13 @@ class CardHandler:
             reason=reason
         )
 
-        logger.info("requirement_rejected_via_card", req_id=req_id, by=user_name)
+        logger.info(
+            "requirement_rejected_via_card",
+            req_id=req_id,
+            operator_hash=hash_identifier(operator_id),
+            reason_hash=hash_identifier(reason),
+            reason_length=len(reason),
+        )
 
         return {
             "toast": {
@@ -285,7 +296,11 @@ class CardHandler:
         if not requirement:
             return {"toast": {"type": "error", "content": "需求不存在"}}
 
-        logger.info("requirement_confirmed_from_list", req_id=req_id, by=user_name)
+        logger.info(
+            "requirement_confirmed_from_list",
+            req_id=req_id,
+            operator_hash=hash_identifier(operator_id),
+        )
 
         # Refresh list card
         requirements, total, total_pages = await self.agent.list_pending_requirements(
@@ -339,7 +354,13 @@ class CardHandler:
         if not requirement:
             return {"toast": {"type": "error", "content": "需求不存在"}}
 
-        logger.info("requirement_rejected_from_list", req_id=req_id, by=user_name)
+        logger.info(
+            "requirement_rejected_from_list",
+            req_id=req_id,
+            operator_hash=hash_identifier(operator_id),
+            reason_hash=hash_identifier(reason),
+            reason_length=len(reason),
+        )
 
         # Refresh list card
         requirements, total, total_pages = await self.agent.list_pending_requirements(
@@ -403,7 +424,7 @@ class CardHandler:
             "batch_confirm_complete",
             success=success_count,
             failed=failed_count,
-            by=user_name
+            operator_hash=hash_identifier(operator_id),
         )
 
         # Build result card
@@ -443,7 +464,9 @@ class CardHandler:
             "batch_reject_complete",
             success=success_count,
             failed=failed_count,
-            by=user_name
+            operator_hash=hash_identifier(operator_id),
+            reason_hash=hash_identifier(reason),
+            reason_length=len(reason),
         )
 
         # Build result card
@@ -486,7 +509,11 @@ class CardHandler:
             story_count=result.get("story_count", 0),
             task_count=result.get("task_count", 0),
         )
-        logger.info("decomposition_approved_via_card", wp_id=wp_id, by=user_name)
+        logger.info(
+            "decomposition_approved_via_card",
+            wp_id=wp_id,
+            operator_hash=hash_identifier(operator_id),
+        )
         return {"toast": {"type": "success", "content": "拆解已批准，正在写入 OP"}, "card": card}
 
     async def _handle_reject_decomposition(self, action_value: dict, operator_id: str, data: dict) -> dict:
@@ -516,5 +543,11 @@ class CardHandler:
             rejected_by=user_name,
             reason=reason,
         )
-        logger.info("decomposition_rejected_via_card", wp_id=wp_id, by=user_name, reason=reason)
+        logger.info(
+            "decomposition_rejected_via_card",
+            wp_id=wp_id,
+            operator_hash=hash_identifier(operator_id),
+            reason_hash=hash_identifier(reason),
+            reason_length=len(reason),
+        )
         return {"toast": {"type": "success", "content": "已拒绝拆解方案"}, "card": card}
