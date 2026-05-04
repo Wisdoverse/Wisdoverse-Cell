@@ -1,3 +1,4 @@
+import ast
 import re
 from pathlib import Path
 
@@ -13,6 +14,47 @@ from shared.control_plane.agent_catalog import (
     is_runtime_module,
 )
 from shared.control_plane.models import AgentInteractionMode, AgentKind
+
+
+def _service_agent_path(package_path: str) -> Path:
+    return Path(*package_path.split(".")) / "service" / "agent.py"
+
+
+def _base_agent_classes(tree: ast.Module) -> list[ast.ClassDef]:
+    classes: list[ast.ClassDef] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        base_names = {
+            base.id
+            for base in node.bases
+            if isinstance(base, ast.Name)
+        } | {
+            base.attr
+            for base in node.bases
+            if isinstance(base, ast.Attribute)
+        }
+        if "BaseAgent" in base_names:
+            classes.append(node)
+    return classes
+
+
+def _super_agent_id(class_def: ast.ClassDef) -> str | None:
+    for node in ast.walk(class_def):
+        if not isinstance(node, ast.Call):
+            continue
+        if not (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr == "__init__"
+            and isinstance(node.func.value, ast.Call)
+            and isinstance(node.func.value.func, ast.Name)
+            and node.func.value.func.id == "super"
+        ):
+            continue
+        for keyword in node.keywords:
+            if keyword.arg == "agent_id" and isinstance(keyword.value, ast.Constant):
+                return str(keyword.value.value)
+    return None
 
 
 def test_runtime_modules_keep_canonical_package_boundaries() -> None:
@@ -49,6 +91,35 @@ def test_runtime_modules_use_shared_app_factory() -> None:
         source = app_main.read_text()
         assert "create_agent_app" in source, (
             f"{module.agent_id} must use shared create_agent_app runtime factory"
+        )
+
+
+def test_runtime_modules_implement_base_agent_contract() -> None:
+    for module in RUNTIME_MODULES:
+        service_agent = _service_agent_path(module.package_path)
+        assert service_agent.exists(), f"{module.agent_id} is missing {service_agent}"
+
+        tree = ast.parse(service_agent.read_text())
+        base_agent_classes = _base_agent_classes(tree)
+        assert base_agent_classes, f"{module.agent_id} must define a BaseAgent subclass"
+
+        matching_classes = [
+            class_def
+            for class_def in base_agent_classes
+            if _super_agent_id(class_def) == module.agent_id
+        ]
+        assert matching_classes, (
+            f"{module.agent_id} must pass its stable catalog ID to BaseAgent"
+        )
+
+        methods = {
+            item.name
+            for class_def in matching_classes
+            for item in class_def.body
+            if isinstance(item, ast.AsyncFunctionDef | ast.FunctionDef)
+        }
+        assert {"handle_event", "handle_request", "health_check"}.issubset(methods), (
+            f"{module.agent_id} must implement handle_event, handle_request, and health_check"
         )
 
 
