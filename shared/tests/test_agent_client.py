@@ -123,8 +123,37 @@ class TestAgentClient:
         assert warning.kwargs["method"] == "POST"
         assert warning.kwargs["path"] == "/agent/request"
         assert warning.kwargs["error_category"] == AgentClientErrorCategory.OVERLOADED.value
+        assert warning.kwargs["retry_decision"] == "retry_with_backoff"
+        assert warning.kwargs["operator_action"] == "check_target_service_health"
         assert warning.kwargs["status_code"] == 503
         assert warning.kwargs["trace_id"] == "trace-classified"
+
+    @pytest.mark.asyncio
+    async def test_get_logs_auth_failure_operator_action(self):
+        mock_resp = httpx.Response(
+            403,
+            text="Forbidden",
+            request=httpx.Request("GET", "http://test"),
+        )
+        with (
+            patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_resp),
+            patch("shared.infra.agent_client.logger") as mock_logger,
+        ):
+            client = AgentClient("http://test-pm:8012")
+
+            with pytest.raises(httpx.HTTPStatusError):
+                await client.get("/agent/request", trace_id="trace-auth-failure")
+
+        warning = mock_logger.warning.call_args
+        assert warning.args == ("agent_http_request_failed",)
+        assert warning.kwargs["error_category"] == AgentClientErrorCategory.AUTH.value
+        assert warning.kwargs["retry_decision"] == "do_not_retry_until_auth_is_fixed"
+        assert (
+            warning.kwargs["operator_action"]
+            == "check_internal_service_key_and_target_auth_policy"
+        )
+        assert warning.kwargs["status_code"] == 403
+        assert warning.kwargs["trace_id"] == "trace-auth-failure"
 
 
 class TestPMAgentClient:

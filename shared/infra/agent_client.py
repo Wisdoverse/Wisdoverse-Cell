@@ -32,6 +32,24 @@ _AUTH_STATUS_CODES = {401, 403}
 _CONTENT_SIZE_STATUS_CODES = {413, 414, 431}
 _OVERLOADED_STATUS_CODES = {500, 502, 503, 504, 529}
 
+_RETRY_DECISIONS = {
+    AgentClientErrorCategory.RATE_LIMIT: "retry_with_backoff",
+    AgentClientErrorCategory.OVERLOADED: "retry_with_backoff",
+    AgentClientErrorCategory.NETWORK: "retry_with_backoff",
+    AgentClientErrorCategory.AUTH: "do_not_retry_until_auth_is_fixed",
+    AgentClientErrorCategory.CONTENT_SIZE: "do_not_retry_until_payload_is_reduced",
+    AgentClientErrorCategory.OTHER: "do_not_retry_without_investigation",
+}
+
+_OPERATOR_ACTIONS = {
+    AgentClientErrorCategory.RATE_LIMIT: "reduce_call_rate_or_check_target_quota",
+    AgentClientErrorCategory.OVERLOADED: "check_target_service_health",
+    AgentClientErrorCategory.NETWORK: "check_service_discovery_and_network_path",
+    AgentClientErrorCategory.AUTH: "check_internal_service_key_and_target_auth_policy",
+    AgentClientErrorCategory.CONTENT_SIZE: "reduce_payload_or_use_artifact_reference",
+    AgentClientErrorCategory.OTHER: "inspect_target_logs_with_trace_id",
+}
+
 
 def classify_agent_client_error(exc: BaseException) -> AgentClientErrorCategory:
     """Map an inter-agent HTTP failure into a stable operator category."""
@@ -85,6 +103,8 @@ class AgentClient:
             base_url=self.base_url,
             path=path,
             error_category=category.value,
+            retry_decision=_RETRY_DECISIONS[category],
+            operator_action=_OPERATOR_ACTIONS[category],
             status_code=status_code,
             trace_id=trace_id,
         )
