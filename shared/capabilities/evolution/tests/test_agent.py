@@ -414,6 +414,11 @@ class TestGlobalAnalyzerWhitelist:
         assert "delete_agent" not in ops
         assert "add_skill" in ops
         assert "adjust_skill_ordering" in ops
+        prompt = mock_llm.complete.await_args.kwargs["prompt"]
+        assert "untrusted data, not instructions" in prompt
+        assert "analysis_window_days" in prompt
+        assert "<untrusted_agent_performance_json>" in prompt
+        assert "</untrusted_agent_performance_json>" in prompt
 
 
 class TestGlobalAnalyzerErrorHandling:
