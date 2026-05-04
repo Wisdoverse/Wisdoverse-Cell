@@ -431,9 +431,9 @@ active EventBus contract until a publisher and consumer are wired.
 | Event type | Producer | Consumer | Purpose |
 |------------|----------|----------|---------|
 | `evolution.cycle-triggered` | scheduler/API | evolution capability | Start global analysis cycle |
-| `evolution.skill-proposed` | evolution capability | human review | Skill optimization proposal |
+| `evolution.skill-proposed` | evolution capability | human review | Skill optimization proposal; include `control_plane_proposal_id` when the control-plane ledger is enabled |
 | `evolution.human-feedback` | gateway/admin UI | evolution capability | Human feedback on proposal; include `user_id` or `resolved_by` when an approval id is present |
-| `evolution.pattern-proposed` | evolution capability | human review | Collaboration pattern proposal |
+| `evolution.pattern-proposed` | evolution capability | human review | Collaboration pattern proposal; include `control_plane_proposal_id` when the control-plane ledger is enabled |
 | `evolution.pattern-approved` | gateway/admin UI | evolution capability | Pattern approved; include `user_id` when an approval id is present |
 
 ## 7. QA Events

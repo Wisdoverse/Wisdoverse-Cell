@@ -39,7 +39,12 @@ def mock_db():
 
 @pytest.fixture
 def agent(mock_db, mock_bus, mock_llm):
-    return EvolutionAgent(db=mock_db, bus=mock_bus, llm=mock_llm)
+    return EvolutionAgent(
+        db=mock_db,
+        bus=mock_bus,
+        llm=mock_llm,
+        control_plane_enabled=False,
+    )
 
 
 @pytest.fixture
@@ -220,6 +225,62 @@ class TestHandleRequest:
 
         assert result["control_plane_approval_id"] == "appr_evo_1"
         agent._control_plane_approvals.request_approval.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_attach_proposal_records_control_plane_proposal_when_enabled(self, agent):
+        @asynccontextmanager
+        async def _control_plane_session():
+            yield AsyncMock()
+
+        agent._control_plane_enabled = True
+        agent._control_plane_session_provider = _control_plane_session
+        agent._control_plane_approvals = MagicMock()
+        agent._control_plane_approvals.request_approval = AsyncMock(
+            return_value=SimpleNamespace(
+                approval_id="appr_evo_1",
+                status="pending",
+            )
+        )
+        agent._control_plane_approvals.enforced = False
+        repo = AsyncMock()
+        repo.get_company = AsyncMock(side_effect=[None, SimpleNamespace()])
+        repo.create_company = AsyncMock()
+        repo.create_evolution_proposal = AsyncMock(
+            return_value=SimpleNamespace(
+                proposal_id="evo_prop_1",
+                tier="L2",
+                scope="agent:pjm-agent",
+                approval_state="pending",
+                rollout_state="proposed",
+                approval_id="appr_evo_1",
+            )
+        )
+        repo.append_audit_event = AsyncMock()
+
+        with patch(
+            "shared.capabilities.evolution.service.agent.ControlPlaneRepository",
+            return_value=repo,
+        ):
+            result = await agent._attach_proposal_approval(
+                {
+                    "operation": "modify_event_subscription",
+                    "target_agent": "pjm-agent",
+                    "description": "Subscribe to QA feedback",
+                    "rationale": "Improve handoff quality",
+                },
+                trace_id="trace-evo",
+            )
+
+        assert result["control_plane_approval_id"] == "appr_evo_1"
+        assert result["control_plane_proposal_id"] == "evo_prop_1"
+        repo.create_company.assert_awaited_once()
+        repo.create_evolution_proposal.assert_awaited_once()
+        proposal = repo.create_evolution_proposal.await_args.args[0]
+        assert proposal.tier == "L2"
+        assert proposal.scope == "agent:pjm-agent"
+        assert proposal.approval_id == "appr_evo_1"
+        assert proposal.evidence["trace_id"] == "trace-evo"
+        repo.append_audit_event.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_feedback_requires_resolver_for_control_plane_approval(self, agent):

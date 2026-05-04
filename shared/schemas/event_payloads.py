@@ -479,6 +479,7 @@ class EvolutionSkillProposedPayload(BaseModel):
     rationale: str = ""
     confidence: float | None = Field(default=None, ge=0, le=1)
     control_plane_approval_id: str | None = None
+    control_plane_proposal_id: str | None = None
 
 
 class EvolutionHumanFeedbackPayload(BaseModel):
@@ -503,6 +504,7 @@ class EvolutionPatternProposedPayload(BaseModel):
     trigger_event: str
     steps: list[dict] = Field(default_factory=list)
     control_plane_approval_id: str | None = None
+    control_plane_proposal_id: str | None = None
 
 
 class EvolutionPatternApprovedPayload(BaseModel):
