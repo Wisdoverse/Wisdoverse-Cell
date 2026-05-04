@@ -6,7 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Check, X } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { Badge } from "@/shared/ui/badge";
-import { DataTable } from "@/components/shared/data-table";
+import { DataTable } from "@/shared/ui/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { PriorityBadge } from "@/components/shared/priority-badge";
 import type { Requirement } from "@/lib/api/types";

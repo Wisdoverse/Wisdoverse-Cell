@@ -9,7 +9,7 @@ import { QuickActions } from "@/components/dashboard/quick-actions";
 import { StatsRow } from "@/components/dashboard/stats-row";
 import { StatusChart } from "@/components/dashboard/status-chart";
 import { TrendChart } from "@/components/dashboard/trend-chart";
-import { PageHeader } from "@/components/shared/page-header";
+import { PageHeader } from "@/shared/ui/page-header";
 import {
   useCircuitBreaker,
   useEnhancedStats,

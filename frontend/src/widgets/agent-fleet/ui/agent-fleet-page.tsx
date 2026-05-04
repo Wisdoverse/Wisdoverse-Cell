@@ -13,7 +13,7 @@ import {
   type ControlPlaneAgentDefinition,
 } from "@/entities/agent";
 import { AgentCreateDialog } from "@/features/agent-create";
-import { PageHeader } from "@/components/shared/page-header";
+import { PageHeader } from "@/shared/ui/page-header";
 import { Skeleton } from "@/shared/ui/skeleton";
 import {
   AgentFleetFilters,

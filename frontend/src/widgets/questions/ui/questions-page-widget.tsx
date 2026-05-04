@@ -3,8 +3,8 @@
 import { useTranslations } from "next-intl";
 
 import { QuestionCard } from "@/components/questions/question-card";
-import { PageHeader } from "@/components/shared/page-header";
-import { QueryBoundary } from "@/components/shared/query-boundary";
+import { PageHeader } from "@/shared/ui/page-header";
+import { QueryBoundary } from "@/shared/ui/query-boundary";
 import { useQuestions } from "@/entities/question/model/use-questions";
 
 export function QuestionsPageWidget() {

@@ -8,7 +8,7 @@ import { ConfirmDialog } from "@/components/requirements/confirm-dialog";
 import { RejectSheet } from "@/components/requirements/reject-sheet";
 import { RequirementsFilters } from "@/components/requirements/requirements-filters";
 import { RequirementsTable } from "@/components/requirements/requirements-table";
-import { PageHeader } from "@/components/shared/page-header";
+import { PageHeader } from "@/shared/ui/page-header";
 import { useRequirements } from "@/entities/requirement/model/use-requirements";
 import type { RequirementFilters } from "@/lib/api/types";
 

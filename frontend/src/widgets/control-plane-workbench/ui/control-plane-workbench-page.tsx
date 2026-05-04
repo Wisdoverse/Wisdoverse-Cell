@@ -30,7 +30,7 @@ import {
   type ControlPlaneWorkbenchState,
   type WorkItemPriority,
 } from "@/entities/control-plane";
-import { EmptyState } from "@/components/shared/empty-state";
+import { EmptyState } from "@/shared/ui/empty-state";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Skeleton } from "@/shared/ui/skeleton";

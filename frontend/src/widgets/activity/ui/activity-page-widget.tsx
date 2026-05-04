@@ -8,7 +8,7 @@ import {
   type ActivityFilters,
 } from "@/components/activity/activity-filters";
 import { ActivityTimeline } from "@/components/activity/activity-timeline";
-import { PageHeader } from "@/components/shared/page-header";
+import { PageHeader } from "@/shared/ui/page-header";
 import { MOCK_ACTIVITY_EVENTS } from "@/entities/activity/model/mock-events";
 import { AGENT_REGISTRY } from "@/lib/registry/agents";
 

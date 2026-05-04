@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { MessageSearch } from "@/components/messages/message-search";
 import { MessageTable } from "@/components/messages/message-table";
-import { PageHeader } from "@/components/shared/page-header";
+import { PageHeader } from "@/shared/ui/page-header";
 import { searchMessages } from "@/lib/api/messages";
 import type { MessageSearchParams, MessageSearchResult } from "@/lib/api/types";
 

@@ -12,7 +12,7 @@ import {
 } from "@/shared/ui/table";
 import { Badge } from "@/shared/ui/badge";
 import { Skeleton } from "@/shared/ui/skeleton";
-import { EmptyState } from "@/components/shared/empty-state";
+import { EmptyState } from "@/shared/ui/empty-state";
 import { getSession } from "@/lib/api/messages";
 import type { MessageSearchResult, MessageSession } from "@/lib/api/types";
 

@@ -539,6 +539,32 @@ def test_frontend_ui_primitives_live_in_shared_ui() -> None:
         )
 
 
+def test_frontend_generic_shared_components_live_in_shared_ui() -> None:
+    generic_components = (
+        "data-table",
+        "empty-state",
+        "page-header",
+        "query-boundary",
+        "stat-card",
+    )
+    for component in generic_components:
+        assert not (
+            Path("frontend/src/components/shared") / f"{component}.tsx"
+        ).exists()
+        assert (Path("frontend/src/shared/ui") / f"{component}.tsx").exists()
+
+    legacy_prefix = "@/components/shared/"
+    for path in Path("frontend/src").rglob("*.ts*"):
+        if "__tests__" in path.parts:
+            continue
+        source = path.read_text()
+        for component in generic_components:
+            assert f"{legacy_prefix}{component}" not in source, (
+                f"{path} imports generic shared UI from legacy components; "
+                "use frontend/src/shared/ui"
+            )
+
+
 def test_event_catalog_uses_canonical_runtime_event_names() -> None:
     catalog = Path("docs/guides/event-catalog.md").read_text()
     expected = {

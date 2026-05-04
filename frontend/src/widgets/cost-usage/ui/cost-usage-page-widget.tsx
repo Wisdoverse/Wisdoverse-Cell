@@ -5,7 +5,7 @@ import { Coins, DollarSign, TrendingDown } from "lucide-react";
 
 import { CostChart } from "@/components/analytics/cost-chart";
 import { TokenBreakdown } from "@/components/analytics/token-breakdown";
-import { PageHeader } from "@/components/shared/page-header";
+import { PageHeader } from "@/shared/ui/page-header";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
 import {

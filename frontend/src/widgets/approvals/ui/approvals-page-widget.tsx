@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { ApprovalFilters } from "@/components/approvals/approval-filters";
 import { ApprovalList } from "@/components/approvals/approval-list";
-import { PageHeader } from "@/components/shared/page-header";
+import { PageHeader } from "@/shared/ui/page-header";
 import { MOCK_APPROVALS } from "@/entities/approval/model/mock-approvals";
 import type { ApprovalRequest } from "@/lib/api/types";
 

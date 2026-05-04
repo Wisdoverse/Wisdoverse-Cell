@@ -6,7 +6,7 @@ import { FleetGrid } from "@/components/home/fleet-grid";
 import { GreetingBanner } from "@/components/home/greeting-banner";
 import { PendingApprovals } from "@/components/home/pending-approvals";
 import { RecentActivity } from "@/components/home/recent-activity";
-import { PageHeader } from "@/components/shared/page-header";
+import { PageHeader } from "@/shared/ui/page-header";
 
 export function HomePageWidget() {
   const t = useTranslations("home");

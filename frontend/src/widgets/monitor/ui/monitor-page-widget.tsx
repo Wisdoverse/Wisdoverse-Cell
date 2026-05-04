@@ -6,7 +6,7 @@ import { AlertCircle } from "lucide-react";
 import { CircuitBreakerCard } from "@/components/monitor/circuit-breaker-card";
 import { HealthGrid } from "@/components/monitor/health-grid";
 import { LLMStatsPanel } from "@/components/monitor/llm-stats-panel";
-import { PageHeader } from "@/components/shared/page-header";
+import { PageHeader } from "@/shared/ui/page-header";
 import {
   useCircuitBreaker,
   useHealthReady,

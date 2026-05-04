@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { StatCard } from "@/components/shared/stat-card";
+import { StatCard } from "@/shared/ui/stat-card";
 
 interface StatsRowProps {
   counts: Record<string, number>;
