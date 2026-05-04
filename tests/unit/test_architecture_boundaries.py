@@ -649,6 +649,75 @@ def test_frontend_app_shell_owns_layout_components() -> None:
             assert f"@/components/layout/{component}" not in source
 
 
+def test_frontend_page_local_components_live_in_widgets() -> None:
+    widget_components = {
+        "activity": {
+            "target": "activity",
+            "files": ("activity-filters", "activity-timeline"),
+        },
+        "approvals": {
+            "target": "approvals",
+            "files": ("approval-filters", "approval-list"),
+        },
+        "dashboard": {
+            "target": "dashboard",
+            "files": (
+                "fleet-summary-card",
+                "llm-usage-card",
+                "quick-actions",
+                "stats-row",
+                "status-chart",
+                "trend-chart",
+            ),
+        },
+        "home": {
+            "target": "home",
+            "files": (
+                "fleet-grid",
+                "greeting-banner",
+                "pending-approvals",
+                "recent-activity",
+            ),
+        },
+        "monitor": {
+            "target": "monitor",
+            "files": ("circuit-breaker-card", "health-grid", "llm-stats-panel"),
+        },
+        "messages": {
+            "target": "messages",
+            "files": ("message-search", "message-table"),
+        },
+        "analytics": {
+            "target": "cost-usage",
+            "files": ("cost-chart", "token-breakdown"),
+        },
+    }
+
+    for legacy_group, config in widget_components.items():
+        for component in config["files"]:
+            assert not (
+                Path("frontend/src/components") / legacy_group / f"{component}.tsx"
+            ).exists()
+            assert (
+                Path("frontend/src/widgets")
+                / config["target"]
+                / "ui"
+                / f"{component}.tsx"
+            ).exists()
+
+    forbidden_prefixes = tuple(
+        f"@/components/{legacy_group}/"
+        for legacy_group in widget_components
+    )
+    for path in Path("frontend/src").rglob("*.ts*"):
+        source = path.read_text()
+        for prefix in forbidden_prefixes:
+            assert prefix not in source, (
+                f"{path} imports page-local UI from {prefix}; "
+                "keep page composition inside the owning widget"
+            )
+
+
 def test_event_catalog_uses_canonical_runtime_event_names() -> None:
     catalog = Path("docs/guides/event-catalog.md").read_text()
     expected = {

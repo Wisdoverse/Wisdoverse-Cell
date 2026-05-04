@@ -3,12 +3,12 @@
 import { useTranslations } from "next-intl";
 import { AlertCircle } from "lucide-react";
 
-import { FleetSummaryCard } from "@/components/dashboard/fleet-summary-card";
-import { LLMUsageCard } from "@/components/dashboard/llm-usage-card";
-import { QuickActions } from "@/components/dashboard/quick-actions";
-import { StatsRow } from "@/components/dashboard/stats-row";
-import { StatusChart } from "@/components/dashboard/status-chart";
-import { TrendChart } from "@/components/dashboard/trend-chart";
+import { FleetSummaryCard } from "./fleet-summary-card";
+import { LLMUsageCard } from "./llm-usage-card";
+import { QuickActions } from "./quick-actions";
+import { StatsRow } from "./stats-row";
+import { StatusChart } from "./status-chart";
+import { TrendChart } from "./trend-chart";
 import { PageHeader } from "@/shared/ui/page-header";
 import {
   useCircuitBreaker,

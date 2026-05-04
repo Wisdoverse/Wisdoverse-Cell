@@ -4,8 +4,8 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { ApprovalFilters } from "@/components/approvals/approval-filters";
-import { ApprovalList } from "@/components/approvals/approval-list";
+import { ApprovalFilters } from "./approval-filters";
+import { ApprovalList } from "./approval-list";
 import { PageHeader } from "@/shared/ui/page-header";
 import { MOCK_APPROVALS } from "@/entities/approval/model/mock-approvals";
 import type { ApprovalRequest } from "@/lib/api/types";

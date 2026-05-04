@@ -3,9 +3,9 @@
 import { useTranslations } from "next-intl";
 import { AlertCircle } from "lucide-react";
 
-import { CircuitBreakerCard } from "@/components/monitor/circuit-breaker-card";
-import { HealthGrid } from "@/components/monitor/health-grid";
-import { LLMStatsPanel } from "@/components/monitor/llm-stats-panel";
+import { CircuitBreakerCard } from "./circuit-breaker-card";
+import { HealthGrid } from "./health-grid";
+import { LLMStatsPanel } from "./llm-stats-panel";
 import { PageHeader } from "@/shared/ui/page-header";
 import {
   useCircuitBreaker,

@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { MessageSearch } from "@/components/messages/message-search";
-import { MessageTable } from "@/components/messages/message-table";
+import { MessageSearch } from "./message-search";
+import { MessageTable } from "./message-table";
 import { PageHeader } from "@/shared/ui/page-header";
 import { searchMessages } from "@/lib/api/messages";
 import type { MessageSearchParams, MessageSearchResult } from "@/lib/api/types";

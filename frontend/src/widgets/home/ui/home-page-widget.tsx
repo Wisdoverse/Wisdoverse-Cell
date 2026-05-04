@@ -2,10 +2,10 @@
 
 import { useTranslations } from "next-intl";
 
-import { FleetGrid } from "@/components/home/fleet-grid";
-import { GreetingBanner } from "@/components/home/greeting-banner";
-import { PendingApprovals } from "@/components/home/pending-approvals";
-import { RecentActivity } from "@/components/home/recent-activity";
+import { FleetGrid } from "./fleet-grid";
+import { GreetingBanner } from "./greeting-banner";
+import { PendingApprovals } from "./pending-approvals";
+import { RecentActivity } from "./recent-activity";
 import { PageHeader } from "@/shared/ui/page-header";
 
 export function HomePageWidget() {

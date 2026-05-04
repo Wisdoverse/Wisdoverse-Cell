@@ -6,8 +6,8 @@ import { useTranslations } from "next-intl";
 import {
   ActivityFiltersBar,
   type ActivityFilters,
-} from "@/components/activity/activity-filters";
-import { ActivityTimeline } from "@/components/activity/activity-timeline";
+} from "./activity-filters";
+import { ActivityTimeline } from "./activity-timeline";
 import { PageHeader } from "@/shared/ui/page-header";
 import { MOCK_ACTIVITY_EVENTS } from "@/entities/activity/model/mock-events";
 import { AGENT_REGISTRY } from "@/lib/registry/agents";
