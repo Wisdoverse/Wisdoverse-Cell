@@ -220,6 +220,12 @@ class Settings(BaseSettings):
     secret_key: SecretStr = SecretStr("change-me-in-production")
     pm_api_key: str = ""  # X-API-Key for non-health endpoints; empty only in dev/test
     internal_service_key: str = ""  # X-Internal-Key for inter-service calls; empty only in dev/test
+    internal_transport_protection: Literal[
+        "",
+        "trusted_private_network",
+        "mtls",
+        "service_mesh",
+    ] = ""
 
     # ============ A2A Protocol Configuration ============
     a2a_enabled: bool = False
@@ -387,6 +393,8 @@ class Settings(BaseSettings):
             missing.append("PM_API_KEY")
         if not self.internal_service_key.strip():
             missing.append("INTERNAL_SERVICE_KEY")
+        if not self.internal_transport_protection:
+            missing.append("INTERNAL_TRANSPORT_PROTECTION")
         if not self.control_plane_enabled:
             missing.append("CONTROL_PLANE_ENABLED")
         if not self.control_plane_approval_enforced:
@@ -410,7 +418,7 @@ class Settings(BaseSettings):
 
         if missing:
             names = ", ".join(missing)
-            raise ValueError(f"production settings require non-default secrets: {names}")
+            raise ValueError(f"production settings require explicit security values: {names}")
         return self
 
     # ============ Dev Agent Configuration ============

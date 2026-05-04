@@ -82,6 +82,10 @@ Production expectations:
 - `LOG_FORMAT=json`
 - Infrastructure ports are not exposed publicly.
 - Traefik is the public ingress.
+- `INTERNAL_TRANSPORT_PROTECTION` is declared for production. Use
+  `trusted_private_network` only when all inter-agent HTTP traffic stays inside
+  a private container or cluster network. Use `service_mesh` or `mtls` when any
+  internal path crosses an untrusted network.
 - Local execution adapters are disabled unless explicitly reviewed.
 - Default development passwords are replaced before deployment.
 - `FEISHU_VERIFY_SIGNATURE=true` and `FEISHU_ENCRYPT_KEY` is populated before

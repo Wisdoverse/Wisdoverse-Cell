@@ -11,6 +11,7 @@
 #   - Stricter resource limits
 #   - No debug ports exposed
 #   - Health check optimizations
+#   - Explicit INTERNAL_TRANSPORT_PROTECTION declaration
 #
 # =============================================================================
 

@@ -5,6 +5,7 @@
 # - No debug ports exposed
 # - Stricter resource limits
 # - Rolling update strategy
+# - Explicit INTERNAL_TRANSPORT_PROTECTION declaration
 # =============================================================================
 
 services:

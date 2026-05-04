@@ -182,6 +182,9 @@ class TestNonSecretFieldsUnchanged:
     def test_internal_service_key_is_str(self, secret_settings):
         assert isinstance(secret_settings.internal_service_key, str)
 
+    def test_internal_transport_protection_is_str(self, secret_settings):
+        assert isinstance(secret_settings.internal_transport_protection, str)
+
 
 class TestProductionSecretValidation:
     """Production config must fail closed when required secrets are default or empty."""
@@ -190,7 +193,7 @@ class TestProductionSecretValidation:
         from shared.config import Settings
 
         with pytest.raises(
-            ValidationError, match="production settings require non-default secrets"
+            ValidationError, match="production settings require explicit security values"
         ):
             Settings(
                 _env_file=None,
@@ -220,11 +223,30 @@ class TestProductionSecretValidation:
             secret_key="secret-key",
             pm_api_key="pm-key",
             internal_service_key="internal-key",
+            internal_transport_protection="trusted_private_network",
             control_plane_enabled=True,
             control_plane_approval_enforced=True,
             a2a_jwt_secret="a2a-secret",
         )
         assert settings.app_env == "production"
+
+    def test_production_rejects_missing_internal_transport_protection(self):
+        from shared.config import Settings
+
+        with pytest.raises(ValidationError, match="INTERNAL_TRANSPORT_PROTECTION"):
+            Settings(
+                _env_file=None,
+                app_env="production",
+                postgres_password="pg-secret",
+                redis_password="redis-secret",
+                anthropic_api_key="llm-secret",
+                secret_key="secret-key",
+                pm_api_key="pm-key",
+                internal_service_key="internal-key",
+                control_plane_enabled=True,
+                control_plane_approval_enforced=True,
+                a2a_jwt_secret="a2a-secret",
+            )
 
     def test_production_rejects_disabled_control_plane_approval(self):
         from shared.config import Settings
@@ -261,6 +283,7 @@ class TestProductionSecretValidation:
             secret_key="secret-key",
             pm_api_key="pm-key",
             internal_service_key="internal-key",
+            internal_transport_protection="trusted_private_network",
             control_plane_enabled=True,
             control_plane_approval_enforced=True,
             a2a_jwt_secret="a2a-secret",
@@ -285,6 +308,7 @@ class TestProductionSecretValidation:
             secret_key="secret-key",
             pm_api_key="pm-key",
             internal_service_key="internal-key",
+            internal_transport_protection="service_mesh",
             control_plane_enabled=True,
             control_plane_approval_enforced=True,
             a2a_jwt_secret="a2a-secret",
