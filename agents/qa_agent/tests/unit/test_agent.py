@@ -1,9 +1,12 @@
 """Unit tests for QAAgent."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
+from agents.qa_agent.db.repository import AcceptanceRunRepository
 from agents.qa_agent.service.agent import QAAgent
 
 
@@ -13,7 +16,9 @@ def mock_db():
     session = MagicMock()
     session.add = MagicMock()
     session.flush = AsyncMock()
-    session.execute = AsyncMock()
+    empty_result = MagicMock()
+    empty_result.scalar_one_or_none.return_value = None
+    session.execute = AsyncMock(return_value=empty_result)
 
     class SessionContext:
         async def __aenter__(self):
@@ -78,6 +83,24 @@ def agent(mock_db, mock_bus, mock_runner, mock_notifier):
     )
 
 
+def _existing_run():
+    return SimpleNamespace(
+        id="run_existing",
+        agent_name="pjm_agent",
+        l0_status="PASS",
+        l1_status="PASS",
+        l2_status="INFO",
+        total_checks=3,
+        l0_failure_count=0,
+        l1_warning_count=0,
+        duration_seconds=1.0,
+        runner_exit_code=0,
+        raw_report={"summary": {"total_checks": 3}, "results": []},
+        report_markdown=None,
+        notification_summary={"eventbus": {"sent": True}},
+    )
+
+
 class TestAgentInit:
     def test_agent_id(self, agent):
         assert agent.agent_id == "qa-agent"
@@ -128,6 +151,76 @@ class TestHandleEvent:
 
         assert result == []
         mock_runner.run_json.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_replayed_event_skips_runner_and_notifier(self, agent, mock_runner, mock_notifier):
+        from shared.schemas.event import Event
+
+        event = Event.create(
+            event_type="qa.run-requested",
+            source_agent="pjm-agent",
+            payload={
+                "agent_name": "pjm_agent",
+                "level": "l0",
+                "requested_by": "pjm-agent",
+            },
+        )
+
+        mock_get = AsyncMock(return_value=_existing_run())
+        with patch.object(
+            AcceptanceRunRepository,
+            "get_by_trigger_event_id",
+            mock_get,
+        ):
+            result = await agent.handle_event(event)
+
+        assert result == []
+        mock_get.assert_awaited_once_with(event.event_id)
+        mock_runner.run_json.assert_not_called()
+        mock_notifier.notify_all.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_duplicate_persist_skips_notification_after_runner(
+        self,
+        agent,
+        mock_runner,
+        mock_notifier,
+    ):
+        from shared.schemas.event import Event
+
+        event = Event.create(
+            event_type="qa.run-requested",
+            source_agent="pjm-agent",
+            payload={
+                "agent_name": "pjm_agent",
+                "level": "l0",
+                "requested_by": "pjm-agent",
+            },
+        )
+        duplicate_error = IntegrityError(
+            "insert qa_acceptance_runs",
+            {},
+            Exception("duplicate trigger_event_id"),
+        )
+
+        mock_get = AsyncMock(side_effect=[None, _existing_run()])
+        with (
+            patch.object(
+                AcceptanceRunRepository,
+                "get_by_trigger_event_id",
+                mock_get,
+            ),
+            patch(
+                "agents.qa_agent.service.agent.QAReportStore.save_execution_result",
+                new=AsyncMock(side_effect=duplicate_error),
+            ),
+        ):
+            result = await agent.handle_event(event)
+
+        assert result == []
+        assert mock_get.await_count == 2
+        mock_runner.run_json.assert_called_once()
+        mock_notifier.notify_all.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_unknown_event_returns_empty(self, agent):

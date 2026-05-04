@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from sqlalchemy.exc import IntegrityError
+
 from shared.infra.event_bus import EventBus, event_bus
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
@@ -20,6 +22,7 @@ from ..core.notifier import QANotifier
 from ..core.report_store import QAReportStore
 from ..db.database import DatabaseManager, db_manager
 from ..db.repository import AcceptanceRunRepository
+from ..models.qa import QAAcceptanceRun
 from ..models.schemas import (
     AcceptanceExecutionResult,
     AcceptanceFinding,
@@ -158,6 +161,16 @@ class QAAgent(BaseAgent):
             level=request.level,
         )
 
+        existing_run = await self._get_existing_event_run(trigger_event_id)
+        if existing_run is not None:
+            logger.info(
+                "qa_run_replay_skipped",
+                trigger_event_id=trigger_event_id,
+                run_id=existing_run.id,
+                agent_name=existing_run.agent_name,
+            )
+            return self._result_from_run(existing_run)
+
         # 1. Run acceptance checks
         # Issue #1 fix: use diff_ref (not commit_sha) for incremental checks
         mr_id_str = f"!{request.mr_iid}" if request.mr_iid else ""
@@ -223,6 +236,23 @@ class QAAgent(BaseAgent):
                     trigger_event_id=trigger_event_id,
                 )
                 run_id = run.id
+        except IntegrityError as e:
+            existing_run = await self._get_existing_event_run(trigger_event_id)
+            if existing_run is not None:
+                logger.info(
+                    "qa_run_replay_race_skipped",
+                    trigger_event_id=trigger_event_id,
+                    run_id=existing_run.id,
+                    agent_name=existing_run.agent_name,
+                )
+                return self._result_from_run(existing_run)
+            logger.error(
+                "persist_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                agent_name=agent_name,
+            )
+            run_id = None
         except Exception as e:
             logger.error(
                 "persist_failed",
@@ -369,6 +399,62 @@ class QAAgent(BaseAgent):
     # ---------------------------------------------------------------
     # Private helpers
     # ---------------------------------------------------------------
+
+    async def _get_existing_event_run(
+        self,
+        trigger_event_id: str | None,
+    ) -> QAAcceptanceRun | None:
+        if not trigger_event_id:
+            return None
+
+        async with self._db_manager.session() as session:
+            repo = AcceptanceRunRepository(session)
+            return await repo.get_by_trigger_event_id(trigger_event_id)
+
+    @staticmethod
+    def _result_from_run(run: QAAcceptanceRun) -> AcceptanceExecutionResult:
+        raw_report = run.raw_report or {}
+        findings = []
+        for finding in raw_report.get("results", []) or []:
+            try:
+                findings.append(
+                    AcceptanceFinding(
+                        level=finding.get("level", "L0"),
+                        category=finding.get("category", ""),
+                        check=finding.get("check", ""),
+                        status=finding.get("status", "SKIP"),
+                        details=finding.get("details"),
+                        file=finding.get("file"),
+                        line=finding.get("line"),
+                        severity=finding.get("severity", "info"),
+                        is_blocking=bool(finding.get("is_blocking", False)),
+                    )
+                )
+            except Exception as e:
+                logger.warning(
+                    "qa_replay_finding_decode_failed",
+                    run_id=run.id,
+                    error_type=type(e).__name__,
+                )
+
+        return AcceptanceExecutionResult(
+            success=run.l0_status != "FAIL",
+            exit_code=run.runner_exit_code,
+            summary=AcceptanceSummary(
+                l0_gate=run.l0_status,
+                l1_check=run.l1_status,
+                l2_report=run.l2_status,
+                total_checks=run.total_checks,
+                l0_failures=run.l0_failure_count,
+                l1_warnings=run.l1_warning_count,
+            ),
+            findings=findings,
+            raw_report=raw_report,
+            duration_seconds=run.duration_seconds,
+            report_markdown=run.report_markdown,
+            run_id=run.id,
+            notification_summary=run.notification_summary or {},
+        )
 
     async def _handle_code_committed(self, event: Event) -> None:
         payload = CodeCommittedPayload.model_validate(event.payload)

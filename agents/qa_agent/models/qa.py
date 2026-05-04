@@ -72,6 +72,12 @@ class QAAcceptanceRun(Base):
             name="ck_qa_run_l1_status",
         ),
         CheckConstraint("duration_seconds >= 0", name="ck_qa_run_duration"),
+        Index(
+            "uq_qa_runs_trigger_event_id",
+            trigger_event_id,
+            unique=True,
+            postgresql_where=trigger_event_id.isnot(None),
+        ),
         Index("idx_qa_runs_agent_created_at", "agent_name", created_at.desc()),
         Index("idx_qa_runs_commit_sha", "commit_sha"),
         Index("idx_qa_runs_mr", "gitlab_project_id", "mr_iid"),

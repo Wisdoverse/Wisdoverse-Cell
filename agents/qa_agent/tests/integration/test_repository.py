@@ -3,6 +3,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.qa_agent.db.repository import (
@@ -11,26 +12,32 @@ from agents.qa_agent.db.repository import (
 )
 
 
+def _run_kwargs(**overrides):
+    kwargs = {
+        "agent_name": "pjm_agent",
+        "target_path": "agents/pjm_agent",
+        "trigger": "manual",
+        "level": "all",
+        "l0_status": "PASS",
+        "l1_status": "PASS",
+        "l2_status": "INFO",
+        "total_checks": 10,
+        "l0_failure_count": 0,
+        "l1_warning_count": 0,
+        "duration_seconds": 1.5,
+        "runner_exit_code": 0,
+        "raw_report": {"summary": {"total": 10}},
+    }
+    kwargs.update(overrides)
+    return kwargs
+
+
 @pytest.mark.asyncio
 async def test_run_repository_lifecycle(db_session: AsyncSession):
     repo = AcceptanceRunRepository(db_session)
 
     # 1. Create
-    run = await repo.create(
-        agent_name="pjm_agent",
-        target_path="agents/pjm_agent",
-        trigger="manual",
-        level="all",
-        l0_status="PASS",
-        l1_status="PASS",
-        l2_status="INFO",
-        total_checks=10,
-        l0_failure_count=0,
-        l1_warning_count=0,
-        duration_seconds=1.5,
-        runner_exit_code=0,
-        raw_report={"summary": {"total": 10}},
-    )
+    run = await repo.create(**_run_kwargs(trigger_event_id="evt_repo_lifecycle"))
     assert run.id is not None
     assert run.agent_name == "pjm_agent"
 
@@ -39,10 +46,26 @@ async def test_run_repository_lifecycle(db_session: AsyncSession):
     assert fetched is not None
     assert fetched.id == run.id
 
+    fetched_by_event = await repo.get_by_trigger_event_id("evt_repo_lifecycle")
+    assert fetched_by_event is not None
+    assert fetched_by_event.id == run.id
+
     # 3. List
     runs = await repo.list_runs(agent_name="pjm_agent")
     assert len(runs) == 1
     assert runs[0].id == run.id
+
+
+@pytest.mark.asyncio
+async def test_trigger_event_id_is_unique_for_persisted_runs(db_session: AsyncSession):
+    repo = AcceptanceRunRepository(db_session)
+
+    await repo.create(**_run_kwargs(trigger_event_id="evt_duplicate_qa_run"))
+
+    with pytest.raises(IntegrityError):
+        await repo.create(**_run_kwargs(trigger_event_id="evt_duplicate_qa_run"))
+
+    await db_session.rollback()
 
 
 @pytest.mark.asyncio

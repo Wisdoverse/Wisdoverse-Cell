@@ -30,6 +30,20 @@ class AcceptanceRunRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_trigger_event_id(
+        self,
+        trigger_event_id: str | None,
+    ) -> Optional[QAAcceptanceRun]:
+        if not trigger_event_id:
+            return None
+
+        result = await self.session.execute(
+            select(QAAcceptanceRun).where(
+                QAAcceptanceRun.trigger_event_id == trigger_event_id
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def list_runs(
         self,
         *,
