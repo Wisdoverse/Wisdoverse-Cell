@@ -311,6 +311,12 @@ class DecompositionOrchestrator:
             if not record or record.status != "pending":
                 return None
             approval_id = (record.decompose_result or {}).get("control_plane_approval_id")
+            if approval_id and not approved_by:
+                return {
+                    "error": "approved_by required for control-plane approval",
+                    "wp_id": wp_id,
+                    "control_plane_approval_id": approval_id,
+                }
             try:
                 await self._approval_gate.approve_for_sensitive_action(
                     approval_id,
@@ -587,6 +593,12 @@ class DecompositionOrchestrator:
                 return None
             subject = (record.decompose_result or {}).get("summary", "")
             approval_id = (record.decompose_result or {}).get("control_plane_approval_id")
+            if approval_id and not rejected_by:
+                return {
+                    "error": "rejected_by required for control-plane rejection",
+                    "wp_id": wp_id,
+                    "control_plane_approval_id": approval_id,
+                }
             try:
                 await self._approval_gate.reject_for_sensitive_action(
                     approval_id,

@@ -60,9 +60,11 @@ class DecomposeStatusResponse(BaseModel):
 async def approve_decomposition(wp_id: int, body: ApproveRequest):
     """Approve a pending decomposition and write results to OpenProject."""
     agent = get_agent()
-    result = await agent.approve_decomposition(wp_id, approved_by=body.operator or "api")
+    result = await agent.approve_decomposition(wp_id, approved_by=body.operator)
     if result is None:
         raise HTTPException(status_code=404, detail="Record not found or status is not pending")
+    if result.get("error"):
+        raise HTTPException(status_code=403, detail=result["error"])
     return DecomposeActionResponse(
         success=True,
         wp_id=wp_id,
@@ -83,11 +85,13 @@ async def reject_decomposition(wp_id: int, body: RejectRequest):
     agent = get_agent()
     result = await agent.reject_decomposition(
         wp_id,
-        rejected_by=body.operator or "api",
+        rejected_by=body.operator,
         reason=body.reason,
     )
     if result is None:
         raise HTTPException(status_code=404, detail="Record not found or status is not pending")
+    if result.get("error"):
+        raise HTTPException(status_code=403, detail=result["error"])
     return DecomposeActionResponse(
         success=True,
         wp_id=wp_id,

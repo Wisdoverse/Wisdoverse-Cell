@@ -20,6 +20,7 @@ def mock_agent():
     agent._config = MagicMock()
     agent._config.members = []
     agent.handle_request = AsyncMock()
+    agent.approve_decomposition = AsyncMock()
     agent.reject_decomposition = AsyncMock()
     return agent
 
@@ -171,6 +172,53 @@ async def test_alerts_endpoint_empty(test_app, mock_agent):
 
 
 @pytest.mark.asyncio
+async def test_approve_decomposition_forwards_operator(test_app, mock_agent):
+    """POST /api/v1/pm/decompose/{wp_id}/approve preserves the operator identity."""
+    mock_agent.approve_decomposition.return_value = {
+        "subject": "Split feature",
+        "story_count": 1,
+        "task_count": 3,
+    }
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/pm/decompose/123/approve",
+            json={"operator": "alice"},
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["action"] == "approve"
+    mock_agent.approve_decomposition.assert_awaited_once_with(
+        123,
+        approved_by="alice",
+    )
+
+
+@pytest.mark.asyncio
+async def test_approve_decomposition_surfaces_approval_error(test_app, mock_agent):
+    """Approval errors must not be converted into success responses."""
+    mock_agent.approve_decomposition.return_value = {
+        "error": "approved_by required for control-plane approval",
+        "wp_id": 123,
+    }
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/pm/decompose/123/approve",
+            json={},
+        )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "approved_by required for control-plane approval"
+    mock_agent.approve_decomposition.assert_awaited_once_with(
+        123,
+        approved_by="",
+    )
+
+
+@pytest.mark.asyncio
 async def test_reject_decomposition_forwards_reason(test_app, mock_agent):
     """POST /api/v1/pm/decompose/{wp_id}/reject preserves the rejection reason."""
     mock_agent.reject_decomposition.return_value = {"subject": "Split feature"}
@@ -187,5 +235,29 @@ async def test_reject_decomposition_forwards_reason(test_app, mock_agent):
     mock_agent.reject_decomposition.assert_awaited_once_with(
         123,
         rejected_by="alice",
+        reason="not useful",
+    )
+
+
+@pytest.mark.asyncio
+async def test_reject_decomposition_surfaces_approval_error(test_app, mock_agent):
+    """Rejection approval errors must not be converted into success responses."""
+    mock_agent.reject_decomposition.return_value = {
+        "error": "rejected_by required for control-plane rejection",
+        "wp_id": 123,
+    }
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/pm/decompose/123/reject",
+            json={"reason": "not useful"},
+        )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "rejected_by required for control-plane rejection"
+    mock_agent.reject_decomposition.assert_awaited_once_with(
+        123,
+        rejected_by="",
         reason="not useful",
     )

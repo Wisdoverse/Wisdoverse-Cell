@@ -202,8 +202,8 @@ Primary prefix: `/api/v1`.
 | `POST` | `/api/v1/pm/report/weekly` | Trigger weekly report generation |
 | `POST` | `/api/v1/pm/decompose/{wp_id}/retry` | Retry decomposition |
 | `GET` | `/api/v1/pm/decompose/{wp_id}` | Read decomposition status |
-| `POST` | `/api/v1/pm/decompose/{wp_id}/approve` | Approve decomposition |
-| `POST` | `/api/v1/pm/decompose/{wp_id}/reject` | Reject decomposition |
+| `POST` | `/api/v1/pm/decompose/{wp_id}/approve` | Approve decomposition; body should include `operator` for approval evidence |
+| `POST` | `/api/v1/pm/decompose/{wp_id}/reject` | Reject decomposition; body should include `operator` and may include `reason` |
 
 ## User Interaction Gateway API
 
