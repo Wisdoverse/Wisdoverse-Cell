@@ -10,6 +10,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from shared.infra.llm_gateway import llm_gateway
+from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.utils.logger import get_logger
 
 logger = get_logger("extractor")
@@ -41,6 +42,35 @@ class ExtractionResult(BaseModel):
     requirements: list[ExtractedRequirement] = []
     decisions: list[ExtractedDecision] = []
     open_questions: list[ExtractedQuestion] = []
+
+
+def build_extraction_prompt(
+    prompt_template: str,
+    *,
+    content: str,
+    source: str,
+    meeting_date: Optional[str],
+    participants: Optional[list[str]],
+    context: Optional[str],
+) -> str:
+    """Build the extraction prompt with source meeting data isolated."""
+    meeting_notes_block = wrap_untrusted_json(
+        "untrusted_meeting_notes_json",
+        {"content": content},
+    )
+    context_block = wrap_untrusted_json(
+        "untrusted_meeting_context_json",
+        {
+            "source": source,
+            "meeting_date": meeting_date or "未知",
+            "participants": ", ".join(participants) if participants else "未知",
+            "context": context or "无",
+        },
+    )
+    return prompt_template.format(
+        meeting_notes_block=meeting_notes_block,
+        context_block=context_block,
+    )
 
 
 class RequirementExtractor:
@@ -79,13 +109,13 @@ class RequirementExtractor:
         Returns:
             Extraction result containing requirements, decisions, and questions.
         """
-        # Build the prompt.
-        prompt = self.prompt_template.format(
-            meeting_content=content,
+        prompt = build_extraction_prompt(
+            self.prompt_template,
+            content=content,
             source=source,
-            meeting_date=meeting_date or "未知",
-            participants=", ".join(participants) if participants else "未知",
-            context=context or "无"
+            meeting_date=meeting_date,
+            participants=participants,
+            context=context,
         )
 
         logger.info(

@@ -3,13 +3,13 @@ Document generator.
 
 Generates exported documents such as PRDs and open-question lists.
 """
-import json
 from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel
 
 from shared.infra.llm_gateway import llm_gateway
+from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.utils.logger import get_logger
 
 logger = get_logger("generator")
@@ -30,6 +30,32 @@ class QuestionExportResult(BaseModel):
     format: str = "markdown"
     generated_at: datetime
     questions_count: int
+
+
+def build_prd_generation_prompt(
+    prompt_template: str,
+    *,
+    requirements: list[dict],
+    project_name: str,
+    version: str,
+    generated_date: str,
+) -> str:
+    """Build the PRD prompt with metadata and requirements isolated."""
+    return prompt_template.format(
+        project_metadata_block=wrap_untrusted_json(
+            "untrusted_prd_metadata_json",
+            {
+                "project_name": project_name,
+                "version": version,
+                "generated_date": generated_date,
+                "total_requirements": len(requirements),
+            },
+        ),
+        requirements_block=wrap_untrusted_json(
+            "untrusted_requirements_json",
+            {"requirements": requirements},
+        ),
+    )
 
 
 class DocumentGenerator:
@@ -73,16 +99,13 @@ class DocumentGenerator:
                 version=version
             )
 
-        # Format requirements as JSON.
-        requirements_json = json.dumps(requirements, ensure_ascii=False, indent=2)
-
-        # Build the prompt.
-        prompt = self.prd_prompt_template.format(
+        generated_date = datetime.now(UTC).strftime("%Y-%m-%d")
+        prompt = build_prd_generation_prompt(
+            self.prd_prompt_template,
+            requirements=requirements,
             project_name=project_name,
             version=version,
-            date=datetime.now(UTC).strftime("%Y-%m-%d"),
-            total_requirements=len(requirements),
-            requirements_json=requirements_json
+            generated_date=generated_date,
         )
 
         logger.info(

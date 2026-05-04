@@ -15,6 +15,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from shared.infra.llm_gateway import llm_gateway
+from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
@@ -43,6 +44,39 @@ class ComparisonResult(BaseModel):
     suggested_action: str
     related_requirement_id: Optional[str] = None
     merge_suggestion: Optional[str] = None
+
+
+def build_conflict_detection_prompt(
+    prompt_template: str,
+    *,
+    new_title: str,
+    new_description: str,
+    new_category: Optional[str],
+    similar_requirements: list[dict],
+) -> str:
+    """Build the conflict prompt with requirement records isolated."""
+    similar_text = "\n".join([
+        f"- ID: {s['id']}\n  Title: {s['title']}\n"
+        f"  Category: {s['category']}\n"
+        f"  Similarity: {s['similarity']:.2%}"
+        for s in similar_requirements
+    ])
+    new_requirement_block = wrap_untrusted_json(
+        "untrusted_new_requirement_json",
+        {
+            "title": new_title,
+            "description": new_description,
+            "category": new_category or "uncategorized",
+        },
+    )
+    similar_requirements_block = wrap_untrusted_json(
+        "untrusted_similar_requirements_json",
+        {"vector_search_results": similar_text},
+    )
+    return prompt_template.format(
+        new_requirement_block=new_requirement_block,
+        similar_requirements_block=similar_requirements_block,
+    )
 
 
 class RequirementComparator:
@@ -153,20 +187,12 @@ class RequirementComparator:
         similar_requirements: list[dict]
     ) -> ComparisonResult:
         """Use the LLM for deeper requirement relationship analysis."""
-        # Format similar requirements.
-        similar_text = "\n".join([
-            f"- ID: {s['id']}\n  Title: {s['title']}\n"
-            f"  Category: {s['category']}\n"
-            f"  Similarity: {s['similarity']:.2%}"
-            for s in similar_requirements
-        ])
-
-        # Build the prompt.
-        prompt = self.prompt_template.format(
+        prompt = build_conflict_detection_prompt(
+            self.prompt_template,
             new_title=new_title,
             new_description=new_description,
-            new_category=new_category or "uncategorized",
-            similar_requirements=similar_text
+            new_category=new_category,
+            similar_requirements=similar_requirements,
         )
 
         logger.info(
