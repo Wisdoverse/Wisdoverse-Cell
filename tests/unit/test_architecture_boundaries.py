@@ -637,6 +637,18 @@ def test_frontend_activity_and_approval_ui_live_in_entity_slices() -> None:
         assert "@/components/shared/approval-card" not in source
 
 
+def test_frontend_app_shell_owns_layout_components() -> None:
+    layout_components = ("app-sidebar", "top-bar", "locale-switcher")
+    for component in layout_components:
+        assert not (Path("frontend/src/components/layout") / f"{component}.tsx").exists()
+        assert (Path("frontend/src/widgets/app-shell/ui") / f"{component}.tsx").exists()
+
+    for path in Path("frontend/src").rglob("*.ts*"):
+        source = path.read_text()
+        for component in layout_components:
+            assert f"@/components/layout/{component}" not in source
+
+
 def test_event_catalog_uses_canonical_runtime_event_names() -> None:
     catalog = Path("docs/guides/event-catalog.md").read_text()
     expected = {

@@ -1,7 +1,7 @@
-import { AppSidebar } from "@/components/layout/app-sidebar";
-import { TopBar } from "@/components/layout/top-bar";
 import { SidebarInset, SidebarProvider } from "@/shared/ui/sidebar";
+import { AppSidebar } from "./app-sidebar";
 import { EventListener } from "./event-listener";
+import { TopBar } from "./top-bar";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
