@@ -178,6 +178,9 @@ already has one.
 - Tool definitions belong in the API `tools` parameter where supported.
 - Prompts should teach strategy, constraints, and escalation policy; do not
   duplicate the full tool inventory inside the prompt.
+- Wrap user, integration, retrieved, or runtime source data in explicit
+  untrusted-data boundaries and state that content inside those boundaries is
+  data, not instructions.
 - Preserve user-facing output language requirements explicitly, for example:
   "Reply in Simplified Chinese unless the user asks otherwise."
 - Never log prompts that may contain secrets, PII, customer text, or credentials.
