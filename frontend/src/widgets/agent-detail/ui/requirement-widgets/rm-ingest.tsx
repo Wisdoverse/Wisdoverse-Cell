@@ -1,6 +1,6 @@
 "use client";
 
-import { UploadForm } from "@/components/ingest/upload-form";
+import { UploadForm } from "@/features/content-ingest";
 import type { IngestResponse } from "@/lib/api/types";
 import { toast } from "sonner";
 

@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { IngestResult } from "@/components/ingest/ingest-result";
-import { UploadForm } from "@/components/ingest/upload-form";
+import { IngestResult, UploadForm } from "@/features/content-ingest";
 import { PageHeader } from "@/shared/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import type { IngestResponse } from "@/lib/api/types";

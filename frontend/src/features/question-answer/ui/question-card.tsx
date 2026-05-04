@@ -7,7 +7,7 @@ import {
   CardDescription,
   CardContent,
 } from "@/shared/ui/card";
-import { AnswerForm } from "@/components/questions/answer-form";
+import { AnswerForm } from "./answer-form";
 import type { OpenQuestion } from "@/lib/api/types";
 
 interface QuestionCardProps {

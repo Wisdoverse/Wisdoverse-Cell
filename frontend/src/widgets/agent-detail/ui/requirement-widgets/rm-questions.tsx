@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuestions } from "@/entities/question/model/use-questions";
-import { QuestionCard } from "@/components/questions/question-card";
+import { QuestionCard } from "@/features/question-answer";
 
 export default function RmQuestionsWidget() {
   const { data: questions, isLoading, mutate } = useQuestions();

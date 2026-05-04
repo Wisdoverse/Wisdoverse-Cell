@@ -718,6 +718,36 @@ def test_frontend_page_local_components_live_in_widgets() -> None:
             )
 
 
+def test_frontend_user_action_components_live_in_features() -> None:
+    feature_components = {
+        "questions": {
+            "target": "question-answer",
+            "files": ("answer-form", "question-card"),
+        },
+        "ingest": {
+            "target": "content-ingest",
+            "files": ("ingest-result", "upload-form"),
+        },
+    }
+
+    for legacy_group, config in feature_components.items():
+        for component in config["files"]:
+            assert not (
+                Path("frontend/src/components") / legacy_group / f"{component}.tsx"
+            ).exists()
+            assert (
+                Path("frontend/src/features")
+                / config["target"]
+                / "ui"
+                / f"{component}.tsx"
+            ).exists()
+
+    for path in Path("frontend/src").rglob("*.ts*"):
+        source = path.read_text()
+        assert "@/components/questions/" not in source
+        assert "@/components/ingest/" not in source
+
+
 def test_event_catalog_uses_canonical_runtime_event_names() -> None:
     catalog = Path("docs/guides/event-catalog.md").read_text()
     expected = {
