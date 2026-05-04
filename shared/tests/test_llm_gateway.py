@@ -7,6 +7,7 @@ Coverage:
 3. Retryable and non-retryable errors
 4. Cost tracking
 """
+import json
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -36,8 +37,13 @@ class TestLLMGatewayBasic:
         with patch('shared.infra.llm_gateway.settings') as mock_settings:
             mock_settings.anthropic_api_key = "test-key"
             mock_settings.default_model = "claude-sonnet-4-20250514"
+            mock_settings.chat_model = "claude-sonnet-4-20250514"
             mock_settings.anthropic_base_url = ""
             mock_settings.require_anthropic_proxy = False
+            mock_settings.llm_daily_budget_usd = 100.0
+            mock_settings.llm_per_request_cost_cap_usd = 5.0
+            mock_settings.control_plane_llm_budget_enforced = False
+            mock_settings.redis_url = "redis://localhost:6379"
             gateway = LLMGateway(api_key="test-key")
             yield gateway
 
@@ -68,6 +74,37 @@ class TestLLMGatewayBasic:
         assert usage["output_tokens"] == 50
         assert usage["calls"] == 1
 
+    @pytest.mark.asyncio
+    async def test_complete_redacts_sensitive_prompt_values(self, gateway):
+        """Provider payloads must not receive raw secrets or direct PII."""
+        gateway.async_client.messages.create = AsyncMock(return_value=MockResponse("OK"))
+
+        await gateway.complete(
+            prompt=(
+                "Contact user@example.com or +1 (415) 555-0199. "
+                "OpenID ou_1234567890abcdef. "
+                "See https://example.feishu.cn/docx/abc?token=secret-value "
+                "with api_key=sk-1234567890abcdefghijklmnop."
+            ),
+            agent_id="test-agent",
+            system_prompt="Authorization: Bearer eyJabc.def.ghi",
+        )
+
+        payload = json.dumps(
+            gateway.async_client.messages.create.call_args.kwargs,
+            ensure_ascii=False,
+        )
+        assert "user@example.com" not in payload
+        assert "+1 (415) 555-0199" not in payload
+        assert "ou_1234567890abcdef" not in payload
+        assert "secret-value" not in payload
+        assert "sk-1234567890abcdefghijklmnop" not in payload
+        assert "eyJabc.def.ghi" not in payload
+        assert "[REDACTED_EMAIL]" in payload
+        assert "[REDACTED_PHONE]" in payload
+        assert "[REDACTED_PLATFORM_ID]" in payload
+        assert "[REDACTED_SECRET]" in payload
+
     def test_estimate_cost(self, gateway):
         """Cost is estimated correctly."""
         # claude-sonnet-4: $3/M input, $15/M output
@@ -78,6 +115,43 @@ class TestLLMGatewayBasic:
         )
 
         assert cost == 18.0  # $3 + $15
+
+    @pytest.mark.asyncio
+    async def test_create_messages_redacts_nested_sensitive_values(self, gateway):
+        """Conversation-history payloads are sanitized before provider calls."""
+        gateway.async_client.messages.create = AsyncMock(return_value=MockResponse("OK"))
+
+        with patch.object(gateway, "_get_redis", new_callable=AsyncMock, return_value=None):
+            await gateway.create_messages(
+                agent_id="test-agent",
+                system=[{"type": "text", "text": "client_secret=raw-secret"}],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": (
+                                    "Email admin@example.com and phone 13800138000. "
+                                    "Use Authorization: Bearer ghp_1234567890abcdefghij"
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            )
+
+        payload = json.dumps(
+            gateway.async_client.messages.create.call_args.kwargs,
+            ensure_ascii=False,
+        )
+        assert "raw-secret" not in payload
+        assert "admin@example.com" not in payload
+        assert "13800138000" not in payload
+        assert "ghp_1234567890abcdefghij" not in payload
+        assert "[REDACTED_SECRET]" in payload
+        assert "[REDACTED_EMAIL]" in payload
+        assert "[REDACTED_PHONE]" in payload
 
 
 class TestLLMGatewayRetry:
