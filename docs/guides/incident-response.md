@@ -636,6 +636,9 @@ docker compose -f docker/compose/docker-compose.base.yml exec -T postgres \
 
 # Step 4: Re-run per-agent permission grants
 docker compose -f docker/compose/docker-compose.base.yml exec -T postgres \
+  sh /docker-entrypoint-initdb.d/02-agent-users.sh
+
+docker compose -f docker/compose/docker-compose.base.yml exec -T postgres \
   psql -U projectcell -d projectcell -f /docker-entrypoint-initdb.d/02-agent-users.sql
 
 # Step 5: Restart application services

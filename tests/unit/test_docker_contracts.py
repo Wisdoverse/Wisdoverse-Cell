@@ -125,7 +125,29 @@ def test_production_overrides_use_prebuilt_python_runtime_images() -> None:
 
 def test_docker_init_script_creates_compose_agent_db_users() -> None:
     """Clean Docker databases must contain every per-agent DB user used by Compose."""
+    init_sh = Path("docker/init-scripts/02-agent-users.sh").read_text(encoding="utf-8")
     init_sql = Path("docker/init-scripts/02-agent-users.sql").read_text(encoding="utf-8")
     for db_user in AGENT_DB_USERS:
-        assert f"CREATE ROLE {db_user}" in init_sql
+        assert f'create_or_update_role "{db_user}"' in init_sh
         assert f"TO {db_user}" in init_sql
+
+
+def test_production_compose_requires_agent_db_passwords() -> None:
+    """Production overlays must not fall back to local-dev agent DB passwords."""
+    prod_files = [
+        Path("docker-compose.prod.yml"),
+        Path("docker/compose/docker-compose.prod.yml"),
+    ]
+    required_vars = {
+        "CHAT_AGENT_DB_PASSWORD",
+        "PM_AGENT_DB_PASSWORD",
+        "SYNC_AGENT_DB_PASSWORD",
+        "ANALYSIS_AGENT_DB_PASSWORD",
+        "QA_AGENT_DB_PASSWORD",
+        "DEV_AGENT_DB_PASSWORD",
+        "EVOLUTION_AGENT_DB_PASSWORD",
+    }
+    for compose_path in prod_files:
+        compose = compose_path.read_text(encoding="utf-8")
+        for var_name in required_vars:
+            assert f"${{{var_name}:?{var_name} is required}}" in compose

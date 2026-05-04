@@ -63,6 +63,13 @@ Required environment values for production-like deployments:
 
 ```bash
 POSTGRES_PASSWORD=<strong-password>
+CHAT_AGENT_DB_PASSWORD=<strong-password>
+PM_AGENT_DB_PASSWORD=<strong-password>
+SYNC_AGENT_DB_PASSWORD=<strong-password>
+ANALYSIS_AGENT_DB_PASSWORD=<strong-password>
+QA_AGENT_DB_PASSWORD=<strong-password>
+DEV_AGENT_DB_PASSWORD=<strong-password>
+EVOLUTION_AGENT_DB_PASSWORD=<strong-password>
 AUTH_SECRET=<nextauth-secret>
 REGISTRY=registry.example.com/
 VERSION=1.0.0

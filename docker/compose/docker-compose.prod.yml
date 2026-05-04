@@ -66,6 +66,7 @@ services:
     environment:
       DEBUG: "false"
       APP_ENV: production
+      POSTGRES_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:?SYNC_AGENT_DB_PASSWORD is required}
     deploy:
       replicas: ${SYNC_AGENT_REPLICAS:-1}
       resources:
@@ -88,6 +89,7 @@ services:
     environment:
       DEBUG: "false"
       APP_ENV: production
+      POSTGRES_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:?ANALYSIS_AGENT_DB_PASSWORD is required}
     deploy:
       replicas: ${ANALYSIS_AGENT_REPLICAS:-1}
       resources:
@@ -110,6 +112,7 @@ services:
     environment:
       DEBUG: "false"
       APP_ENV: production
+      POSTGRES_PASSWORD: ${PM_AGENT_DB_PASSWORD:?PM_AGENT_DB_PASSWORD is required}
     deploy:
       replicas: ${PM_AGENT_REPLICAS:-1}
       resources:
@@ -132,6 +135,7 @@ services:
     environment:
       DEBUG: "false"
       APP_ENV: production
+      POSTGRES_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:?CHAT_AGENT_DB_PASSWORD is required}
     deploy:
       replicas: ${CHAT_AGENT_REPLICAS:-1}
       resources:
@@ -154,6 +158,7 @@ services:
     environment:
       DEBUG: "false"
       APP_ENV: production
+      POSTGRES_PASSWORD: ${QA_AGENT_DB_PASSWORD:?QA_AGENT_DB_PASSWORD is required}
     deploy:
       replicas: ${QA_AGENT_REPLICAS:-1}
       resources:
@@ -176,6 +181,7 @@ services:
     environment:
       DEBUG: "false"
       APP_ENV: production
+      POSTGRES_PASSWORD: ${DEV_AGENT_DB_PASSWORD:?DEV_AGENT_DB_PASSWORD is required}
     deploy:
       replicas: ${DEV_AGENT_REPLICAS:-1}
       resources:
@@ -198,6 +204,7 @@ services:
     environment:
       DEBUG: "false"
       APP_ENV: production
+      POSTGRES_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:?EVOLUTION_AGENT_DB_PASSWORD is required}
     deploy:
       replicas: ${EVOLUTION_AGENT_REPLICAS:-1}
       resources:
@@ -229,6 +236,15 @@ services:
           memory: 128M
 
   postgres:
+    environment:
+      APP_ENV: production
+      CHAT_AGENT_DB_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:?CHAT_AGENT_DB_PASSWORD is required}
+      PM_AGENT_DB_PASSWORD: ${PM_AGENT_DB_PASSWORD:?PM_AGENT_DB_PASSWORD is required}
+      SYNC_AGENT_DB_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:?SYNC_AGENT_DB_PASSWORD is required}
+      ANALYSIS_AGENT_DB_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:?ANALYSIS_AGENT_DB_PASSWORD is required}
+      QA_AGENT_DB_PASSWORD: ${QA_AGENT_DB_PASSWORD:?QA_AGENT_DB_PASSWORD is required}
+      DEV_AGENT_DB_PASSWORD: ${DEV_AGENT_DB_PASSWORD:?DEV_AGENT_DB_PASSWORD is required}
+      EVOLUTION_AGENT_DB_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:?EVOLUTION_AGENT_DB_PASSWORD is required}
     deploy:
       resources:
         limits:

@@ -7,7 +7,9 @@
 
 -- ---------------------------------------------------------------------------
 -- 1. Create agent-specific roles
---    Passwords sourced from env vars at deploy time; defaults for local dev.
+--    02-agent-users.sh creates or updates these roles from environment
+--    variables before this SQL file runs. The hard-coded passwords below are
+--    local-dev fallbacks for manual SQL-only execution.
 -- ---------------------------------------------------------------------------
 DO $$
 BEGIN
