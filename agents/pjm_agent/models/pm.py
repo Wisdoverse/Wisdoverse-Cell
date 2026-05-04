@@ -49,7 +49,7 @@ class DecompositionRecord(Base):
     __tablename__ = "pjm_agent_decomposition_records"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('pending', 'approved', 'rejected', 'failed')",
+            "status IN ('pending', 'writing', 'approved', 'rejected', 'failed', 'write_failed')",
             name="ck_decompose_status",
         ),
     )
