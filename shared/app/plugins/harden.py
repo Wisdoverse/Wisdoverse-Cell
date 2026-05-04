@@ -11,6 +11,7 @@ from shared.app.runtime import RuntimePlugin
 from shared.config import settings
 from shared.infra.audit_log import AuditAction, audit_log
 from shared.infra.input_validator import InputValidationError, InputValidator
+from shared.observability.privacy import hash_identifier
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event
 
@@ -68,7 +69,8 @@ class HardenedAgent(BaseAgent):
                 detail={
                     "event_type": event.event_type,
                     "event_id": event.event_id,
-                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                    "error_fingerprint": hash_identifier(str(exc), length=16),
                 },
                 trace_id=event.metadata.trace_id,
             )

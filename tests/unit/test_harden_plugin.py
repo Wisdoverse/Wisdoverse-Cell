@@ -160,7 +160,9 @@ class TestHardenedAgentValidation:
         mock_audit.assert_called_once()
         call_kwargs = mock_audit.call_args[1]
         assert call_kwargs["action"] == AuditAction.EVENT_FAILED
-        assert "handler exploded" in str(call_kwargs["detail"])
+        assert call_kwargs["detail"]["error_type"] == "RuntimeError"
+        assert "error_fingerprint" in call_kwargs["detail"]
+        assert "handler exploded" not in str(call_kwargs["detail"])
 
 
 class TestHardenedAgentDelegation:
