@@ -196,17 +196,24 @@ class EvolutionAgent(BaseAgent):
             "approval_id"
         )
         approved = bool(event.payload.get("approved", False))
-        resolved_by = event.payload.get("user_id") or event.payload.get("resolved_by") or "api"
+        resolved_by = event.payload.get("user_id") or event.payload.get("resolved_by")
+        if approval_id and not resolved_by:
+            logger.warning(
+                "evolution_feedback_resolver_required",
+                approval_id=approval_id,
+                event_id=event.event_id,
+            )
+            return []
         try:
             if approved:
                 await self._control_plane_approvals.approve_for_sensitive_action(
                     approval_id,
-                    resolved_by=resolved_by,
+                    resolved_by=resolved_by or "api",
                 )
             else:
                 await self._control_plane_approvals.reject_for_sensitive_action(
                     approval_id,
-                    resolved_by=resolved_by,
+                    resolved_by=resolved_by or "api",
                 )
         except ApprovalRequiredError as exc:
             logger.warning(
@@ -224,17 +231,27 @@ class EvolutionAgent(BaseAgent):
         approval_id = event.payload.get("control_plane_approval_id") or event.payload.get(
             "approval_id"
         )
+        resolved_by = user_id
+
+        if approval_id and not resolved_by:
+            logger.warning(
+                "pattern_control_plane_resolver_required",
+                pattern_id=pattern_id,
+                approval_id=approval_id,
+                event_id=event.event_id,
+            )
+            return []
 
         try:
             if approved:
                 await self._control_plane_approvals.approve_for_sensitive_action(
                     approval_id,
-                    resolved_by=user_id or "api",
+                    resolved_by=resolved_by or "api",
                 )
             else:
                 await self._control_plane_approvals.reject_for_sensitive_action(
                     approval_id,
-                    resolved_by=user_id or "api",
+                    resolved_by=resolved_by or "api",
                 )
         except ApprovalRequiredError as exc:
             logger.warning(
@@ -251,7 +268,7 @@ class EvolutionAgent(BaseAgent):
 
         success = await self._approval_gateway.process_approval(
             pattern_id=pattern_id,
-            user_id=user_id,
+            user_id=resolved_by or "",
             approved=approved,
         )
 

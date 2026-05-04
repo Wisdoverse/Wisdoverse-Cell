@@ -221,6 +221,101 @@ class TestHandleRequest:
         assert result["control_plane_approval_id"] == "appr_evo_1"
         agent._control_plane_approvals.request_approval.assert_awaited_once()
 
+    @pytest.mark.asyncio
+    async def test_feedback_requires_resolver_for_control_plane_approval(self, agent):
+        agent._control_plane_approvals = MagicMock()
+        agent._control_plane_approvals.approve_for_sensitive_action = AsyncMock()
+
+        event = _make_event(
+            EventTypes.EVOLUTION_HUMAN_FEEDBACK,
+            {"approved": True, "control_plane_approval_id": "appr_evo_1"},
+        )
+
+        result = await agent._process_feedback(event)
+
+        assert result == []
+        agent._control_plane_approvals.approve_for_sensitive_action.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_feedback_records_human_resolver_for_control_plane_approval(
+        self, agent
+    ):
+        agent._control_plane_approvals = MagicMock()
+        agent._control_plane_approvals.approve_for_sensitive_action = AsyncMock()
+
+        event = _make_event(
+            EventTypes.EVOLUTION_HUMAN_FEEDBACK,
+            {
+                "approved": True,
+                "control_plane_approval_id": "appr_evo_1",
+                "user_id": "human:cto",
+            },
+        )
+
+        result = await agent._process_feedback(event)
+
+        assert result == []
+        agent._control_plane_approvals.approve_for_sensitive_action.assert_awaited_once_with(
+            "appr_evo_1",
+            resolved_by="human:cto",
+        )
+
+    @pytest.mark.asyncio
+    async def test_pattern_approval_requires_resolver_for_control_plane_approval(
+        self, agent
+    ):
+        agent._control_plane_approvals = MagicMock()
+        agent._control_plane_approvals.approve_for_sensitive_action = AsyncMock()
+        agent._approval_gateway = MagicMock()
+        agent._approval_gateway.process_approval = AsyncMock()
+
+        event = _make_event(
+            EventTypes.EVOLUTION_PATTERN_APPROVED,
+            {
+                "pattern_id": "pat_1",
+                "approved": True,
+                "control_plane_approval_id": "appr_evo_1",
+            },
+        )
+
+        result = await agent._process_pattern_approval(event)
+
+        assert result == []
+        agent._control_plane_approvals.approve_for_sensitive_action.assert_not_awaited()
+        agent._approval_gateway.process_approval.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_pattern_approval_records_human_resolver_for_control_plane_approval(
+        self, agent
+    ):
+        agent._control_plane_approvals = MagicMock()
+        agent._control_plane_approvals.approve_for_sensitive_action = AsyncMock()
+        agent._approval_gateway = MagicMock()
+        agent._approval_gateway.process_approval = AsyncMock(return_value=True)
+
+        event = _make_event(
+            EventTypes.EVOLUTION_PATTERN_APPROVED,
+            {
+                "pattern_id": "pat_1",
+                "approved": True,
+                "control_plane_approval_id": "appr_evo_1",
+                "user_id": "human:cto",
+            },
+        )
+
+        result = await agent._process_pattern_approval(event)
+
+        assert result == []
+        agent._control_plane_approvals.approve_for_sensitive_action.assert_awaited_once_with(
+            "appr_evo_1",
+            resolved_by="human:cto",
+        )
+        agent._approval_gateway.process_approval.assert_awaited_once_with(
+            pattern_id="pat_1",
+            user_id="human:cto",
+            approved=True,
+        )
+
 
 # ── GlobalAnalyzer Tests ─────────────────────────────────────────────────
 
