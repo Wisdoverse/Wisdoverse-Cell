@@ -262,9 +262,11 @@ Mounted by shared API helpers when enabled:
 | Method | Path | Purpose |
 |--------|------|---------|
 | `POST` | `/api/dsar/export` | Export user data |
-| `POST` | `/api/dsar/delete` | Delete user data |
+| `POST` | `/api/dsar/delete` | Dry-run user data deletion; `confirm=true` requires an approved `approval_id` |
 
-DSAR routes require internal authentication and must be audited.
+DSAR routes require internal authentication and must be audited. Confirmed
+deletion is a legal/privacy-sensitive destructive action and must carry a
+control-plane approval id when approval enforcement is enabled.
 
 ## A2A and MCP Protocol Routes
 

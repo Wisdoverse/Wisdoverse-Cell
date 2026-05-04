@@ -9,8 +9,9 @@ import hashlib
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from shared.control_plane import ApprovalGateService, ApprovalRequiredError
 from shared.middleware.internal_auth import verify_internal_key
 from shared.schemas.dsar import DSARRequest, DSARResult
 from shared.utils.logger import get_logger
@@ -25,7 +26,11 @@ def _hash_uid(user_id: str) -> str:
     return hashlib.sha256(user_id.encode()).hexdigest()[:16]
 
 
-def create_dsar_router(dsar_service: "DSARService") -> APIRouter:
+def create_dsar_router(
+    dsar_service: "DSARService",
+    *,
+    approval_gate: ApprovalGateService | None = None,
+) -> APIRouter:
     """Factory: create a DSAR router bound to an agent-specific DSARService.
 
     Usage in agent ``main.py``::
@@ -37,6 +42,7 @@ def create_dsar_router(dsar_service: "DSARService") -> APIRouter:
         )
     """
     router = APIRouter(prefix="/api/dsar", tags=["DSAR"])
+    gate = approval_gate or ApprovalGateService(source_agent_id="dsar-api")
 
     @router.post("/export", response_model=DSARResult)
     async def export_user_data(
@@ -79,8 +85,21 @@ def create_dsar_router(dsar_service: "DSARService") -> APIRouter:
             "dsar_api_delete",
             user_id_hash=uid_hash,
             dry_run=dry_run,
+            approval_id=body.approval_id,
             timestamp=datetime.now(UTC).isoformat(),
         )
+
+        if not dry_run:
+            try:
+                await gate.ensure_approved_for_sensitive_action(body.approval_id)
+            except ApprovalRequiredError as exc:
+                logger.warning(
+                    "dsar_delete_approval_required",
+                    user_id_hash=uid_hash,
+                    approval_id=body.approval_id,
+                    error=str(exc),
+                )
+                raise HTTPException(status_code=403, detail=str(exc)) from exc
 
         result = await dsar_service.delete_user_data(body.user_id, dry_run=dry_run)
 
