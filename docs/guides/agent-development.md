@@ -12,6 +12,7 @@ Wisdoverse Cell separates organization-role agents from service modules:
 | Kind | Meaning | Examples |
 |------|---------|----------|
 | `organization_role` | Business role that owns intent, tradeoffs, escalation, and user interaction policy | CEO, CTO, CPO, COO, PM |
+| `business_runtime_agent` | Independently deployed agent that owns business work outcomes | requirement manager, PJM, QA, Dev |
 | `capability_module` | Deployed support boundary that performs bounded work | sync, analysis, evolution |
 | `integration_gateway` | User or platform traffic gateway | user interaction gateway, channel gateway |
 | `system_worker` | Internal orchestration worker | coordinator |

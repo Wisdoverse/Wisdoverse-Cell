@@ -25,9 +25,10 @@ interface AgentFleetOverviewProps {
 
 const kindOrder: Record<string, number> = {
   organization_role: 0,
-  integration_gateway: 1,
-  capability_module: 2,
-  system_worker: 3,
+  business_runtime_agent: 1,
+  integration_gateway: 2,
+  capability_module: 3,
+  system_worker: 4,
 };
 
 export function AgentFleetOverview({

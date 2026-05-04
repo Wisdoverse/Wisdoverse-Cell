@@ -134,7 +134,7 @@ def test_business_runtime_agents_are_real_implemented_agents() -> None:
         "dev-agent",
     }
     assert all(
-        module.agent_kind == AgentKind.CAPABILITY_MODULE
+        module.agent_kind == AgentKind.BUSINESS_RUNTIME_AGENT
         and module.implemented
         and module.business_agent
         and module.runtime_boundary == "root_agent"

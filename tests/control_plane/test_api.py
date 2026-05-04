@@ -564,7 +564,7 @@ async def test_control_plane_api_creates_frontend_agent_definition(
 
 
 @pytest.mark.asyncio
-async def test_control_plane_api_separates_role_agents_from_capability_modules(
+async def test_control_plane_api_separates_agent_kinds(
     db_session: AsyncSession,
 ):
     repo = ControlPlaneRepository(db_session)
@@ -604,13 +604,27 @@ async def test_control_plane_api_separates_role_agents_from_capability_modules(
                 "context_sources": ["openproject", "feishu"],
             },
         )
+        business_runtime_agent = await client.post(
+            "/api/v1/control-plane/agents",
+            json={
+                "company_id": "cmp_agent_kinds",
+                "agent_id": "qa-agent",
+                "display_name": "QA Agent",
+                "agent_kind": "business_runtime_agent",
+                "interaction_mode": "internal",
+                "role": "quality-agent",
+                "title": "QA Agent",
+                "domain": "quality",
+                "context_sources": ["gitlab", "control_plane"],
+            },
+        )
         invalid_module = await client.post(
             "/api/v1/control-plane/agents",
             json={
                 "company_id": "cmp_agent_kinds",
                 "agent_id": "qa-direct",
                 "display_name": "QA Direct",
-                "agent_kind": "capability_module",
+                "agent_kind": "business_runtime_agent",
                 "interaction_mode": "direct",
             },
         )
@@ -620,16 +634,29 @@ async def test_control_plane_api_separates_role_agents_from_capability_modules(
         )
         listed_modules = await client.get(
             "/api/v1/control-plane/agents",
-            params={"company_id": "cmp_agent_kinds", "interaction_mode": "internal"},
+            params={"company_id": "cmp_agent_kinds", "agent_kind": "capability_module"},
+        )
+        listed_business_agents = await client.get(
+            "/api/v1/control-plane/agents",
+            params={
+                "company_id": "cmp_agent_kinds",
+                "agent_kind": "business_runtime_agent",
+            },
         )
 
     assert role_agent.status_code == 201
     assert module_agent.status_code == 201
+    assert business_runtime_agent.status_code == 201
     assert invalid_module.status_code == 422
     assert listed_roles.json()["total"] == 1
     assert listed_roles.json()["agents"][0]["agent_id"] == "cto"
     assert listed_modules.json()["total"] == 1
     assert listed_modules.json()["agents"][0]["agent_kind"] == "capability_module"
+    assert listed_business_agents.json()["total"] == 1
+    assert (
+        listed_business_agents.json()["agents"][0]["agent_kind"]
+        == "business_runtime_agent"
+    )
 
 
 @pytest.mark.asyncio

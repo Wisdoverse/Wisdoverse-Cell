@@ -65,6 +65,7 @@ const ROLE_OPTIONS = [
 
 const AGENT_KIND_OPTIONS = [
   "organization_role",
+  "business_runtime_agent",
   "capability_module",
   "integration_gateway",
   "system_worker",

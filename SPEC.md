@@ -212,8 +212,8 @@ Fields:
 
 - `agent_id`
 - `agent_name`
-- `agent_kind` (`organization_role`, `capability_module`,
-  `integration_gateway`, or `system_worker`)
+- `agent_kind` (`organization_role`, `business_runtime_agent`,
+  `capability_module`, `integration_gateway`, or `system_worker`)
 - `interaction_mode` (`direct`, `routed`, `internal`, or `none`)
 - `context_sources`
 - `responsibilities`

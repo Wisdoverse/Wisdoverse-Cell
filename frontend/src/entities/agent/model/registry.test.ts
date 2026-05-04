@@ -48,7 +48,7 @@ describe("agent registry architecture boundary", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: "requirement-manager",
-          agentKind: "capability_module",
+          agentKind: "business_runtime_agent",
           interactionMode: "internal",
           runtimeBoundary: "root_agent",
           businessAgent: true,

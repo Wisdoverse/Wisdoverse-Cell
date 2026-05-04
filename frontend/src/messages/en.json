@@ -315,6 +315,7 @@
     "agentKind": "Agent kind",
     "agentKinds": {
       "organization_role": "Organization role",
+      "business_runtime_agent": "Business runtime agent",
       "capability_module": "Capability module",
       "integration_gateway": "Integration gateway",
       "system_worker": "System worker"

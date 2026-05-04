@@ -29,6 +29,7 @@ const STATUS_OPTIONS = ["all", "running", "idle", "error", "stopped"] as const;
 const AGENT_KIND_OPTIONS = [
   "all",
   "organization_role",
+  "business_runtime_agent",
   "integration_gateway",
   "capability_module",
   "system_worker",

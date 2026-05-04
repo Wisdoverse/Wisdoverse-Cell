@@ -23,6 +23,7 @@ const statusLabels: Record<string, string> = {
 
 const kindLabels: Record<string, string> = {
   organization_role: "Role",
+  business_runtime_agent: "Agent",
   capability_module: "Module",
   integration_gateway: "Gateway",
   system_worker: "System",

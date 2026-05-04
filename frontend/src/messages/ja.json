@@ -315,6 +315,7 @@
     "agentKind": "エージェント種別",
     "agentKinds": {
       "organization_role": "組織ロール",
+      "business_runtime_agent": "ビジネス実行エージェント",
       "capability_module": "機能モジュール",
       "integration_gateway": "連携ゲートウェイ",
       "system_worker": "システムワーカー"

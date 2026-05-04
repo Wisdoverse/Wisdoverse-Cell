@@ -2,6 +2,7 @@ export type AgentStatus = "running" | "idle" | "warning" | "error" | "stopped";
 
 export type AgentKind =
   | "organization_role"
+  | "business_runtime_agent"
   | "capability_module"
   | "integration_gateway"
   | "system_worker";

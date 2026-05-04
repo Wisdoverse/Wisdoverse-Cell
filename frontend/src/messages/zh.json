@@ -315,6 +315,7 @@
     "agentKind": "智能体类型",
     "agentKinds": {
       "organization_role": "组织角色",
+      "business_runtime_agent": "业务运行智能体",
       "capability_module": "能力模块",
       "integration_gateway": "交互网关",
       "system_worker": "系统任务"

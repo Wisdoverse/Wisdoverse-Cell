@@ -146,6 +146,12 @@ IDs belong to the same company context.
 participates in EventBus communication without importing another agent's
 internal implementation.
 
+`agent_kind` accepts `organization_role`, `business_runtime_agent`,
+`capability_module`, `integration_gateway`, and `system_worker`. Business
+runtime agents are deployed root agents such as requirement manager, PJM, QA,
+and Dev. Capability modules are support boundaries such as sync, analysis, and
+evolution.
+
 ## Requirement Manager API
 
 Primary prefix: `/api/v1`.

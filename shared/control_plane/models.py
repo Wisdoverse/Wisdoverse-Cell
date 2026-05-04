@@ -45,6 +45,7 @@ class WorkItemPriority(StrEnum):
 
 class AgentKind(StrEnum):
     ORGANIZATION_ROLE = "organization_role"
+    BUSINESS_RUNTIME_AGENT = "business_runtime_agent"
     CAPABILITY_MODULE = "capability_module"
     INTEGRATION_GATEWAY = "integration_gateway"
     SYSTEM_WORKER = "system_worker"
