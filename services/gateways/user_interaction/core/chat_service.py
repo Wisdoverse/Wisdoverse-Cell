@@ -11,6 +11,7 @@ from shared.infra.conversation_engine import (
 )
 from shared.infra.denial_tracker import DenialTracker
 from shared.infra.llm_gateway import llm_gateway
+from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.infra.tool_registry import ToolRegistry, build_tool
 from shared.infra.tool_validator import ToolValidationError, ToolValidator
 from shared.utils.logger import get_logger
@@ -375,17 +376,9 @@ class ChatService:
         """Serialize runtime context as user-role data, not system instructions."""
         if not untrusted_context:
             return ""
-        context_json = json.dumps(
-            untrusted_context,
-            ensure_ascii=False,
-            sort_keys=True,
-            default=str,
-        )
         return (
             f"{_UNTRUSTED_CONTEXT_HEADER}\n"
-            "<untrusted_runtime_context_json>\n"
-            f"{context_json}\n"
-            "</untrusted_runtime_context_json>"
+            f"{wrap_untrusted_json('untrusted_runtime_context_json', untrusted_context)}"
         )
 
     @staticmethod
