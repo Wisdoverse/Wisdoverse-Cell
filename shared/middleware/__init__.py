@@ -13,6 +13,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from shared.config import settings
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 logger = get_logger("middleware")
@@ -66,7 +67,9 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
             logger.warning(
                 "api_key_rejected",
                 path=request.url.path,
-                client_ip=request.client.host if request.client else "unknown",
+                client_ip_hash=hash_identifier(
+                    request.client.host if request.client else "unknown"
+                ),
             )
             return Response(
                 content='{"detail":"Invalid or missing API key"}',
@@ -151,7 +154,7 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
                 status=status,
                 latency_ms=latency_ms,
                 content_length=content_length,
-                client_ip=client_ip,
+                client_ip_hash=hash_identifier(client_ip),
             )
 
             if status < 400:
@@ -260,7 +263,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         allowed, retry_after = await self._is_allowed_redis(client_ip)
         if not allowed:
-            logger.warning("rate_limited", client_ip=client_ip, retry_after=retry_after)
+            logger.warning(
+                "rate_limited",
+                client_ip_hash=hash_identifier(client_ip),
+                retry_after=retry_after,
+            )
             return Response(
                 content='{"detail":"Too many requests"}',
                 status_code=429,

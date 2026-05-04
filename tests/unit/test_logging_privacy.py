@@ -14,6 +14,7 @@ RAW_LOG_KWARGS = {
     "by",
     "content_preview",
     "chat_id",
+    "client_ip",
     "data_preview",
     "deleted_by",
     "email",

@@ -9,6 +9,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from shared.config import settings
+from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 logger = get_logger("middleware")
@@ -102,7 +103,7 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
                 status=status,
                 latency_ms=latency_ms,
                 content_length=content_length,
-                client_ip=client_ip,
+                client_ip_hash=hash_identifier(client_ip),
             )
 
             if status < 400:
@@ -166,7 +167,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         if not self._is_allowed(client_ip):
             retry_after = self._retry_after(client_ip)
-            logger.warning("rate_limited", client_ip=client_ip, retry_after=retry_after)
+            logger.warning(
+                "rate_limited",
+                client_ip_hash=hash_identifier(client_ip),
+                retry_after=retry_after,
+            )
             return Response(
                 content='{"detail":"Too many requests"}',
                 status_code=429,
