@@ -565,6 +565,16 @@ def test_frontend_generic_shared_components_live_in_shared_ui() -> None:
             )
 
 
+def test_frontend_app_shell_owns_event_listener() -> None:
+    app_shell = Path("frontend/src/widgets/app-shell/ui/app-shell.tsx")
+    source = app_shell.read_text()
+
+    assert Path("frontend/src/widgets/app-shell/ui/event-listener.tsx").exists()
+    assert not Path("frontend/src/components/shared/event-listener.tsx").exists()
+    assert "@/components/shared/event-listener" not in source
+    assert './event-listener' in source
+
+
 def test_event_catalog_uses_canonical_runtime_event_names() -> None:
     catalog = Path("docs/guides/event-catalog.md").read_text()
     expected = {
