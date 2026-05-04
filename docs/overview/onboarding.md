@@ -533,7 +533,12 @@ All LLM calls go through `LLMGateway`, which provides circuit breaking, cost tra
 ```python
 # Correct
 from shared.infra.llm_gateway import llm_gateway
-result = await llm_gateway.chat(messages=messages, model=model)
+result = await llm_gateway.complete(
+    prompt=prompt,
+    agent_id="my-agent",
+    task_type="general",
+    model=model,
+)
 
 # Wrong — bypasses cost tracking and circuit breaker
 from openai import AsyncOpenAI
@@ -788,12 +793,12 @@ return [self.create_event(
 
 ```python
 # Wrong — breaks if module moves
-with patch("shared.infra.llm_gateway.llm_gateway.chat"):
+with patch("shared.infra.llm_gateway.llm_gateway.complete"):
     ...
 
 # Correct — resilient to directory moves
 import shared.infra.llm_gateway as llm_mod
-with patch.object(llm_mod.llm_gateway, "chat"):
+with patch.object(llm_mod.llm_gateway, "complete"):
     ...
 ```
 
@@ -817,13 +822,18 @@ with patch.object(llm_mod.llm_gateway, "chat"):
 
 **Symptom**: Agent crashes or returns 500 when the LiteLLM proxy or active provider is down or rate-limited.
 
-**Cause**: Missing try/except around `llm_gateway.chat()` calls.
+**Cause**: Missing try/except around `llm_gateway.complete()` calls.
 
 **Fix**: Every LLM call must have a graceful fallback. This is the CPO's key question: _"Graceful fallback if LLM fails?"_
 
 ```python
 try:
-    result = await llm_gateway.chat(messages=messages, model=model)
+    result = await llm_gateway.complete(
+        prompt=prompt,
+        agent_id=self.agent_id,
+        task_type="general",
+        model=model,
+    )
 except CircuitBreakerError:
     logger.warning("llm_circuit_open, using fallback")
     result = self._fallback_result()

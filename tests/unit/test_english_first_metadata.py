@@ -77,6 +77,15 @@ def test_docs_and_docker_guidance_are_english_first() -> None:
     assert offenders == []
 
 
+def test_onboarding_llm_example_uses_gateway_api() -> None:
+    """LLM onboarding must show the real LiteLLM-backed gateway API."""
+    text = Path("docs/overview/onboarding.md").read_text(encoding="utf-8")
+
+    assert "llm_gateway.chat" not in text
+    assert 'llm_gateway, "chat"' not in text
+    assert "await llm_gateway.complete(" in text
+
+
 def test_api_error_details_are_english_first() -> None:
     offenders: list[str] = []
     for path in _api_route_files():
