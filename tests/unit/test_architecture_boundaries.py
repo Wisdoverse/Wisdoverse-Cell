@@ -649,6 +649,15 @@ def test_frontend_app_shell_owns_layout_components() -> None:
             assert f"@/components/layout/{component}" not in source
 
 
+def test_frontend_legacy_components_root_is_empty() -> None:
+    legacy_files = list(Path("frontend/src/components").rglob("*.ts*"))
+    assert legacy_files == []
+
+    for path in Path("frontend/src").rglob("*.ts*"):
+        source = path.read_text()
+        assert "@/components/" not in source
+
+
 def test_frontend_page_local_components_live_in_widgets() -> None:
     widget_components = {
         "activity": {
