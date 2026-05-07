@@ -113,15 +113,15 @@ async def test_approval_gate_rejects(db_session: AsyncSession):
     approval = await gate.request_approval(
         company_id=company.company_id,
         category=ApprovalCategory.FINANCE,
-        requested_by="agent:analysis-agent",
-        source_agent_id="analysis-agent",
+        requested_by="agent:analysis-module",
+        source_agent_id="analysis-module",
         proposed_action="Increase monthly LLM budget",
         reason="Higher analysis volume",
         risk="Spend increase",
         rollback_note="Restore previous budget limit",
     )
 
-    assert approval.affected_resources == ["agent:analysis-agent"]
+    assert approval.affected_resources == ["agent:analysis-module"]
 
     decision = await gate.reject(approval.approval_id, resolved_by="human:cfo")
     assert decision.approved is False

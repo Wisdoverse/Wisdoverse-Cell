@@ -102,7 +102,7 @@ The default plugin wraps agents with `EvolvedAgent` for execution tracing and se
 3. **shutdown**: Closes the Redis connection
 4. **health_check**: Reports `{"evolution_redis": true/false}`
 
-Disable evolution wrapping for agents that should not self-evolve (e.g., evolution-agent itself):
+Disable evolution wrapping for agents that should not self-evolve (e.g., evolution-module itself):
 
 ```python
 app = create_agent_app(agent, evolution_excluded=True)

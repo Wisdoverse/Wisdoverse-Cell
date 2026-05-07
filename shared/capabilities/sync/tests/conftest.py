@@ -1,5 +1,5 @@
 """
-Shared Test Fixtures - sync_agent
+Shared Test Fixtures - sync_module
 
 Mock fixtures shared across unit and integration tests.
 DB fixtures are in unit/conftest.py (mock) and integration/conftest.py (real).

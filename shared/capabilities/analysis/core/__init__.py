@@ -1,4 +1,4 @@
-"""AnalysisAgent Core - Report generation and analysis."""
+"""AnalysisModule Core - Report generation and analysis."""
 from .config import AnalysisCoreConfig
 from .daily_report import DailyReportGenerator
 from .milestone_checker import MilestoneChecker

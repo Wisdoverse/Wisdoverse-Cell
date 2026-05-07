@@ -1,6 +1,6 @@
 {
   "name": "agent-development",
-  "description": "Standard workflow for AI-assisted agent development. Codex plans, Claude Code and Gemini implement in parallel, Codex reviews, and humans approve. Validated during QA Agent development.",
+  "description": "Standard workflow for AI-assisted runtime development. Codex plans, Claude Code and Gemini implement in parallel, Codex reviews, and humans approve. Validated during QA Agent development.",
   "nodes": [
     {
       "name": "plan",
@@ -26,7 +26,7 @@
       "dependsOn": ["impl-contracts"],
       "config": {
         "cliTool": "claude",
-        "prompt": "Follow var/agent-workflows/${AGENT_NAME}-implementation-plan.md and implement the core modules assigned to Claude Code.\n\nInclude, as needed:\n- service/agent.py (inherits BaseAgent and implements handle_event/handle_request)\n- core/ business logic\n- app/main.py (create_agent_app entrypoint)\n- app/metrics.py (Prometheus metrics)\n- unit tests under tests/unit/\n\nConstraints:\n- Must inherit BaseAgent and use create_agent_app()\n- Use asyncio for async operations and do not block the event loop\n- Use EventTypes constants for events\n- handle_event() performs side effects and returns []"
+        "prompt": "Follow var/agent-workflows/${AGENT_NAME}-implementation-plan.md and implement the core modules assigned to Claude Code.\n\nInclude, as needed:\n- service/agent.py (runtime protocol adapter; business agents use Agent class names, support capabilities use Module class names)\n- core/ business logic\n- app/main.py (create_agent_app entrypoint)\n- app/metrics.py (Prometheus metrics)\n- unit tests under tests/unit/\n\nConstraints:\n- Must inherit BaseAgent and use create_agent_app()\n- Use asyncio for async operations and do not block the event loop\n- Use EventTypes constants for events\n- handle_event() performs side effects and returns []"
       }
     },
     {

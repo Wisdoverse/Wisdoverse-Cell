@@ -1,5 +1,5 @@
 """
-Prometheus business metrics for Sync Agent.
+Prometheus business metrics for Sync Module.
 """
 from prometheus_client import Counter, Gauge, Histogram
 

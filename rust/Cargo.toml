@@ -1,0 +1,9 @@
+[workspace]
+members = ["gateway"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "LicenseRef-Wisdoverse-Cell-BSL-1.1"
+repository = "https://github.com/Wisdoverse/project-cell"
+rust-version = "1.86"

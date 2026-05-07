@@ -1,6 +1,6 @@
 # Wisdoverse Cell Documentation Index
 
-> Last updated: 2026-05-03
+> Last updated: 2026-05-04
 >
 > This is the entry point for Wisdoverse Cell documentation. Documentation is English-first. Non-English text should be limited to locale values, quoted source text, external platform contracts, and multilingual fixtures.
 
@@ -59,6 +59,7 @@ For onboarding, architecture, and shared terminology.
 | [ADR-0003: Tiered LLM Model Strategy](./adr/0003-tiered-llm-model-strategy.md) | 2026-03-07 | Opus/Sonnet/Haiku routing and cost control |
 | [ADR-0004: Inter-Agent HTTP Communication](./adr/0004-inter-agent-http-communication.md) | 2026-03-07 | No direct Python imports between agents; HTTP plus EventBus |
 | [ADR-0005: Channel Gateway Hexagonal Unification](./adr/0005-channel-gateway-hexagonal-unification.md) | 2026-03-08 | `core/messaging` ports and integration adapters |
+| [ADR-0007: Rust and Python Backend Migration](./adr/0007-rust-python-backend-migration.md) | 2026-05-04 | Rust edge plane plus Python agent plane migration path |
 
 ---
 
@@ -85,6 +86,7 @@ For contributors, operators, and deployers.
 | [`Makefile`](../Makefile) | Unified command entry point |
 | [`docker-compose.yml`](../docker-compose.yml) | Docker Compose deployment |
 | [`docker/compose/`](../docker/compose/) | Layered cloud-native Compose files |
+| [`rust/Cargo.toml`](../rust/Cargo.toml) | Rust workspace for gateway and future edge-plane services |
 | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | GitHub Actions CI |
 | [`pyproject.toml`](../pyproject.toml) | Python project configuration |
 | [`LICENSE`](../LICENSE) | Wisdoverse Cell Business Source License 1.1 |

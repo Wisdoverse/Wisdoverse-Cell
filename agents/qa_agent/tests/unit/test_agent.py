@@ -142,7 +142,7 @@ class TestHandleEvent:
             event_type="qa.run-requested",
             source_agent="pjm-agent",
             payload={
-                "agent_name": "sync_agent",
+                "agent_name": "sync_module",
                 "level": "l0",
                 "requested_by": "pjm-agent",
             },

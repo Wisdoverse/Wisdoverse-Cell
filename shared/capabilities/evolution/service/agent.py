@@ -1,7 +1,7 @@
 """
-EvolutionAgent — Analyzes global trace data and proposes architecture-level optimizations.
+EvolutionModule — Analyzes global trace data and proposes architecture-level optimizations.
 
-CRITICAL: This agent must NOT be wrapped with EvolvedAgent (no self-evolution).
+CRITICAL: This module must NOT be wrapped with EvolvedAgent (no self-evolution).
 Phase 2 operates in suggestion mode only — proposals require human approval.
 Phase 3 adds collaboration pattern proposal and approval handling.
 """
@@ -34,13 +34,13 @@ from shared.utils.logger import get_logger
 
 from .global_analyzer import GlobalAnalyzer
 
-logger = get_logger("evolution_agent.service")
+logger = get_logger("evolution_module.service")
 
 ControlPlaneSessionProvider = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 
 
-class EvolutionAgent(BaseAgent):
-    """Evolution engine that analyzes all agents and proposes improvements."""
+class EvolutionModule(BaseAgent):
+    """Evolution module that analyzes all agents and proposes improvements."""
 
     def __init__(
         self,
@@ -51,7 +51,7 @@ class EvolutionAgent(BaseAgent):
         control_plane_enabled: bool | None = None,
     ):
         super().__init__(
-            agent_id="evolution-agent",
+            agent_id="evolution-module",
             agent_name="Evolution Capability",
             subscribed_events=[
                 EventTypes.EVOLUTION_CYCLE_TRIGGERED,
@@ -540,8 +540,8 @@ class EvolutionAgent(BaseAgent):
         return f"agent:{target_agent}"
 
 
-agent = EvolutionAgent()
+agent = EvolutionModule()
 
 
-def get_agent() -> EvolutionAgent:
+def get_agent() -> EvolutionModule:
     return agent

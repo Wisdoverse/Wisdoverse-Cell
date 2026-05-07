@@ -35,11 +35,11 @@ services:
       POSTGRES_REPLICATION_PASSWORD: ${POSTGRES_REPLICATION_PASSWORD:-replicator}
       CHAT_AGENT_DB_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:-chat_agent_dev}
       PM_AGENT_DB_PASSWORD: ${PM_AGENT_DB_PASSWORD:-pjm_agent_dev}
-      SYNC_AGENT_DB_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:-sync_agent_dev}
-      ANALYSIS_AGENT_DB_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:-analysis_agent_dev}
+      SYNC_MODULE_DB_PASSWORD: ${SYNC_MODULE_DB_PASSWORD:-sync_agent_dev}
+      ANALYSIS_MODULE_DB_PASSWORD: ${ANALYSIS_MODULE_DB_PASSWORD:-analysis_agent_dev}
       QA_AGENT_DB_PASSWORD: ${QA_AGENT_DB_PASSWORD:-qa_agent_dev}
       DEV_AGENT_DB_PASSWORD: ${DEV_AGENT_DB_PASSWORD:-dev_agent_dev}
-      EVOLUTION_AGENT_DB_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:-evolution_agent_dev}
+      EVOLUTION_MODULE_DB_PASSWORD: ${EVOLUTION_MODULE_DB_PASSWORD:-evolution_agent_dev}
       PGDATA: /var/lib/postgresql/data/pgdata
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     volumes:

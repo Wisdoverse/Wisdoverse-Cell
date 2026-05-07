@@ -1,0 +1,14 @@
+# =============================================================================
+# Go Gateway Production Legacy Rollback
+# =============================================================================
+# Apply only after docker-compose.prod.yml when production must be rolled back
+# from the default Rust gateway to the prebuilt legacy Go gateway image.
+# Local builds remain disabled.
+# =============================================================================
+
+services:
+  gateway:
+    image: ${REGISTRY}projectcell/gateway:${VERSION}
+    build: !reset null
+    environment:
+      GATEWAY_IMPLEMENTATION: go-legacy

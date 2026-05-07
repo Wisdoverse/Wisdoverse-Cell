@@ -1,4 +1,4 @@
-"""SyncAgent Database."""
+"""SyncModule Database."""
 from .database import DatabaseManager, db_manager
 from .repository import (
     SubtaskMappingRepository,

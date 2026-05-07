@@ -306,7 +306,7 @@ async def test_publish_dlq_writes_observable_failed_event(bus, mock_redis):
         trace_id="trace_dlq",
     )
 
-    await bus.publish_dlq(event, "handler exploded", "analysis-agent")
+    await bus.publish_dlq(event, "handler exploded", "analysis-module")
 
     mock_redis.xadd.assert_awaited_once()
     call_args = mock_redis.xadd.call_args
@@ -314,10 +314,10 @@ async def test_publish_dlq_writes_observable_failed_event(bus, mock_redis):
 
     dlq_event = Event.model_validate_json(call_args.args[1]["data"])
     assert dlq_event.event_type == "dlq.failed"
-    assert dlq_event.source_agent == "analysis-agent"
+    assert dlq_event.source_agent == "analysis-module"
     assert dlq_event.metadata.trace_id == "trace_dlq"
     assert dlq_event.payload["original_event_id"] == event.event_id
-    assert dlq_event.payload["failed_by_agent"] == "analysis-agent"
+    assert dlq_event.payload["failed_by_agent"] == "analysis-module"
     assert dlq_event.payload["failure_stage"] == "handler"
     assert dlq_event.payload["error"] == "handler exploded"
 

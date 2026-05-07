@@ -300,8 +300,11 @@ class Settings(BaseSettings):
             return []
         return [c.strip() for c in self.qa_high_severity_checks.split(",") if c.strip()]
 
-    # ============ Agent Service Discovery ============
-    sync_agent_host: str = "sync-agent"
+    # ============ Capability and Agent Service Discovery ============
+    sync_module_host: str = "sync-module"
+    sync_module_port: int = 8010
+    # Deprecated aliases kept so older .env files continue to load.
+    sync_agent_host: str = "sync-module"
     sync_agent_port: int = 8010
     pjm_agent_url: str = "http://pjm-agent:8012"
 

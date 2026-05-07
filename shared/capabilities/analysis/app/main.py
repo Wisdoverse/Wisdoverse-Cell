@@ -12,7 +12,7 @@ from ..service.agent import agent as _raw_agent
 
 app = create_agent_app(
     _raw_agent,
-    title="Analysis Agent",
+    title="Analysis Module",
     description="Analysis capability for daily reports, weekly reports, milestones, and quality review.",
     routers=[(analysis_router, [Depends(verify_internal_key)])],
     plugins=[InfraHealthPlugin()],

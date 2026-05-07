@@ -1,0 +1,18 @@
+# =============================================================================
+# Rust Gateway Default Compatibility Overlay
+# =============================================================================
+# The canonical application Compose stack already runs this service as Rust.
+# This no-op compatibility overlay preserves older automation that still appends
+# docker-compose.rust-gateway.yml during rollout.
+# =============================================================================
+
+services:
+  gateway:
+    build:
+      context: ../..
+      dockerfile: rust/gateway/Dockerfile
+      args:
+        ALPINE_MIRROR: ${ALPINE_MIRROR:-}
+    image: ${REGISTRY:-}projectcell/rust-gateway:${VERSION:-latest}
+    environment:
+      GATEWAY_IMPLEMENTATION: rust

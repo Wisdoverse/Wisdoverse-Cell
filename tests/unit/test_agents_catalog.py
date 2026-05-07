@@ -131,7 +131,7 @@ def test_runtime_modules_expose_event_contracts() -> None:
         "coordinator.command",
         "sync.trigger",
     )
-    assert "sync.trigger" in modules["sync-agent"].subscribed_events
+    assert "sync.trigger" in modules["sync-module"].subscribed_events
     assert modules["coordinator"].published_events == (
         "coordinator.response",
         "coordinator.dispatch",
@@ -162,6 +162,12 @@ def test_catalog_distinguishes_runtime_modules_from_role_agents() -> None:
     assert is_organization_role_template("cto")
     assert get_organization_role_template("cto") is not None
     assert not is_runtime_module("cto")
+
+
+def test_capability_module_legacy_agent_ids_resolve_to_canonical_modules() -> None:
+    assert get_runtime_module("sync-agent") == get_runtime_module("sync-module")
+    assert get_runtime_module("analysis-agent") == get_runtime_module("analysis-module")
+    assert get_runtime_module("evolution-agent") == get_runtime_module("evolution-module")
 
 
 def test_managed_catalog_exposes_root_role_templates_and_runtime_modules() -> None:

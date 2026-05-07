@@ -5,7 +5,7 @@ humans set goals and approve high-leverage decisions while agent services
 handle repeatable operational work with traces, budgets, approvals, and audit
 trails.
 
-It packages a FastAPI agent runtime, a Go/Gin gateway, a Next.js console, and
+It packages a FastAPI agent runtime, a Rust/Axum gateway, a Next.js console, and
 PostgreSQL/Redis/NATS/Milvus infrastructure for requirement extraction, task
 decomposition, Feishu/OpenProject sync, QA checks, and self-evolution loops.
 
@@ -48,7 +48,9 @@ chat alone.
 ### Requirements
 
 - Docker and Docker Compose for local infrastructure.
-- Python 3.11+, Go 1.25, and Node.js/npm for local development.
+- Python 3.11+, Rust 1.86+, Node.js/npm, and Go 1.25 only when exercising the
+  legacy gateway rollback path
+  for local development.
 - LiteLLM provider keys and other secrets configured in `.env`.
 
 ### Option 1. Docker Compose stack
@@ -83,7 +85,8 @@ make dev
 Additional services:
 
 ```bash
-make gateway-dev
+make rust-gateway-run
+make gateway-dev  # legacy Go rollback path only
 make frontend-dev
 ```
 
@@ -93,7 +96,10 @@ make frontend-dev
 - `services/`: non-agent gateways and orchestration workers.
 - `shared/`: runtime, schemas, integrations, messaging, observability, and
   infra clients, plus support capabilities that are not business agents.
-- `gateway/`: Go API gateway and webhook entry points.
+- `rust/gateway/`: default Rust gateway for edge HTTP and webhook entry points;
+  it preserves the existing gateway routes and calls Python requirement services
+  through the shared gRPC contract.
+- `gateway/`: legacy Go gateway retained only for explicit rollback drills.
 - `frontend/`: Next.js console for operators.
 - `docs/`: product model, architecture, guides, ADRs, and specs.
 - `docker/`: Compose assets for local and production-style deployments.

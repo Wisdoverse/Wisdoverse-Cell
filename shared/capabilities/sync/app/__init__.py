@@ -1,1 +1,1 @@
-"""SyncAgent App"""
+"""SyncModule App"""

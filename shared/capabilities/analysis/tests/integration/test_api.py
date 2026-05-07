@@ -1,5 +1,5 @@
 """
-Integration Tests - AnalysisAgent API
+Integration Tests - AnalysisModule API
 
 Tests analysis capability HTTP endpoints with httpx.AsyncClient.
 """
@@ -11,9 +11,9 @@ from httpx import ASGITransport, AsyncClient
 
 @pytest.fixture
 def mock_agent():
-    """Create a mock AnalysisAgent instance."""
+    """Create a mock AnalysisModule instance."""
     agent = MagicMock()
-    agent.agent_id = "analysis-agent-test"
+    agent.agent_id = "analysis-module-test"
     agent._db_manager = None
     agent._event_bus = MagicMock()
     agent.handle_request = AsyncMock()

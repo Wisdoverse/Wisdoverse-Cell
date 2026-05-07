@@ -1,6 +1,6 @@
 # Wisdoverse Cell Operations Guide
 
-Last updated: 2026-05-03
+Last updated: 2026-05-07
 
 This runbook describes local development, production-style Docker operation,
 health checks, scaling, observability, and control-plane runtime switches.
@@ -13,7 +13,7 @@ Wisdoverse Cell uses layered Docker Compose files under `docker/compose/`:
 | Layer | File | Responsibility |
 |-------|------|----------------|
 | Base infrastructure | `docker-compose.base.yml` | PostgreSQL, PgBouncer, Redis, NATS, Milvus |
-| Application | `docker-compose.app.yml` | Application services: web, Go gateway, real runtime agents, and support capabilities |
+| Application | `docker-compose.app.yml` | Application services: web, gateway, real runtime agents, and support capabilities |
 | Proxy | `docker-compose.proxy.yml` | Traefik reverse proxy |
 | Observability | `docker-compose.observability.yml` | Prometheus, Grafana, Loki, Tempo, exporters |
 | Development override | `docker-compose.override.yml` | Exposed debug ports, single replicas |
@@ -25,8 +25,10 @@ Common modes:
 | Mode | Command | Use case |
 |------|---------|----------|
 | Development stack | `make up-dev` | Local Compose stack with infrastructure, web, gateway, real runtime agents, support capabilities, and Traefik ingress |
-| Infrastructure only | `make up-infra` | Run Python/Go/Node processes locally against shared infra |
+| Infrastructure only | `make up-infra` | Run Python/Rust/Node processes locally against shared infra |
 | Production-style stack | `make up-prod` | Production-like Compose topology |
+| Evidence-gated Rust gateway deploy | `make up-prod-rust-gateway` | Production-like stack using the default prebuilt Rust gateway image after evidence validation |
+| Legacy Go gateway rollback | `make up-prod-go-gateway-legacy` | Explicit rollback of only the gateway service to the prebuilt Go image |
 | Observability | `make monitoring-up` | Prometheus/Grafana/Loki/Tempo stack |
 
 ## 2. Local Development
@@ -47,6 +49,10 @@ make gateway-dev
 make frontend-dev
 ```
 
+`make gateway-dev` runs the legacy Go gateway directly. The default Compose
+gateway is Rust; use `make rust-gateway-run` when running the Rust gateway
+outside Compose.
+
 Default local endpoints:
 
 | Surface | URL |
@@ -65,14 +71,15 @@ Required environment values for production-like deployments:
 POSTGRES_PASSWORD=<strong-password>
 CHAT_AGENT_DB_PASSWORD=<strong-password>
 PM_AGENT_DB_PASSWORD=<strong-password>
-SYNC_AGENT_DB_PASSWORD=<strong-password>
-ANALYSIS_AGENT_DB_PASSWORD=<strong-password>
+SYNC_MODULE_DB_PASSWORD=<strong-password>
+ANALYSIS_MODULE_DB_PASSWORD=<strong-password>
 QA_AGENT_DB_PASSWORD=<strong-password>
 DEV_AGENT_DB_PASSWORD=<strong-password>
-EVOLUTION_AGENT_DB_PASSWORD=<strong-password>
+EVOLUTION_MODULE_DB_PASSWORD=<strong-password>
 AUTH_SECRET=<nextauth-secret>
 REGISTRY=registry.example.com/
 VERSION=1.0.0
+TRAEFIK_ACME_EMAIL=ops@example.com
 OPENAI_API_KEY=<openai-api-key-for-openai-models>
 # Or set ANTHROPIC_API_KEY / OPENROUTER_API_KEY / GEMINI_API_KEY for those LiteLLM routes.
 FEISHU_APP_ID=cli_xxxx
@@ -88,7 +95,11 @@ Production expectations:
 - `LOG_LEVEL=INFO`
 - `LOG_FORMAT=json`
 - Infrastructure ports are not exposed publicly.
-- Traefik is the public ingress.
+- Traefik is the public ingress. The production overlay configures Traefik
+  static settings through CLI arguments, exposes `websecure` on `HTTPS_PORT`,
+  and uses the `letsencrypt` ACME resolver. `TRAEFIK_ACME_EMAIL` must be set,
+  and the `traefik_letsencrypt` volume must be preserved across deployments so
+  gateway shadow checks validate public HTTPS with a trusted certificate.
 - `INTERNAL_TRANSPORT_PROTECTION` is declared for production. Use
   `trusted_private_network` only when all inter-agent HTTP traffic stays inside
   a private container or cluster network. Use `service_mesh` or `mtls` when any
@@ -143,19 +154,19 @@ anchor when a new provider is promoted to production use.
 | QA agent | `8014` | Acceptance checks |
 | Dev agent | `8015` | AgentForge-backed delivery |
 | Evolution support capability | `8016` | Self-evolution analysis and recommendations |
-| Go gateway | `8080` | API gateway and webhook entry points |
+| Gateway | `8080` | Rust API gateway and webhook entry points; Go is available only through explicit legacy rollback overlays |
 | Web | `3000` | Next.js frontend |
 | Traefik | `80`, `443`, `8081` | Ingress and dashboard |
 
 ## 4.1 Docker Build Targets
 
-`docker/Dockerfile.agents` is the canonical Python service image. Compose target
+`docker/Dockerfile.agents` is the canonical Python runtime image. Compose target
 names preserve runtime identifiers for compatibility even when a service is a
 gateway or support capability.
 
 Both the root Compose file and the layered application Compose file include the
-canonical Python runtime services: `ai-core`, `sync-agent`, `analysis-agent`,
-`pjm-agent`, `chat-agent`, `qa-agent`, `dev-agent`, and `evolution-agent`.
+canonical Python runtime services: `ai-core`, `sync-module`, `analysis-module`,
+`pjm-agent`, `chat-agent`, `qa-agent`, `dev-agent`, and `evolution-module`.
 
 Python service images use a runtime-only dependency split:
 
@@ -166,7 +177,7 @@ Python service images use a runtime-only dependency split:
   example `agents/requirement_manager/requirements.txt`.
 - Root `requirements.txt` remains the local development and CI dependency set;
   it intentionally includes test and developer tooling and is not used by
-  production agent images.
+  production runtime images.
 - `.dockerignore` excludes test trees from production image build context.
 - Requirement vector-search dependencies are optional because local
   `sentence-transformers` pulls a large torch stack. Build `ai-core` with
@@ -176,9 +187,9 @@ Python service images use a runtime-only dependency split:
 | Target | Package | Runtime kind |
 |--------|---------|--------------|
 | `ai-core` | `agents.requirement_manager` | Requirements business runtime agent, using the historical `ai-core` service id |
-| `sync-agent` | `shared.capabilities.sync` | Support capability |
-| `analysis-agent` | `shared.capabilities.analysis` | Support capability |
-| `evolution-agent` | `shared.capabilities.evolution` | Support capability |
+| `sync-module` | `shared.capabilities.sync` | Support capability |
+| `analysis-module` | `shared.capabilities.analysis` | Support capability |
+| `evolution-module` | `shared.capabilities.evolution` | Support capability |
 | `pjm-agent` | `agents.pjm_agent` | Business runtime agent |
 | `chat-agent` | `services.gateways.user_interaction` | User interaction gateway runtime id |
 | `qa-agent` | `agents.qa_agent` | Business runtime agent |
@@ -227,6 +238,117 @@ Gateway health:
 curl -f http://localhost:8080/health
 curl -f http://localhost:8080/ready
 ```
+
+Rust gateway canary check:
+
+```bash
+RUST_GATEWAY_URL=http://127.0.0.1:8080 make rust-gateway-canary-check
+```
+
+Rust gateway shadow check against the legacy Go gateway:
+
+```bash
+GATEWAY_PORT=18081 make up-dev-rust-gateway-shadow
+
+LEGACY_GATEWAY_URL=http://127.0.0.1:18081 \
+RUST_GATEWAY_URL=http://127.0.0.1:18080 \
+make rust-gateway-shadow-check
+
+LEGACY_GATEWAY_URL=http://127.0.0.1:18081 \
+RUST_GATEWAY_URL=http://127.0.0.1:18080 \
+make rust-gateway-local-shadow-gate
+```
+
+Both checks write a JSON evidence report to
+`.artifacts/rust-gateway-shadow-check.json` by default. Override the report path
+with `RUST_GATEWAY_SHADOW_REPORT=/path/to/report.json` when collecting
+rollback comparison or production canary evidence. `rust-gateway-local-shadow-gate`
+writes to `.artifacts/rust-gateway-local-shadow-check.json` by default and then
+runs the evidence validator with `RUST_GATEWAY_PROD_ALLOW_LOCAL_URLS=true`;
+this is only a local drill and cannot satisfy the production gate. The
+shadow compose target does not load the local development port override, so it
+does not claim host Redis, PostgreSQL, NATS, or Milvus ports. If host `8080` is
+already in use, start the shadow stack with `GATEWAY_PORT=<free-port>` and pass
+the same port through `LEGACY_GATEWAY_URL`.
+
+Rust gateway production config and rollback-comparison checks:
+
+```bash
+make rust-python-migration-audit
+
+# Run these from an environment where production secrets from `.env` are loaded.
+REGISTRY=registry.company.com/ VERSION=<release> \
+GATEWAY_HOST=gateway-legacy.prod.company.com \
+RUST_GATEWAY_SHADOW_HOST=gateway.prod.company.com \
+make rust-gateway-prod-shadow-config
+
+REGISTRY=registry.company.com/ VERSION=<release> \
+GATEWAY_HOST=gateway.prod.company.com \
+make rust-gateway-prod-cutover-config
+
+REGISTRY=registry.company.com/ VERSION=<release> \
+GATEWAY_HOST=gateway-legacy.prod.company.com \
+RUST_GATEWAY_SHADOW_HOST=gateway.prod.company.com \
+make up-prod-rust-gateway-shadow
+
+LEGACY_GATEWAY_URL=https://gateway-legacy.prod.company.com \
+RUST_GATEWAY_URL=https://gateway.prod.company.com \
+RUST_GATEWAY_PROD_EVIDENCE_REPORT=/path/to/prod-shadow-report.json \
+make rust-gateway-prod-shadow-check
+
+RUST_GATEWAY_PROD_EVIDENCE_REPORT=/path/to/prod-shadow-report.json \
+make rust-gateway-prod-gate
+
+REGISTRY=registry.company.com/ VERSION=<release> \
+RUST_GATEWAY_PROD_EVIDENCE_REPORT=/path/to/prod-shadow-report.json \
+make up-prod-rust-gateway
+```
+
+1Panel OpenResty shadow evidence can be used when this host already owns public
+HTTP/HTTPS through 1Panel and Compose must not bind ports `80` or `443`. Add two
+temporary OpenResty server files under `/opt/1panel/www/conf.d/`, register the
+same hostnames in `/opt/1panel/apps/openresty/openresty/1pwaf/data/conf/sites.json`,
+and disable WAF for those two temporary site records. The current local drill
+uses:
+
+```bash
+GATEWAY_HOST=projectcell-legacy.itoy.dev \
+LEGACY_GATEWAY_URL=https://projectcell-legacy.itoy.dev \
+RUST_GATEWAY_SHADOW_HOST=projectcell-rust.itoy.dev \
+RUST_GATEWAY_URL=https://projectcell-rust.itoy.dev \
+make rust-gateway-prod-shadow-check
+
+make rust-python-migration-audit-prod
+```
+
+Both OpenResty server blocks must route `/health`, `/ready`, and webhook paths
+to the base listener without adding a path prefix. The legacy host proxies to
+the Go gateway listener, and the Rust host proxies to the Rust shadow listener.
+
+`up-prod-rust-gateway` runs the standard production topology after evidence
+validation, so the canonical `gateway` service uses the prebuilt
+`projectcell/rust-gateway` image and keeps local builds disabled. It depends on
+`rust-gateway-prod-gate`, which rejects stale reports, local or private-network
+evidence, failed checks, and `degraded` readiness unless explicitly overridden
+for a non-production drill. `rust-gateway-prod-shadow-check` is the preferred
+production evidence command because it writes the report and validates it in
+one step. It also refuses to run unless both gateway URLs are explicitly set,
+globally routable, distinct base URLs without paths, query strings, or
+fragments. Hostnames must resolve to global addresses; localhost, private IPs,
+placeholder domains, unresolved hostnames, and DNS aliases that resolve back to
+local or private addresses are rejected, so the command cannot overwrite a
+release report with local probe output.
+
+For rollback-comparison evidence, `GATEWAY_HOST` must match the host portion of
+`LEGACY_GATEWAY_URL` because the shadow target deliberately runs the canonical
+`gateway` service as legacy Go through the rollback overlay. For the default
+Rust production deployment, `GATEWAY_HOST` is the public Rust gateway host.
+
+Use `up-prod-rust-gateway-shadow` when production or staging needs a controlled
+comparison between the legacy Go rollback path and the Rust gateway. That
+target applies the legacy Go rollback overlay to `gateway`, adds a separate
+`rust-gateway-shadow` service from the same prebuilt Rust image, and routes the
+shadow listener through Traefik with `RUST_GATEWAY_SHADOW_HOST`.
 
 ### 5.1 EventBus Pending Replay
 

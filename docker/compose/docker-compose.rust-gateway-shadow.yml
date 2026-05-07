@@ -1,0 +1,85 @@
+# =============================================================================
+# Rust Gateway Shadow
+# =============================================================================
+# Adds an independent Rust gateway listener on RUST_GATEWAY_SHADOW_PORT for
+# canary checks. To compare Rust against the legacy Go gateway, apply
+# docker-compose.go-gateway-legacy.yml before this file so `gateway` is the
+# rollback implementation and `rust-gateway-shadow` is the candidate.
+# =============================================================================
+
+services:
+  gateway:
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    deploy:
+      replicas: 1
+
+  rust-gateway-shadow:
+    build:
+      context: ../..
+      dockerfile: rust/gateway/Dockerfile
+      args:
+        ALPINE_MIRROR: ${ALPINE_MIRROR:-}
+    image: ${REGISTRY:-}projectcell/rust-gateway:${VERSION:-latest}
+    hostname: rust-gateway-shadow
+    environment:
+      GATEWAY_IMPLEMENTATION: rust-shadow
+      GATEWAY_SERVER_PORT: "8080"
+      GATEWAY_SERVER_MODE: ${GATEWAY_MODE:-release}
+      GATEWAY_GRPC_AI_SERVICE_ADDR: ai-core:50051
+      GATEWAY_GRPC_TIMEOUT: 30s
+      GATEWAY_REDIS_ADDR: redis:6379
+      GATEWAY_RATELIMIT_ENABLED: ${RATELIMIT_ENABLED:-true}
+      GATEWAY_RATELIMIT_RPS: ${RATELIMIT_RPS:-100}
+      GATEWAY_RATELIMIT_BURST_SIZE: ${RATELIMIT_BURST:-200}
+      GATEWAY_FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      GATEWAY_FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      GATEWAY_FEISHU_VERIFICATION_TOKEN: ${FEISHU_VERIFICATION_TOKEN:-}
+      GATEWAY_FEISHU_ENCRYPT_KEY: ${FEISHU_ENCRYPT_KEY:-}
+      GATEWAY_FEISHU_OPEN_API_BASE_URL: ${FEISHU_OPEN_API_BASE_URL:-https://open.feishu.cn/open-apis}
+      GATEWAY_FEISHU_VERIFY_SIGNATURE: "true"
+      GATEWAY_FEISHU_CHAT_AGENT_ADDR: chat-agent:8013
+      GATEWAY_FEISHU_PM_AGENT_ADDR: pjm-agent:8012
+      GATEWAY_FEISHU_INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
+      GATEWAY_WECOM_CORP_ID: ${WECOM_CORP_ID:-}
+      GATEWAY_WECOM_AGENT_ID: ${WECOM_AGENT_ID:-}
+      GATEWAY_WECOM_SECRET: ${WECOM_SECRET:-}
+      GATEWAY_WECOM_API_BASE_URL: ${WECOM_API_BASE_URL:-https://qyapi.weixin.qq.com/cgi-bin}
+      GATEWAY_WECOM_TOKEN: ${WECOM_TOKEN:-}
+      GATEWAY_WECOM_ENCODING_AES_KEY: ${WECOM_ENCODING_AES_KEY:-}
+      GATEWAY_LOG_LEVEL: ${LOG_LEVEL:-info}
+      GATEWAY_LOG_FORMAT: ${LOG_FORMAT:-json}
+    networks:
+      - frontend
+      - backend
+    ports:
+      - "${RUST_GATEWAY_SHADOW_PORT:-18080}:8080"
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "1"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 64M
+    restart: unless-stopped
+
+networks:
+  frontend:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_frontend
+    driver: bridge
+    external: false
+  backend:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_backend
+    driver: bridge
+    external: false

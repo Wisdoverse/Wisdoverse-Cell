@@ -1,4 +1,4 @@
-"""AnalysisAgent ORM Models."""
+"""AnalysisModule ORM Models."""
 from .base import Base
 from .report import ReportLog
 

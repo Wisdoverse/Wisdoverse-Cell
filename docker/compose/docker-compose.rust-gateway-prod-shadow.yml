@@ -1,0 +1,82 @@
+# =============================================================================
+# Rust Gateway Production Shadow
+# =============================================================================
+# Adds a prebuilt Rust gateway behind a separate shadow host. To compare Rust
+# against the legacy Go gateway in production, apply
+# docker-compose.go-gateway-legacy-prod.yml before this file.
+# =============================================================================
+
+services:
+  rust-gateway-shadow:
+    image: ${REGISTRY}projectcell/rust-gateway:${VERSION}
+    build: !reset null
+    hostname: rust-gateway-shadow
+    environment:
+      GATEWAY_IMPLEMENTATION: rust-shadow
+      GATEWAY_SERVER_PORT: "8080"
+      GATEWAY_SERVER_MODE: release
+      GATEWAY_GRPC_AI_SERVICE_ADDR: ai-core:50051
+      GATEWAY_GRPC_TIMEOUT: 30s
+      GATEWAY_REDIS_ADDR: redis:6379
+      GATEWAY_RATELIMIT_ENABLED: ${RATELIMIT_ENABLED:-true}
+      GATEWAY_RATELIMIT_RPS: ${RATELIMIT_RPS:-100}
+      GATEWAY_RATELIMIT_BURST_SIZE: ${RATELIMIT_BURST:-200}
+      GATEWAY_FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      GATEWAY_FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      GATEWAY_FEISHU_VERIFICATION_TOKEN: ${FEISHU_VERIFICATION_TOKEN:-}
+      GATEWAY_FEISHU_ENCRYPT_KEY: ${FEISHU_ENCRYPT_KEY:-}
+      GATEWAY_FEISHU_OPEN_API_BASE_URL: ${FEISHU_OPEN_API_BASE_URL:-https://open.feishu.cn/open-apis}
+      GATEWAY_FEISHU_VERIFY_SIGNATURE: "true"
+      GATEWAY_FEISHU_CHAT_AGENT_ADDR: chat-agent:8013
+      GATEWAY_FEISHU_PM_AGENT_ADDR: pjm-agent:8012
+      GATEWAY_FEISHU_INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
+      GATEWAY_WECOM_CORP_ID: ${WECOM_CORP_ID:-}
+      GATEWAY_WECOM_AGENT_ID: ${WECOM_AGENT_ID:-}
+      GATEWAY_WECOM_SECRET: ${WECOM_SECRET:-}
+      GATEWAY_WECOM_API_BASE_URL: ${WECOM_API_BASE_URL:-https://qyapi.weixin.qq.com/cgi-bin}
+      GATEWAY_WECOM_TOKEN: ${WECOM_TOKEN:-}
+      GATEWAY_WECOM_ENCODING_AES_KEY: ${WECOM_ENCODING_AES_KEY:-}
+      GATEWAY_LOG_LEVEL: info
+      GATEWAY_LOG_FORMAT: json
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      replicas: ${RUST_GATEWAY_SHADOW_REPLICAS:-1}
+      resources:
+        limits:
+          cpus: "1"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 64M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.rust-gateway-shadow.rule=Host(`${RUST_GATEWAY_SHADOW_HOST:?RUST_GATEWAY_SHADOW_HOST is required}`) && PathPrefix(`/`)"
+      - "traefik.http.routers.rust-gateway-shadow.entrypoints=websecure"
+      - "traefik.http.routers.rust-gateway-shadow.tls=true"
+      - "traefik.http.routers.rust-gateway-shadow.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.rust-gateway-shadow.priority=100"
+      - "traefik.http.routers.rust-gateway-shadow.service=rust-gateway-shadow"
+      - "traefik.http.routers.rust-gateway-shadow.middlewares=ratelimit@file,circuit-breaker@file"
+      - "traefik.http.services.rust-gateway-shadow.loadbalancer.server.port=8080"
+      - "traefik.http.services.rust-gateway-shadow.loadbalancer.healthCheck.path=/health"
+      - "traefik.http.services.rust-gateway-shadow.loadbalancer.healthCheck.interval=10s"

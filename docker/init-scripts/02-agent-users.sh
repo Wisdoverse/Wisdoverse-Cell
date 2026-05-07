@@ -53,10 +53,10 @@ EOSQL
 
 create_or_update_role "chat_agent" "CHAT_AGENT_DB_PASSWORD" "chat_agent_dev"
 create_or_update_role "pjm_agent" "PM_AGENT_DB_PASSWORD" "pjm_agent_dev"
-create_or_update_role "sync_agent" "SYNC_AGENT_DB_PASSWORD" "sync_agent_dev"
-create_or_update_role "analysis_agent" "ANALYSIS_AGENT_DB_PASSWORD" "analysis_agent_dev"
+create_or_update_role "sync_agent" "SYNC_MODULE_DB_PASSWORD" "sync_agent_dev"
+create_or_update_role "analysis_agent" "ANALYSIS_MODULE_DB_PASSWORD" "analysis_agent_dev"
 create_or_update_role "qa_agent" "QA_AGENT_DB_PASSWORD" "qa_agent_dev"
 create_or_update_role "dev_agent" "DEV_AGENT_DB_PASSWORD" "dev_agent_dev"
-create_or_update_role "evolution_agent" "EVOLUTION_AGENT_DB_PASSWORD" "evolution_agent_dev"
+create_or_update_role "evolution_agent" "EVOLUTION_MODULE_DB_PASSWORD" "evolution_agent_dev"
 
-echo "Per-agent DB role passwords initialized for APP_ENV=${APP_ENV}"
+echo "Per-runtime DB role passwords initialized for APP_ENV=${APP_ENV}"

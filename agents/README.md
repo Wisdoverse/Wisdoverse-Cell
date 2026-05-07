@@ -124,6 +124,8 @@ retry/circuit-breaker code belong in `adapters/` or `shared/integrations/`,
 then get wired from `service/` or `app/`.
 
 Runtime identifiers such as `projectcell`, `project-cell`, `project_cell`,
-`requirement-manager`, `chat-agent`, `pjm-agent`, `sync-agent`, `qa-agent`, and
-`dev-agent` are compatibility contracts. Do not rename them as part of layout
-cleanup.
+`requirement-manager`, `chat-agent`, `pjm-agent`, `sync-module`,
+`analysis-module`, `qa-agent`, `dev-agent`, and `evolution-module` are
+compatibility contracts. Historical `sync-agent`, `analysis-agent`, and
+`evolution-agent` identifiers are legacy aliases only; do not reintroduce them
+as canonical capability names.

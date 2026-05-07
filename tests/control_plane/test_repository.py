@@ -253,8 +253,8 @@ async def test_evolution_proposal_lifecycle(db_session: AsyncSession):
         ApprovalRequest(
             company_id=company.company_id,
             category=ApprovalCategory.TECHNICAL,
-            requested_by="agent:evolution-agent",
-            source_agent_id="evolution-agent",
+            requested_by="agent:evolution-module",
+            source_agent_id="evolution-module",
             proposed_action="Review L2 evolution proposal",
             reason="Reduce routing latency",
             risk="May change coordination behavior",

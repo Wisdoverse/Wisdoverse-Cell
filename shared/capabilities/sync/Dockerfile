@@ -1,14 +1,14 @@
 # ==============================================================================
-# DEPRECATED — Use docker/Dockerfile.agents (target: sync-agent) instead.
+# DEPRECATED — Use docker/Dockerfile.agents (target: sync-module) instead.
 # This file is kept for standalone builds only.
 # ==============================================================================
 #
 # Preferred:
-#   docker build --target sync-agent -f docker/Dockerfile.agents .
-#   docker compose build sync-agent
+#   docker build --target sync-module -f docker/Dockerfile.agents .
+#   docker compose build sync-module
 #
 # Legacy standalone:
-#   docker build -t projectcell/sync-agent:latest \
+#   docker build -t projectcell/sync-module:latest \
 #     -f shared/capabilities/sync/Dockerfile .
 #
 # ==============================================================================
@@ -41,7 +41,7 @@ FROM python:3.13-slim AS runtime
 # =============================================================================
 # Metadata (OCI Image Spec)
 # =============================================================================
-LABEL org.opencontainers.image.title="Sync Agent" \
+LABEL org.opencontainers.image.title="Sync Module" \
       org.opencontainers.image.description="OpenProject and Feishu Bitable sync runtime" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
       org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \

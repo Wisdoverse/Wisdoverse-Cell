@@ -60,7 +60,7 @@ def create_agent_app(
         on_startup: Async callback after runtime.startup(). Receives runtime.
         on_shutdown: Async callback before runtime.shutdown(). Receives runtime.
         evolution_enabled: Wrap agent with EvolvedAgent.
-        evolution_excluded: Skip evolution wrapping (for evolution-agent itself).
+        evolution_excluded: Skip evolution wrapping (for evolution-module itself).
         control_plane_enabled: Record agent run/audit evidence in the shared ledger.
         control_plane_company_id: Default company ID for control-plane records.
         include_api_key_middleware: Include APIKeyMiddleware (False for public APIs).

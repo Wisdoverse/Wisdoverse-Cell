@@ -67,8 +67,8 @@ This changelog is English-first and follows [Keep a Changelog](https://keepachan
   - Phase 2: OpenProject writeback, Feishu approval, and Bitable sync.
   - Phase 3: assignee mapping, project filtering, and retry handling.
 - Chat Agent Bitable task creation, table-management tools, and conversation context injection.
-- Analysis Agent report core logic and service runtime.
-- Sync Agent sync engine, mapper, and progress calculation.
+- Analysis Module report core logic and service runtime.
+- Sync Module sync engine, mapper, and progress calculation.
 - Scheduled daily and weekly reports to Feishu.
 - Rich-card approval and rejection feedback.
 - Business Prometheus metrics for all agents.

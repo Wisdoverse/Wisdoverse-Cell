@@ -225,10 +225,10 @@ class ResultCollector:
         for name in [
             "chat-agent",
             "pjm-agent",
-            "sync-agent",
-            "analysis-agent",
+            "sync-module",
+            "analysis-module",
             "requirement-manager",
-            "evolution-agent",
+            "evolution-module",
             "qa-agent",
             "dev-agent",
         ]:

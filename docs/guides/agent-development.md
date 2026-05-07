@@ -57,25 +57,29 @@ Recommended module structure:
 | `app/` | FastAPI app entrypoint, lifespan, metrics wiring |
 | `api/` | REST routes and request/response schemas |
 | `core/` | Framework-free business logic |
-| `service/` | `BaseAgent` implementation and event/request orchestration |
+| `service/` | Runtime protocol implementation and event/request orchestration |
 | `models/` | Internal Pydantic or domain models |
 | `db/` | SQLAlchemy session and repository pattern |
 | `tests/` | Unit and integration tests for the module |
 
 Keep `service/agent.py` thin. It should route events and requests, call core
-services, and publish results. Put real business logic in `core/`.
+services, and publish results. Put real business logic in `core/`. Business
+runtime agents use an `Agent` class name. Support capabilities use a `Module`
+class name even though they still implement the `BaseAgent` runtime protocol.
 
-## 3. BaseAgent Contract
+## 3. Runtime Protocol Contract
 
-Every agent service must inherit `shared.schemas.agent.BaseAgent` and implement:
+Every independently deployed runtime behind `create_agent_app()` must inherit
+`shared.schemas.agent.BaseAgent` and implement:
 
 - `handle_event(event: Event) -> list[Event]`
 - `handle_request(request: dict) -> dict`
 - `startup() -> None`
 - `shutdown() -> None`
 
-Use kebab-case `agent_id` values such as `requirement-manager` or
-`project-management`. Do not use underscores in runtime IDs.
+Use kebab-case runtime IDs such as `requirement-manager` for real business
+agents and `my-capability-module` for support capabilities. Do not use
+underscores in runtime IDs.
 
 Example skeleton:
 
@@ -86,13 +90,13 @@ from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
-logger = get_logger("my_capability.agent")
+logger = get_logger("my_capability.module")
 
 
-class MyCapabilityAgent(BaseAgent):
+class MyCapabilityModule(BaseAgent):
     def __init__(self, db=None, bus=None):
         super().__init__(
-            agent_id="my-capability",
+            agent_id="my-capability-module",
             agent_name="My Capability",
             subscribed_events=["work_item.created"],
             published_events=["my_capability.completed"],
@@ -102,7 +106,7 @@ class MyCapabilityAgent(BaseAgent):
         self._listener_tasks: list[asyncio.Task] = []
 
     async def startup(self) -> None:
-        logger.info("agent_starting", agent_id=self.agent_id)
+        logger.info("module_starting", module_id=self.agent_id)
         if self._bus:
             await self._bus.connect()
 
@@ -124,7 +128,7 @@ class MyCapabilityAgent(BaseAgent):
         ]
 
     async def handle_request(self, request: dict) -> dict:
-        return {"status": "ok", "agent": self.agent_id}
+        return {"status": "ok", "module": self.agent_id}
 ```
 
 ## 4. FastAPI Entrypoint
@@ -136,10 +140,10 @@ middleware, lifecycle behavior, DSAR routes, and the authenticated
 ```python
 from shared.app import create_agent_app
 
-from shared.capabilities.my_capability.service.agent import MyCapabilityAgent
+from shared.capabilities.my_capability.service.agent import MyCapabilityModule
 
-agent = MyCapabilityAgent()
-app = create_agent_app(agent=agent)
+module = MyCapabilityModule()
+app = create_agent_app(agent=module)
 ```
 
 Scheduler jobs and control-plane adapters must call `runtime.agent` or the

@@ -1,0 +1,20 @@
+# =============================================================================
+# Go Gateway Legacy Rollback
+# =============================================================================
+# Apply only when explicitly rolling the canonical gateway service back to the
+# legacy Go implementation during local development or an incident drill.
+# The default backend architecture is Rust gateway + Python services.
+# =============================================================================
+
+services:
+  gateway:
+    build:
+      context: ../../gateway
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
+        ALPINE_MIRROR: ${ALPINE_MIRROR:-}
+    image: ${REGISTRY:-}projectcell/gateway:${VERSION:-latest}
+    environment:
+      GATEWAY_IMPLEMENTATION: go-legacy

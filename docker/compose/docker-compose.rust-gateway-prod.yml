@@ -1,0 +1,17 @@
+# =============================================================================
+# Rust Gateway Production Compatibility Overlay
+# =============================================================================
+# Production Compose already runs the canonical gateway as Rust. This no-op
+# compatibility overlay preserves older rollout automation that still appends
+# docker-compose.rust-gateway-prod.yml.
+# =============================================================================
+
+services:
+  gateway:
+    image: ${REGISTRY}projectcell/rust-gateway:${VERSION}
+    build: !reset null
+    environment:
+      GATEWAY_IMPLEMENTATION: rust
+      GATEWAY_SERVER_MODE: release
+      GATEWAY_LOG_LEVEL: info
+      GATEWAY_LOG_FORMAT: json

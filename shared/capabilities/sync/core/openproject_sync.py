@@ -167,7 +167,7 @@ class OpenProjectSyncEngine:
 
         decompose_event = Event.create(
             event_type=EventTypes.SYNC_TASK_NEEDS_DECOMPOSE,
-            source_agent="sync-agent",
+            source_agent="sync-module",
             payload={
                 "wp_id": wp_data.op_id,
                 "subject": wp_data.title,

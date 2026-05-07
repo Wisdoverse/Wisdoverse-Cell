@@ -10,7 +10,7 @@ import json
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.utils.logger import get_logger
 
-logger = get_logger("evolution_agent.global_analyzer")
+logger = get_logger("evolution_module.global_analyzer")
 
 # Operation whitelist (from design spec Section 5.2)
 ALLOWED_OPERATIONS = [
@@ -21,12 +21,12 @@ ALLOWED_OPERATIONS = [
     "add_loop_logic",
 ]
 
-# Known agent IDs in the system
+# Known runtime IDs in the system.
 _KNOWN_AGENT_IDS = [
     "pjm-agent",
-    "analysis-agent",
+    "analysis-module",
     "chat-agent",
-    "sync-agent",
+    "sync-module",
     "requirement-manager",
     "qa-agent",
 ]
@@ -103,7 +103,7 @@ Rules:
 
             response = await self._llm.complete(
                 prompt=prompt,
-                agent_id="evolution-agent",
+                agent_id="evolution-module",
                 task_type="global_analysis",
                 max_tokens=2048,
                 temperature=0.2,

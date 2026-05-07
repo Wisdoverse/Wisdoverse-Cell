@@ -13,7 +13,7 @@ from .openproject_sync import OpenProjectSyncEngine
 class SyncEngine:
     """Orchestrate OpenProject and Feishu Bitable sync boundaries.
 
-    This class preserves the previous sync-agent API while delegating platform
+    This class preserves the previous sync-module API while delegating platform
     work to two bounded engines:
     - OpenProjectSyncEngine: OpenProject work packages -> Bitable projection.
     - FeishuBitableSyncEngine: Bitable subtask status -> OpenProject progress.

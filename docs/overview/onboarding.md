@@ -182,7 +182,7 @@ async def send_test():
 asyncio.run(send_test())
 ```
 
-Watch the pjm-agent or analysis-agent logs to see the event processed.
+Watch the pjm-agent or analysis-module logs to see the event processed.
 
 ---
 
@@ -247,7 +247,7 @@ ruff check services/gateways/user_interaction/
 # Create MR from feature branch
 ```
 
-### 3.2 Tutorial: Create a Minimal New Agent Using create_agent_app
+### 3.2 Tutorial: Create a Minimal New Support Capability Using create_agent_app
 
 **Step 1**: Create the directory structure.
 
@@ -262,24 +262,24 @@ shared/capabilities/hello_capability/
 │   └── agent.py
 └── tests/
     ├── __init__.py
-    └── test_agent.py
+    └── test_module.py
 ```
 
-**Step 2**: Implement the agent (`shared/capabilities/hello_capability/service/agent.py`).
+**Step 2**: Implement the module (`shared/capabilities/hello_capability/service/agent.py`).
 
 ```python
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
-logger = get_logger("hello_agent.service")
+logger = get_logger("hello_module.service")
 
 
-class HelloAgent(BaseAgent):
+class HelloModule(BaseAgent):
     def __init__(self):
         super().__init__(
-            agent_id="hello-agent",        # kebab-case!
-            agent_name="Hello Agent",
+            agent_id="hello-module",        # kebab-case!
+            agent_name="Hello Capability",
             subscribed_events=["sync.completed"],
             published_events=["hello.greeted"],
         )
@@ -289,60 +289,60 @@ class HelloAgent(BaseAgent):
         return [
             self.create_event(
                 event_type="hello.greeted",
-                payload={"message": "Hello from Hello Agent!"},
+                payload={"message": "Hello from Hello Module!"},
                 trace_id=event.metadata.trace_id,
             )
         ]
 
     async def handle_request(self, request: dict) -> dict:
-        return {"status": "ok", "agent": self.agent_id}
+        return {"status": "ok", "module": self.agent_id}
 
 
-agent = HelloAgent()
+agent = HelloModule()
 ```
 
 **Step 3**: Create the FastAPI app (`shared/capabilities/hello_capability/app/main.py`).
 
 ```python
 from shared.app import create_agent_app
-from ..service.agent import agent as _raw_agent
+from ..service.agent import agent as _raw_module
 
 app = create_agent_app(
-    _raw_agent,
-    title="Hello Agent",
-    description="Minimal example agent",
+    _raw_module,
+    title="Hello Capability",
+    description="Minimal example support capability",
 )
 ```
 
 That is it. `create_agent_app` provides `/health`, `/health/ready`, middleware, metrics, and evolution wrapping automatically.
 
-**Step 4**: Write tests (`shared/capabilities/hello_capability/tests/test_agent.py`).
+**Step 4**: Write tests (`shared/capabilities/hello_capability/tests/test_module.py`).
 
 ```python
 from shared.schemas.agent import BaseAgent
-from shared.capabilities.hello_capability.service.agent import HelloAgent
+from shared.capabilities.hello_capability.service.agent import HelloModule
 
 
-class TestHelloAgent:
+class TestHelloModule:
     def test_inherits_base_agent(self):
-        agent = HelloAgent()
-        assert isinstance(agent, BaseAgent)
+        module = HelloModule()
+        assert isinstance(module, BaseAgent)
 
-    def test_agent_id_is_kebab_case(self):
-        agent = HelloAgent()
-        assert agent.agent_id == "hello-agent"
+    def test_module_id_is_kebab_case(self):
+        module = HelloModule()
+        assert module.agent_id == "hello-module"
 
     def test_subscribed_events(self):
-        agent = HelloAgent()
-        assert "sync.completed" in agent.subscribed_events
+        module = HelloModule()
+        assert "sync.completed" in module.subscribed_events
 
     def test_create_event_sets_source(self):
-        agent = HelloAgent()
-        event = agent.create_event(
+        module = HelloModule()
+        event = module.create_event(
             event_type="hello.greeted",
             payload={"message": "hi"},
         )
-        assert event.source_agent == "hello-agent"
+        assert event.source_agent == "hello-module"
         assert event.event_id.startswith("evt_")
 ```
 
@@ -356,10 +356,10 @@ class TestHelloAgent:
 ruff check shared/capabilities/hello_capability/
 
 # Create feature branch and MR
-git checkout -b feat/hello-agent
+git checkout -b feat/hello-module
 git add shared/capabilities/hello_capability/
-git commit -m "feat: add hello-agent minimal example"
-git push -u origin feat/hello-agent
+git commit -m "feat: add hello-module minimal example"
+git push -u origin feat/hello-module
 ```
 
 ---
@@ -383,10 +383,10 @@ graph LR
     subgraph Agent Layer
         RM[requirement manager agent]
         CA[Chat Agent]
-        SA[Sync Agent]
+        SA[Sync Module]
         PM[PJM Agent]
-        AA[Analysis Agent]
-        EA[Evolution Agent]
+        AA[Analysis Module]
+        EA[Evolution Module]
     end
 
     subgraph Infrastructure
@@ -425,13 +425,13 @@ graph LR
     EA --> MV
 ```
 
-### 4.2 Agent Internal Layers
+### 4.2 Runtime Internal Layers
 
 ```mermaid
 graph TB
-    subgraph "Agent (FastAPI Microservice)"
+    subgraph "Runtime Service (FastAPI Microservice)"
         API["api/ — REST Routes<br/>(FastAPI Router + Pydantic schemas)"]
-        SVC["service/agent.py — Event Router<br/>(BaseAgent impl, event dispatch)"]
+        SVC["service/agent.py — Runtime Protocol Adapter<br/>(BaseAgent impl, event dispatch)"]
         CORE["core/ — Business Logic<br/>(Pure logic, no framework deps)"]
         DB["db/ — Repository Pattern<br/>(SQLAlchemy async, per-agent tables)"]
     end

@@ -1,4 +1,4 @@
-"""SyncAgent HTTP endpoints."""
+"""SyncModule HTTP endpoints."""
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,7 @@ from .schemas import (
 )
 
 router = APIRouter(prefix="/api/v1/sync", tags=["sync"])
-logger = get_logger("sync_agent.api")
+logger = get_logger("sync_module.api")
 
 
 @router.post("/trigger", response_model=SyncTriggerResponse)

@@ -1,4 +1,4 @@
-"""SyncAgent FastAPI entrypoint.
+"""SyncModule FastAPI entrypoint.
 
 The scheduler keeps the legacy full-sync behavior. Operators can trigger the
 OpenProject and Feishu Bitable sync boundaries independently through API
@@ -19,13 +19,13 @@ from shared.utils.logger import get_logger
 from ..api.sync import router as sync_router
 from ..service.agent import agent as _raw_agent
 
-logger = get_logger("sync_agent.app")
+logger = get_logger("sync_module.app")
 
 scheduler = AsyncIOScheduler()
 
 app = create_agent_app(
     _raw_agent,
-    title="Sync Agent",
+    title="Sync Module",
     description="OpenProject and Feishu Bitable sync support capability",
     routers=[(sync_router, [Depends(verify_internal_key)])],
     plugins=[InfraHealthPlugin()],

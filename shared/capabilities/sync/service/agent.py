@@ -1,4 +1,4 @@
-"""SyncAgent - scheduled support capability for external work sync."""
+"""SyncModule - scheduled support capability for external work sync."""
 import time
 from typing import Optional
 
@@ -22,17 +22,17 @@ try:
 except ImportError:
     _metrics_available = False
 
-logger = get_logger("sync_agent.service")
+logger = get_logger("sync_module.service")
 
 
-class SyncAgent(BaseAgent):
+class SyncModule(BaseAgent):
     def __init__(
         self,
         db: Optional[DatabaseManager] = None,
         bus: Optional[EventBus] = None,
     ):
         super().__init__(
-            agent_id="sync-agent",
+            agent_id="sync-module",
             agent_name="Sync Capability",
             subscribed_events=[EventTypes.SYNC_TRIGGER],
             published_events=[
@@ -301,10 +301,10 @@ class SyncAgent(BaseAgent):
             return {"status": "failed", "error": str(e)}
 
 
-# Global Agent singleton.
-agent = SyncAgent()
+# Global capability singleton.
+agent = SyncModule()
 
 
-def get_agent() -> SyncAgent:
-    """Return the current Agent instance and support test replacement."""
+def get_agent() -> SyncModule:
+    """Return the current capability instance and support test replacement."""
     return agent

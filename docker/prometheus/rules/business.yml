@@ -96,7 +96,7 @@ groups:
           description: >-
             {{ $value | printf "%.0f" }} sync failures occurred in the last hour.
             Data between OpenProject and Feishu Bitable may be out of sync.
-            Check sync-agent logs for details.
+            Check sync-module logs for details.
           runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/sync-failure"
 
       # -- Sync Failure Critical (multiple in short window) -------------------
@@ -199,7 +199,7 @@ groups:
           description: >-
             {{ $value | printf "%.0f" }} daily report push failures in the last hour.
             Team members may not receive their daily status update.
-            Check analysis-agent logs and Feishu API connectivity.
+            Check analysis-module logs and Feishu API connectivity.
           runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/daily-report-failure"
 
       # -- Daily Report Push Not Executed (business day) ----------------------

@@ -172,7 +172,7 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         business_agent=True,
     ),
     RuntimeModule(
-        agent_id="sync-agent",
+        agent_id="sync-module",
         package_path="shared.capabilities.sync",
         display_name="Sync Module",
         agent_kind=AgentKind.CAPABILITY_MODULE,
@@ -191,7 +191,7 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         ),
     ),
     RuntimeModule(
-        agent_id="analysis-agent",
+        agent_id="analysis-module",
         package_path="shared.capabilities.analysis",
         display_name="Analysis Module",
         agent_kind=AgentKind.CAPABILITY_MODULE,
@@ -263,7 +263,7 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         business_agent=True,
     ),
     RuntimeModule(
-        agent_id="evolution-agent",
+        agent_id="evolution-module",
         package_path="shared.capabilities.evolution",
         display_name="Evolution Module",
         agent_kind=AgentKind.CAPABILITY_MODULE,
@@ -313,6 +313,11 @@ ORGANIZATION_ROLE_TEMPLATES: tuple[OrganizationRoleTemplate, ...] = (
 
 
 RUNTIME_MODULE_BY_ID = {module.agent_id: module for module in RUNTIME_MODULES}
+LEGACY_RUNTIME_MODULE_ID_ALIASES = {
+    "sync-agent": "sync-module",
+    "analysis-agent": "analysis-module",
+    "evolution-agent": "evolution-module",
+}
 ORGANIZATION_ROLE_TEMPLATE_BY_ID = {
     template.agent_id: template for template in ORGANIZATION_ROLE_TEMPLATES
 }
@@ -385,7 +390,8 @@ def get_business_runtime_agents() -> tuple[RuntimeModule, ...]:
 def get_runtime_module(agent_id: str) -> RuntimeModule | None:
     """Return the deployed runtime module for an existing compatibility id."""
 
-    return RUNTIME_MODULE_BY_ID.get(agent_id)
+    canonical_id = LEGACY_RUNTIME_MODULE_ID_ALIASES.get(agent_id, agent_id)
+    return RUNTIME_MODULE_BY_ID.get(canonical_id)
 
 
 def get_organization_role_template(agent_id: str) -> OrganizationRoleTemplate | None:
@@ -424,7 +430,7 @@ def create_organization_role(
 
 
 def is_runtime_module(agent_id: str) -> bool:
-    return agent_id in RUNTIME_MODULE_BY_ID
+    return agent_id in RUNTIME_MODULE_BY_ID or agent_id in LEGACY_RUNTIME_MODULE_ID_ALIASES
 
 
 def is_organization_role_template(agent_id: str) -> bool:

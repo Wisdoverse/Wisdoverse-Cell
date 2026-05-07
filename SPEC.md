@@ -78,6 +78,10 @@ Important boundary:
    - Receives external HTTP and webhook traffic.
    - Verifies external platform signatures where applicable.
    - Routes internal calls to agent services through authenticated boundaries.
+   - MUST use the Rust edge plane by default while preserving stable HTTP,
+     gRPC, and EventBus contracts. The Go gateway is a legacy rollback
+     implementation only. Rust gateway clients MUST be generated from the same
+     protobuf contracts used by Python services.
 
 3. `Agent Services`
    - Own business workflows such as requirement extraction, task decomposition,
@@ -149,6 +153,10 @@ Backend architecture:
 - Strategic DDD for domain vocabulary and bounded contexts.
 - Clean Architecture inside each agent service.
 - Hexagonal Architecture for integrations and messaging.
+- Rust edge plane plus Python agent plane. Rust SHOULD own gateway and future
+  infrastructure workers; Python SHOULD continue to own business agents, LLM
+  orchestration, and the control-plane ledger until explicit migration stages
+  prove contract parity.
 
 Frontend architecture:
 
@@ -204,9 +212,9 @@ sync, analysis, and evolution remain capability modules under
 `shared/capabilities/` unless they explicitly become business runtime agents.
 OpenProject synchronization and Feishu Bitable synchronization are separate
 support capability boundaries. A deployment MAY keep the historical
-`sync-agent` runtime identifier for compatibility, but implementations MUST NOT
-treat OpenProject work-package sync and Feishu Bitable table sync as one
-undifferentiated domain.
+`sync-agent` runtime identifier as a legacy alias, but the canonical capability
+module identifier is `sync-module`. Implementations MUST NOT treat OpenProject
+work-package sync and Feishu Bitable table sync as one undifferentiated domain.
 
 Fields:
 
@@ -480,7 +488,8 @@ Required validation depends on the changed surface:
 
 - Agent/runtime changes: `ruff check agents/ shared/` and focused Python tests.
 - Event or schema changes: producer and consumer tests plus event catalog update.
-- Gateway changes: `go test ./...` in `gateway/`.
+- Gateway changes: Rust gateway tests, plus `go test ./...` in `gateway/` only
+  when the legacy rollback path changes.
 - Frontend changes: `make frontend-test` and lint/build checks where available.
 - Documentation-only changes: `git diff --check` and link/path review.
 - Security-sensitive changes: targeted tests for auth, signature verification,

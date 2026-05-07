@@ -300,7 +300,7 @@ class TestExecutionTrace:
     def test_failed_trace(self):
         trace = ExecutionTrace(
             trace_id="trace_fail",
-            agent_id="sync-agent",
+            agent_id="sync-module",
             event_type="sync.trigger",
             success=False,
             error="Connection timeout to Feishu API",
@@ -397,7 +397,7 @@ class TestReflection:
 
     def test_serialization_roundtrip(self):
         reflection = Reflection(
-            agent_id="analysis-agent",
+            agent_id="analysis-module",
             skill_id="risk-detection",
             success_patterns=["Caught 7 out of 10 risks correctly"],
             failure_patterns=["Missed 3 out of 10 risks in test set"],

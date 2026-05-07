@@ -27,8 +27,8 @@ from `shared/infra/agent_client.py`.
 
 | From | To | Method | Use Case |
 |------|-----|--------|----------|
-| sync_agent | pjm_agent | EventBus | Task needs decomposition |
-| pjm_agent | sync_agent | EventBus | Decomposition completed |
+| sync_module | pjm_agent | EventBus | Task needs decomposition |
+| pjm_agent | sync_module | EventBus | Decomposition completed |
 | CardHandler | pjm_agent | HTTP | Approve/reject decomposition |
 | Go gateway | pjm_agent | HTTP | Approve/reject decomposition |
 | chat_agent | pjm_agent | EventBus | PM status query |

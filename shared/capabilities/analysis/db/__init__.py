@@ -1,4 +1,4 @@
-"""AnalysisAgent Database."""
+"""AnalysisModule Database."""
 from .database import DatabaseManager, db_manager
 from .repository import ReportLogRepository
 

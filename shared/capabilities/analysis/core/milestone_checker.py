@@ -6,7 +6,7 @@ from shared.utils.logger import get_logger
 
 from .config import AnalysisCoreConfig
 
-logger = get_logger("analysis_agent.milestone")
+logger = get_logger("analysis_module.milestone")
 
 
 class MilestoneChecker:

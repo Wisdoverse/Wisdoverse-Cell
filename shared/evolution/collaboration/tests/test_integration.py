@@ -30,9 +30,9 @@ from shared.schemas.event import Event
 # ---------------------------------------------------------------------------
 
 
-class FakeAnalysisAgent(BaseAgent):
+class FakeAnalysisModule(BaseAgent):
     def __init__(self):
-        super().__init__(agent_id="analysis-agent", agent_name="Analysis")
+        super().__init__(agent_id="analysis-module", agent_name="Analysis")
 
     async def handle_event(self, event: Event) -> list[Event]:
         return [self.create_event("analysis.done", payload={"risk": "low"})]
@@ -52,9 +52,9 @@ class FakePMAgent(BaseAgent):
         return {}
 
 
-class FakeEvolutionAgent(BaseAgent):
+class FakeEvolutionModule(BaseAgent):
     def __init__(self):
-        super().__init__(agent_id="evolution-agent", agent_name="Evolution")
+        super().__init__(agent_id="evolution-module", agent_name="Evolution")
 
     async def handle_event(self, event: Event) -> list[Event]:
         return [self.create_event("evolution.decided", payload={"consensus": True})]
@@ -100,9 +100,9 @@ async def db_session():
 @pytest.fixture
 def agent_registry():
     return {
-        "analysis-agent": FakeAnalysisAgent(),
+        "analysis-module": FakeAnalysisModule(),
         "pjm-agent": FakePMAgent(),
-        "evolution-agent": FakeEvolutionAgent(),
+        "evolution-module": FakeEvolutionModule(),
         "chat-agent": FakeChatAgent(),
     }
 
@@ -140,7 +140,7 @@ class TestCollaborationLifecycle:
 
         trigger_event = Event.create(
             event_type="sync.completed",
-            source_agent="sync-agent",
+            source_agent="sync-module",
             payload={"task_count": 5},
         )
 

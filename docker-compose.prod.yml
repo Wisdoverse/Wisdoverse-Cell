@@ -44,10 +44,11 @@ services:
         max_attempts: 3
 
   gateway:
-    image: ${REGISTRY}projectcell/gateway:${VERSION}
+    image: ${REGISTRY}projectcell/rust-gateway:${VERSION}
     build: !reset null
     container_name: !reset null
     environment:
+      GATEWAY_IMPLEMENTATION: rust
       GATEWAY_SERVER_MODE: release
       GATEWAY_LOG_LEVEL: info
       GATEWAY_LOG_FORMAT: json
@@ -69,16 +70,16 @@ services:
         delay: 5s
         max_attempts: 3
 
-  sync-agent:
-    image: ${REGISTRY}projectcell/sync-agent:${VERSION}
+  sync-module:
+    image: ${REGISTRY}projectcell/sync-module:${VERSION}
     build: !reset null
     container_name: !reset null
     environment:
       DEBUG: "false"
       APP_ENV: production
-      POSTGRES_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:?SYNC_AGENT_DB_PASSWORD is required}
+      POSTGRES_PASSWORD: ${SYNC_MODULE_DB_PASSWORD:?SYNC_MODULE_DB_PASSWORD is required}
     deploy:
-      replicas: ${SYNC_AGENT_REPLICAS:-1}
+      replicas: ${SYNC_MODULE_REPLICAS:-1}
       resources:
         limits:
           memory: 512M
@@ -93,16 +94,16 @@ services:
         delay: 5s
         max_attempts: 3
 
-  analysis-agent:
-    image: ${REGISTRY}projectcell/analysis-agent:${VERSION}
+  analysis-module:
+    image: ${REGISTRY}projectcell/analysis-module:${VERSION}
     build: !reset null
     container_name: !reset null
     environment:
       DEBUG: "false"
       APP_ENV: production
-      POSTGRES_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:?ANALYSIS_AGENT_DB_PASSWORD is required}
+      POSTGRES_PASSWORD: ${ANALYSIS_MODULE_DB_PASSWORD:?ANALYSIS_MODULE_DB_PASSWORD is required}
     deploy:
-      replicas: ${ANALYSIS_AGENT_REPLICAS:-1}
+      replicas: ${ANALYSIS_MODULE_REPLICAS:-1}
       resources:
         limits:
           memory: 512M
@@ -213,16 +214,16 @@ services:
         delay: 5s
         max_attempts: 3
 
-  evolution-agent:
-    image: ${REGISTRY}projectcell/evolution-agent:${VERSION}
+  evolution-module:
+    image: ${REGISTRY}projectcell/evolution-module:${VERSION}
     build: !reset null
     container_name: !reset null
     environment:
       DEBUG: "false"
       APP_ENV: production
-      POSTGRES_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:?EVOLUTION_AGENT_DB_PASSWORD is required}
+      POSTGRES_PASSWORD: ${EVOLUTION_MODULE_DB_PASSWORD:?EVOLUTION_MODULE_DB_PASSWORD is required}
     deploy:
-      replicas: ${EVOLUTION_AGENT_REPLICAS:-1}
+      replicas: ${EVOLUTION_MODULE_REPLICAS:-1}
       resources:
         limits:
           memory: 512M
@@ -242,11 +243,11 @@ services:
       APP_ENV: production
       CHAT_AGENT_DB_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:?CHAT_AGENT_DB_PASSWORD is required}
       PM_AGENT_DB_PASSWORD: ${PM_AGENT_DB_PASSWORD:?PM_AGENT_DB_PASSWORD is required}
-      SYNC_AGENT_DB_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:?SYNC_AGENT_DB_PASSWORD is required}
-      ANALYSIS_AGENT_DB_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:?ANALYSIS_AGENT_DB_PASSWORD is required}
+      SYNC_MODULE_DB_PASSWORD: ${SYNC_MODULE_DB_PASSWORD:?SYNC_MODULE_DB_PASSWORD is required}
+      ANALYSIS_MODULE_DB_PASSWORD: ${ANALYSIS_MODULE_DB_PASSWORD:?ANALYSIS_MODULE_DB_PASSWORD is required}
       QA_AGENT_DB_PASSWORD: ${QA_AGENT_DB_PASSWORD:?QA_AGENT_DB_PASSWORD is required}
       DEV_AGENT_DB_PASSWORD: ${DEV_AGENT_DB_PASSWORD:?DEV_AGENT_DB_PASSWORD is required}
-      EVOLUTION_AGENT_DB_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:?EVOLUTION_AGENT_DB_PASSWORD is required}
+      EVOLUTION_MODULE_DB_PASSWORD: ${EVOLUTION_MODULE_DB_PASSWORD:?EVOLUTION_MODULE_DB_PASSWORD is required}
     ports: !reset []  # Don't expose in production
     deploy:
       resources:

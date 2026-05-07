@@ -1,5 +1,5 @@
 """
-Unit Test Fixtures - analysis_agent
+Unit Test Fixtures - analysis_module
 
 Provides database sessions and other fixtures for unit tests.
 """

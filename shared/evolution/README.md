@@ -11,7 +11,7 @@ The self-evolution system enables Wisdoverse Cell agents to autonomously improve
 | Layer | Scope | Description |
 |-------|-------|-------------|
 | **L1: Skill/Prompt** | Single agent | Optimize prompts, parameters, few-shot examples based on execution traces |
-| **L2: Architecture** | Cross-agent | Global analysis by `evolution-agent` to propose structural improvements |
+| **L2: Architecture** | Cross-agent | Global analysis by `evolution-module` to propose structural improvements |
 | **L3: Collaboration** | Multi-agent | Discover and deploy multi-agent coordination patterns |
 
 ---
@@ -52,11 +52,11 @@ The self-evolution system enables Wisdoverse Cell agents to autonomously improve
 
 | File | Description |
 |------|-------------|
-| `analysis_agent.py` | Seed skill configurations for analysis-agent |
+| `analysis_module.py` | Seed skill configurations for analysis-module |
 | `chat_agent.py` | Seed skill configurations for chat-agent |
 | `pjm_agent.py` | Seed skill configurations for pjm-agent |
 | `requirement_manager.py` | Seed skill configurations for requirement-manager |
-| `sync_agent.py` | Seed skill configurations for sync-agent |
+| `sync_module.py` | Seed skill configurations for sync-module |
 
 ### Database (`shared/evolution/db/`)
 
@@ -114,7 +114,7 @@ Agent receives Event
               promotes or rolls back after enough samples
 ```
 
-The `evolution-agent` (L2) runs on a separate schedule, analyzing traces across all agents to propose architectural improvements. See `shared/capabilities/evolution/README.md`.
+The `evolution-module` (L2) runs on a separate schedule, analyzing traces across all agents to propose architectural improvements. See `shared/capabilities/evolution/README.md`.
 
 ---
 

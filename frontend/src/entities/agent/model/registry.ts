@@ -118,7 +118,7 @@ export const AGENT_REGISTRY: Record<string, AgentMeta> = {
     subscribedEvents: ["chat.pm-response", "coordinator.response"],
     publishedEvents: ["chat.pm-query", "coordinator.command", "sync.trigger"],
     upstream: [],
-    downstream: ["coordinator", "sync-agent"],
+    downstream: ["coordinator", "sync-module"],
   },
   coordinator: {
     id: "coordinator",
@@ -154,8 +154,8 @@ export const AGENT_REGISTRY: Record<string, AgentMeta> = {
     upstream: ["chat-agent"],
     downstream: ["pjm-agent", "dev-agent", "qa-agent"],
   },
-  "sync-agent": {
-    id: "sync-agent",
+  "sync-module": {
+    id: "sync-module",
     name: "Sync Module",
     shortName: "SA",
     domain: "operations",
@@ -178,7 +178,7 @@ export const AGENT_REGISTRY: Record<string, AgentMeta> = {
       "sync.task-needs-decompose",
     ],
     upstream: ["chat-agent"],
-    downstream: ["pjm-agent", "analysis-agent"],
+    downstream: ["pjm-agent", "analysis-module"],
   },
   "pjm-agent": {
     id: "pjm-agent",
@@ -212,11 +212,11 @@ export const AGENT_REGISTRY: Record<string, AgentMeta> = {
       "pm.tasks-ready-for-dev",
       "sync.task-needs-decompose",
     ],
-    upstream: ["sync-agent", "coordinator"],
+    upstream: ["sync-module", "coordinator"],
     downstream: ["dev-agent", "qa-agent"],
   },
-  "analysis-agent": {
-    id: "analysis-agent",
+  "analysis-module": {
+    id: "analysis-module",
     name: "Analysis Module",
     shortName: "AA",
     domain: "data-ai",
@@ -238,7 +238,7 @@ export const AGENT_REGISTRY: Record<string, AgentMeta> = {
       "analysis.risk-detected",
       "analysis.quality-evaluated",
     ],
-    upstream: ["sync-agent"],
+    upstream: ["sync-module"],
     downstream: ["pjm-agent"],
   },
   "qa-agent": {
@@ -289,8 +289,8 @@ export const AGENT_REGISTRY: Record<string, AgentMeta> = {
     upstream: ["pjm-agent", "coordinator"],
     downstream: ["qa-agent"],
   },
-  "evolution-agent": {
-    id: "evolution-agent",
+  "evolution-module": {
+    id: "evolution-module",
     name: "Evolution Module",
     shortName: "EA",
     domain: "data-ai",

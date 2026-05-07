@@ -1,14 +1,14 @@
 # ==============================================================================
-# DEPRECATED — Use docker/Dockerfile.agents (target: analysis-agent) instead.
+# DEPRECATED — Use docker/Dockerfile.agents (target: analysis-module) instead.
 # This file is kept for standalone builds only.
 # ==============================================================================
 #
 # Preferred:
-#   docker build --target analysis-agent -f docker/Dockerfile.agents .
-#   docker compose build analysis-agent
+#   docker build --target analysis-module -f docker/Dockerfile.agents .
+#   docker compose build analysis-module
 #
 # Legacy standalone:
-#   docker build -t projectcell/analysis-agent:latest \
+#   docker build -t projectcell/analysis-module:latest \
 #     -f shared/capabilities/analysis/Dockerfile .
 #
 # ==============================================================================
@@ -41,7 +41,7 @@ FROM python:3.13-slim AS runtime
 # =============================================================================
 # Metadata (OCI Image Spec)
 # =============================================================================
-LABEL org.opencontainers.image.title="Analysis Agent" \
+LABEL org.opencontainers.image.title="Analysis Module" \
       org.opencontainers.image.description="Daily/weekly reports, milestone checks, quality evaluation" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
       org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
