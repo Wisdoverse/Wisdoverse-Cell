@@ -1,6 +1,6 @@
-"""EvolutionAgent FastAPI entry point.
+"""EvolutionModule FastAPI entry point.
 
-CRITICAL: This agent must NOT be wrapped with EvolvedAgent (no self-evolution).
+CRITICAL: This module must NOT be wrapped with EvolvedAgent (no self-evolution).
 Uses create_agent_app with evolution_excluded=True.
 """
 
@@ -27,7 +27,7 @@ async def trigger_analysis(days: int = 7):
 
 app = create_agent_app(
     agent,
-    title="Evolution Agent",
+    title="Evolution Module",
     description="Evolution capability for global trace analysis and architecture recommendations.",
     routers=[(router, [Depends(verify_internal_key)])],
     evolution_excluded=True,  # No self-evolution

@@ -190,7 +190,7 @@ async def test_handle_decompose_skips_in_progress_write_replay():
 
     event = Event.create(
         event_type=EventTypes.SYNC_TASK_NEEDS_DECOMPOSE,
-        source_agent="sync-agent",
+        source_agent="sync-module",
         payload={
             "wp_id": 123,
             "project_id": 456,

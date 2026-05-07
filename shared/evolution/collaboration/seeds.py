@@ -16,7 +16,7 @@ RISK_REVIEW_V2 = CollaborationPattern(
     steps=[
         CollaborationStep(
             step_id="analyze",
-            agent_id="analysis-agent",
+            agent_id="analysis-module",
             action="analyze",
             skill_id="analysis.risk-scan",
             output_to="review",
@@ -31,7 +31,7 @@ RISK_REVIEW_V2 = CollaborationPattern(
         ),
         CollaborationStep(
             step_id="decide",
-            agent_id="evolution-agent",
+            agent_id="evolution-module",
             action="decide",
             skill_id="evolution.consensus-check",
             input_from="review",

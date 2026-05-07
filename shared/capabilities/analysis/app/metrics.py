@@ -1,5 +1,5 @@
 """
-Prometheus business metrics for Analysis Agent.
+Prometheus business metrics for Analysis Module.
 """
 from prometheus_client import Counter, Histogram
 

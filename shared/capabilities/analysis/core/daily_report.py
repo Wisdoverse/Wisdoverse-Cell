@@ -8,7 +8,7 @@ from shared.utils.logger import get_logger
 
 from .config import AnalysisCoreConfig
 
-logger = get_logger("analysis_agent.daily_report")
+logger = get_logger("analysis_module.daily_report")
 
 _CHINA_TZ = ZoneInfo("Asia/Shanghai")
 

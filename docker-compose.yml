@@ -85,11 +85,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       CHAT_AGENT_DB_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:-chat_agent_dev}
       PM_AGENT_DB_PASSWORD: ${PM_AGENT_DB_PASSWORD:-pjm_agent_dev}
-      SYNC_AGENT_DB_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:-sync_agent_dev}
-      ANALYSIS_AGENT_DB_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:-analysis_agent_dev}
+      SYNC_MODULE_DB_PASSWORD: ${SYNC_MODULE_DB_PASSWORD:-sync_agent_dev}
+      ANALYSIS_MODULE_DB_PASSWORD: ${ANALYSIS_MODULE_DB_PASSWORD:-analysis_agent_dev}
       QA_AGENT_DB_PASSWORD: ${QA_AGENT_DB_PASSWORD:-qa_agent_dev}
       DEV_AGENT_DB_PASSWORD: ${DEV_AGENT_DB_PASSWORD:-dev_agent_dev}
-      EVOLUTION_AGENT_DB_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:-evolution_agent_dev}
+      EVOLUTION_MODULE_DB_PASSWORD: ${EVOLUTION_MODULE_DB_PASSWORD:-evolution_agent_dev}
       PGDATA: /var/lib/postgresql/data/pgdata
       # Performance tuning
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
@@ -269,16 +269,15 @@ services:
 
   gateway:
     build:
-      context: ./gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: rust/gateway/Dockerfile
       args:
-        VERSION: ${VERSION:-dev}
-        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
         ALPINE_MIRROR: ${ALPINE_MIRROR:-}
-    image: ${REGISTRY:-}projectcell/gateway:${VERSION:-latest}
+    image: ${REGISTRY:-}projectcell/rust-gateway:${VERSION:-latest}
     container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-gateway
     hostname: gateway
     environment:
+      GATEWAY_IMPLEMENTATION: rust
       # Server
       GATEWAY_SERVER_PORT: "8080"
       GATEWAY_SERVER_MODE: ${GATEWAY_MODE:-release}
@@ -299,13 +298,16 @@ services:
       GATEWAY_FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
       GATEWAY_FEISHU_VERIFICATION_TOKEN: ${FEISHU_VERIFICATION_TOKEN:-}
       GATEWAY_FEISHU_ENCRYPT_KEY: ${FEISHU_ENCRYPT_KEY:-}
+      GATEWAY_FEISHU_OPEN_API_BASE_URL: ${FEISHU_OPEN_API_BASE_URL:-https://open.feishu.cn/open-apis}
       GATEWAY_FEISHU_VERIFY_SIGNATURE: "true"
       GATEWAY_FEISHU_CHAT_AGENT_ADDR: chat-agent:8013
       GATEWAY_FEISHU_PM_AGENT_ADDR: pjm-agent:8012
+      GATEWAY_FEISHU_INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
       # WeCom
       GATEWAY_WECOM_CORP_ID: ${WECOM_CORP_ID:-}
       GATEWAY_WECOM_AGENT_ID: ${WECOM_AGENT_ID:-}
       GATEWAY_WECOM_SECRET: ${WECOM_SECRET:-}
+      GATEWAY_WECOM_API_BASE_URL: ${WECOM_API_BASE_URL:-https://qyapi.weixin.qq.com/cgi-bin}
       GATEWAY_WECOM_TOKEN: ${WECOM_TOKEN:-}
       GATEWAY_WECOM_ENCODING_AES_KEY: ${WECOM_ENCODING_AES_KEY:-}
       # Logging
@@ -342,28 +344,28 @@ services:
       - "com.projectcell.version=${VERSION:-dev}"
 
   # ===========================================================================
-  # Business runtime agents and support services
+  # Business runtime agents and support capability modules
   # ===========================================================================
 
-  sync-agent:
+  sync-module:
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
-      target: sync-agent
+      target: sync-module
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/sync-agent:${VERSION:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-sync-agent
-    hostname: sync-agent
+    image: ${REGISTRY:-}projectcell/sync-module:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-sync-module
+    hostname: sync-module
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB:-projectcell}
-      POSTGRES_USER: ${SYNC_AGENT_DB_USER:-sync_agent}
-      POSTGRES_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:-sync_agent_dev}
+      POSTGRES_USER: ${SYNC_MODULE_DB_USER:-sync_agent}
+      POSTGRES_PASSWORD: ${SYNC_MODULE_DB_PASSWORD:-sync_agent_dev}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "3"
@@ -377,7 +379,7 @@ services:
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
     ports:
-      - "${SYNC_AGENT_PORT:-8010}:8010"
+      - "${SYNC_MODULE_PORT:-8010}:8010"
     networks:
       - frontend
       - backend
@@ -399,28 +401,28 @@ services:
     restart: unless-stopped
     stop_grace_period: 35s
     labels:
-      - "com.projectcell.service=sync-agent"
+      - "com.projectcell.service=sync-module"
       - "com.projectcell.tier=application"
 
-  analysis-agent:
+  analysis-module:
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
-      target: analysis-agent
+      target: analysis-module
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/analysis-agent:${VERSION:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-analysis-agent
-    hostname: analysis-agent
+    image: ${REGISTRY:-}projectcell/analysis-module:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-analysis-module
+    hostname: analysis-module
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB:-projectcell}
-      POSTGRES_USER: ${ANALYSIS_AGENT_DB_USER:-analysis_agent}
-      POSTGRES_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:-analysis_agent_dev}
+      POSTGRES_USER: ${ANALYSIS_MODULE_DB_USER:-analysis_agent}
+      POSTGRES_PASSWORD: ${ANALYSIS_MODULE_DB_PASSWORD:-analysis_agent_dev}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "4"
@@ -433,7 +435,7 @@ services:
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
     ports:
-      - "${ANALYSIS_AGENT_PORT:-8011}:8011"
+      - "${ANALYSIS_MODULE_PORT:-8011}:8011"
     networks:
       - backend
     depends_on:
@@ -454,28 +456,28 @@ services:
     restart: unless-stopped
     stop_grace_period: 35s
     labels:
-      - "com.projectcell.service=analysis-agent"
+      - "com.projectcell.service=analysis-module"
       - "com.projectcell.tier=application"
 
-  evolution-agent:
+  evolution-module:
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
-      target: evolution-agent
+      target: evolution-module
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/evolution-agent:${VERSION:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-evolution-agent
-    hostname: evolution-agent
+    image: ${REGISTRY:-}projectcell/evolution-module:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-evolution-module
+    hostname: evolution-module
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB:-projectcell}
-      POSTGRES_USER: ${EVOLUTION_AGENT_DB_USER:-evolution_agent}
-      POSTGRES_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:-evolution_agent_dev}
+      POSTGRES_USER: ${EVOLUTION_MODULE_DB_USER:-evolution_agent}
+      POSTGRES_PASSWORD: ${EVOLUTION_MODULE_DB_PASSWORD:-evolution_agent_dev}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "7"
@@ -484,10 +486,10 @@ services:
       EVOLUTION_COLLABORATION_ENABLED: ${EVOLUTION_COLLABORATION_ENABLED:-false}
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
-      OTEL_SERVICE_NAME: evolution-agent
-      EVENT_BUS_CONSUMER_NAME: evolution-agent
+      OTEL_SERVICE_NAME: evolution-module
+      EVENT_BUS_CONSUMER_NAME: evolution-module
     ports:
-      - "${EVOLUTION_AGENT_PORT:-8016}:8016"
+      - "${EVOLUTION_MODULE_PORT:-8016}:8016"
     networks:
       - backend
     depends_on:
@@ -508,7 +510,7 @@ services:
     restart: unless-stopped
     stop_grace_period: 35s
     labels:
-      - "com.projectcell.service=evolution-agent"
+      - "com.projectcell.service=evolution-module"
       - "com.projectcell.tier=application"
 
   pjm-agent:

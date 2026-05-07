@@ -71,6 +71,28 @@ jobs:
       - run: go install golang.org/x/vuln/cmd/govulncheck@latest
       - run: govulncheck ./...
 
+  rust-gateway:
+    name: Rust gateway tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install 1.86.0 --profile minimal --component clippy,rustfmt
+          rustup default 1.86.0
+      - name: Rust format
+        run: cargo fmt --manifest-path rust/Cargo.toml --check
+      - name: Rust tests
+        run: cargo test --manifest-path rust/Cargo.toml --locked
+      - name: Rust clippy
+        run: cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Rust gateway build
+        run: cargo build --manifest-path rust/Cargo.toml --locked -p projectcell-rust-gateway
+      - name: Rust gateway Docker build
+        run: docker build -f rust/gateway/Dockerfile -t projectcell/rust-gateway:ci .
+
   frontend:
     name: Frontend lint, tests, audit
     runs-on: ubuntu-latest

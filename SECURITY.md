@@ -69,7 +69,7 @@ DSAR requests cover these data sources:
 
 - **Chat Agent**: chat history and user preferences
 - **PJM Agent**: task assignment records and approval records
-- **Sync Agent**: user-linked data in synchronization logs
+- **Sync Module**: user-linked data in synchronization logs
 - **Requirements capability**: user context captured during requirement extraction
 
 ### Processing Flow

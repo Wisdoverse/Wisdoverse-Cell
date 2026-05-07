@@ -1,4 +1,4 @@
-"""Analysis capability agent for reports, milestone checks, and quality review."""
+"""Analysis capability module for reports, milestone checks, and quality review."""
 from datetime import UTC, datetime
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -26,19 +26,19 @@ try:
 except ImportError:
     _metrics_available = False
 
-logger = get_logger("analysis_agent.service")
+logger = get_logger("analysis_module.service")
 
 _CHINA_TZ = ZoneInfo("Asia/Shanghai")
 
 
-class AnalysisAgent(BaseAgent):
+class AnalysisModule(BaseAgent):
     def __init__(
         self,
         db: Optional[DatabaseManager] = None,
         bus: Optional[EventBus] = None,
     ):
         super().__init__(
-            agent_id="analysis-agent",
+            agent_id="analysis-module",
             agent_name="Analysis Capability",
             subscribed_events=[EventTypes.SYNC_COMPLETED],
             published_events=[
@@ -202,8 +202,8 @@ class AnalysisAgent(BaseAgent):
         return events
 
 
-agent = AnalysisAgent()
+agent = AnalysisModule()
 
 
-def get_agent() -> AnalysisAgent:
+def get_agent() -> AnalysisModule:
     return agent

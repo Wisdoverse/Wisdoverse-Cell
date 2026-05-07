@@ -1,4 +1,4 @@
-"""Tests for EvolutionAgent and GlobalAnalyzer."""
+"""Tests for EvolutionModule and GlobalAnalyzer."""
 
 import json
 from contextlib import asynccontextmanager
@@ -9,7 +9,7 @@ import pytest
 
 from shared.schemas.event import Event, EventTypes
 
-from ..service.agent import EvolutionAgent
+from ..service.agent import EvolutionModule
 from ..service.global_analyzer import GlobalAnalyzer
 
 # ── Fixtures ───────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ def mock_db():
 
 @pytest.fixture
 def agent(mock_db, mock_bus, mock_llm):
-    return EvolutionAgent(
+    return EvolutionModule(
         db=mock_db,
         bus=mock_bus,
         llm=mock_llm,
@@ -70,10 +70,10 @@ def _make_trace(success: bool = True):
     return t
 
 
-# ── EvolutionAgent Tests ──────────────────────────────────────────────────
+# ── EvolutionModule Tests ──────────────────────────────────────────────────
 
 
-class TestEvolutionAgentSubscriptions:
+class TestEvolutionModuleSubscriptions:
     def test_subscribes_to_correct_events(self, agent):
         assert EventTypes.EVOLUTION_CYCLE_TRIGGERED in agent.subscribed_events
         assert EventTypes.EVOLUTION_HUMAN_FEEDBACK in agent.subscribed_events
@@ -82,13 +82,13 @@ class TestEvolutionAgentSubscriptions:
         assert EventTypes.EVOLUTION_SKILL_PROPOSED in agent.published_events
 
     def test_agent_id(self, agent):
-        assert agent.agent_id == "evolution-agent"
+        assert agent.agent_id == "evolution-module"
 
     def test_agent_name(self, agent):
         assert agent.agent_name == "Evolution Capability"
 
 
-class TestEvolutionAgentHandleEvent:
+class TestEvolutionModuleHandleEvent:
     @pytest.mark.asyncio
     async def test_dispatches_cycle_triggered(self, agent):
         event = _make_event(EventTypes.EVOLUTION_CYCLE_TRIGGERED, {"days": 3})
@@ -169,7 +169,7 @@ class TestHandleRequest:
     async def test_standard_describe_action(self, agent):
         result = await agent.handle_request({"action": "describe"})
 
-        assert result["agent_id"] == "evolution-agent"
+        assert result["agent_id"] == "evolution-module"
         assert result["agent_name"] == "Evolution Capability"
         assert EventTypes.EVOLUTION_CYCLE_TRIGGERED in result["subscribed_events"]
 

@@ -23,12 +23,12 @@ BEGIN
         CREATE ROLE pjm_agent WITH LOGIN PASSWORD 'pjm_agent_dev';
     END IF;
 
-    -- Sync Agent: mappings, subtask mappings, logs, locks
+    -- Sync Module: mappings, subtask mappings, logs, locks
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'sync_agent') THEN
         CREATE ROLE sync_agent WITH LOGIN PASSWORD 'sync_agent_dev';
     END IF;
 
-    -- Analysis Agent: report logs
+    -- Analysis Module: report logs
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'analysis_agent') THEN
         CREATE ROLE analysis_agent WITH LOGIN PASSWORD 'analysis_agent_dev';
     END IF;
@@ -43,7 +43,7 @@ BEGIN
         CREATE ROLE dev_agent WITH LOGIN PASSWORD 'dev_agent_dev';
     END IF;
 
-    -- Evolution Agent: traces, skill configs, reflections, experiments, memory, patterns
+    -- Evolution Module: traces, skill configs, reflections, experiments, memory, patterns
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'evolution_agent') THEN
         CREATE ROLE evolution_agent WITH LOGIN PASSWORD 'evolution_agent_dev';
     END IF;
@@ -90,7 +90,7 @@ EXCEPTION WHEN undefined_table THEN
 END
 $$;
 
--- Sync Agent tables
+-- Sync Module tables
 DO $$
 BEGIN
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
@@ -104,7 +104,7 @@ EXCEPTION WHEN undefined_table THEN
 END
 $$;
 
--- Analysis Agent tables
+-- Analysis Module tables
 DO $$
 BEGIN
     -- Own tables: full CRUD
@@ -153,7 +153,7 @@ EXCEPTION WHEN undefined_table THEN
 END
 $$;
 
--- Evolution Agent tables
+-- Evolution Module tables
 DO $$
 BEGIN
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
@@ -165,7 +165,7 @@ BEGIN
         evolution_collaboration_patterns
     TO evolution_agent;
 
-    -- Evolution Agent also needs read access to all agent tables for global analysis
+    -- Evolution Module also needs read access to all agent tables for global analysis
     GRANT SELECT ON TABLE
         chat_agent_conversation_histories,
         chat_agent_daily_progress,

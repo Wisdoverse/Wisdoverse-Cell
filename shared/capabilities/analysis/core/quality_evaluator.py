@@ -14,7 +14,7 @@ from shared.utils.logger import get_logger
 
 from .config import AnalysisCoreConfig
 
-logger = get_logger("analysis_agent.quality")
+logger = get_logger("analysis_module.quality")
 
 
 class QualityEvaluation(BaseModel):
@@ -91,7 +91,7 @@ class QualityEvaluator:
         prompt = self._build_prompt(task)
         raw = await self._llm.complete(
             prompt=prompt,
-            agent_id="analysis-agent",
+            agent_id="analysis-module",
             task_type="deliverable_quality",
             max_tokens=512,
             temperature=0,

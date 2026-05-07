@@ -1,4 +1,4 @@
-"""Integration test fixtures — sync_agent.
+"""Integration test fixtures — sync_module.
 
 Real database session connecting to PostgreSQL for integration tests.
 """

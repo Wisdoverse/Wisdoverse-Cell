@@ -2,7 +2,7 @@
 # Wisdoverse Cell — Unified Multi-Target Agent Dockerfile
 # ==============================================================================
 #
-# Single Dockerfile for all Python agent images. Docker Compose selects
+# Single Dockerfile for all Python runtime images. Docker Compose selects
 # the final target via `target:` in the service build config.
 #
 # Shared stages (builder-base, runtime-base) are built ONCE and reused,
@@ -10,18 +10,18 @@
 #
 # Targets:
 #   ai-core          - requirement manager agent (port 8000 + gRPC 50051)
-#   sync-agent       - sync support capability (port 8010)
-#   analysis-agent   - analysis support capability (port 8011)
-#   evolution-agent  - self-evolution support capability (port 8016)
+#   sync-module       - sync support capability (port 8010)
+#   analysis-module   - analysis support capability (port 8011)
+#   evolution-module  - self-evolution support capability (port 8016)
 #   pjm-agent        - PJM business runtime agent (port 8012)
 #   chat-agent       - user interaction gateway runtime id (port 8013)
 #   qa-agent         - QA business runtime agent (port 8014)
 #   dev-agent        - Dev business runtime agent (port 8015)
 #
 # Build examples:
-#   docker compose build                       # all agents
-#   docker compose build sync-agent            # single service target
-#   docker build --target sync-agent -f docker/Dockerfile.agents .
+#   docker compose build                       # all Python runtimes
+#   docker compose build sync-module            # single service target
+#   docker build --target sync-module -f docker/Dockerfile.agents .
 #
 # ==============================================================================
 
@@ -66,7 +66,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 
 # ╔═══════════════════════════════════════════════════════════════════════════╗
-# ║  PER-AGENT BUILDER STAGES — pip install with shared cache mount         ║
+# ║  PER-RUNTIME BUILDER STAGES — pip install with shared cache mount       ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
 # --- ai-core (requirement manager agent) --------------------------------------
@@ -90,7 +90,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       fi; \
     fi
 
-# --- sync-agent --------------------------------------------------------------
+# --- sync-module --------------------------------------------------------------
 FROM builder-base AS sync-builder
 ARG PIP_INDEX_URL=https://pypi.org/simple
 COPY shared/capabilities/sync/requirements.txt .
@@ -102,7 +102,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       pip install -r requirements.txt; \
     fi
 
-# --- analysis-agent ----------------------------------------------------------
+# --- analysis-module ----------------------------------------------------------
 FROM builder-base AS analysis-builder
 ARG PIP_INDEX_URL=https://pypi.org/simple
 COPY shared/capabilities/analysis/requirements.txt .
@@ -114,7 +114,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       pip install -r requirements.txt; \
     fi
 
-# --- evolution-agent ---------------------------------------------------------
+# --- evolution-module ---------------------------------------------------------
 FROM builder-base AS evolution-builder
 ARG PIP_INDEX_URL=https://pypi.org/simple
 COPY shared/capabilities/evolution/requirements.txt .
@@ -258,15 +258,15 @@ CMD ["gunicorn", \
 
 
 # =============================================================================
-# sync-agent
+# sync-module
 # =============================================================================
-FROM runtime-base AS sync-agent
+FROM runtime-base AS sync-module
 
 ARG VERSION=dev
 ARG BUILD_DATE
 ARG GIT_COMMIT
 
-LABEL org.opencontainers.image.title="Sync Agent" \
+LABEL org.opencontainers.image.title="Sync Module" \
       org.opencontainers.image.description="OpenProject ↔ Feishu bidirectional sync" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
       org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
@@ -300,17 +300,16 @@ CMD ["gunicorn", \
      "--access-logfile", "-", \
      "--access-logformat", "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s %(D)s"]
 
-
 # =============================================================================
-# analysis-agent
+# analysis-module
 # =============================================================================
-FROM runtime-base AS analysis-agent
+FROM runtime-base AS analysis-module
 
 ARG VERSION=dev
 ARG BUILD_DATE
 ARG GIT_COMMIT
 
-LABEL org.opencontainers.image.title="Analysis Agent" \
+LABEL org.opencontainers.image.title="Analysis Module" \
       org.opencontainers.image.description="Daily/weekly reports, milestone checks, quality evaluation" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
       org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
@@ -344,11 +343,10 @@ CMD ["gunicorn", \
      "--access-logfile", "-", \
      "--access-logformat", "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s %(D)s"]
 
-
 # =============================================================================
-# evolution-agent
+# evolution-module
 # =============================================================================
-FROM runtime-base AS evolution-agent
+FROM runtime-base AS evolution-module
 
 ARG VERSION=dev
 ARG BUILD_DATE
@@ -387,7 +385,6 @@ CMD ["gunicorn", \
      "--keep-alive", "5", \
      "--access-logfile", "-", \
      "--access-logformat", "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s %(D)s"]
-
 
 # =============================================================================
 # pjm-agent

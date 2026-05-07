@@ -1,11 +1,11 @@
-"""Unit tests for SyncAgent lifecycle wiring."""
+"""Unit tests for SyncModule lifecycle wiring."""
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
-from shared.capabilities.sync.service.agent import SyncAgent
+from shared.capabilities.sync.service.agent import SyncModule
 from shared.schemas.event import Event, EventTypes
 
 
@@ -18,8 +18,8 @@ def _sync_trigger_event(payload: dict, trace_id: str = "trace_sync") -> Event:
     )
 
 
-def test_sync_agent_subscribes_to_sync_trigger() -> None:
-    agent = SyncAgent(db=AsyncMock(), bus=AsyncMock())
+def test_sync_module_subscribes_to_sync_trigger() -> None:
+    agent = SyncModule(db=AsyncMock(), bus=AsyncMock())
 
     assert EventTypes.SYNC_TRIGGER in agent.subscribed_events
 
@@ -33,7 +33,7 @@ async def test_shutdown_closes_injected_openproject_port() -> None:
     op_client = AsyncMock()
     op_client.close = AsyncMock()
 
-    agent = SyncAgent(db=db, bus=bus)
+    agent = SyncModule(db=db, bus=bus)
     agent._sync_engine = SimpleNamespace(_op=op_client)
 
     await agent.shutdown()
@@ -45,7 +45,7 @@ async def test_shutdown_closes_injected_openproject_port() -> None:
 
 @pytest.mark.asyncio
 async def test_handle_request_can_trigger_openproject_boundary() -> None:
-    agent = SyncAgent(db=AsyncMock(), bus=AsyncMock())
+    agent = SyncModule(db=AsyncMock(), bus=AsyncMock())
     agent.trigger_openproject_sync = AsyncMock(return_value={"status": "success"})
 
     result = await agent.handle_request({"action": "sync_openproject"})
@@ -56,7 +56,7 @@ async def test_handle_request_can_trigger_openproject_boundary() -> None:
 
 @pytest.mark.asyncio
 async def test_handle_request_can_trigger_feishu_bitable_boundary() -> None:
-    agent = SyncAgent(db=AsyncMock(), bus=AsyncMock())
+    agent = SyncModule(db=AsyncMock(), bus=AsyncMock())
     agent.trigger_feishu_bitable_sync = AsyncMock(return_value={"status": "success"})
 
     result = await agent.handle_request({"action": "sync_feishu_bitable"})
@@ -67,7 +67,7 @@ async def test_handle_request_can_trigger_feishu_bitable_boundary() -> None:
 
 @pytest.mark.asyncio
 async def test_handle_event_sync_trigger_defaults_to_full_sync() -> None:
-    agent = SyncAgent(db=AsyncMock(), bus=AsyncMock())
+    agent = SyncModule(db=AsyncMock(), bus=AsyncMock())
     agent.trigger_sync = AsyncMock(return_value={"status": "success"})
 
     result = await agent.handle_event(
@@ -83,7 +83,7 @@ async def test_handle_event_sync_trigger_defaults_to_full_sync() -> None:
 
 @pytest.mark.asyncio
 async def test_handle_event_sync_trigger_can_run_openproject_boundary() -> None:
-    agent = SyncAgent(db=AsyncMock(), bus=AsyncMock())
+    agent = SyncModule(db=AsyncMock(), bus=AsyncMock())
     agent.trigger_openproject_sync = AsyncMock(return_value={"status": "success"})
 
     result = await agent.handle_event(
@@ -99,7 +99,7 @@ async def test_handle_event_sync_trigger_can_run_openproject_boundary() -> None:
 
 @pytest.mark.asyncio
 async def test_handle_event_sync_trigger_can_run_feishu_bitable_boundary() -> None:
-    agent = SyncAgent(db=AsyncMock(), bus=AsyncMock())
+    agent = SyncModule(db=AsyncMock(), bus=AsyncMock())
     agent.trigger_feishu_bitable_sync = AsyncMock(return_value={"status": "success"})
 
     result = await agent.handle_event(
@@ -117,7 +117,7 @@ async def test_handle_event_sync_trigger_can_run_feishu_bitable_boundary() -> No
 async def test_trigger_openproject_sync_passes_trace_id_to_split_engine() -> None:
     bus = AsyncMock()
     bus.publish = AsyncMock()
-    agent = SyncAgent(db=AsyncMock(), bus=bus)
+    agent = SyncModule(db=AsyncMock(), bus=bus)
     agent._sync_engine = SimpleNamespace(
         sync_op_to_feishu=AsyncMock(return_value={"status": "success", "processed": 0})
     )
@@ -135,7 +135,7 @@ async def test_trigger_openproject_sync_passes_trace_id_to_split_engine() -> Non
 
 @pytest.mark.asyncio
 async def test_handle_event_sync_trigger_invalid_payload_returns_failed_event() -> None:
-    agent = SyncAgent(db=AsyncMock(), bus=AsyncMock())
+    agent = SyncModule(db=AsyncMock(), bus=AsyncMock())
 
     result = await agent.handle_event(
         _sync_trigger_event({"triggered_by": "operator", "scope": "unknown"})

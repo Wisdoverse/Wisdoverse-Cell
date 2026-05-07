@@ -93,6 +93,12 @@ dmypy.json
 cython_debug/
 
 # ------------------------------------------------------------------------------
+# RUST
+# ------------------------------------------------------------------------------
+target/
+rust/target/
+
+# ------------------------------------------------------------------------------
 # TESTING & COVERAGE
 # ------------------------------------------------------------------------------
 .coverage
@@ -158,6 +164,9 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Local verification reports
+.artifacts/
 
 # Docker (root-level override only; docker/compose/ overrides are tracked)
 /docker-compose.override.yml

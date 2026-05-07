@@ -1,7 +1,7 @@
 """
-Integration Tests - SyncAgent API
+Integration Tests - SyncModule API
 
-Tests sync_agent HTTP endpoints with httpx.AsyncClient.
+Tests sync_module HTTP endpoints with httpx.AsyncClient.
 """
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -11,9 +11,9 @@ from httpx import ASGITransport, AsyncClient
 
 @pytest.fixture
 def mock_agent():
-    """Mock SyncAgent instance."""
+    """Mock SyncModule instance."""
     agent = MagicMock()
-    agent.agent_id = "sync-agent-test"
+    agent.agent_id = "sync-module-test"
     agent.trigger_sync = AsyncMock(return_value={
         "status": "completed",
         "total_processed": 5,
@@ -21,7 +21,7 @@ def mock_agent():
     })
     agent.handle_request = AsyncMock(return_value={
         "status": "ok",
-        "agent_id": "sync-agent-test",
+        "agent_id": "sync-module-test",
     })
     agent._db_manager = None
     return agent
@@ -64,7 +64,7 @@ async def test_health_endpoint(test_app):
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "alive"
-    assert data["agent"] == "sync-agent-test"
+    assert data["agent"] == "sync-module-test"
 
 
 @pytest.mark.asyncio

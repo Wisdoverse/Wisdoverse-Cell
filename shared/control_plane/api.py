@@ -271,7 +271,7 @@ class EvolutionProposalCreateRequest(BaseModel):
     risk: str = Field(min_length=1, max_length=20_000)
     approval_id: str | None = Field(default=None, max_length=48)
     approval_required: bool = True
-    proposed_by: str = Field(default="evolution-agent", min_length=1, max_length=64)
+    proposed_by: str = Field(default="evolution-module", min_length=1, max_length=64)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("scope", "expected_benefit", "risk", "proposed_by", mode="before")

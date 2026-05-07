@@ -21,7 +21,7 @@ def _make_steps() -> list[CollaborationStep]:
     return [
         CollaborationStep(
             step_id="s1",
-            agent_id="analysis-agent",
+            agent_id="analysis-module",
             action="analyze",
             output_to="s2",
         ),
@@ -67,7 +67,7 @@ class TestCollaborationModels:
         assert restored.pattern_id == pattern.pattern_id
         assert restored.name == pattern.name
         assert len(restored.steps) == 2
-        assert restored.steps[0].agent_id == "analysis-agent"
+        assert restored.steps[0].agent_id == "analysis-module"
 
     def test_step_defaults(self):
         step = CollaborationStep(

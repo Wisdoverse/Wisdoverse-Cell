@@ -84,7 +84,7 @@ class TestHandleEvent:
 
         event = Event.create(
             event_type=EventTypes.SYNC_COMPLETED,
-            source_agent="sync-agent",
+            source_agent="sync-module",
             payload={"synced": 10},
             trace_id="trace-001",
         )
@@ -103,7 +103,7 @@ class TestHandleEvent:
 
         event = Event.create(
             event_type=EventTypes.SYNC_COMPLETED,
-            source_agent="sync-agent",
+            source_agent="sync-module",
             payload={},
         )
 
@@ -118,7 +118,7 @@ class TestHandleEvent:
         """analysis.risk-detected records risk information."""
         event = Event.create(
             event_type=EventTypes.ANALYSIS_RISK_DETECTED,
-            source_agent="analysis-agent",
+            source_agent="analysis-module",
             payload={"risks": [{"type": "blocked", "message": "阻塞"}]},
             trace_id="trace-002",
         )
@@ -171,7 +171,7 @@ class TestHandleEvent:
 
         event = Event.create(
             event_type=EventTypes.SYNC_TASK_NEEDS_DECOMPOSE,
-            source_agent="sync-agent",
+            source_agent="sync-module",
             payload={"title": "Login flow"},
             trace_id="trace-decompose",
         )

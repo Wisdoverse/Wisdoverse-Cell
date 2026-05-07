@@ -36,12 +36,18 @@ services:
         max_attempts: 3
 
   gateway:
-    image: ${REGISTRY}projectcell/gateway:${VERSION}
+    image: ${REGISTRY}projectcell/rust-gateway:${VERSION}
     build: !reset null
     environment:
+      GATEWAY_IMPLEMENTATION: rust
       GATEWAY_SERVER_MODE: release
       GATEWAY_LOG_LEVEL: info
       GATEWAY_LOG_FORMAT: json
+    labels:
+      - "traefik.http.routers.gateway.rule=Host(`${GATEWAY_HOST:?GATEWAY_HOST is required}`) && PathPrefix(`/`)"
+      - "traefik.http.routers.gateway.entrypoints=websecure"
+      - "traefik.http.routers.gateway.tls=true"
+      - "traefik.http.routers.gateway.tls.certresolver=letsencrypt"
     deploy:
       replicas: ${GATEWAY_REPLICAS:-3}
       resources:
@@ -60,15 +66,15 @@ services:
         delay: 5s
         max_attempts: 3
 
-  sync-agent:
-    image: ${REGISTRY}projectcell/sync-agent:${VERSION}
+  sync-module:
+    image: ${REGISTRY}projectcell/sync-module:${VERSION}
     build: !reset null
     environment:
       DEBUG: "false"
       APP_ENV: production
-      POSTGRES_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:?SYNC_AGENT_DB_PASSWORD is required}
+      POSTGRES_PASSWORD: ${SYNC_MODULE_DB_PASSWORD:?SYNC_MODULE_DB_PASSWORD is required}
     deploy:
-      replicas: ${SYNC_AGENT_REPLICAS:-1}
+      replicas: ${SYNC_MODULE_REPLICAS:-1}
       resources:
         limits:
           memory: 512M
@@ -83,15 +89,15 @@ services:
         delay: 5s
         max_attempts: 3
 
-  analysis-agent:
-    image: ${REGISTRY}projectcell/analysis-agent:${VERSION}
+  analysis-module:
+    image: ${REGISTRY}projectcell/analysis-module:${VERSION}
     build: !reset null
     environment:
       DEBUG: "false"
       APP_ENV: production
-      POSTGRES_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:?ANALYSIS_AGENT_DB_PASSWORD is required}
+      POSTGRES_PASSWORD: ${ANALYSIS_MODULE_DB_PASSWORD:?ANALYSIS_MODULE_DB_PASSWORD is required}
     deploy:
-      replicas: ${ANALYSIS_AGENT_REPLICAS:-1}
+      replicas: ${ANALYSIS_MODULE_REPLICAS:-1}
       resources:
         limits:
           memory: 512M
@@ -198,15 +204,15 @@ services:
         delay: 5s
         max_attempts: 3
 
-  evolution-agent:
-    image: ${REGISTRY}projectcell/evolution-agent:${VERSION}
+  evolution-module:
+    image: ${REGISTRY}projectcell/evolution-module:${VERSION}
     build: !reset null
     environment:
       DEBUG: "false"
       APP_ENV: production
-      POSTGRES_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:?EVOLUTION_AGENT_DB_PASSWORD is required}
+      POSTGRES_PASSWORD: ${EVOLUTION_MODULE_DB_PASSWORD:?EVOLUTION_MODULE_DB_PASSWORD is required}
     deploy:
-      replicas: ${EVOLUTION_AGENT_REPLICAS:-1}
+      replicas: ${EVOLUTION_MODULE_REPLICAS:-1}
       resources:
         limits:
           memory: 512M
@@ -240,11 +246,11 @@ services:
       APP_ENV: production
       CHAT_AGENT_DB_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:?CHAT_AGENT_DB_PASSWORD is required}
       PM_AGENT_DB_PASSWORD: ${PM_AGENT_DB_PASSWORD:?PM_AGENT_DB_PASSWORD is required}
-      SYNC_AGENT_DB_PASSWORD: ${SYNC_AGENT_DB_PASSWORD:?SYNC_AGENT_DB_PASSWORD is required}
-      ANALYSIS_AGENT_DB_PASSWORD: ${ANALYSIS_AGENT_DB_PASSWORD:?ANALYSIS_AGENT_DB_PASSWORD is required}
+      SYNC_MODULE_DB_PASSWORD: ${SYNC_MODULE_DB_PASSWORD:?SYNC_MODULE_DB_PASSWORD is required}
+      ANALYSIS_MODULE_DB_PASSWORD: ${ANALYSIS_MODULE_DB_PASSWORD:?ANALYSIS_MODULE_DB_PASSWORD is required}
       QA_AGENT_DB_PASSWORD: ${QA_AGENT_DB_PASSWORD:?QA_AGENT_DB_PASSWORD is required}
       DEV_AGENT_DB_PASSWORD: ${DEV_AGENT_DB_PASSWORD:?DEV_AGENT_DB_PASSWORD is required}
-      EVOLUTION_AGENT_DB_PASSWORD: ${EVOLUTION_AGENT_DB_PASSWORD:?EVOLUTION_AGENT_DB_PASSWORD is required}
+      EVOLUTION_MODULE_DB_PASSWORD: ${EVOLUTION_MODULE_DB_PASSWORD:?EVOLUTION_MODULE_DB_PASSWORD is required}
     deploy:
       resources:
         limits:
@@ -255,12 +261,41 @@ services:
           memory: 1G
 
   traefik:
+    command:
+      - --api.dashboard=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.grpc.address=:50051
+      - --entrypoints.grpc.http2.maxConcurrentStreams=250
+      - --entrypoints.traefik.address=:8081
+      - --providers.docker.endpoint=unix:///var/run/docker.sock
+      - --providers.docker.exposedByDefault=false
+      - --providers.docker.network=${COMPOSE_PROJECT_NAME:-projectcell}_frontend
+      - --providers.docker.watch=true
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --metrics.prometheus=true
+      - --metrics.prometheus.entryPoint=traefik
+      - --metrics.prometheus.addEntryPointsLabels=true
+      - --metrics.prometheus.addServicesLabels=true
+      - --metrics.prometheus.addRoutersLabels=true
+      - --accesslog=true
+      - --accesslog.format=json
+      - --accesslog.filters.statuscodes=400-599
+      - --log.level=WARN
+      - --log.format=json
+      - --ping=true
+      - --ping.entryPoint=traefik
+      - --certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL:?TRAEFIK_ACME_EMAIL is required}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
     ports:
       - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
       - "${GRPC_PORT:-50051}:50051"
-    volumes:
-      - ../traefik/traefik-prod.yml:/etc/traefik/traefik.yml:ro
+    volumes: !override
       - ../traefik/dynamic:/etc/traefik/dynamic:ro
+      - traefik_letsencrypt:/letsencrypt
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   redis-master:
@@ -284,3 +319,7 @@ services:
           memory: 512M
         reservations:
           memory: 256M
+
+volumes:
+  traefik_letsencrypt:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_traefik_letsencrypt

@@ -1,4 +1,4 @@
-"""Repository - analysis_agent"""
+"""Repository for the analysis module."""
 from datetime import UTC, datetime
 from typing import Optional
 

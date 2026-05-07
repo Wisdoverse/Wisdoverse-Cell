@@ -1,12 +1,12 @@
-# Evolution Agent (`shared/capabilities/evolution`)
+# Evolution Module (`shared/capabilities/evolution`)
 
 > Global cross-agent analysis and architecture-level optimization suggestions.
 
 ## Purpose
 
-The Evolution Agent is the L2 (Architecture) component of the self-evolution system. It analyzes execution traces across **all** agents to identify system-wide patterns, bottlenecks, and optimization opportunities. Unlike individual agent self-optimization (L1), this agent looks at the bigger picture.
+The Evolution Module is the L2 (Architecture) component of the self-evolution system. It analyzes execution traces across **all** agents to identify system-wide patterns, bottlenecks, and optimization opportunities. Unlike individual agent self-optimization (L1), this module looks at the bigger picture.
 
-**CRITICAL**: This agent must **NOT** be wrapped with `EvolvedAgent`. It uses `evolution_excluded=True` in its `create_agent_app()` call. An evolution agent that evolves itself would create a dangerous feedback loop.
+**CRITICAL**: This module must **NOT** be wrapped with `EvolvedAgent`. It uses `evolution_excluded=True` in its `create_agent_app()` call. A module that evolves itself would create a dangerous feedback loop.
 
 ---
 
@@ -31,14 +31,14 @@ The Evolution Agent is the L2 (Architecture) component of the self-evolution sys
 
 ## API Endpoints
 
-All endpoints are served on the Evolution Agent's default port, `8016`.
+All endpoints are served on the Evolution Module's default port, `8016`.
 Standard health checks are provided by `create_agent_app()`.
 
 ### `GET /health`
 
 - **Auth**: None
 - **Description**: Liveness probe
-- **Response**: `{"status": "alive", "agent": "evolution-agent"}`
+- **Response**: `{"status": "alive", "agent": "evolution-module"}`
 
 ### `GET /health/ready`
 
@@ -91,11 +91,11 @@ The analyzer operates with an **operation whitelist** -- it can only read traces
 
 ### Phase 2: Suggestion Mode
 
-Currently, the Evolution Agent operates in **suggestion mode only**. All proposals require human approval before any changes are applied. The `evolution.human-feedback` event carries the approval/rejection decision.
+Currently, the Evolution Module operates in **suggestion mode only**. All proposals require human approval before any changes are applied. The `evolution.human-feedback` event carries the approval/rejection decision.
 
 ### Phase 3: Collaboration Patterns
 
-When `EVOLUTION_COLLABORATION_ENABLED=true`, the agent also:
+When `EVOLUTION_COLLABORATION_ENABLED=true`, the module also:
 
 1. Proposes collaboration patterns from seed definitions (`collaboration/seeds.py`)
 2. Processes pattern approvals via `ApprovalGateway`
@@ -107,5 +107,5 @@ When `EVOLUTION_COLLABORATION_ENABLED=true`, the agent also:
 | File | Purpose |
 |------|---------|
 | `app/main.py` | FastAPI entry point, `/analyze` endpoint, `create_agent_app()` with `evolution_excluded=True` |
-| `service/agent.py` | `EvolutionAgent` class -- event handling, analysis orchestration |
+| `service/agent.py` | `EvolutionModule` class -- event handling, analysis orchestration |
 | `service/global_analyzer.py` | `GlobalAnalyzer` -- cross-agent trace analysis engine |

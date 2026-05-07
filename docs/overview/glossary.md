@@ -164,7 +164,7 @@ This glossary defines the core terms used across Wisdoverse Cell. Repository-fac
 
 **QA Agent** — Agent that runs automated acceptance checks and reports results to EventBus, Feishu, and GitLab MR comments.
 
-**Evolution Agent** — Agent that analyzes traces and generates L1/L2/L3 optimization recommendations.
+**Evolution Module** — Capability module that analyzes traces and generates L1/L2/L3 optimization recommendations.
 
 **Milvus** — Vector database used for semantic search and similarity matching.
 

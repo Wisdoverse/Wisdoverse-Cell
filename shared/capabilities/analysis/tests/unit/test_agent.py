@@ -1,7 +1,7 @@
 """
-Unit Tests - AnalysisAgent
+Unit Tests - AnalysisModule
 
-Tests AnalysisAgent initialization, event handling, and request handling.
+Tests AnalysisModule initialization, event handling, and request handling.
 """
 from unittest.mock import AsyncMock
 
@@ -30,9 +30,9 @@ def mock_db_manager():
 
 @pytest.fixture
 def agent(mock_db_manager, mock_event_bus):
-    from shared.capabilities.analysis.service.agent import AnalysisAgent
+    from shared.capabilities.analysis.service.agent import AnalysisModule
 
-    a = AnalysisAgent(db=mock_db_manager, bus=mock_event_bus)
+    a = AnalysisModule(db=mock_db_manager, bus=mock_event_bus)
     # Inject mock core components.
     a._daily = AsyncMock()
     a._weekly = AsyncMock()
@@ -43,8 +43,8 @@ def agent(mock_db_manager, mock_event_bus):
 
 class TestAgentInit:
     def test_agent_id(self, agent):
-        """agent_id is analysis-agent."""
-        assert agent.agent_id == "analysis-agent"
+        """agent_id is analysis-module."""
+        assert agent.agent_id == "analysis-module"
 
     def test_subscribed_events(self, agent):
         """Agent subscribes to sync.completed."""
@@ -72,7 +72,7 @@ class TestHandleEvent:
 
         event = Event.create(
             event_type=EventTypes.SYNC_COMPLETED,
-            source_agent="sync-agent",
+            source_agent="sync-module",
             payload={"synced": 10},
             trace_id="trace-001",
         )
@@ -100,7 +100,7 @@ class TestHandleEvent:
 
         event = Event.create(
             event_type=EventTypes.SYNC_COMPLETED,
-            source_agent="sync-agent",
+            source_agent="sync-module",
             payload={},
         )
 
@@ -132,7 +132,7 @@ class TestHandleEvent:
 
         event = Event.create(
             event_type=EventTypes.SYNC_COMPLETED,
-            source_agent="sync-agent",
+            source_agent="sync-module",
             payload={},
         )
 

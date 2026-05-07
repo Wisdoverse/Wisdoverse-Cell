@@ -240,7 +240,7 @@ class TestTraceCollector:
         collector = TraceCollector(agent_id="pjm-agent")
         event = Event.create(
             event_type="pm.decompose",
-            source_agent="sync-agent",
+            source_agent="sync-module",
             payload={"task_id": "t_001"},
             trace_id="trace_abc",
         )
@@ -262,7 +262,7 @@ class TestTraceCollector:
         collector = TraceCollector(agent_id="pjm-agent")
         event = Event.create(
             event_type="pm.decompose",
-            source_agent="sync-agent",
+            source_agent="sync-module",
             payload={"task_id": "t_001", "user_name": "Charlie"},
             trace_id="trace_full",
         )
@@ -283,7 +283,7 @@ class TestTraceCollector:
         assert handle.input_event["payload"]["user_name"].startswith("hash:")
 
     def test_full_failure_flow(self):
-        collector = TraceCollector(agent_id="sync-agent")
+        collector = TraceCollector(agent_id="sync-module")
         event = Event.create(
             event_type="sync.trigger",
             source_agent="scheduler",

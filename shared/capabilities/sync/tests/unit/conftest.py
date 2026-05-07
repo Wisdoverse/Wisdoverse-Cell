@@ -1,4 +1,4 @@
-"""Unit test fixtures — sync_agent.
+"""Unit test fixtures — sync_module.
 
 Mock database session for pure unit tests (no PostgreSQL required).
 """

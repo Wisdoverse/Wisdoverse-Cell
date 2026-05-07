@@ -1,5 +1,5 @@
 """
-SyncAgent DB Models
+SyncModule DB Models
 
 PostgreSQL models migrated from the historical feishu-to-openproject flow.
 """

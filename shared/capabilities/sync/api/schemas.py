@@ -1,4 +1,4 @@
-"""SyncAgent API schemas."""
+"""SyncModule API schemas."""
 from datetime import datetime
 from typing import Optional
 

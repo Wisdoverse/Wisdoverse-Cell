@@ -1,4 +1,4 @@
-"""AnalysisAgent API Schemas"""
+"""AnalysisModule API Schemas"""
 from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field

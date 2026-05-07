@@ -1,5 +1,5 @@
 """
-Seed SkillConfig entries for Analysis Agent.
+Seed SkillConfig entries for Analysis Module.
 
 Source files:
   - shared/capabilities/analysis/core/daily_report.py
@@ -7,10 +7,10 @@ Source files:
   - shared/capabilities/analysis/core/milestone_checker.py
   - shared/capabilities/analysis/core/quality_evaluator.py
 
-The Analysis Agent does NOT make direct LLM calls; it generates reports
+The Analysis Module does NOT make direct LLM calls; it generates reports
 from BiTable data using deterministic logic.  The seed list is empty.
 """
 
 from shared.evolution.models import SkillConfig
 
-ANALYSIS_AGENT_SEEDS: list[SkillConfig] = []
+ANALYSIS_MODULE_SEEDS: list[SkillConfig] = []

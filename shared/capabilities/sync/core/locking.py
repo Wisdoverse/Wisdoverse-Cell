@@ -16,7 +16,7 @@ async def acquire_sync_lock(
     db_manager: DatabaseManager,
     lock_name: str,
     *,
-    locked_by: str = "sync-agent",
+    locked_by: str = "sync-module",
 ) -> AsyncIterator[bool]:
     """Acquire and release a sync lock around one bounded sync operation."""
     acquired = False

@@ -34,13 +34,13 @@ services:
         PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
         APT_MIRROR: mirrors.aliyun.com
 
-  sync-agent:
+  sync-module:
     build:
       args:
         PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
         APT_MIRROR: mirrors.aliyun.com
 
-  analysis-agent:
+  analysis-module:
     build:
       args:
         PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple

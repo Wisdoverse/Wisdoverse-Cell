@@ -19,7 +19,7 @@
 | Severity | Name | Definition | Examples | Response Time |
 |:--------:|------|-----------|----------|:-------------:|
 | **SEV-1** | System Down | All agents unreachable; core business flow completely broken | EventBus down, PostgreSQL crash, Traefik unreachable | **5 min** |
-| **SEV-2** | Degraded | Some agents or major features unavailable; partial service loss | LLM API circuit breaker open, PJM Agent OOM, Sync Agent crash loop | **15 min** |
+| **SEV-2** | Degraded | Some agents or major features unavailable; partial service loss | LLM API circuit breaker open, PJM Agent OOM, Sync Module crash loop | **15 min** |
 | **SEV-3** | Minor Issue | Non-critical feature broken; workaround available | Daily report generation failed, one Feishu webhook retrying, single agent memory spike | **1 hour** |
 | **SEV-4** | Cosmetic / Doc | UI glitch, documentation error, non-functional issue | Typo in card message, stale dashboard panel, outdated API docs | **Next business day** |
 
@@ -296,7 +296,7 @@ docker compose -f docker/compose/docker-compose.app.yml logs --tail=500 <agent-n
 **Severity**: SEV-3
 
 **Symptoms**:
-- Evolution Agent or agents using vector search return slow or empty results
+- Evolution Module or agents using vector search return slow or empty results
 - Logs show `MilvusTimeout` or `ConnectionError` from `shared.infra.milvus_store`
 - Milvus health endpoint unresponsive
 
@@ -368,18 +368,18 @@ docker compose -f docker/compose/docker-compose.app.yml logs --tail=200 <agent-n
 # Check if KillSwitch is active
 docker compose -f docker/compose/docker-compose.app.yml logs --tail=50 <agent-name> | grep -i "killswitch"
 
-# Check Evolution Agent analysis
-docker compose -f docker/compose/docker-compose.app.yml logs --tail=100 evolution-agent | grep -i "runaway\|oscillat"
+# Check Evolution Module analysis
+docker compose -f docker/compose/docker-compose.app.yml logs --tail=100 evolution-module | grep -i "runaway\|oscillat"
 
 # Check SkillStore for conflicting versions
-curl -f http://localhost:<evolution-agent-port>/api/v1/evolution/skills/<agent-id>
+curl -f http://localhost:<evolution-module-port>/api/v1/evolution/skills/<agent-id>
 ```
 
 **Fix**:
 
 ```bash
 # Step 1: Activate KillSwitch to freeze evolution for the affected agent
-# This is typically done via the Evolution Agent API or direct config
+# This is typically done via the Evolution Module API or direct config
 
 # Step 2: Identify the oscillating skill and pin to a known-good version
 # Check SkillStore for the last stable version
@@ -466,7 +466,7 @@ docker compose -f docker/compose/docker-compose.base.yml restart nats-1 nats-2 n
 # Check outbound delivery logs
 docker compose -f docker/compose/docker-compose.app.yml logs --tail=100 ai-core | grep -i "feishu\|delivery\|webhook"
 
-# Check Go gateway webhook reception
+# Check Rust gateway webhook reception
 docker compose -f docker/compose/docker-compose.app.yml logs --tail=100 gateway | grep -i "feishu\|webhook\|callback"
 
 # Check if Feishu access token is valid
@@ -715,15 +715,15 @@ sleep 5
 # Phase 5: Restart dependent agents one by one
 docker compose restart requirement-manager
 sleep 3
-docker compose restart sync-agent
+docker compose restart sync-module
 sleep 3
 docker compose restart pjm-agent
 sleep 3
 docker compose restart chat-agent
 sleep 3
-docker compose restart analysis-agent
+docker compose restart analysis-module
 sleep 3
-docker compose restart evolution-agent
+docker compose restart evolution-module
 
 # Phase 6: Restart frontend
 docker compose -f docker/compose/docker-compose.app.yml restart web

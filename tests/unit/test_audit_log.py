@@ -33,7 +33,7 @@ def test_audit_log_handles_no_detail():
     with patch("shared.infra.audit_log.logger") as mock_logger:
         audit_log(
             action=AuditAction.RATE_LIMITED,
-            agent_id="sync-agent",
+            agent_id="sync-module",
         )
         mock_logger.info.assert_called_once()
         kwargs = mock_logger.info.call_args[1]

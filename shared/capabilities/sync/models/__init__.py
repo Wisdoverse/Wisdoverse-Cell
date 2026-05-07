@@ -1,4 +1,4 @@
-"""SyncAgent ORM Models."""
+"""SyncModule ORM Models."""
 from .base import Base
 from .sync import SubtaskMapping, SyncLock, SyncLog, SyncMapping
 

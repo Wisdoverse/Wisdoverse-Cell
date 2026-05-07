@@ -14,7 +14,8 @@ should live under one of these surfaces or remain a root-level project contract.
 ├── agents/          # Real business runtime agents only
 ├── services/        # Non-agent gateway and orchestration services
 ├── shared/          # Reusable runtime, contracts, ports, adapters, and infra
-├── gateway/         # Go API gateway
+├── rust/            # Rust gateway workspace
+├── gateway/         # Legacy Go gateway rollback path
 ├── frontend/        # Next.js operator console
 ├── docker/          # Dockerfiles and service configuration
 ├── infra/           # Infrastructure entry points
@@ -50,7 +51,8 @@ contribution documents.
 | `shared/integrations/` | External platform adapters |
 | `shared/infra/` | Infrastructure clients and resilience helpers |
 | `shared/schemas/` | Shared Pydantic event, agent, and error schemas |
-| `gateway/` | Go API gateway |
+| `rust/gateway/` | Default Rust edge gateway |
+| `gateway/` | Legacy Go gateway rollback path |
 | `frontend/` | Next.js operator console |
 | `plugins/` | External plugin packages shipped with the repository |
 | `skills/` | Deprecated root compatibility stubs for requirements skills |

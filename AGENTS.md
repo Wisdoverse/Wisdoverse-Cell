@@ -52,7 +52,8 @@ services/
     channel/                  # Multi-channel messaging gateway
   orchestration/
     coordinator/              # Cross-module event orchestration worker
-gateway/                      # Go + Gin API Gateway
+rust/gateway/                 # Default Rust + Axum API Gateway
+gateway/                      # Legacy Go + Gin API Gateway rollback path only
 frontend/                     # Next.js 16 + React 19
 shared/
   capabilities/               # Shared support capabilities; not business agents
@@ -81,7 +82,7 @@ shared/
     seeds/                    # Agent Skill seed data
 ```
 
-**Stack**: FastAPI | Go+Gin | Next.js 16 | PostgreSQL 18 | Redis 8 (EventBus) | NATS JetStream | Milvus | LiteLLM through LLM Gateway | Traefik v3
+**Stack**: FastAPI | Rust+Axum gateway with Go+Gin legacy rollback path | Next.js 16 | PostgreSQL 18 | Redis 8 (EventBus) | NATS JetStream | Milvus | LiteLLM through LLM Gateway | Traefik v3
 
 ### Architecture Boundary Rules
 
@@ -167,7 +168,8 @@ agent and gateway code should inject them through service-local ports.
 ```bash
 make test                                          # Python tests
 make dev                                           # uvicorn --reload (requirement manager agent)
-make gateway-dev                                   # Go gateway dev
+make gateway-dev                                   # Legacy Go gateway rollback dev
+make rust-gateway-run                              # Default Rust gateway
 make frontend-dev                                  # Next.js dev
 make up-dev                                        # Docker Compose all services
 make up-infra                                      # Infrastructure only (PG/Redis/NATS/Milvus)

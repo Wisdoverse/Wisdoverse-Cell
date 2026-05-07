@@ -1,4 +1,4 @@
-"""AnalysisAgent Service."""
-from .agent import AnalysisAgent, agent, get_agent
+"""AnalysisModule Service."""
+from .agent import AnalysisModule, agent, get_agent
 
-__all__ = ["AnalysisAgent", "agent", "get_agent"]
+__all__ = ["AnalysisModule", "agent", "get_agent"]

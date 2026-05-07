@@ -24,11 +24,11 @@ class TestEventA2AMapping:
         """Test creating a basic mapping."""
         mapping = EventA2AMapping(
             event_type="requirement.extracted",
-            target_agent_id="analysis-agent",
+            target_agent_id="analysis-module",
         )
 
         assert mapping.event_type == "requirement.extracted"
-        assert mapping.target_agent_id == "analysis-agent"
+        assert mapping.target_agent_id == "analysis-module"
         assert mapping.skill_id is None
         assert mapping.transform is None
 

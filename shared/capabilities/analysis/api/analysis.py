@@ -1,4 +1,4 @@
-"""AnalysisAgent API - analysis report HTTP endpoints."""
+"""AnalysisModule API - analysis report HTTP endpoints."""
 from fastapi import APIRouter, HTTPException
 
 from shared.utils.logger import get_logger
@@ -7,7 +7,7 @@ from ..service.agent import get_agent
 from .schemas import DailyReportResponse, RiskCheckResponse, WeeklyReportResponse
 
 router = APIRouter(prefix="/api/v1/analysis", tags=["analysis"])
-logger = get_logger("analysis_agent.api")
+logger = get_logger("analysis_module.api")
 
 
 @router.post("/daily", response_model=DailyReportResponse)

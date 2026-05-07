@@ -189,7 +189,7 @@ async def test_control_plane_api_manages_evolution_proposals(
                 "evidence": {"p95_latency_ms": 1200},
                 "expected_benefit": "Reduce routing latency",
                 "risk": "May change coordinator dispatch behavior",
-                "proposed_by": "evolution-agent",
+                "proposed_by": "evolution-module",
             },
         )
         proposal = created.json()
@@ -594,8 +594,8 @@ async def test_control_plane_api_separates_agent_kinds(
             "/api/v1/control-plane/agents",
             json={
                 "company_id": "cmp_agent_kinds",
-                "agent_id": "sync-agent",
-                "display_name": "Sync Agent",
+                "agent_id": "sync-module",
+                "display_name": "Sync Module",
                 "agent_kind": "capability_module",
                 "interaction_mode": "internal",
                 "role": "sync-capability",
