@@ -2,7 +2,8 @@
 
 import { Badge } from "@/shared/ui/badge";
 import { cn } from "@/lib/utils";
-import type { AgentMeta, AgentRuntimeStatus } from "../model/types";
+import { useTranslations } from "next-intl";
+import type { AgentMeta, AgentRuntimeStatus, AgentStatus } from "../model/types";
 import { AgentAvatar } from "./agent-avatar";
 import { AgentStatusDot } from "./agent-status-dot";
 
@@ -13,9 +14,10 @@ interface AgentCardProps {
   className?: string;
 }
 
-const statusLabels: Record<string, string> = {
+const statusLabels: Record<AgentStatus, string> = {
   running: "Running",
   idle: "Idle",
+  paused: "Paused",
   warning: "Warning",
   error: "Error",
   stopped: "Stopped",
@@ -30,6 +32,7 @@ const kindLabels: Record<string, string> = {
 };
 
 export function AgentCard({ meta, runtime, onClick, className }: AgentCardProps) {
+  const t = useTranslations("agents");
   const kindLabel =
     meta.implemented === false
       ? "Reserved"
@@ -74,7 +77,7 @@ export function AgentCard({ meta, runtime, onClick, className }: AgentCardProps)
       <div className="flex flex-wrap gap-1.5">
         {meta.interactionMode && (
           <Badge variant="secondary" className="rounded-md text-[11px]">
-            {meta.interactionMode}
+            {t(`interactionModes.${meta.interactionMode}`)}
           </Badge>
         )}
         {meta.adapterType && (

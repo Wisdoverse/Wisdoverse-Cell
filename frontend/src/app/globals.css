@@ -94,6 +94,7 @@
     /* Agent Status Colors */
     --status-running: #22C55E;
     --status-idle: #9CA3AF;
+    --status-paused: #F59E0B;
     --status-warning: #F59E0B;
     --status-error: #EF4444;
     --status-stopped: #9CA3AF;

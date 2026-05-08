@@ -1,6 +1,6 @@
 "use client";
 
-import type { AgentMeta, AgentRuntimeStatus } from "@/lib/api/types";
+import type { AgentMeta, AgentRuntimeStatus, AgentStatus } from "@/lib/api/types";
 import { AgentAvatar } from "./agent-display-avatar";
 import { AgentStatusDot } from "./agent-display-status-dot";
 import { cn } from "@/lib/utils";
@@ -12,9 +12,10 @@ interface AgentCardProps {
   className?: string;
 }
 
-const statusLabels: Record<string, string> = {
+const statusLabels: Record<AgentStatus, string> = {
   running: "Running",
   idle: "Idle",
+  paused: "Paused",
   warning: "Warning",
   error: "Error",
   stopped: "Stopped",

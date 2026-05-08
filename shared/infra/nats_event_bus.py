@@ -98,7 +98,7 @@ class NATSEventBus:
 
         # Ensure the PROJECT_EVENTS stream exists
         try:
-            await self._js.find_stream_info_by_subject(f"{SUBJECT_PREFIX}.>")
+            await self._find_stream_by_subject(f"{SUBJECT_PREFIX}.>")
             logger.info("nats_stream_found", stream=STREAM_NAME)
         except NotFoundError:
             await self._js.add_stream(
@@ -119,6 +119,21 @@ class NATSEventBus:
             )
 
         logger.info("nats_event_bus_connected", servers=servers)
+
+    async def _find_stream_by_subject(self, subject: str) -> None:
+        """Find a stream for *subject* across nats-py JetStream API versions."""
+        self._ensure_connected()
+        find_stream_info = getattr(self._js, "find_stream_info_by_subject", None)
+        if callable(find_stream_info):
+            await find_stream_info(subject)
+            return
+
+        find_stream_name = getattr(self._js, "find_stream_name_by_subject", None)
+        if callable(find_stream_name):
+            await find_stream_name(subject)
+            return
+
+        await self._js.stream_info(STREAM_NAME)
 
     async def disconnect(self) -> None:
         """Close NATS connection."""

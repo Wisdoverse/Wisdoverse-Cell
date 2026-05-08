@@ -4,7 +4,10 @@ from dataclasses import dataclass
 
 from sqlalchemy.exc import IntegrityError
 
-from shared.control_plane.agent_catalog import ORGANIZATION_ROLE_TEMPLATES
+from shared.control_plane.agent_catalog import (
+    ORGANIZATION_ROLE_TEMPLATES,
+    RUNTIME_MODULES,
+)
 from shared.control_plane.models import AgentRole, AuditEvent, CompanyContext
 from shared.control_plane.repository import ControlPlaneRepository
 from shared.schemas.event import EventTypes
@@ -229,6 +232,60 @@ async def ensure_core_organization_role_agents(
                     "reports_to_agent_id": row.reports_to_agent_id,
                     "capabilities": list(seed.capabilities),
                     "bootstrap": "core_organization_role_agents",
+                },
+            )
+        )
+        created_agent_ids.append(row.agent_id)
+
+    return created_agent_ids
+
+
+async def ensure_core_runtime_agent_roles(
+    repo: ControlPlaneRepository,
+    *,
+    company_id: str,
+    company_name: str = "Wisdoverse Cell",
+    created_by: str = "system:control-plane-bootstrap",
+) -> list[str]:
+    """Ensure frontend-managed runtime modules exist as configurable AgentRole records."""
+
+    await _ensure_company(repo, company_id=company_id, company_name=company_name)
+    created_agent_ids: list[str] = []
+
+    for module in RUNTIME_MODULES:
+        if not module.frontend_managed:
+            continue
+        if await repo.get_agent_role(company_id=company_id, agent_id=module.agent_id):
+            continue
+
+        role = module.to_agent_role(company_id=company_id, created_by=created_by)
+
+        try:
+            async with repo.session.begin_nested():
+                row = await repo.create_agent_role(role)
+        except IntegrityError:
+            continue
+
+        await repo.append_audit_event(
+            AuditEvent(
+                company_id=company_id,
+                action=EventTypes.AGENT_ROLE_CREATED,
+                target_type="agent_role",
+                target_id=row.agent_id,
+                actor_type="system",
+                actor_id=created_by,
+                idempotency_key=f"bootstrap:{company_id}:runtime_agent_role:{row.agent_id}",
+                detail={
+                    "agent_id": row.agent_id,
+                    "role_id": row.role_id,
+                    "agent_kind": row.agent_kind,
+                    "interaction_mode": row.interaction_mode,
+                    "role": row.role,
+                    "adapter_type": row.adapter_type,
+                    "reports_to_agent_id": row.reports_to_agent_id,
+                    "runtime_boundary": module.runtime_boundary,
+                    "package_path": module.package_path,
+                    "bootstrap": "core_runtime_agent_roles",
                 },
             )
         )

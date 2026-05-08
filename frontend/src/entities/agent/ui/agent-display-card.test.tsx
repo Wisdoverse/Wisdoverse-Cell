@@ -41,6 +41,16 @@ describe("AgentCard", () => {
     expect(dot).toBeTruthy();
   });
 
+  it("shows paused status label", () => {
+    render(
+      <AgentCard
+        meta={mockMeta}
+        runtime={{ ...mockRuntime, status: "paused" }}
+      />
+    );
+    expect(screen.getByText("Paused")).toBeDefined();
+  });
+
   it("shows task count", () => {
     render(<AgentCard meta={mockMeta} runtime={mockRuntime} />);
     expect(screen.getByText("142")).toBeDefined();

@@ -183,6 +183,7 @@ yarn-error.log*
 # Data directories (may contain sensitive data)
 data/
 !data/.gitkeep
+.data/
 
 # Local configuration
 .mise.toml

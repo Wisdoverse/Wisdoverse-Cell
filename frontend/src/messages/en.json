@@ -26,6 +26,7 @@
     "approvals": "Approvals",
     "agents": "Agents",
     "fleetOverview": "Fleet",
+    "agentWorkspaces": "Agent Workspaces",
     "analytics": "Analytics",
     "costUsage": "Cost & Usage",
     "system": "System",
@@ -195,7 +196,20 @@
     "loginError": "Invalid username or password",
     "networkError": "Unable to connect to server. Please try again later.",
     "loginDescription": "Sign in to your account to continue",
-    "signingIn": "Signing in..."
+    "signingIn": "Signing in...",
+    "setupDescription": "Create the first administrator account",
+    "adminEmail": "Admin email",
+    "adminEmailPlaceholder": "admin@example.com",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "Administrator",
+    "confirmPassword": "Confirm password",
+    "confirmPasswordPlaceholder": "Enter the password again",
+    "createAdmin": "Create admin",
+    "creatingAdmin": "Creating admin...",
+    "setupPasswordMismatch": "Passwords do not match",
+    "setupConflict": "An administrator account already exists",
+    "setupError": "Unable to create administrator account",
+    "setupLoginError": "Administrator was created, but automatic sign-in failed"
   },
   "errorPage": {
     "title": "Something went wrong",
@@ -301,6 +315,7 @@
     "all": "All",
     "running": "Running",
     "idle": "Idle",
+    "paused": "Paused",
     "error": "Error",
     "stopped": "Stopped",
     "allKinds": "All agent kinds",
@@ -320,12 +335,18 @@
       "integration_gateway": "Integration gateway",
       "system_worker": "System worker"
     },
-    "interactionMode": "Interaction",
+    "interactionMode": "Interaction entry",
     "interactionModes": {
-      "direct": "Direct user-facing",
-      "routed": "Routed by gateway",
-      "internal": "Internal only",
-      "none": "No interaction"
+      "direct": "User-facing chat",
+      "routed": "Gateway-routed",
+      "internal": "Backend collaboration only",
+      "none": "Not callable"
+    },
+    "interactionModeDescriptions": {
+      "direct": "Users can open this agent directly from a chat or operator surface.",
+      "routed": "A gateway or coordinator chooses when this agent receives a request.",
+      "internal": "Only other services or agents call this agent; users do not talk to it directly.",
+      "none": "This record is not callable and only keeps catalog or operational metadata."
     },
     "role": "Role",
     "titleField": "Title",
@@ -365,7 +386,7 @@
     "agentId": "Agent ID",
     "domain": "Domain",
     "agentKind": "Agent kind",
-    "interactionMode": "Interaction",
+    "interactionMode": "Interaction entry",
     "role": "Role",
     "titleField": "Title",
     "adapterType": "Adapter",
@@ -386,6 +407,11 @@
     "promptSave": "Save",
     "promptSaving": "Saving",
     "promptSaveSuccess": "Prompt config saved",
-    "promptSaveError": "Failed to save prompt config"
+    "promptSaveError": "Failed to save prompt config",
+    "editAgent": "Edit agent",
+    "editAgentDescription": "Update this control-plane agent's role, routing, adapter, context, and event contracts.",
+    "saveAgent": "Save agent",
+    "agentUpdating": "Saving",
+    "agentUpdateSuccess": "Agent updated"
   }
 }

@@ -21,13 +21,66 @@ class RuntimeModule:
     display_name: str
     agent_kind: AgentKind
     interaction_mode: AgentInteractionMode
+    role: str
+    title: str
+    domain: str
     description: str
     runtime_boundary: str
+    reports_to_agent_id: str | None = None
+    adapter_type: str = "builtin"
+    context_sources: tuple[str, ...] = ("control_plane",)
+    capabilities: tuple[str, ...] = ()
+    responsibilities: tuple[str, ...] = ()
     subscribed_events: tuple[str, ...] = ()
     published_events: tuple[str, ...] = ()
+    permissions: tuple[str, ...] = ()
     implemented: bool = True
     business_agent: bool = False
     frontend_managed: bool = True
+
+    def to_agent_role(
+        self,
+        *,
+        company_id: str,
+        created_by: str = "system",
+    ) -> AgentRole:
+        """Create a durable control-plane AgentRole for this runtime module."""
+
+        capabilities = self.capabilities or (self.description,)
+        responsibilities = self.responsibilities or (self.description,)
+        return AgentRole(
+            company_id=company_id,
+            agent_id=self.agent_id,
+            display_name=self.display_name,
+            agent_kind=self.agent_kind,
+            interaction_mode=self.interaction_mode,
+            role=self.role,
+            title=self.title,
+            domain=self.domain,
+            reports_to_agent_id=self.reports_to_agent_id,
+            adapter_type=self.adapter_type,
+            adapter_config={
+                "execution_mode": "runtime_module",
+                "managed_by": "control_plane",
+                "package_path": self.package_path,
+                "runtime_boundary": self.runtime_boundary,
+            },
+            context_sources=list(self.context_sources),
+            capabilities=list(capabilities),
+            responsibilities=list(responsibilities),
+            subscribed_events=list(self.subscribed_events),
+            published_events=list(self.published_events),
+            permissions=list(self.permissions),
+            created_by=created_by,
+            metadata={
+                "seeded": True,
+                "seed_source": "core_runtime_modules",
+                "runtime_boundary": self.runtime_boundary,
+                "package_path": self.package_path,
+                "business_agent": self.business_agent,
+                "frontend_managed": self.frontend_managed,
+            },
+        )
 
 
 @dataclass(frozen=True)
@@ -104,8 +157,22 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         display_name="User Gateway",
         agent_kind=AgentKind.INTEGRATION_GATEWAY,
         interaction_mode=AgentInteractionMode.DIRECT,
+        role="reception",
+        title="User Interaction Gateway",
+        domain="operations",
         description="User interaction and Feishu webhook gateway.",
         runtime_boundary="gateway",
+        context_sources=("feishu", "control_plane"),
+        capabilities=(
+            "User message intake",
+            "Feishu webhook routing",
+            "Operator-facing chat handoff",
+        ),
+        responsibilities=(
+            "Receive user-facing messages and normalize them for backend agents.",
+            "Route operator requests into the coordinator or business agents.",
+            "Return agent responses to the active user interaction channel.",
+        ),
         subscribed_events=("chat.pm-response", "coordinator.response"),
         published_events=("chat.pm-query", "coordinator.command", "sync.trigger"),
     ),
@@ -115,8 +182,22 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         display_name="Channel Gateway",
         agent_kind=AgentKind.INTEGRATION_GATEWAY,
         interaction_mode=AgentInteractionMode.DIRECT,
+        role="channel-gateway",
+        title="Channel Integration Gateway",
+        domain="operations",
         description="Multi-channel messaging gateway runtime.",
         runtime_boundary="gateway",
+        context_sources=("feishu", "wecom", "control_plane"),
+        capabilities=(
+            "Multi-channel inbound messaging",
+            "Outbound delivery tracking",
+            "Channel adapter status reporting",
+        ),
+        responsibilities=(
+            "Normalize messages from supported external channels.",
+            "Deliver outbound messages through the correct channel adapter.",
+            "Publish channel delivery and adapter health events.",
+        ),
         subscribed_events=("channel.message.outbound",),
         published_events=(
             "channel.message.inbound",
@@ -130,8 +211,23 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         display_name="Coordinator Worker",
         agent_kind=AgentKind.SYSTEM_WORKER,
         interaction_mode=AgentInteractionMode.ROUTED,
+        role="orchestrator",
+        title="Coordination Engine",
+        domain="operations",
         description="Cross-module event orchestration worker.",
         runtime_boundary="orchestration",
+        reports_to_agent_id="coo",
+        context_sources=("event_bus", "scratchpad", "control_plane"),
+        capabilities=(
+            "Cross-agent routing",
+            "Decision synthesis",
+            "Event-driven workflow coordination",
+        ),
+        responsibilities=(
+            "Route cross-module events to the correct runtime boundary.",
+            "Coordinate handoffs between product, delivery, QA, and support modules.",
+            "Keep orchestration decisions traceable through the control plane.",
+        ),
         subscribed_events=(
             "coordinator.command",
             "task.notification",
@@ -154,8 +250,24 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         display_name="Requirement Manager",
         agent_kind=AgentKind.BUSINESS_RUNTIME_AGENT,
         interaction_mode=AgentInteractionMode.INTERNAL,
+        role="requirement-agent",
+        title="Requirement Manager Agent",
+        domain="product",
         description="Requirement extraction, confirmation, PRD, and local Feishu flow.",
         runtime_boundary="root_agent",
+        reports_to_agent_id="cpo",
+        context_sources=("feishu", "manual_upload", "control_plane"),
+        capabilities=(
+            "Requirement extraction",
+            "Requirement confirmation workflow",
+            "PRD generation",
+            "Local Feishu intake flow",
+        ),
+        responsibilities=(
+            "Extract structured requirements from meetings, documents, and manual input.",
+            "Manage requirement confirmation, rejection, and deletion workflows.",
+            "Generate PRD-ready product context for downstream planning.",
+        ),
         subscribed_events=(
             "project.created",
             "project.updated",
@@ -178,11 +290,26 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         display_name="Sync Module",
         agent_kind=AgentKind.CAPABILITY_MODULE,
         interaction_mode=AgentInteractionMode.INTERNAL,
+        role="sync-capability",
+        title="Context Sync Capability",
+        domain="operations",
         description=(
             "Compatibility sync runtime for separate OpenProject and "
             "Feishu Bitable sync capabilities."
         ),
         runtime_boundary="capability",
+        reports_to_agent_id="coo",
+        context_sources=("openproject", "feishu", "control_plane"),
+        capabilities=(
+            "OpenProject synchronization",
+            "Feishu Bitable synchronization",
+            "Sync failure reporting",
+        ),
+        responsibilities=(
+            "Keep OpenProject task data and Feishu Bitable data synchronized.",
+            "Preserve separate bounded capability behavior for each external system.",
+            "Publish sync completion, failure, and task-decomposition trigger events.",
+        ),
         subscribed_events=("sync.trigger",),
         published_events=(
             "sync.started",
@@ -197,8 +324,23 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         display_name="Analysis Module",
         agent_kind=AgentKind.CAPABILITY_MODULE,
         interaction_mode=AgentInteractionMode.INTERNAL,
+        role="analysis-capability",
+        title="Analysis Capability",
+        domain="data-ai",
         description="Risk detection and operating analytics capability.",
         runtime_boundary="capability",
+        reports_to_agent_id="coo",
+        context_sources=("openproject", "control_plane"),
+        capabilities=(
+            "Risk detection",
+            "Operating analytics",
+            "Quality signal evaluation",
+        ),
+        responsibilities=(
+            "Analyze synchronized delivery data for risk and quality signals.",
+            "Generate operating reports for role agents and operators.",
+            "Publish risk and quality events without owning business execution.",
+        ),
         subscribed_events=("sync.completed",),
         published_events=(
             "report.daily-generated",
@@ -213,8 +355,24 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         display_name="PJM Agent",
         agent_kind=AgentKind.BUSINESS_RUNTIME_AGENT,
         interaction_mode=AgentInteractionMode.INTERNAL,
+        role="project-management-agent",
+        title="Project Management Agent",
+        domain="product",
         description="Task decomposition, approval preparation, alerts, and reports.",
         runtime_boundary="root_agent",
+        reports_to_agent_id="cpo",
+        context_sources=("openproject", "feishu", "control_plane"),
+        capabilities=(
+            "Task decomposition",
+            "Approval preparation",
+            "Delivery alerting",
+            "Progress reporting",
+        ),
+        responsibilities=(
+            "Break approved product context into executable work items.",
+            "Prepare approval packets and delivery alerts for role agents.",
+            "Report delivery progress and decomposition failures through events.",
+        ),
         subscribed_events=(
             "sync.completed",
             "analysis.risk-detected",
@@ -239,8 +397,23 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         display_name="QA Agent",
         agent_kind=AgentKind.BUSINESS_RUNTIME_AGENT,
         interaction_mode=AgentInteractionMode.INTERNAL,
+        role="quality-agent",
+        title="QA Agent",
+        domain="quality",
         description="QA acceptance and quality verification agent.",
         runtime_boundary="root_agent",
+        reports_to_agent_id="cto",
+        context_sources=("gitlab", "control_plane"),
+        capabilities=(
+            "Acceptance verification",
+            "Quality gate evaluation",
+            "Regression evidence review",
+        ),
+        responsibilities=(
+            "Run acceptance checks for delivered work.",
+            "Publish QA success or gate-failure events with enough evidence to act.",
+            "Coordinate quality feedback with Dev Agent and CTO role agent.",
+        ),
         subscribed_events=("code.committed", "qa.run-requested"),
         published_events=("qa.acceptance-completed", "qa.gate-failed"),
         business_agent=True,
@@ -251,8 +424,23 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         display_name="Dev Agent",
         agent_kind=AgentKind.BUSINESS_RUNTIME_AGENT,
         interaction_mode=AgentInteractionMode.INTERNAL,
+        role="development-agent",
+        title="Development Agent",
+        domain="engineering",
         description="AgentForge-backed software delivery execution agent.",
         runtime_boundary="root_agent",
+        reports_to_agent_id="cto",
+        context_sources=("agentforge", "gitlab", "control_plane"),
+        capabilities=(
+            "AgentForge delivery execution",
+            "Merge request creation",
+            "Implementation task completion",
+        ),
+        responsibilities=(
+            "Execute approved delivery work through the AgentForge workflow.",
+            "Create merge requests and publish delivery progress events.",
+            "Request QA verification when implementation work is ready.",
+        ),
         subscribed_events=("pm.tasks-ready-for-dev", "qa.acceptance-completed"),
         published_events=(
             "dev.workflow-created",
@@ -269,8 +457,23 @@ RUNTIME_MODULES: tuple[RuntimeModule, ...] = (
         display_name="Evolution Module",
         agent_kind=AgentKind.CAPABILITY_MODULE,
         interaction_mode=AgentInteractionMode.INTERNAL,
+        role="evolution-capability",
+        title="Evolution Capability",
+        domain="data-ai",
         description="Self-evolution analysis and recommendation capability.",
         runtime_boundary="capability",
+        reports_to_agent_id="cto",
+        context_sources=("traces", "control_plane"),
+        capabilities=(
+            "Self-evolution analysis",
+            "Skill improvement proposals",
+            "Collaboration pattern recommendations",
+        ),
+        responsibilities=(
+            "Analyze runtime evidence for L1, L2, and L3 improvement opportunities.",
+            "Propose skill and collaboration changes for human review.",
+            "Keep evolution proposals separate from direct production changes.",
+        ),
         subscribed_events=(
             "evolution.cycle-triggered",
             "evolution.human-feedback",

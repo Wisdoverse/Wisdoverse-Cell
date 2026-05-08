@@ -39,6 +39,7 @@ export type {
   ControlPlaneAgentDefinition,
   ControlPlaneAgentListResponse,
   CreateControlPlaneAgentRequest,
+  UpdateControlPlaneAgentRequest,
   WakeControlPlaneAgentRequest,
   WakeControlPlaneAgentResponse,
 } from "@/entities/agent/model/types";

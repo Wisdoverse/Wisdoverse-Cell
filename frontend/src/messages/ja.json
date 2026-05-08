@@ -26,6 +26,7 @@
     "approvals": "承認センター",
     "agents": "エージェント",
     "fleetOverview": "フリート概要",
+    "agentWorkspaces": "エージェント作業台",
     "analytics": "分析",
     "costUsage": "コストと使用量",
     "system": "システム",
@@ -195,7 +196,20 @@
     "loginError": "ユーザー名またはパスワードが正しくありません",
     "networkError": "サーバーに接続できません。しばらくしてから再度お試しください。",
     "loginDescription": "アカウントにサインインして続行",
-    "signingIn": "サインイン中..."
+    "signingIn": "サインイン中...",
+    "setupDescription": "最初の管理者アカウントを作成",
+    "adminEmail": "管理者メール",
+    "adminEmailPlaceholder": "admin@example.com",
+    "displayName": "表示名",
+    "displayNamePlaceholder": "管理者",
+    "confirmPassword": "パスワード確認",
+    "confirmPasswordPlaceholder": "パスワードを再入力",
+    "createAdmin": "管理者を作成",
+    "creatingAdmin": "作成中...",
+    "setupPasswordMismatch": "パスワードが一致しません",
+    "setupConflict": "管理者アカウントは既に存在します",
+    "setupError": "管理者アカウントを作成できません",
+    "setupLoginError": "管理者は作成されましたが、自動サインインに失敗しました"
   },
   "errorPage": {
     "title": "問題が発生しました",
@@ -301,6 +315,7 @@
     "all": "すべて",
     "running": "実行中",
     "idle": "待機中",
+    "paused": "一時停止",
     "error": "エラー",
     "stopped": "停止中",
     "allKinds": "すべてのエージェント種別",
@@ -320,12 +335,18 @@
       "integration_gateway": "連携ゲートウェイ",
       "system_worker": "システムワーカー"
     },
-    "interactionMode": "対話方式",
+    "interactionMode": "呼び出し入口",
     "interactionModes": {
-      "direct": "ユーザー直接対応",
+      "direct": "ユーザーが直接対話",
       "routed": "ゲートウェイ経由",
-      "internal": "内部専用",
-      "none": "対話なし"
+      "internal": "バックエンド連携のみ",
+      "none": "呼び出し不可"
+    },
+    "interactionModeDescriptions": {
+      "direct": "ユーザーがチャットまたは運用画面から直接このエージェントを開けます。",
+      "routed": "ゲートウェイまたはコーディネーターがこのエージェントへリクエストを振り分けます。",
+      "internal": "他のサービスやエージェントだけが呼び出し、ユーザーは直接対話しません。",
+      "none": "このレコードはカタログまたは運用メタデータ用で、呼び出し対象ではありません。"
     },
     "role": "ロール",
     "titleField": "タイトル",
@@ -365,7 +386,7 @@
     "agentId": "エージェントID",
     "domain": "ドメイン",
     "agentKind": "エージェント種別",
-    "interactionMode": "対話方式",
+    "interactionMode": "呼び出し入口",
     "role": "ロール",
     "titleField": "タイトル",
     "adapterType": "アダプター",
@@ -386,6 +407,11 @@
     "promptSave": "保存",
     "promptSaving": "保存中",
     "promptSaveSuccess": "プロンプト設定を保存しました",
-    "promptSaveError": "プロンプト設定の保存に失敗しました"
+    "promptSaveError": "プロンプト設定の保存に失敗しました",
+    "editAgent": "エージェント編集",
+    "editAgentDescription": "このコントロールプレーンエージェントのロール、呼び出し入口、アダプター、コンテキスト、イベント契約を更新します。",
+    "saveAgent": "エージェント保存",
+    "agentUpdating": "保存中",
+    "agentUpdateSuccess": "エージェントを更新しました"
   }
 }

@@ -25,7 +25,8 @@ export function GreetingBanner() {
 
   const runningCount = agents.filter((a) => a.status === "running").length;
   const attentionCount = agents.filter(
-    (a) => a.status === "warning" || a.status === "idle",
+    (a) =>
+      a.status === "warning" || a.status === "idle" || a.status === "paused",
   ).length;
   const errorCount = agents.filter((a) => a.status === "error").length;
   const pendingCount = pendingApprovals.length;

@@ -641,7 +641,9 @@ services:
       NEXT_PUBLIC_API_BASE_URL: /api/v1
       AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      ENABLE_DEV_AUTH: ${ENABLE_DEV_AUTH:-false}
+      WEBUI_ADMIN_STORE_PATH: ${WEBUI_ADMIN_STORE_PATH:-/app/data/webui-admin.json}
+    volumes:
+      - web_auth_data:/app/data
     networks:
       - frontend
     healthcheck:
@@ -681,3 +683,7 @@ networks:
   backend:
     name: ${COMPOSE_PROJECT_NAME:-projectcell}_backend
     external: true
+
+volumes:
+  web_auth_data:
+    name: ${COMPOSE_PROJECT_NAME:-projectcell}_web_auth_data

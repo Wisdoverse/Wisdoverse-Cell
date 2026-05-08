@@ -17,6 +17,13 @@ describe("AgentStatusDot", () => {
     expect(dot.className).not.toContain("animate-pulse");
   });
 
+  it("renders paused without running animation", () => {
+    const { container } = render(<AgentStatusDot status="paused" />);
+    const dot = container.firstChild as HTMLElement;
+    expect(dot.className).toContain("bg-amber-500");
+    expect(dot.className).not.toContain("animate-pulse");
+  });
+
   it("renders error status", () => {
     const { container } = render(<AgentStatusDot status="error" />);
     const dot = container.firstChild as HTMLElement;
