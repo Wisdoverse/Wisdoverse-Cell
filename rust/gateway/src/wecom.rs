@@ -324,6 +324,7 @@ mod tests {
     use aes::Aes256;
     use base64::{engine::general_purpose, Engine as _};
     use cbc::cipher::{block_padding::Pkcs7, BlockEncryptMut, KeyIvInit};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     type Aes256CbcEnc = cbc::Encryptor<Aes256>;
 
@@ -345,10 +346,11 @@ mod tests {
     #[test]
     fn generates_and_verifies_signature() {
         let crypt = WecomCrypto::new(TOKEN, KEY, CORP_ID).unwrap();
-        let signature = crypt.generate_signature("1704067200", "abc123", "encrypted-data");
+        let nonce = test_nonce("signature");
+        let signature = crypt.generate_signature("1704067200", &nonce, "encrypted-data");
 
-        assert!(crypt.verify_signature(&signature, "1704067200", "abc123", "encrypted-data"));
-        assert!(!crypt.verify_signature("invalid-sig", "1704067200", "abc123", "encrypted-data"));
+        assert!(crypt.verify_signature(&signature, "1704067200", &nonce, "encrypted-data"));
+        assert!(!crypt.verify_signature("invalid-sig", "1704067200", &nonce, "encrypted-data"));
     }
 
     #[test]
@@ -365,10 +367,11 @@ mod tests {
     fn verifies_url_and_returns_decrypted_echo() {
         let crypt = WecomCrypto::new(TOKEN, KEY, CORP_ID).unwrap();
         let encrypted = encrypt_for_test("echo-ok", &crypt.aes_key, CORP_ID);
-        let signature = crypt.generate_signature("1704067200", "abc123", &encrypted);
+        let nonce = test_nonce("url");
+        let signature = crypt.generate_signature("1704067200", &nonce, &encrypted);
 
         let echo = crypt
-            .verify_url(&signature, "1704067200", "abc123", &encrypted)
+            .verify_url(&signature, "1704067200", &nonce, &encrypted)
             .unwrap();
 
         assert_eq!(echo, "echo-ok");
@@ -380,13 +383,14 @@ mod tests {
         let plain =
             "<xml><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[hello]]></Content></xml>";
         let encrypted = encrypt_for_test(plain, &crypt.aes_key, CORP_ID);
-        let signature = crypt.generate_signature("1704067200", "abc123", &encrypted);
+        let nonce = test_nonce("xml");
+        let signature = crypt.generate_signature("1704067200", &nonce, &encrypted);
         let xml = format!(
             "<xml><ToUserName><![CDATA[{CORP_ID}]]></ToUserName><Encrypt><![CDATA[{encrypted}]]></Encrypt><AgentID>1</AgentID></xml>"
         );
 
         let decrypted = crypt
-            .decrypt_msg(&signature, "1704067200", "abc123", xml.as_bytes())
+            .decrypt_msg(&signature, "1704067200", &nonce, xml.as_bytes())
             .unwrap();
 
         assert_eq!(decrypted, plain.as_bytes());
@@ -468,7 +472,7 @@ mod tests {
         );
         assert_eq!(
             crypt
-                .decrypt_msg("invalid", "1704067200", "abc123", b"not xml")
+                .decrypt_msg("invalid", "1704067200", &test_nonce("invalid"), b"not xml")
                 .unwrap_err(),
             WecomCryptoError::MissingEncrypt
         );
@@ -490,7 +494,7 @@ mod tests {
 
     fn encrypt_for_test(plain_text: &str, aes_key: &[u8], corp_id: &str) -> String {
         let mut plain = Vec::new();
-        plain.extend(0u8..16u8);
+        plain.extend_from_slice(&test_random_prefix());
         plain.extend_from_slice(&(plain_text.len() as u32).to_be_bytes());
         plain.extend_from_slice(plain_text.as_bytes());
         plain.extend_from_slice(corp_id.as_bytes());
@@ -504,5 +508,21 @@ mod tests {
             .unwrap();
 
         general_purpose::STANDARD.encode(cipher_text)
+    }
+
+    fn test_nonce(label: &str) -> String {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        format!("nonce-{label}-{nanos}")
+    }
+
+    fn test_random_prefix() -> [u8; 16] {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+            .to_be_bytes()
     }
 }

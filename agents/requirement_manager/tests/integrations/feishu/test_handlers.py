@@ -3,6 +3,7 @@
 Uses shared fixtures from conftest: mock_feishu_client, mock_requirement_agent,
 MockIngestResult, make_card_action.
 """
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -164,6 +165,50 @@ class TestCardHandler:
         assert result["toast"]["type"] == "error"
         assert result["toast"]["content"] == "操作失败，请稍后重试"
 
+    @pytest.mark.asyncio
+    async def test_handle_action__approve_decomposition_error_is_sanitized(
+        self, mock_feishu_client, mock_requirement_agent
+    ):
+        pm_client = MagicMock()
+        pm_client.approve_decomposition = AsyncMock(
+            side_effect=RuntimeError("Traceback: database password leaked")
+        )
+        handler = CardHandler(mock_feishu_client, mock_requirement_agent, pm_client=pm_client)
+
+        data = make_card_action(
+            action_type="approve_decomposition",
+            req_id="",
+            extra={"wp_id": 123},
+        )
+        result = await handler.handle_action(data)
+
+        assert result["toast"]["type"] == "error"
+        assert result["toast"]["content"] == "审批请求失败，请稍后重试"
+        assert "Traceback" not in result["toast"]["content"]
+        assert "database password" not in result["toast"]["content"]
+
+    @pytest.mark.asyncio
+    async def test_handle_action__reject_decomposition_error_is_sanitized(
+        self, mock_feishu_client, mock_requirement_agent
+    ):
+        pm_client = MagicMock()
+        pm_client.reject_decomposition = AsyncMock(
+            side_effect=RuntimeError("Traceback: database password leaked")
+        )
+        handler = CardHandler(mock_feishu_client, mock_requirement_agent, pm_client=pm_client)
+
+        data = make_card_action(
+            action_type="reject_decomposition",
+            req_id="",
+            extra={"wp_id": 123},
+        )
+        result = await handler.handle_action(data)
+
+        assert result["toast"]["type"] == "error"
+        assert result["toast"]["content"] == "拒绝请求失败，请稍后重试"
+        assert "Traceback" not in result["toast"]["content"]
+        assert "database password" not in result["toast"]["content"]
+
     # ── missing req_id ──
 
     @pytest.mark.asyncio
@@ -177,9 +222,7 @@ class TestCardHandler:
             pytest.param("list_reject_requirement", id="list_reject_missing_id"),
         ],
     )
-    async def test_handle_action__missing_req_id__returns_error_toast(
-        self, handler, action_type
-    ):
+    async def test_handle_action__missing_req_id__returns_error_toast(self, handler, action_type):
         data = {
             "action": {"tag": "button", "value": {"action": action_type}},
             "operator": {"open_id": "ou_operator_001"},
@@ -283,18 +326,14 @@ class TestCardHandler:
     # ── _get_user_name cache ──
 
     @pytest.mark.asyncio
-    async def test_get_user_name__cache_miss__calls_api(
-        self, handler, mock_feishu_client
-    ):
+    async def test_get_user_name__cache_miss__calls_api(self, handler, mock_feishu_client):
         name = await handler._get_user_name("ou_new_user")
 
         assert name == "TestUser"
         mock_feishu_client.get_user_info.assert_awaited_once_with("ou_new_user")
 
     @pytest.mark.asyncio
-    async def test_get_user_name__cache_hit__skips_api(
-        self, handler, mock_feishu_client
-    ):
+    async def test_get_user_name__cache_hit__skips_api(self, handler, mock_feishu_client):
         # First call populates cache
         await handler._get_user_name("ou_cached")
         mock_feishu_client.get_user_info.reset_mock()
@@ -306,9 +345,7 @@ class TestCardHandler:
         mock_feishu_client.get_user_info.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_get_user_name__api_raises__returns_unknown(
-        self, handler, mock_feishu_client
-    ):
+    async def test_get_user_name__api_raises__returns_unknown(self, handler, mock_feishu_client):
         mock_feishu_client.get_user_info.side_effect = RuntimeError("network error")
 
         name = await handler._get_user_name("ou_error_user")
@@ -366,9 +403,7 @@ class TestBotHandler:
     async def test_handle_message__text_with_requirements__sends_card(
         self, handler, mock_feishu_client, mock_requirement_agent
     ):
-        data = make_feishu_event(
-            content='{"text": "我们需要一个离线录音功能"}'
-        )
+        data = make_feishu_event(content='{"text": "我们需要一个离线录音功能"}')
         await handler.handle_message(data)
 
         mock_requirement_agent.ingest_meeting.assert_awaited_once()
@@ -563,9 +598,7 @@ class TestEventHandler:
                 },
             }
         }
-        result = await handler.dispatch(
-            "calendar.calendar.event_changed_v4", data
-        )
+        result = await handler.dispatch("calendar.calendar.event_changed_v4", data)
 
         assert result == {"code": 0}
         mock_feishu_client.send_card.assert_awaited_once()
@@ -594,9 +627,7 @@ class TestEventHandler:
                 },
             }
         }
-        result = await handler.dispatch(
-            "calendar.calendar.event_changed_v4", data
-        )
+        result = await handler.dispatch("calendar.calendar.event_changed_v4", data)
 
         assert result == {"code": 0}
         mock_feishu_client.send_card.assert_awaited_once()
@@ -604,9 +635,7 @@ class TestEventHandler:
     # ── calendar changed: no keyword ──
 
     @pytest.mark.asyncio
-    async def test_dispatch__calendar_no_keyword__skips(
-        self, handler, mock_feishu_client
-    ):
+    async def test_dispatch__calendar_no_keyword__skips(self, handler, mock_feishu_client):
         data = {
             "event": {
                 "type": "created",
@@ -622,9 +651,7 @@ class TestEventHandler:
                 },
             }
         }
-        result = await handler.dispatch(
-            "calendar.calendar.event_changed_v4", data
-        )
+        result = await handler.dispatch("calendar.calendar.event_changed_v4", data)
 
         assert result == {"code": 0}
         mock_feishu_client.send_card.assert_not_awaited()
@@ -632,9 +659,7 @@ class TestEventHandler:
     # ── calendar changed: deleted ──
 
     @pytest.mark.asyncio
-    async def test_dispatch__calendar_deleted__skips(
-        self, handler, mock_feishu_client
-    ):
+    async def test_dispatch__calendar_deleted__skips(self, handler, mock_feishu_client):
         data = {
             "event": {
                 "type": "deleted",
@@ -644,9 +669,7 @@ class TestEventHandler:
                 },
             }
         }
-        result = await handler.dispatch(
-            "calendar.calendar.event_changed_v4", data
-        )
+        result = await handler.dispatch("calendar.calendar.event_changed_v4", data)
 
         assert result == {"code": 0}
         mock_feishu_client.send_card.assert_not_awaited()
@@ -669,9 +692,7 @@ class TestEventHandler:
                 },
             }
         }
-        result = await handler.dispatch(
-            "calendar.calendar.event_changed_v4", data
-        )
+        result = await handler.dispatch("calendar.calendar.event_changed_v4", data)
 
         assert result == {"code": 0}
         mock_feishu_client.send_card.assert_not_awaited()
@@ -690,9 +711,7 @@ class TestEventHandler:
     async def test_dispatch__handler_raises__returns_code_zero(
         self, handler, mock_requirement_agent
     ):
-        mock_requirement_agent.ingest_meeting.side_effect = RuntimeError(
-            "extraction failed"
-        )
+        mock_requirement_agent.ingest_meeting.side_effect = RuntimeError("extraction failed")
 
         data = {
             "event": {

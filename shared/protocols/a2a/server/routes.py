@@ -88,13 +88,13 @@ def create_a2a_router(
         """Handle JSON-RPC requests."""
         try:
             body = await request.json()
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             return {
                 "jsonrpc": "2.0",
                 "id": None,
                 "error": {
                     "code": -32700,
-                    "message": f"Parse error: {e}",
+                    "message": "Parse error",
                 },
             }
 
@@ -123,11 +123,10 @@ def create_a2a_router(
         """Handle JSON-RPC requests with streaming response."""
         try:
             body = await request.json()
-        except json.JSONDecodeError as exc:
-            error_msg = str(exc)
+        except json.JSONDecodeError:
 
             async def error_gen() -> AsyncGenerator[str, None]:
-                yield f"data: {json.dumps({'jsonrpc': '2.0', 'id': None, 'error': {'code': -32700, 'message': f'Parse error: {error_msg}'}})}\n\n"
+                yield f"data: {json.dumps({'jsonrpc': '2.0', 'id': None, 'error': {'code': -32700, 'message': 'Parse error'}})}\n\n"
 
             return StreamingResponse(
                 error_gen(),

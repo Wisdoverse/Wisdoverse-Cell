@@ -28,10 +28,7 @@ def mock_agent():
 @pytest.fixture
 def test_app(mock_agent):
     """Create a test app without starting lifespan."""
-    with (
-        patch("agents.pjm_agent.api.pm.get_agent", return_value=mock_agent),
-        patch("agents.pjm_agent.app.main.agent", mock_agent),
-    ):
+    with patch("agents.pjm_agent.api.pm.get_agent", return_value=mock_agent):
         from fastapi import FastAPI
         from fastapi.responses import JSONResponse
 
@@ -169,6 +166,52 @@ async def test_alerts_endpoint_empty(test_app, mock_agent):
     data = resp.json()
     assert data["total"] == 0
     assert data["alerts"] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "expected_request", "expected_status", "expected_detail"),
+    [
+        (
+            "/api/v1/pm/report/daily",
+            {"action": "daily_report"},
+            500,
+            "Failed to generate daily report. Please retry later.",
+        ),
+        (
+            "/api/v1/pm/report/weekly",
+            {"action": "weekly_report"},
+            500,
+            "Failed to generate weekly report. Please retry later.",
+        ),
+        (
+            "/api/v1/pm/decompose/123/retry",
+            {"action": "retry_decompose", "wp_id": 123},
+            400,
+            "Failed to retry decomposition. Please retry later.",
+        ),
+    ],
+)
+async def test_result_errors_do_not_expose_internal_details(
+    test_app,
+    mock_agent,
+    path,
+    expected_request,
+    expected_status,
+    expected_detail,
+):
+    """Agent result errors are logged server-side and sanitized for callers."""
+    mock_agent.handle_request.return_value = {"error": "Traceback: database password is exposed"}
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(path)
+
+    assert resp.status_code == expected_status
+    assert resp.json()["detail"] == expected_detail
+    assert "Traceback" not in resp.json()["detail"]
+    assert "database password" not in resp.json()["detail"]
+    mock_agent.handle_request.assert_awaited_once_with(expected_request)
 
 
 @pytest.mark.asyncio
