@@ -113,6 +113,7 @@ without coupling runtime packages.
 | `decision.updated` | control-plane API | operator console | Decision status changed |
 | `agent_role.created` | control-plane API | operator console | Agent role definition created |
 | `agent_role.status-updated` | control-plane API | operator console | Agent role status changed |
+| `agent.prompt-config-updated` | control-plane API / WebUI compatibility API | operator console | Agent system-prompt override changed |
 | `agent.wakeup-requested` | control-plane API | agent runtime adapter | Manual wakeup requested |
 | `agent.wakeup-completed` | control-plane runner | operator console | Manual wakeup finished |
 | `agent_run.started` | runtime plugin or runner | operator console | AgentRun started |
@@ -128,6 +129,18 @@ without coupling runtime packages.
 Malformed event payloads must not be copied into `dlq.failed`. Use payload
 length and a SHA-256 fingerprint for correlation instead of storing raw event
 content.
+
+Example `agent.prompt-config-updated` payload:
+
+```json
+{
+  "company_id": "cmp_projectcell",
+  "agent_id": "requirement-manager",
+  "updated_by": "human:operator",
+  "prompt_length": 128,
+  "metadata_keys": ["source"]
+}
+```
 
 Example `agent.wakeup-requested` payload:
 

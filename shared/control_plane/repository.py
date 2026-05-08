@@ -27,6 +27,7 @@ from .models import (
     WorkItem,
 )
 from .tables import (
+    AgentPromptConfigTable,
     AgentRoleTable,
     AgentRunTable,
     ApprovalRequestTable,
@@ -250,6 +251,51 @@ class ControlPlaneRepository:
             return None
         row.status = status
         row.updated_at = _now()
+        await self.session.flush()
+        return row
+
+    async def get_agent_prompt_config(
+        self,
+        *,
+        company_id: str,
+        agent_id: str,
+    ) -> AgentPromptConfigTable | None:
+        result = await self.session.execute(
+            select(AgentPromptConfigTable).where(
+                AgentPromptConfigTable.company_id == company_id,
+                AgentPromptConfigTable.agent_id == agent_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def upsert_agent_prompt_config(
+        self,
+        *,
+        company_id: str,
+        agent_id: str,
+        system_prompt: str,
+        updated_by: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> AgentPromptConfigTable:
+        row = await self.get_agent_prompt_config(
+            company_id=company_id,
+            agent_id=agent_id,
+        )
+        if row is None:
+            row = AgentPromptConfigTable(
+                company_id=company_id,
+                agent_id=agent_id,
+                system_prompt=system_prompt,
+                updated_by=updated_by,
+                metadata_json=_to_db_value(metadata or {}),
+            )
+            self.session.add(row)
+        else:
+            row.system_prompt = system_prompt
+            row.updated_by = updated_by
+            if metadata is not None:
+                row.metadata_json = _to_db_value(metadata)
+            row.updated_at = _now()
         await self.session.flush()
         return row
 

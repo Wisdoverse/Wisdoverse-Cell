@@ -9,11 +9,17 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from shared.control_plane.agent_prompt_config import resolve_agent_system_prompt
 from shared.infra.llm_gateway import llm_gateway
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.utils.logger import get_logger
 
 logger = get_logger("extractor")
+
+_DEFAULT_SYSTEM_PROMPT = (
+    "You are a professional product requirements analyst. "
+    "You are skilled at extracting structured requirements from meeting notes."
+)
 
 
 class ExtractedRequirement(BaseModel):
@@ -131,11 +137,10 @@ class RequirementExtractor:
                 agent_id="requirement-manager",
                 task_type="extraction",
                 temperature=0,
-                system_prompt=(
-                    "You are a professional product requirements analyst. "
-                    "You are skilled at extracting structured requirements "
-                    "from meeting notes."
-                )
+                system_prompt=await resolve_agent_system_prompt(
+                    "requirement-manager",
+                    _DEFAULT_SYSTEM_PROMPT,
+                ),
             )
 
             # Parse the JSON response.

@@ -377,6 +377,15 @@
     "widgets": "カスタムウィジェット",
     "approvalTypes": "承認タイプ",
     "upstream": "上流エージェント",
-    "downstream": "下流エージェント"
+    "downstream": "下流エージェント",
+    "systemPrompt": "システムプロンプト",
+    "promptNotConfigured": "上書きプロンプト未設定",
+    "promptUpdatedAt": "更新日時",
+    "promptLoadError": "プロンプト設定を読み込めません。",
+    "promptReset": "リセット",
+    "promptSave": "保存",
+    "promptSaving": "保存中",
+    "promptSaveSuccess": "プロンプト設定を保存しました",
+    "promptSaveError": "プロンプト設定の保存に失敗しました"
   }
 }

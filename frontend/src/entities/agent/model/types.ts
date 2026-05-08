@@ -111,6 +111,22 @@ export interface ControlPlaneAgentListResponse {
   total: number;
 }
 
+export interface AgentPromptConfig {
+  company_id: string;
+  agent_id: string;
+  system_prompt: string;
+  updated_by: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface UpdateAgentPromptConfigRequest {
+  system_prompt: string;
+  updated_by?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface CreateControlPlaneAgentRequest {
   agent_id: string;
   display_name: string;

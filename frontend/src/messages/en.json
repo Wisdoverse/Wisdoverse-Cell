@@ -377,6 +377,15 @@
     "widgets": "Custom Widgets",
     "approvalTypes": "Approval Types",
     "upstream": "Upstream Agents",
-    "downstream": "Downstream Agents"
+    "downstream": "Downstream Agents",
+    "systemPrompt": "System prompt",
+    "promptNotConfigured": "No override configured",
+    "promptUpdatedAt": "Updated",
+    "promptLoadError": "Failed to load prompt config.",
+    "promptReset": "Reset",
+    "promptSave": "Save",
+    "promptSaving": "Saving",
+    "promptSaveSuccess": "Prompt config saved",
+    "promptSaveError": "Failed to save prompt config"
   }
 }

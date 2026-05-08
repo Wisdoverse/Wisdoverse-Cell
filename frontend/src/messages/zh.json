@@ -377,6 +377,15 @@
     "widgets": "自定义组件",
     "approvalTypes": "审批类型",
     "upstream": "上游智能体",
-    "downstream": "下游智能体"
+    "downstream": "下游智能体",
+    "systemPrompt": "系统提示词",
+    "promptNotConfigured": "未配置覆盖提示词",
+    "promptUpdatedAt": "更新时间",
+    "promptLoadError": "提示词配置加载失败。",
+    "promptReset": "重置",
+    "promptSave": "保存",
+    "promptSaving": "保存中",
+    "promptSaveSuccess": "提示词配置已保存",
+    "promptSaveError": "提示词配置保存失败"
   }
 }

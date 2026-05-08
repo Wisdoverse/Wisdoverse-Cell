@@ -109,6 +109,26 @@ class AgentRoleTable(ControlPlaneBase):
     )
 
 
+class AgentPromptConfigTable(ControlPlaneBase):
+    __tablename__ = "control_plane_agent_prompt_configs"
+
+    company_id: Mapped[str] = mapped_column(
+        String(48),
+        ForeignKey("control_plane_companies.company_id"),
+        primary_key=True,
+    )
+    agent_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    system_prompt: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    updated_by: Mapped[str] = mapped_column(String(128), nullable=False, default="system")
+    metadata_json: Mapped[dict] = mapped_column("metadata", JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_now)
+
+    __table_args__ = (
+        Index("ix_control_prompt_configs_agent", "agent_id"),
+    )
+
+
 class WorkItemTable(ControlPlaneBase):
     __tablename__ = "control_plane_work_items"
 

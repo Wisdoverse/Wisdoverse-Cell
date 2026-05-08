@@ -6,6 +6,7 @@ import re
 import time
 from typing import Any
 
+from shared.control_plane.agent_prompt_config import resolve_agent_system_prompt
 from shared.infra.llm_gateway import LLMGateway
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.utils.logger import get_logger
@@ -111,7 +112,10 @@ class WorkflowPlanner:
                 model=self._config.decompose_model,
                 max_tokens=4096,
                 temperature=0,
-                system_prompt=WORKFLOW_PLANNER_SYSTEM,
+                system_prompt=await resolve_agent_system_prompt(
+                    "dev-agent",
+                    WORKFLOW_PLANNER_SYSTEM,
+                ),
             )
             elapsed = time.monotonic() - start
             LLM_CALL_DURATION.observe(elapsed)

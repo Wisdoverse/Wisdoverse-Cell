@@ -1,10 +1,22 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Loader2, RotateCcw, Save } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { toast } from "sonner";
+import {
+  AgentDomainBadge,
+  updateAgentPromptConfig,
+  useAgentPromptConfig,
+  type AgentMeta,
+} from "@/entities/agent";
 import { Badge } from "@/shared/ui/badge";
-import { AgentDomainBadge, type AgentMeta } from "@/entities/agent";
+import { Button } from "@/shared/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { Label } from "@/shared/ui/label";
+import { Textarea } from "@/shared/ui/textarea";
+
+const MAX_PROMPT_LENGTH = 50_000;
 
 interface AgentConfigProps {
   agentMeta: AgentMeta;
@@ -12,6 +24,44 @@ interface AgentConfigProps {
 
 export function AgentConfig({ agentMeta }: AgentConfigProps) {
   const t = useTranslations("agentDetail");
+  const promptQuery = useAgentPromptConfig(agentMeta.id);
+  const [draftPrompt, setDraftPrompt] = useState("");
+  const [savingPrompt, setSavingPrompt] = useState(false);
+  const savedPrompt = promptQuery.data?.system_prompt ?? "";
+  const isPromptDirty = draftPrompt !== savedPrompt;
+  const isPromptTooLong = draftPrompt.length > MAX_PROMPT_LENGTH;
+  const updatedAt = promptQuery.data?.updated_at
+    ? new Date(promptQuery.data.updated_at).toLocaleString()
+    : null;
+
+  useEffect(() => {
+    if (promptQuery.data) {
+      setDraftPrompt(promptQuery.data.system_prompt);
+    }
+  }, [promptQuery.data]);
+
+  async function handlePromptSave() {
+    if (!isPromptDirty || isPromptTooLong) return;
+    setSavingPrompt(true);
+    try {
+      const saved = await updateAgentPromptConfig(agentMeta.id, {
+        system_prompt: draftPrompt,
+        updated_by: "webui",
+        metadata: { source: "agent_detail_config_tab" },
+      });
+      setDraftPrompt(saved.system_prompt);
+      await promptQuery.mutate(saved, { revalidate: false });
+      toast.success(t("promptSaveSuccess"));
+    } catch {
+      toast.error(t("promptSaveError"));
+    } finally {
+      setSavingPrompt(false);
+    }
+  }
+
+  function handlePromptReset() {
+    setDraftPrompt(savedPrompt);
+  }
 
   const configEntries: {
     label: string;
@@ -238,6 +288,63 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
             </div>
           ))}
         </dl>
+        <div className="mt-6 space-y-3 border-t pt-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-1">
+              <Label htmlFor={`agent-system-prompt-${agentMeta.id}`}>
+                {t("systemPrompt")}
+              </Label>
+              <div className="text-xs text-muted-foreground">
+                {promptQuery.error
+                  ? t("promptLoadError")
+                  : updatedAt
+                    ? `${t("promptUpdatedAt")} ${updatedAt}`
+                    : t("promptNotConfigured")}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handlePromptReset}
+                disabled={!isPromptDirty || savingPrompt}
+              >
+                <RotateCcw />
+                {t("promptReset")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handlePromptSave}
+                disabled={
+                  !isPromptDirty ||
+                  isPromptTooLong ||
+                  savingPrompt ||
+                  promptQuery.isLoading
+                }
+              >
+                {savingPrompt ? <Loader2 className="animate-spin" /> : <Save />}
+                {savingPrompt ? t("promptSaving") : t("promptSave")}
+              </Button>
+            </div>
+          </div>
+          <Textarea
+            id={`agent-system-prompt-${agentMeta.id}`}
+            value={draftPrompt}
+            onChange={(event) => setDraftPrompt(event.target.value)}
+            maxLength={MAX_PROMPT_LENGTH}
+            disabled={promptQuery.isLoading || savingPrompt}
+            className="min-h-72 resize-y font-mono text-sm leading-6"
+          />
+          <div
+            className={`text-right text-xs ${
+              isPromptTooLong ? "text-destructive" : "text-muted-foreground"
+            }`}
+          >
+            {draftPrompt.length}/{MAX_PROMPT_LENGTH}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

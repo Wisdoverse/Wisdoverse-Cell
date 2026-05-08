@@ -18,6 +18,7 @@ from ..api import (
     ingest_router,
     messages_router,
     requirements_router,
+    webui_router,
 )
 from ..db.vector_store import vector_store
 from ..service import agent
@@ -57,6 +58,7 @@ app = create_agent_app(
         export_router,
         (admin_router, [Depends(verify_internal_key)]),
         messages_router,
+        webui_router,
         feishu_router,
         wecom_router,
         api_info_router,

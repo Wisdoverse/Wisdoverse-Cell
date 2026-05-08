@@ -8,11 +8,17 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from shared.control_plane.agent_prompt_config import resolve_agent_system_prompt
 from shared.infra.llm_gateway import llm_gateway
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.utils.logger import get_logger
 
 logger = get_logger("generator")
+
+_DEFAULT_SYSTEM_PROMPT = (
+    "You are a professional technical documentation expert specialized in "
+    "product requirements documents."
+)
 
 
 class PRDGenerationResult(BaseModel):
@@ -122,10 +128,10 @@ class DocumentGenerator:
                 task_type="document_generation",
                 temperature=0.3,  # Slightly increase creativity.
                 max_tokens=8192,  # PRDs may be long.
-                system_prompt=(
-                    "You are a professional technical documentation expert "
-                    "specialized in product requirements documents."
-                )
+                system_prompt=await resolve_agent_system_prompt(
+                    "requirement-manager",
+                    _DEFAULT_SYSTEM_PROMPT,
+                ),
             )
 
             # Clean possible Markdown code-fence wrappers.

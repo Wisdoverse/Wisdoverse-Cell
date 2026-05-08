@@ -3,6 +3,7 @@
 import json
 import re
 
+from shared.control_plane.agent_prompt_config import resolve_agent_system_prompt
 from shared.infra.llm_gateway import LLMGateway
 from shared.utils.logger import get_logger
 
@@ -56,7 +57,10 @@ class DecomposeService:
                     agent_id="pjm-agent",
                     task_type="decompose",
                     model=self._config.decompose_model,
-                    system_prompt=DECOMPOSE_SYSTEM_PROMPT,
+                    system_prompt=await resolve_agent_system_prompt(
+                        "pjm-agent",
+                        DECOMPOSE_SYSTEM_PROMPT,
+                    ),
                     max_tokens=4096,
                     temperature=0,
                 )
@@ -112,7 +116,10 @@ class DecomposeService:
                     agent_id="pjm-agent",
                     task_type="task_check",
                     model=self._config.decompose_model,
-                    system_prompt=TASK_CHECK_SYSTEM_PROMPT,
+                    system_prompt=await resolve_agent_system_prompt(
+                        "pjm-agent",
+                        TASK_CHECK_SYSTEM_PROMPT,
+                    ),
                     max_tokens=4096,
                     temperature=0,
                 )

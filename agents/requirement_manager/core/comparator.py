@@ -14,12 +14,18 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from shared.control_plane.agent_prompt_config import resolve_agent_system_prompt
 from shared.infra.llm_gateway import llm_gateway
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 logger = get_logger("comparator")
+
+_DEFAULT_SYSTEM_PROMPT = (
+    "You are a professional requirements analysis expert. "
+    "You are skilled at identifying relationships between requirements."
+)
 
 
 def _get_vector_store():
@@ -208,10 +214,10 @@ class RequirementComparator:
                 agent_id="requirement-manager",
                 task_type="conflict_detection",
                 temperature=0,
-            system_prompt=(
-                "You are a professional requirements analysis expert. "
-                "You are skilled at identifying relationships between requirements."
-            )
+                system_prompt=await resolve_agent_system_prompt(
+                    "requirement-manager",
+                    _DEFAULT_SYSTEM_PROMPT,
+                ),
             )
 
             result = self._parse_response(response, similar_requirements)
