@@ -332,6 +332,37 @@ class ControlPlanePlugin(RuntimePlugin):
         )
         return _ControlPlaneAgentWrapper(agent, recorder)
 
+    async def startup(self, runtime) -> None:
+        try:
+            from shared.control_plane.bootstrap import (
+                ensure_core_organization_role_agents,
+            )
+
+            async with self._resolve_session_provider()() as session:
+                repo = ControlPlaneRepository(session)
+                created = await ensure_core_organization_role_agents(
+                    repo,
+                    company_id=self._default_company_id,
+                    company_name=self._default_company_name,
+                )
+            if created:
+                logger.info(
+                    "control_plane_role_agents_bootstrapped",
+                    agent_id=runtime.agent_id,
+                    company_id=self._default_company_id,
+                    role_agent_ids=created,
+                )
+        except Exception as exc:
+            logger.error(
+                "control_plane_role_agent_bootstrap_failed",
+                agent_id=runtime.agent_id,
+                company_id=self._default_company_id,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            if self._fail_closed:
+                raise
+
     def _resolve_session_provider(self) -> SessionProvider:
         if self._session_provider is not None:
             return self._session_provider

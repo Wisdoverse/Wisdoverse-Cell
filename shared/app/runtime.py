@@ -99,6 +99,7 @@ class EvolutionPlugin(RuntimePlugin):
     def __init__(self, *, excluded: bool = False):
         self._excluded = excluded
         self._redis_client: Any = None
+        self._evolved_agent: Any = None
 
     def wrap_agent(self, agent: BaseAgent) -> BaseAgent:
         if self._excluded:
@@ -141,6 +142,7 @@ class EvolutionPlugin(RuntimePlugin):
                 canary_router=canary,
                 skill_optimizer=optimizer,
             )
+            self._evolved_agent = wrapped
             logger.info("plugin_evolution_enabled", agent_id=agent.agent_id)
             return wrapped
         except ImportError:
@@ -160,7 +162,7 @@ class EvolutionPlugin(RuntimePlugin):
         try:
             from shared.evolution.evolved_agent import EvolvedAgent
 
-            if not isinstance(runtime.agent, EvolvedAgent):
+            if not isinstance(self._evolved_agent, EvolvedAgent):
                 return
 
             import redis.asyncio as aioredis
@@ -168,7 +170,7 @@ class EvolutionPlugin(RuntimePlugin):
             from shared.evolution.kill_switch import KillSwitch
 
             self._redis_client = aioredis.from_url(settings.redis_url, decode_responses=True)
-            runtime.agent.set_kill_switch(KillSwitch(self._redis_client))
+            self._evolved_agent.set_kill_switch(KillSwitch(self._redis_client))
             logger.info("plugin_kill_switch_connected", agent_id=runtime.agent_id)
         except ImportError:
             logger.info("plugin_kill_switch_not_available", agent_id=runtime.agent_id)
@@ -190,6 +192,8 @@ class EvolutionPlugin(RuntimePlugin):
                 )
 
     async def health_check(self) -> dict[str, HealthCheckResult]:
+        if self._evolved_agent is None:
+            return {}
         status = "ok" if self._redis_client is not None else "down"
         detail = "" if self._redis_client is not None else "redis not connected"
         return {"redis": HealthCheckResult(status, detail)}

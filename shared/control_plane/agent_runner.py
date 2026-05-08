@@ -298,7 +298,14 @@ class ControlPlaneAgentRunner:
         if adapter_type == "builtin":
             return {
                 "status": "recorded",
-                "summary": "Built-in agent definitions are executed by their deployed service.",
+                "summary": (
+                    f"{agent.display_name} wakeup was recorded by the control plane."
+                ),
+                "agent_kind": agent.agent_kind,
+                "role": agent.role,
+                "title": agent.title,
+                "capabilities": list(agent.capabilities or []),
+                "responsibilities": list(agent.responsibilities or []),
             }
         if adapter_type == "http":
             return await self._execute_http(config, request)
