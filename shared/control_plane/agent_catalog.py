@@ -1,9 +1,10 @@
-"""Canonical catalog for runtime agents, services, and role-agent templates.
+"""Canonical catalog for runtime agents, services, and role-agent seeds.
 
 Real business runtime agents live as root packages under ``agents/``. Gateway
 and orchestration services live under ``services/``. Shared support
-capabilities live under ``shared.capabilities``. Organization-role agents are
-durable control-plane records, not Python packages.
+capabilities live under ``shared.capabilities``. Organization-role business
+agents are durable control-plane records seeded from these templates, not
+Python packages.
 """
 
 from dataclasses import dataclass
@@ -31,7 +32,7 @@ class RuntimeModule:
 
 @dataclass(frozen=True)
 class OrganizationRoleTemplate:
-    """A control-plane managed role agent template."""
+    """Seed data for a durable control-plane managed role agent."""
 
     agent_id: str
     display_name: str
@@ -47,7 +48,7 @@ class OrganizationRoleTemplate:
         self,
         *,
         company_id: str,
-        adapter_type: str = "http",
+        adapter_type: str = "builtin",
         context_sources: list[str] | None = None,
         capabilities: list[str] | None = None,
         responsibilities: list[str] | None = None,
@@ -78,7 +79,7 @@ class OrganizationRoleTemplate:
 
 @dataclass(frozen=True)
 class AgentCatalogEntry:
-    """Frontend/control-plane catalog view across role templates and runtimes."""
+    """Frontend/control-plane catalog view across role seeds and runtimes."""
 
     agent_id: str
     display_name: str
@@ -366,9 +367,9 @@ def _role_template_to_catalog_entry(
 def get_managed_agent_catalog() -> tuple[AgentCatalogEntry, ...]:
     """Return every agent-like thing visible to the frontend/control plane.
 
-    Organization-role agents live in the root catalog as templates until an
-    operator persists them as `AgentRole` records. Runtime modules remain in
-    their service-boundary packages and are exposed here only as metadata.
+    Organization-role agents are bootstrapped as durable `AgentRole` records.
+    Runtime modules remain in their service-boundary packages and are exposed
+    here only as metadata.
     """
 
     return tuple(
@@ -404,7 +405,7 @@ def create_organization_role(
     agent_id: str,
     *,
     company_id: str,
-    adapter_type: str = "http",
+    adapter_type: str = "builtin",
     context_sources: list[str] | None = None,
     capabilities: list[str] | None = None,
     responsibilities: list[str] | None = None,

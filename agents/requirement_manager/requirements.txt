@@ -9,7 +9,7 @@ lark-oapi>=1.5.3
 # Central LLM Gateway provider boundary.
 litellm==1.83.14
 
-# Requirement manager gRPC endpoint for the Go gateway.
+# Requirement manager gRPC endpoint for the Rust gateway.
 grpcio>=1.70.0
 grpcio-reflection>=1.70.0
 protobuf>=5.29.0

@@ -393,7 +393,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_received_message_content_like_go_gateway() {
+    fn parses_received_message_content_like_gateway_contract() {
         let text = parse_received_message(
             br#"<xml><FromUserName><![CDATA[user1]]></FromUserName><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[/confirm req_1]]></Content><MsgId>42</MsgId></xml>"#,
         )

@@ -197,7 +197,7 @@ Example `channel.message.outbound` payload:
 ## 3.2 Requirement Context Events
 
 `project.*`, `sprint.*`, and `meeting.uploaded` are external work-context
-events consumed by the requirement manager agent. Producers may be the Go
+events consumed by the requirement manager agent. Producers may be the Rust
 gateway, a platform webhook gateway, a scheduler, or another deployed service
 that has crossed a documented HTTP or EventBus boundary.
 

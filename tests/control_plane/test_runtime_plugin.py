@@ -1,6 +1,7 @@
 """Tests for ControlPlanePlugin runtime ledger integration."""
 
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from typing import AsyncGenerator
 
 import pytest
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.app.plugins.control_plane import ControlPlanePlugin
 from shared.control_plane.context import get_current_run_context
-from shared.control_plane.tables import AgentRunTable, AuditEventTable
+from shared.control_plane.tables import AgentRoleTable, AgentRunTable, AuditEventTable
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event
 
@@ -64,6 +65,11 @@ async def _audits(db_session: AsyncSession) -> list[AuditEventTable]:
     result = await db_session.execute(
         select(AuditEventTable).order_by(AuditEventTable.created_at)
     )
+    return list(result.scalars().all())
+
+
+async def _roles(db_session: AsyncSession) -> list[AgentRoleTable]:
+    result = await db_session.execute(select(AgentRoleTable))
     return list(result.scalars().all())
 
 
@@ -158,3 +164,24 @@ async def test_control_plane_failure_is_fail_open_by_default(db_session: AsyncSe
 
     assert len(output_events) == 1
     assert await _runs(db_session) == []
+
+
+@pytest.mark.asyncio
+async def test_control_plane_plugin_bootstraps_core_role_agents(
+    db_session: AsyncSession,
+):
+    plugin = ControlPlanePlugin(
+        session_provider=_session_provider(db_session),
+        default_company_id="cmp_plugin",
+    )
+
+    await plugin.startup(SimpleNamespace(agent_id="recording-agent"))
+    await plugin.startup(SimpleNamespace(agent_id="recording-agent"))
+
+    roles = await _roles(db_session)
+    audits = await _audits(db_session)
+
+    assert {role.agent_id for role in roles} == {"ceo", "cto", "cpo", "coo"}
+    assert {role.adapter_type for role in roles} == {"builtin"}
+    assert {role.target_id for role in audits} == {"ceo", "cto", "cpo", "coo"}
+    assert len(audits) == 4

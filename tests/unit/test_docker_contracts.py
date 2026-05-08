@@ -109,16 +109,10 @@ def test_compose_topologies_include_python_runtime_targets() -> None:
             )
 
 
-def test_rust_gateway_is_default_and_go_gateway_is_legacy_rollback() -> None:
-    """The canonical gateway must be Rust; Go is only an explicit rollback overlay."""
+def test_rust_gateway_is_default_and_only_gateway_runtime() -> None:
+    """The canonical gateway runtime must be Rust with no Go rollback overlay."""
     app = Path("docker/compose/docker-compose.app.yml").read_text(encoding="utf-8")
     root_compose = Path("docker-compose.yml").read_text(encoding="utf-8")
-    legacy = Path("docker/compose/docker-compose.go-gateway-legacy.yml").read_text(
-        encoding="utf-8"
-    )
-    prod_legacy = Path(
-        "docker/compose/docker-compose.go-gateway-legacy-prod.yml"
-    ).read_text(encoding="utf-8")
     prod_shadow = Path(
         "docker/compose/docker-compose.rust-gateway-prod-shadow.yml"
     ).read_text(encoding="utf-8")
@@ -153,22 +147,15 @@ def test_rust_gateway_is_default_and_go_gateway_is_legacy_rollback() -> None:
     assert "build: !reset null" in root_prod_gateway
     assert "GATEWAY_IMPLEMENTATION: rust" in root_prod_gateway
 
-    legacy_gateway = _compose_service_block(legacy, "gateway")
-    assert "context: ../../gateway" in legacy_gateway
-    assert "dockerfile: Dockerfile" in legacy_gateway
-    assert "image: ${REGISTRY:-}projectcell/gateway:${VERSION:-latest}" in legacy_gateway
-    assert "GATEWAY_IMPLEMENTATION: go-legacy" in legacy_gateway
-
-    prod_legacy_gateway = _compose_service_block(prod_legacy, "gateway")
-    assert "image: ${REGISTRY}projectcell/gateway:${VERSION}" in prod_legacy_gateway
-    assert "build: !reset null" in prod_legacy_gateway
-    assert "GATEWAY_IMPLEMENTATION: go-legacy" in prod_legacy_gateway
+    assert not Path("gateway").exists()
+    assert not Path("docker/compose/docker-compose.go-gateway-legacy.yml").exists()
+    assert not Path("docker/compose/docker-compose.go-gateway-legacy-prod.yml").exists()
 
     makefile = Path("Makefile").read_text(encoding="utf-8")
     assert "COMPOSE_RUST_GATEWAY_PROD" in makefile
     assert "COMPOSE_RUST_GATEWAY_PROD_SHADOW" in makefile
-    assert "COMPOSE_GO_GATEWAY_LEGACY" in makefile
-    assert "COMPOSE_GO_GATEWAY_LEGACY_PROD" in makefile
+    assert "COMPOSE_GO_GATEWAY_LEGACY" not in makefile
+    assert "COMPOSE_GO_GATEWAY_LEGACY_PROD" not in makefile
     assert "RUST_GATEWAY_LOCAL_EVIDENCE_REPORT ?=" in makefile
     assert "rust-gateway-prod-gate:" in makefile
     assert "rust-gateway-local-shadow-gate:" in makefile
@@ -183,9 +170,9 @@ def test_rust_gateway_is_default_and_go_gateway_is_legacy_rollback() -> None:
         "up-prod-rust-gateway: rust-gateway-prod-cutover-config rust-gateway-prod-gate"
         in makefile
     )
-    assert "up-dev-go-gateway-legacy:" in makefile
-    assert "up-prod-go-gateway-legacy:" in makefile
-    assert "$(COMPOSE_GO_GATEWAY_LEGACY_PROD) $(COMPOSE_RUST_GATEWAY_PROD_SHADOW)" in makefile
+    assert "up-dev-go-gateway-legacy:" not in makefile
+    assert "up-prod-go-gateway-legacy:" not in makefile
+    assert "$(COMPOSE_GO_GATEWAY_LEGACY_PROD)" not in makefile
 
     prod_shadow_runtime = _compose_service_block(prod_shadow, "rust-gateway-shadow")
     assert "image: ${REGISTRY}projectcell/rust-gateway:${VERSION}" in prod_shadow_runtime

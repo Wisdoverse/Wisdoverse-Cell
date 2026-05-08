@@ -33,7 +33,7 @@ def test_local_migration_audit_passes_required_repo_artifacts() -> None:
     )
     assert any(
         check.name == "Makefile"
-        and "legacy rollback" in check.detail
+        and "Rust defaults" in check.detail
         for check in checks
     )
     assert any(
@@ -42,8 +42,8 @@ def test_local_migration_audit_passes_required_repo_artifacts() -> None:
         for check in checks
     )
     assert any(
-        check.name == "docker/compose/docker-compose.go-gateway-legacy.yml"
-        and "explicit rollback overlay" in check.detail
+        check.name == "gateway"
+        and "source tree is removed" in check.detail
         for check in checks
     )
     assert any(

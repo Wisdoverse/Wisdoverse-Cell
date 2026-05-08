@@ -1,6 +1,6 @@
 # Wisdoverse Cell - Makefile
 
-.PHONY: all proto proto-python proto-go setup test test-public test-unit test-unit-full test-integration test-e2e test-python-full install dev
+.PHONY: all proto proto-python setup test test-public test-unit test-unit-full test-integration test-e2e test-python-full install dev
 
 PYTEST ?= python -m pytest
 RUST_GATEWAY_LOCAL_EVIDENCE_REPORT ?= .artifacts/rust-gateway-local-shadow-check.json
@@ -60,7 +60,7 @@ PYTEST_E2E_PATHS = \
 
 # === Proto Generation ===
 
-proto: proto-python proto-go
+proto: proto-python
 
 proto-python:
 	@echo "Generating Python requirements gRPC code..."
@@ -74,11 +74,6 @@ proto-python:
 	sed -i '/from google.protobuf.internal import builder as _builder/a\\' \
 		agents/requirement_manager/grpc/requirement_pb2.py
 	@echo "Python requirements gRPC code generated."
-
-proto-go:
-	@echo "Generating Go gRPC code..."
-	cd gateway && $(MAKE) proto
-	@echo "Go gRPC code generated."
 
 # === Development ===
 
@@ -120,15 +115,6 @@ test-python-full:
 
 # === Gateway ===
 
-gateway-build:
-	cd gateway && $(MAKE) build
-
-gateway-run:
-	cd gateway && $(MAKE) run
-
-gateway-dev:
-	cd gateway && $(MAKE) dev
-
 rust-gateway-build:
 	cargo build --manifest-path rust/Cargo.toml -p projectcell-rust-gateway
 
@@ -157,7 +143,7 @@ rust-gateway-prod-shadow-check:
 	RUST_GATEWAY_PROD_EVIDENCE_REPORT="$(RUST_GATEWAY_PROD_EVIDENCE_REPORT)" python scripts/rust_gateway_prod_gate.py
 
 rust-gateway-prod-shadow-config:
-	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_OBS) $(COMPOSE_PROD) $(COMPOSE_GO_GATEWAY_LEGACY_PROD) $(COMPOSE_RUST_GATEWAY_PROD_SHADOW) config >/dev/null
+	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_OBS) $(COMPOSE_PROD) $(COMPOSE_RUST_GATEWAY_PROD_SHADOW) config >/dev/null
 
 rust-gateway-prod-cutover-config:
 	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_OBS) $(COMPOSE_PROD) config >/dev/null
@@ -197,8 +183,6 @@ COMPOSE_RUST_GATEWAY = -f docker/compose/docker-compose.rust-gateway.yml
 COMPOSE_RUST_GATEWAY_SHADOW = -f docker/compose/docker-compose.rust-gateway-shadow.yml
 COMPOSE_RUST_GATEWAY_PROD = -f docker/compose/docker-compose.rust-gateway-prod.yml
 COMPOSE_RUST_GATEWAY_PROD_SHADOW = -f docker/compose/docker-compose.rust-gateway-prod-shadow.yml
-COMPOSE_GO_GATEWAY_LEGACY = -f docker/compose/docker-compose.go-gateway-legacy.yml
-COMPOSE_GO_GATEWAY_LEGACY_PROD = -f docker/compose/docker-compose.go-gateway-legacy-prod.yml
 
 # Development (single replica + debug ports)
 up-dev:
@@ -207,13 +191,8 @@ up-dev:
 up-dev-rust-gateway:
 	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_DEV) up -d gateway
 
-up-dev-go-gateway-legacy:
-	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_DEV) $(COMPOSE_GO_GATEWAY_LEGACY) up -d gateway
-
 up-dev-rust-gateway-shadow:
-	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_GO_GATEWAY_LEGACY) $(COMPOSE_RUST_GATEWAY_SHADOW) up -d gateway rust-gateway-shadow
-
-up-dev-go-gateway-legacy-shadow: up-dev-rust-gateway-shadow
+	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_RUST_GATEWAY_SHADOW) up -d gateway rust-gateway-shadow
 
 down-dev:
 	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_DEV) down
@@ -223,13 +202,10 @@ up-prod:
 	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_OBS) $(COMPOSE_PROD) up -d
 
 up-prod-rust-gateway-shadow: rust-gateway-prod-shadow-config
-	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_OBS) $(COMPOSE_PROD) $(COMPOSE_GO_GATEWAY_LEGACY_PROD) $(COMPOSE_RUST_GATEWAY_PROD_SHADOW) up -d gateway rust-gateway-shadow
+	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_OBS) $(COMPOSE_PROD) $(COMPOSE_RUST_GATEWAY_PROD_SHADOW) up -d gateway rust-gateway-shadow
 
 up-prod-rust-gateway: rust-gateway-prod-cutover-config rust-gateway-prod-gate
 	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_OBS) $(COMPOSE_PROD) up -d
-
-up-prod-go-gateway-legacy:
-	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_OBS) $(COMPOSE_PROD) $(COMPOSE_GO_GATEWAY_LEGACY_PROD) up -d gateway
 
 down-prod:
 	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_OBS) $(COMPOSE_PROD) down
@@ -329,13 +305,11 @@ help:
 	@echo "  make proto           - Generate all protobuf code"
 	@echo ""
 	@echo "Gateway:"
-	@echo "  make gateway-build   - Build Go gateway"
-	@echo "  make gateway-dev     - Run legacy Go gateway (dev mode)"
 	@echo "  make rust-gateway-build - Build Rust gateway"
 	@echo "  make rust-gateway-run   - Run Rust gateway"
 	@echo "  make rust-gateway-test  - Test Rust gateway"
 	@echo "  make rust-gateway-canary-check - Probe Rust gateway health/readiness"
-	@echo "  make rust-gateway-shadow-check - Compare legacy and Rust gateway probes"
+	@echo "  make rust-gateway-shadow-check - Compare baseline and shadow Rust gateway probes"
 	@echo "  make rust-gateway-local-shadow-gate - Generate and validate local shadow evidence"
 	@echo "  make rust-gateway-prod-gate - Validate production Rust gateway evidence"
 	@echo "  make rust-gateway-prod-shadow-check - Generate and validate production shadow evidence"
@@ -346,12 +320,10 @@ help:
 	@echo "Docker (Cloud-Native):"
 	@echo "  make up-dev          - Start dev environment with Rust gateway"
 	@echo "  make up-dev-rust-gateway - Start canonical Rust gateway"
-	@echo "  make up-dev-go-gateway-legacy - Roll gateway back to legacy Go locally"
-	@echo "  make up-dev-rust-gateway-shadow - Start legacy Go gateway plus Rust shadow gateway"
+	@echo "  make up-dev-rust-gateway-shadow - Start canonical Rust gateway plus Rust shadow gateway"
 	@echo "  make up-prod         - Start prod environment with Rust gateway"
-	@echo "  make up-prod-rust-gateway-shadow - Start legacy Go gateway plus production Rust shadow gateway"
+	@echo "  make up-prod-rust-gateway-shadow - Start production Rust gateway plus production Rust shadow gateway"
 	@echo "  make up-prod-rust-gateway - Start prod environment with Rust gateway after evidence gate"
-	@echo "  make up-prod-go-gateway-legacy - Roll production gateway back to legacy Go"
 	@echo "  make up-infra        - Start infrastructure only"
 	@echo "  make down-dev        - Stop dev environment"
 	@echo "  make down-prod       - Stop prod environment"

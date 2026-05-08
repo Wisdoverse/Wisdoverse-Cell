@@ -145,7 +145,7 @@ mod tests {
     use std::collections::HashMap;
 
     #[test]
-    fn command_matching_matches_go_gateway_contract() {
+    fn command_matching_matches_gateway_contract() {
         let matcher = Matcher::new();
         let cases = [
             ("list command", "/list", "list", HashMap::new()),
@@ -195,7 +195,7 @@ mod tests {
     }
 
     #[test]
-    fn pattern_matching_matches_go_gateway_contract() {
+    fn pattern_matching_matches_gateway_contract() {
         let matcher = Matcher::new();
         let cases = [
             ("chinese list pattern", "查看需求", "list", HashMap::new()),

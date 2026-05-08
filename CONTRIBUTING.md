@@ -5,7 +5,7 @@
 ### Prerequisites
 
 - Python 3.11+
-- Go 1.25+
+- Rust 1.86+
 - Docker & Docker Compose
 - Node.js 24+ (for frontend)
 
@@ -27,8 +27,8 @@ make up-infra
 # Run the default development agent
 make dev
 
-# Go gateway
-cd gateway && go run ./cmd/gateway
+# Rust gateway
+make rust-gateway-run
 ```
 
 ### Testing
@@ -44,8 +44,8 @@ make test-integration   # requires local infra from make up-infra or equivalent
 make test-e2e           # requires full app stack
 make test-python-full   # maintenance target; currently includes legacy cleanup debt
 
-# Go tests
-cd gateway && go test ./... -race
+# Rust gateway tests
+make rust-gateway-test
 
 # Lint
 .venv/bin/python -m ruff check agents/ shared/
@@ -65,11 +65,10 @@ or skip cleanly when required dependencies are unavailable.
 - `datetime.now(UTC)` (not `utcnow()`)
 - Never log secrets or PII
 
-### Go
-- `errors.Is()` for error comparison
-- `subtle.ConstantTimeCompare` for security-sensitive comparisons
-- Context propagation through all HTTP handlers
-- Table-driven tests
+### Rust
+- Propagate request context and trace headers through HTTP handlers
+- Use constant-time comparison for security-sensitive checks
+- Keep gateway routes and gRPC contracts covered by Rust tests
 
 ### Events
 ```python

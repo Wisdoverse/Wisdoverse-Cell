@@ -19,7 +19,6 @@
 /services/ @Wisdoverse/platform
 /shared/ @Wisdoverse/platform
 /shared/integrations/ @Wisdoverse/integrations
-/gateway/ @Wisdoverse/gateway
 /frontend/ @Wisdoverse/frontend
 
 /docker/ @Wisdoverse/platform

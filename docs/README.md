@@ -33,7 +33,7 @@ graph TD
         ExtAPI["External API"]
     end
 
-    subgraph Gateway["Gateway (Go + Gin)"]
+    subgraph Gateway["Gateway (Rust + Axum)"]
         GW["API Gateway / Traefik v3"]
     end
 
@@ -135,7 +135,7 @@ control plane, not Python packages.
 | Layer | Technology | Role |
 |-------|------------|------|
 | Frontend | Next.js 16, React 19 | Web UI |
-| Gateway | Go, Gin, Traefik v3 | API routing and load balancing |
+| Gateway | Rust, Axum, Traefik v3 | API routing and load balancing |
 | Agents | Python, FastAPI | Async agent runtime |
 | LLM | LiteLLM | Provider routing and reasoning engine |
 | Messaging | Redis 8, NATS JetStream | EventBus and async messaging |

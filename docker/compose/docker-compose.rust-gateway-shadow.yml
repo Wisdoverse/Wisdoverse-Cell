@@ -2,9 +2,7 @@
 # Rust Gateway Shadow
 # =============================================================================
 # Adds an independent Rust gateway listener on RUST_GATEWAY_SHADOW_PORT for
-# canary checks. To compare Rust against the legacy Go gateway, apply
-# docker-compose.go-gateway-legacy.yml before this file so `gateway` is the
-# rollback implementation and `rust-gateway-shadow` is the candidate.
+# canary checks against the canonical Rust gateway.
 # =============================================================================
 
 services:

@@ -167,7 +167,7 @@ mod tests {
     use std::collections::HashMap;
 
     #[test]
-    fn loads_gateway_env_with_go_compatible_names() {
+    fn loads_stable_gateway_env_names() {
         let env = HashMap::from([
             ("GATEWAY_SERVER_PORT", "18080"),
             ("GATEWAY_GRPC_AI_SERVICE_ADDR", "ai-core:50051"),
@@ -190,7 +190,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_go_style_grpc_timeout_values() {
+    fn parses_duration_style_grpc_timeout_values() {
         let cfg = GatewayConfig::from_lookup(|key| match key {
             "GATEWAY_GRPC_TIMEOUT" => Some("750ms".to_string()),
             _ => None,

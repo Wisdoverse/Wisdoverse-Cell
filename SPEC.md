@@ -78,9 +78,8 @@ Important boundary:
    - Receives external HTTP and webhook traffic.
    - Verifies external platform signatures where applicable.
    - Routes internal calls to agent services through authenticated boundaries.
-   - MUST use the Rust edge plane by default while preserving stable HTTP,
-     gRPC, and EventBus contracts. The Go gateway is a legacy rollback
-     implementation only. Rust gateway clients MUST be generated from the same
+   - MUST use the Rust edge plane while preserving stable HTTP, gRPC, and
+     EventBus contracts. Rust gateway clients MUST be generated from the same
      protobuf contracts used by Python services.
 
 3. `Agent Services`
@@ -488,8 +487,7 @@ Required validation depends on the changed surface:
 
 - Agent/runtime changes: `ruff check agents/ shared/` and focused Python tests.
 - Event or schema changes: producer and consumer tests plus event catalog update.
-- Gateway changes: Rust gateway tests, plus `go test ./...` in `gateway/` only
-  when the legacy rollback path changes.
+- Gateway changes: Rust gateway tests and Docker build checks.
 - Frontend changes: `make frontend-test` and lint/build checks where available.
 - Documentation-only changes: `git diff --check` and link/path review.
 - Security-sensitive changes: targeted tests for auth, signature verification,

@@ -20,7 +20,7 @@ This glossary defines the core terms used across Wisdoverse Cell. Repository-fac
 
 **LLMGateway** — Unified model access gateway with circuit breaking, budget control, tiered model selection, and optional LiteLLM routing for multiple providers.
 
-**Gateway** — Go HTTP gateway that handles external webhook routing and signature verification for Feishu, WeCom, and related platforms.
+**Gateway** — Rust HTTP gateway that handles external webhook routing and signature verification for Feishu, WeCom, and related platforms.
 
 **Shared** — The `shared/` package containing schemas, configuration, infrastructure, integrations, runtime helpers, and cross-agent utilities.
 

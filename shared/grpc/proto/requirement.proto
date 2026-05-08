@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package requirement;
 
-option go_package = "github.com/Wisdoverse/project-cell/gateway/api/proto/requirement";
-
 // RequirementService exposes the requirement manager agent boundary.
 service RequirementService {
   // Extract requirements from source content with LLM assistance.

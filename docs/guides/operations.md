@@ -28,7 +28,6 @@ Common modes:
 | Infrastructure only | `make up-infra` | Run Python/Rust/Node processes locally against shared infra |
 | Production-style stack | `make up-prod` | Production-like Compose topology |
 | Evidence-gated Rust gateway deploy | `make up-prod-rust-gateway` | Production-like stack using the default prebuilt Rust gateway image after evidence validation |
-| Legacy Go gateway rollback | `make up-prod-go-gateway-legacy` | Explicit rollback of only the gateway service to the prebuilt Go image |
 | Observability | `make monitoring-up` | Prometheus/Grafana/Loki/Tempo stack |
 
 ## 2. Local Development
@@ -45,13 +44,9 @@ make dev
 Additional services:
 
 ```bash
-make gateway-dev
+make rust-gateway-run
 make frontend-dev
 ```
-
-`make gateway-dev` runs the legacy Go gateway directly. The default Compose
-gateway is Rust; use `make rust-gateway-run` when running the Rust gateway
-outside Compose.
 
 Default local endpoints:
 
@@ -154,7 +149,7 @@ anchor when a new provider is promoted to production use.
 | QA agent | `8014` | Acceptance checks |
 | Dev agent | `8015` | AgentForge-backed delivery |
 | Evolution support capability | `8016` | Self-evolution analysis and recommendations |
-| Gateway | `8080` | Rust API gateway and webhook entry points; Go is available only through explicit legacy rollback overlays |
+| Gateway | `8080` | Rust API gateway and webhook entry points |
 | Web | `3000` | Next.js frontend |
 | Traefik | `80`, `443`, `8081` | Ingress and dashboard |
 
@@ -245,7 +240,7 @@ Rust gateway canary check:
 RUST_GATEWAY_URL=http://127.0.0.1:8080 make rust-gateway-canary-check
 ```
 
-Rust gateway shadow check against the legacy Go gateway:
+Rust gateway shadow check against the canonical Rust gateway:
 
 ```bash
 GATEWAY_PORT=18081 make up-dev-rust-gateway-shadow
@@ -262,24 +257,24 @@ make rust-gateway-local-shadow-gate
 Both checks write a JSON evidence report to
 `.artifacts/rust-gateway-shadow-check.json` by default. Override the report path
 with `RUST_GATEWAY_SHADOW_REPORT=/path/to/report.json` when collecting
-rollback comparison or production canary evidence. `rust-gateway-local-shadow-gate`
+wider comparison or production canary evidence. `rust-gateway-local-shadow-gate`
 writes to `.artifacts/rust-gateway-local-shadow-check.json` by default and then
 runs the evidence validator with `RUST_GATEWAY_PROD_ALLOW_LOCAL_URLS=true`;
 this is only a local drill and cannot satisfy the production gate. The
 shadow compose target does not load the local development port override, so it
 does not claim host Redis, PostgreSQL, NATS, or Milvus ports. If host `8080` is
 already in use, start the shadow stack with `GATEWAY_PORT=<free-port>` and pass
-the same port through `LEGACY_GATEWAY_URL`.
+the same port through `LEGACY_GATEWAY_URL` as the baseline listener.
 
-Rust gateway production config and rollback-comparison checks:
+Rust gateway production config and shadow checks:
 
 ```bash
 make rust-python-migration-audit
 
 # Run these from an environment where production secrets from `.env` are loaded.
 REGISTRY=registry.company.com/ VERSION=<release> \
-GATEWAY_HOST=gateway-legacy.prod.company.com \
-RUST_GATEWAY_SHADOW_HOST=gateway.prod.company.com \
+GATEWAY_HOST=gateway.prod.company.com \
+RUST_GATEWAY_SHADOW_HOST=gateway-shadow.prod.company.com \
 make rust-gateway-prod-shadow-config
 
 REGISTRY=registry.company.com/ VERSION=<release> \
@@ -287,12 +282,12 @@ GATEWAY_HOST=gateway.prod.company.com \
 make rust-gateway-prod-cutover-config
 
 REGISTRY=registry.company.com/ VERSION=<release> \
-GATEWAY_HOST=gateway-legacy.prod.company.com \
-RUST_GATEWAY_SHADOW_HOST=gateway.prod.company.com \
+GATEWAY_HOST=gateway.prod.company.com \
+RUST_GATEWAY_SHADOW_HOST=gateway-shadow.prod.company.com \
 make up-prod-rust-gateway-shadow
 
-LEGACY_GATEWAY_URL=https://gateway-legacy.prod.company.com \
-RUST_GATEWAY_URL=https://gateway.prod.company.com \
+LEGACY_GATEWAY_URL=https://gateway.prod.company.com \
+RUST_GATEWAY_URL=https://gateway-shadow.prod.company.com \
 RUST_GATEWAY_PROD_EVIDENCE_REPORT=/path/to/prod-shadow-report.json \
 make rust-gateway-prod-shadow-check
 
@@ -312,8 +307,8 @@ and disable WAF for those two temporary site records. The current local drill
 uses:
 
 ```bash
-GATEWAY_HOST=projectcell-legacy.itoy.dev \
-LEGACY_GATEWAY_URL=https://projectcell-legacy.itoy.dev \
+GATEWAY_HOST=projectcell.itoy.dev \
+LEGACY_GATEWAY_URL=https://projectcell.itoy.dev \
 RUST_GATEWAY_SHADOW_HOST=projectcell-rust.itoy.dev \
 RUST_GATEWAY_URL=https://projectcell-rust.itoy.dev \
 make rust-gateway-prod-shadow-check
@@ -322,8 +317,9 @@ make rust-python-migration-audit-prod
 ```
 
 Both OpenResty server blocks must route `/health`, `/ready`, and webhook paths
-to the base listener without adding a path prefix. The legacy host proxies to
-the Go gateway listener, and the Rust host proxies to the Rust shadow listener.
+to the base listener without adding a path prefix. The baseline host proxies to
+the canonical Rust gateway listener, and the shadow host proxies to the Rust
+shadow listener.
 
 `up-prod-rust-gateway` runs the standard production topology after evidence
 validation, so the canonical `gateway` service uses the prebuilt
@@ -339,16 +335,13 @@ placeholder domains, unresolved hostnames, and DNS aliases that resolve back to
 local or private addresses are rejected, so the command cannot overwrite a
 release report with local probe output.
 
-For rollback-comparison evidence, `GATEWAY_HOST` must match the host portion of
-`LEGACY_GATEWAY_URL` because the shadow target deliberately runs the canonical
-`gateway` service as legacy Go through the rollback overlay. For the default
-Rust production deployment, `GATEWAY_HOST` is the public Rust gateway host.
-
+For shadow evidence, `GATEWAY_HOST` must match the host portion of
+`LEGACY_GATEWAY_URL`; that variable now names the baseline gateway listener.
 Use `up-prod-rust-gateway-shadow` when production or staging needs a controlled
-comparison between the legacy Go rollback path and the Rust gateway. That
-target applies the legacy Go rollback overlay to `gateway`, adds a separate
-`rust-gateway-shadow` service from the same prebuilt Rust image, and routes the
-shadow listener through Traefik with `RUST_GATEWAY_SHADOW_HOST`.
+comparison between the canonical Rust gateway and a Rust shadow listener. That
+target keeps `gateway` on Rust, adds a separate `rust-gateway-shadow` service
+from the same prebuilt Rust image, and routes the shadow listener through
+Traefik with `RUST_GATEWAY_SHADOW_HOST`.
 
 ### 5.1 EventBus Pending Replay
 
@@ -641,7 +634,6 @@ make load-smoke
 make clean
 make proto
 make proto-python
-make proto-go
 ```
 
 Update this guide whenever Compose layers, runtime switches, ports, health

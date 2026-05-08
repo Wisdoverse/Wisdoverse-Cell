@@ -10,7 +10,7 @@ RUN if [ -n "$ALPINE_MIRROR" ]; then \
     apk add --no-cache musl-dev protobuf-dev
 
 COPY rust ./rust
-COPY gateway/api/proto ./gateway/api/proto
+COPY agents/requirement_manager/grpc/proto ./agents/requirement_manager/grpc/proto
 
 RUN cargo build --manifest-path rust/Cargo.toml --release -p projectcell-rust-gateway
 

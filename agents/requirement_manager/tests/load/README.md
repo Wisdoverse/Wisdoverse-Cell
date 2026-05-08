@@ -52,7 +52,7 @@ From the cloud-native design doc:
 
 | Layer | Target QPS | P99 Latency |
 |-------|-----------|-------------|
-| Gateway (Go) | > 10K | < 100ms |
+| Gateway (Rust) | > 10K | < 100ms |
 | Requirements capability (Python) | > 5K | < 500ms (excl. LLM) |
 | System under 50K QPS | Graceful degradation | Rate limiting active |
 

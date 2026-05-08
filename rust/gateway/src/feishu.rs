@@ -258,7 +258,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_message_content_like_go_gateway() {
+    fn parses_message_content_like_gateway_contract() {
         assert_eq!(
             parse_message_content("text", r#"{"text":"/confirm req_123"}"#),
             "/confirm req_123"

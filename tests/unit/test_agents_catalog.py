@@ -245,6 +245,7 @@ def test_role_template_creates_control_plane_agent_role() -> None:
     assert role.display_name == "CTO"
     assert role.agent_kind == AgentKind.ORGANIZATION_ROLE
     assert role.interaction_mode == AgentInteractionMode.ROUTED
+    assert role.adapter_type == "builtin"
     assert role.context_sources == ["control_plane"]
     assert role.capabilities == ["Architecture decisions"]
     assert role.subscribed_events == ["work_item.created"]

@@ -57,7 +57,6 @@ graph TB
     subgraph Gateway Layer
         Traefik[Traefik v3 Reverse Proxy]
         GW[Rust+Axum API Gateway :8080]
-        GG[Go+Gin legacy rollback gateway]
     end
 
     subgraph Agent Layer
@@ -94,7 +93,6 @@ graph TB
     FE --> WB --> FSD
     WB --> Traefik
     Traefik --> GW
-    Traefik -. legacy .-> GG
     GW --> API
     GW --> RM & SA & AA & PM & CA & EA & QA & DA
     API --> CP
@@ -133,12 +131,11 @@ Key runtime pieces:
 | `shared/control_plane/approval_gate.py` | Human-in-the-loop approval creation and resolution helpers |
 | `shared/control_plane/budget_guard.py` | Budget enforcement and usage evidence for LLM/tool work |
 
-The backend default is Rust + Python. Rust owns the edge gateway under
-`rust/gateway/`, while Python owns the agent runtime, control-plane ledger, LLM
-orchestration, and support capability modules. The legacy Go gateway remains
-under `gateway/` only for explicit rollback drills until operational evidence
-no longer requires it. Rust gateway service clients are generated from the same
-protobuf contracts that Python services implement; for example, `/ready` calls
+The backend is Rust + Python. Rust owns the edge gateway under `rust/gateway/`,
+while Python owns the agent runtime, control-plane ledger, LLM orchestration,
+and support capability modules. Rust gateway service clients are generated from
+the same protobuf contracts that Python services implement; for example,
+`/ready` calls
 the requirement manager `HealthCheck` RPC through the shared
 `requirement.proto` boundary.
 

@@ -131,11 +131,11 @@ def gateway_process(ai_core_process) -> Generator[subprocess.Popen | None, None,
     except requests.exceptions.RequestException:
         pass
 
-    # Find gateway binary
+    # Find Rust gateway binary
     gateway_paths = [
         "/tmp/gateway",  # CI build location
-        "./gateway/gateway",  # Local build
-        os.path.expanduser("~/go/bin/gateway"),  # GOBIN
+        "./rust/target/debug/projectcell-rust-gateway",  # Local debug build
+        "./rust/target/release/projectcell-rust-gateway",  # Local release build
     ]
 
     gateway_bin = None
@@ -145,7 +145,10 @@ def gateway_process(ai_core_process) -> Generator[subprocess.Popen | None, None,
             break
 
     if not gateway_bin:
-        pytest.skip("Gateway binary not found. Build with: cd gateway && go build -o gateway ./cmd/gateway")
+        pytest.skip(
+            "Gateway binary not found. Build with: "
+            "cargo build --manifest-path rust/Cargo.toml -p projectcell-rust-gateway"
+        )
 
     # Start Gateway
     env = os.environ.copy()

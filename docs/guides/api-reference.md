@@ -259,8 +259,8 @@ Decomposition status responses use these workflow states:
 
 | Surface | Method | Path | Purpose |
 |---------|--------|------|---------|
-| Go Gateway | `GET` | `/health` | Gateway liveness |
-| Go Gateway | `GET` | `/ready` | Gateway readiness |
+| Rust Gateway | `GET` | `/health` | Gateway liveness |
+| Rust Gateway | `GET` | `/ready` | Gateway readiness |
 | Feishu integration | `POST` | `/api/feishu/webhook` | Shared Feishu webhook route |
 | Feishu integration | `GET` | `/api/feishu/health` | Feishu integration health |
 | WeCom integration | `GET` | `/api/wecom/webhook` | WeCom verification |

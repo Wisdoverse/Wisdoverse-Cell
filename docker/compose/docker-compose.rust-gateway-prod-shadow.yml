@@ -1,9 +1,8 @@
 # =============================================================================
 # Rust Gateway Production Shadow
 # =============================================================================
-# Adds a prebuilt Rust gateway behind a separate shadow host. To compare Rust
-# against the legacy Go gateway in production, apply
-# docker-compose.go-gateway-legacy-prod.yml before this file.
+# Adds a prebuilt Rust gateway behind a separate shadow host for production
+# canary evidence.
 # =============================================================================
 
 services:
