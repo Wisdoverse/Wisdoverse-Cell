@@ -233,3 +233,15 @@ class TestHandleRequest:
         """Missing action returns an error."""
         result = await agent.handle_request({})
         assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_handle_request_report_errors_are_sanitized(self, agent):
+        """Report failures do not return raw exception details to API callers."""
+        agent._report = AsyncMock()
+        agent._report.generate_daily = AsyncMock(
+            side_effect=RuntimeError("Traceback: database password leaked")
+        )
+
+        result = await agent.handle_request({"action": "daily_report"})
+
+        assert result == {"error": "report_failed"}
