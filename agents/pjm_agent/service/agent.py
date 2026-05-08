@@ -340,7 +340,7 @@ class PMAgent(BaseAgent):
             return {"status": "sent", "total": result["stats"]["total"]}
         except Exception as e:
             logger.error("report_failed", report_type=report_type, error=str(e))
-            return {"error": str(e)}
+            return {"error": "report_failed"}
 
     async def _check_stale_approvals(self) -> None:
         """Scan for decomposition records pending > 24 hours and send a reminder."""

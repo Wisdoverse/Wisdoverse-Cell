@@ -31,7 +31,8 @@ _URL_SECRET_QUERY_RE = re.compile(
     r"(?i)([?&](?:access[_-]?token|refresh[_-]?token|token|api[_-]?key|key|"
     r"secret|signature|password|auth|code)=)[^&#\s]+"
 )
-_URL_CREDENTIAL_RE = re.compile(r"(?i)([a-z][a-z0-9+.-]*://[^/\s:@]*:)[^@\s/]+(@)")
+_URL_SCHEME_RE = re.compile(r"(?i)\b[a-z][a-z0-9+.-]{0,20}://")
+_URL_AUTHORITY_TERMINATORS = frozenset("/?# \t\r\n")
 
 _REDACTED_SECRET = "[REDACTED_SECRET]"
 _REDACTED_BYTES = "[REDACTED_BYTES]"
@@ -75,7 +76,7 @@ def redact_sensitive_text(text: str) -> str:
     redacted = _API_KEY_RE.sub(_REDACTED_SECRET, redacted)
     redacted = _BEARER_RE.sub(f"Bearer {_REDACTED_SECRET}", redacted)
     redacted = _URL_SECRET_QUERY_RE.sub(r"\1[REDACTED_SECRET]", redacted)
-    redacted = _URL_CREDENTIAL_RE.sub(r"\1[REDACTED_SECRET]\2", redacted)
+    redacted = _redact_url_credentials(redacted)
     redacted = _SECRET_ASSIGNMENT_RE.sub(r"\1\2[REDACTED_SECRET]", redacted)
 
     def _redact_phone(match: re.Match[str]) -> str:
@@ -85,6 +86,35 @@ def redact_sensitive_text(text: str) -> str:
         return match.group(0)
 
     return _PHONE_CANDIDATE_RE.sub(_redact_phone, redacted)
+
+
+def _redact_url_credentials(text: str) -> str:
+    """Redact passwords from URLs without using a backtracking authority regex."""
+    pieces: list[str] = []
+    cursor = 0
+
+    for match in _URL_SCHEME_RE.finditer(text):
+        authority_start = match.end()
+        authority_end = authority_start
+        while authority_end < len(text) and text[authority_end] not in _URL_AUTHORITY_TERMINATORS:
+            authority_end += 1
+
+        authority = text[authority_start:authority_end]
+        at_index = authority.rfind("@")
+        colon_index = authority.find(":")
+        if at_index < 0 or colon_index < 0 or colon_index > at_index:
+            continue
+
+        pieces.append(text[cursor : authority_start + colon_index + 1])
+        pieces.append(_REDACTED_SECRET)
+        pieces.append(authority[at_index:])
+        cursor = authority_end
+
+    if not pieces:
+        return text
+
+    pieces.append(text[cursor:])
+    return "".join(pieces)
 
 
 def redact_for_observability(value: Any, *, _depth: int = 0) -> Any:
