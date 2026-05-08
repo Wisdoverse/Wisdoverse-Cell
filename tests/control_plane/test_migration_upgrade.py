@@ -56,3 +56,21 @@ def test_runtime_owned_table_migration_upgrades_clean_database():
         "evolution_skill_configs",
         "evolution_experiments",
     }.issubset(tables)
+
+
+def test_agent_prompt_config_migration_upgrades_clean_database():
+    base_migration = import_module("migrations.versions.20260501_control_plane_ledger")
+    migration = import_module("migrations.versions.20260505_agent_prompt_configs")
+    engine = create_engine("sqlite:///:memory:")
+
+    with engine.begin() as connection:
+        context = MigrationContext.configure(connection)
+        operations = Operations(context)
+        with patch.object(base_migration, "op", operations):
+            base_migration.upgrade()
+        with patch.object(migration, "op", operations):
+            migration.upgrade()
+
+        tables = set(inspect(connection).get_table_names())
+
+    assert "control_plane_agent_prompt_configs" in tables

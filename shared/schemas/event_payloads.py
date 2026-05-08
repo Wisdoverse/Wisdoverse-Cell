@@ -391,6 +391,15 @@ class AgentRoleStatusUpdatedPayload(ControlPlaneReferencePayload):
     actor_id: str | None = None
 
 
+class AgentPromptConfigUpdatedPayload(ControlPlaneReferencePayload):
+    """agent.prompt-config-updated event payload."""
+
+    agent_id: str
+    updated_by: str
+    prompt_length: int = Field(..., ge=0)
+    metadata_keys: list[str] = Field(default_factory=list)
+
+
 class ApprovalEventPayload(ControlPlaneReferencePayload):
     """approval.requested/granted/rejected event payload."""
 
@@ -960,6 +969,7 @@ EVENT_PAYLOAD_MODELS = {
     "agent_run.failed": AgentRunLifecyclePayload,
     "agent_role.created": AgentRoleCreatedPayload,
     "agent_role.status-updated": AgentRoleStatusUpdatedPayload,
+    "agent.prompt-config-updated": AgentPromptConfigUpdatedPayload,
     "approval.requested": ApprovalEventPayload,
     "approval.granted": ApprovalEventPayload,
     "approval.rejected": ApprovalEventPayload,

@@ -1,8 +1,10 @@
 import { apiClient } from "@/lib/api/client";
 import type {
+  AgentPromptConfig,
   ControlPlaneAgentDefinition,
   ControlPlaneAgentListResponse,
   CreateControlPlaneAgentRequest,
+  UpdateAgentPromptConfigRequest,
   WakeControlPlaneAgentRequest,
   WakeControlPlaneAgentResponse,
 } from "../model/types";
@@ -26,6 +28,22 @@ export function getControlPlaneAgent(
 ): Promise<ControlPlaneAgentDefinition> {
   return apiClient.get<ControlPlaneAgentDefinition>(
     `/control-plane/agents/${agentId}`,
+  );
+}
+
+export function getAgentPromptConfig(agentId: string): Promise<AgentPromptConfig> {
+  return apiClient.get<AgentPromptConfig>(
+    `/agents/${encodeURIComponent(agentId)}/prompt-config`,
+  );
+}
+
+export function updateAgentPromptConfig(
+  agentId: string,
+  payload: UpdateAgentPromptConfigRequest,
+): Promise<AgentPromptConfig> {
+  return apiClient.put<AgentPromptConfig>(
+    `/agents/${encodeURIComponent(agentId)}/prompt-config`,
+    payload,
   );
 }
 

@@ -237,6 +237,12 @@ role agents, root business agents, schedulers, or control-plane work items.
 Integration gateways MAY be directly user-facing, but they SHOULD route intent
 to a role agent or root business agent instead of owning business strategy.
 
+Agent system-prompt overrides are stored as durable prompt configuration records
+keyed by `company_id` and `agent_id`. They MAY target either `AgentRole`
+records or catalog-managed runtime agents. Audit records for prompt updates MUST
+record metadata such as actor and prompt length, but MUST NOT copy raw prompt
+text into audit events or logs.
+
 #### 4.1.4 Work Item
 
 Durable unit of company work.

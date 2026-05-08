@@ -16,6 +16,7 @@ from shared.schemas.event_payloads import (
     A2ATaskErrorPayload,
     A2ATaskEventPayload,
     AgentProgress,
+    AgentPromptConfigUpdatedPayload,
     AgentRoleCreatedPayload,
     AgentRoleStatusUpdatedPayload,
     AgentRunLifecyclePayload,
@@ -370,6 +371,7 @@ class TestEventPayloadModelsRegistration:
             ("agent_run.failed", AgentRunLifecyclePayload),
             ("agent_role.created", AgentRoleCreatedPayload),
             ("agent_role.status-updated", AgentRoleStatusUpdatedPayload),
+            ("agent.prompt-config-updated", AgentPromptConfigUpdatedPayload),
             ("approval.requested", ApprovalEventPayload),
             ("approval.granted", ApprovalEventPayload),
             ("approval.rejected", ApprovalEventPayload),
@@ -514,6 +516,19 @@ class TestEventPayloadModelsRegistration:
             },
         )
         assert isinstance(result, AgentRoleStatusUpdatedPayload)
+
+    def test_validate_control_plane_agent_prompt_config_payload(self):
+        result = validate_event_payload(
+            "agent.prompt-config-updated",
+            {
+                "company_id": "cmp_test",
+                "agent_id": "requirement-manager",
+                "updated_by": "human:operator",
+                "prompt_length": 128,
+                "metadata_keys": ["source"],
+            },
+        )
+        assert isinstance(result, AgentPromptConfigUpdatedPayload)
 
     def test_validate_dlq_failed_payload(self):
         result = validate_event_payload(

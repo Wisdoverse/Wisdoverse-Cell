@@ -16,6 +16,14 @@ from shared.middleware.internal_auth import verify_internal_key
 from shared.schemas.event import EventTypes
 
 from .adapter_registry import DEFAULT_ADAPTER_REGISTRY
+from .agent_prompt_config import (
+    AGENT_PROMPT_MAX_LENGTH,
+    clean_system_prompt,
+    clean_updated_by,
+    ensure_prompt_config_target,
+    get_or_default_prompt_config,
+    prompt_config_to_dict,
+)
 from .agent_runner import AgentWakeupError, ControlPlaneAgentRunner
 from .approval_gate import ApprovalGate, ApprovalRequiredError
 from .database import control_plane_db_manager
@@ -404,6 +412,22 @@ class AgentDefinitionCreateRequest(BaseModel):
 class AgentStatusUpdateRequest(BaseModel):
     status: str = Field(min_length=1, max_length=32)
     actor_id: str = Field(default="api", min_length=1, max_length=128)
+
+
+class AgentPromptConfigUpdateRequest(BaseModel):
+    system_prompt: str = Field(default="", max_length=AGENT_PROMPT_MAX_LENGTH)
+    updated_by: str = Field(default="webui", min_length=1, max_length=128)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("system_prompt", mode="before")
+    @classmethod
+    def _clean_system_prompt(cls, value: Any) -> str:
+        return clean_system_prompt(value)
+
+    @field_validator("updated_by", mode="before")
+    @classmethod
+    def _clean_updated_by(cls, value: Any) -> str:
+        return clean_updated_by(value)
 
 
 class AgentWakeupRequest(BaseModel):
@@ -1366,6 +1390,69 @@ def create_control_plane_router(
         if row is None:
             raise HTTPException(status_code=404, detail="agent_not_found")
         return _row_to_dict(row)
+
+    @router.get("/agents/{agent_id}/prompt-config")
+    async def get_agent_prompt_config(
+        agent_id: str,
+        company_id: str | None = None,
+        session: AsyncSession = Depends(get_session),
+    ):
+        repo = ControlPlaneRepository(session)
+        resolved_company_id = resolve_company(company_id)
+        try:
+            return await get_or_default_prompt_config(
+                repo,
+                company_id=resolved_company_id,
+                agent_id=agent_id,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="agent_not_found") from exc
+
+    @router.put("/agents/{agent_id}/prompt-config")
+    async def update_agent_prompt_config(
+        agent_id: str,
+        body: AgentPromptConfigUpdateRequest,
+        company_id: str | None = None,
+        session: AsyncSession = Depends(get_session),
+    ):
+        repo = ControlPlaneRepository(session)
+        resolved_company_id = resolve_company(company_id)
+        await ensure_company(repo, resolved_company_id)
+        try:
+            await ensure_prompt_config_target(
+                repo,
+                company_id=resolved_company_id,
+                agent_id=agent_id,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="agent_not_found") from exc
+        row = await repo.upsert_agent_prompt_config(
+            company_id=resolved_company_id,
+            agent_id=agent_id,
+            system_prompt=body.system_prompt,
+            updated_by=body.updated_by,
+            metadata=body.metadata,
+        )
+        await repo.append_audit_event(
+            AuditEvent(
+                company_id=resolved_company_id,
+                action=EventTypes.AGENT_PROMPT_CONFIG_UPDATED,
+                target_type="agent_prompt_config",
+                target_id=agent_id,
+                actor_type="user",
+                actor_id=body.updated_by,
+                detail={
+                    "agent_id": agent_id,
+                    "prompt_length": len(body.system_prompt),
+                    "metadata_keys": sorted(body.metadata.keys()),
+                },
+            )
+        )
+        return prompt_config_to_dict(
+            row,
+            company_id=resolved_company_id,
+            agent_id=agent_id,
+        )
 
     @router.patch("/agents/{agent_id}/status")
     async def update_agent_status(

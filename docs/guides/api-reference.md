@@ -128,6 +128,8 @@ Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.
 | `GET` | `/agents` | List `AgentRole` records |
 | `POST` | `/agents` | Create an `AgentRole` record |
 | `GET` | `/agents/{agent_id}` | Read one agent role |
+| `GET` | `/agents/{agent_id}/prompt-config` | Read the persisted system-prompt override |
+| `PUT` | `/agents/{agent_id}/prompt-config` | Update the persisted system-prompt override |
 | `PATCH` | `/agents/{agent_id}/status` | Change agent role status |
 | `POST` | `/agents/{agent_id}/wake` | Start a manual wakeup through the configured adapter |
 | `POST` | `/scheduler/heartbeats/run-once` | Run due heartbeat wakeups once |
@@ -140,6 +142,12 @@ Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.
 
 Creation endpoints validate that referenced company, goal, work item, and run
 IDs belong to the same company context.
+
+The WebUI compatibility surface also exposes
+`GET /api/v1/agents/{agent_id}/prompt-config` and
+`PUT /api/v1/agents/{agent_id}/prompt-config` with the same response shape for
+catalog-managed runtime agents such as `requirement-manager`, `pjm-agent`, and
+`dev-agent`.
 
 `AgentRole` create/list/read payloads include the event-boundary contract:
 `subscribed_events` and `published_events`. These fields document how an agent

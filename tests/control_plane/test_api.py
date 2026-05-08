@@ -564,6 +564,63 @@ async def test_control_plane_api_creates_frontend_agent_definition(
 
 
 @pytest.mark.asyncio
+async def test_control_plane_api_manages_agent_prompt_config(
+    db_session: AsyncSession,
+):
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        initial = await client.get(
+            "/api/v1/control-plane/agents/requirement-manager/prompt-config",
+            params={"company_id": "cmp_prompt"},
+        )
+        saved = await client.put(
+            "/api/v1/control-plane/agents/requirement-manager/prompt-config",
+            params={"company_id": "cmp_prompt"},
+            json={
+                "system_prompt": "Operate as the requirement intake owner.",
+                "updated_by": "human:operator",
+                "metadata": {"source": "test"},
+            },
+        )
+        fetched = await client.get(
+            "/api/v1/control-plane/agents/requirement-manager/prompt-config",
+            params={"company_id": "cmp_prompt"},
+        )
+        missing = await client.put(
+            "/api/v1/control-plane/agents/not-a-real-agent/prompt-config",
+            params={"company_id": "cmp_prompt"},
+            json={"system_prompt": "Nope"},
+        )
+        audit = await client.get(
+            "/api/v1/control-plane/audit-events",
+            params={
+                "company_id": "cmp_prompt",
+                "target_type": "agent_prompt_config",
+            },
+        )
+
+    assert initial.status_code == 200
+    assert initial.json()["system_prompt"] == ""
+    assert saved.status_code == 200
+    assert saved.json()["system_prompt"] == "Operate as the requirement intake owner."
+    assert saved.json()["updated_by"] == "human:operator"
+    assert saved.json()["metadata"] == {"source": "test"}
+    assert fetched.status_code == 200
+    assert fetched.json()["system_prompt"] == saved.json()["system_prompt"]
+    assert missing.status_code == 404
+    assert audit.status_code == 200
+    events = audit.json()["audit_events"]
+    assert events[0]["action"] == EventTypes.AGENT_PROMPT_CONFIG_UPDATED
+    assert events[0]["detail"]["prompt_length"] == len(saved.json()["system_prompt"])
+    assert saved.json()["system_prompt"] not in str(events[0]["detail"])
+
+
+@pytest.mark.asyncio
 async def test_control_plane_api_separates_agent_kinds(
     db_session: AsyncSession,
 ):
