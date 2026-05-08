@@ -37,6 +37,19 @@
     "messages": "消息",
     "settings": "设置"
   },
+  "costUsage": {
+    "title": "成本与用量",
+    "totalCost": "总成本",
+    "totalTokens": "总 Tokens",
+    "avgDailyCost": "日均成本",
+    "dailyCost": "每日成本",
+    "tokenUsageByAgent": "按智能体统计 Tokens",
+    "noCostData": "该周期暂无成本记录。",
+    "noTokenData": "该周期暂无 Token 用量记录。",
+    "agent": "智能体",
+    "tokens": "Tokens",
+    "cost": "成本"
+  },
   "dashboard": {
     "title": "数据总览",
     "pending": "待确认",
@@ -60,6 +73,7 @@
     "fleet_running": "运行中",
     "fleet_idle": "空闲",
     "fleet_error": "错误",
+    "fleet_stopped": "已停止",
     "cost": "成本 (USD)",
     "tokens": "总 Tokens",
     "calls": "调用次数",
@@ -183,6 +197,24 @@
     "extracted": "已提取",
     "sessionLoadError": "加载会话失败"
   },
+  "settings": {
+    "title": "设置",
+    "account": "账号",
+    "accountDescription": "当前登录的操作员",
+    "name": "姓名",
+    "email": "邮箱",
+    "role": "角色",
+    "session": "会话",
+    "sessionActive": "已登录",
+    "signOut": "退出登录",
+    "preferences": "偏好",
+    "preferencesDescription": "界面默认项",
+    "theme": "主题",
+    "themeSystem": "跟随系统",
+    "themeLight": "浅色",
+    "themeDark": "深色",
+    "language": "语言"
+  },
   "auth": {
     "login": "登录",
     "logout": "退出登录",
@@ -237,7 +269,10 @@
     "yesterday": "昨天",
     "allDomains": "全部领域",
     "noActivity": "暂无动态",
-    "noActivityDescription": "智能体的活动记录将显示在此处。"
+    "noActivityDescription": "智能体的活动记录将显示在此处。",
+    "loading": "正在加载动态...",
+    "loadError": "动态加载失败。",
+    "runEvent": "运行 {runId} 当前状态为 {status}"
   },
   "events": {
     "requirementConfirmed": "需求已确认",
@@ -347,7 +382,14 @@
     "createSuccess": "智能体已创建",
     "wakeAgent": "唤醒",
     "wakeSuccess": "已唤醒，运行 {runId}",
-    "controlPlaneLoadError": "控制面智能体列表加载失败，当前仅显示本地内置配置。"
+    "startAgent": "启动",
+    "restartAgent": "重启",
+    "stopAgent": "停止",
+    "startSuccess": "已启动智能体，运行 {runId}",
+    "restartSuccess": "已重启智能体，运行 {runId}",
+    "stopSuccess": "已停止智能体",
+    "controlPlaneLoadError": "控制面智能体列表加载失败，当前仅显示本地内置配置。",
+    "runtimeLoadError": "实时运行状态加载失败。"
   },
   "agentDetail": {
     "backToFleet": "舰队",
@@ -361,6 +403,11 @@
     "uptime": "运行时长",
     "connectedAgents": "关联智能体",
     "noConnections": "暂无关联",
+    "loadingEvents": "正在加载事件...",
+    "eventsLoadError": "事件加载失败。",
+    "noEvents": "该智能体暂无真实事件记录。",
+    "runEvent": "运行 {runId} 当前状态为 {status}",
+    "runtimeLoadError": "实时运行状态加载失败。",
     "notFound": "未找到该智能体",
     "agentId": "智能体 ID",
     "domain": "领域",

@@ -90,6 +90,7 @@ class TestVectorStoreGetStats:
         vs = VectorStore(store=AsyncMock())
         stats = await vs.get_stats()
         assert stats["status"] == "unavailable"
+        assert stats["total_documents"] == 0
 
 
 # ── VectorStore.find_similar via abstraction ──────────────────────────────────

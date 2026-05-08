@@ -381,7 +381,11 @@ class VectorStore:
     async def get_stats(self) -> dict[str, Any]:
         """Return vector-store statistics."""
         if not self.available:
-            return {"backend": "milvus", "status": "unavailable"}
+            return {
+                "backend": "milvus",
+                "status": "unavailable",
+                "total_documents": 0,
+            }
         if self._plugin is not None:
             count = await self._plugin.count(self._collection)
         else:

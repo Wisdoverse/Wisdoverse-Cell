@@ -1,9 +1,21 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import useSWR from "swr";
+
 import { StatCard } from "@/shared/ui/stat-card";
-import { useAgents } from "@/entities/agent/model/use-agents";
-import { useApprovals } from "@/entities/approval/model/use-approvals";
+import { useControlPlaneAgents } from "@/entities/agent";
+import {
+  listControlPlaneApprovals,
+  listControlPlaneRuns,
+  listControlPlaneWorkItems,
+} from "@/entities/control-plane";
+import {
+  controlPlaneRuntimeForAgent,
+  countOpenWorkItems,
+  runsForAgent,
+  workItemsForAgent,
+} from "../model/control-plane-home";
 
 function getGreetingKey(): "morning" | "afternoon" | "evening" {
   const hour = new Date().getHours();
@@ -14,20 +26,37 @@ function getGreetingKey(): "morning" | "afternoon" | "evening" {
 
 export function GreetingBanner() {
   const t = useTranslations("home");
-  const { data: agentData, isLoading: agentsLoading } = useAgents();
-  const { data: approvalData, isLoading: approvalsLoading } = useApprovals({
-    status: "pending",
-  });
+  const agentsQuery = useControlPlaneAgents({ limit: 500 });
+  const approvalsQuery = useSWR(["home-control-plane-approvals", "pending"], () =>
+    listControlPlaneApprovals({ status: "pending", limit: 200 }),
+  );
+  const runsQuery = useSWR(["home-control-plane-runs", 200], () =>
+    listControlPlaneRuns({ limit: 200 }),
+  );
+  const workItemsQuery = useSWR(["home-control-plane-work-items", 500], () =>
+    listControlPlaneWorkItems({ limit: 500 }),
+  );
 
-  const isLoading = agentsLoading || approvalsLoading;
-  const agents = agentData?.agents ?? [];
-  const pendingApprovals = approvalData?.approvals ?? [];
+  const isLoading =
+    agentsQuery.isLoading ||
+    approvalsQuery.isLoading ||
+    runsQuery.isLoading ||
+    workItemsQuery.isLoading;
+  const agents = agentsQuery.data?.agents ?? [];
+  const pendingApprovals = approvalsQuery.data?.approvals ?? [];
+  const runs = runsQuery.data?.runs ?? [];
+  const workItems = workItemsQuery.data?.work_items ?? [];
 
-  const runningCount = agents.filter((a) => a.status === "running").length;
-  const attentionCount = agents.filter(
-    (a) => a.status === "warning" || a.status === "idle",
-  ).length;
-  const errorCount = agents.filter((a) => a.status === "error").length;
+  const runtimes = agents.map((agent) =>
+    controlPlaneRuntimeForAgent(
+      agent,
+      runsForAgent(runs, agent.agent_id),
+      workItemsForAgent(workItems, agent.agent_id),
+    ),
+  );
+  const runningCount = runtimes.filter((runtime) => runtime.status === "running").length;
+  const attentionCount = countOpenWorkItems(workItems) + pendingApprovals.length;
+  const errorCount = runtimes.reduce((total, runtime) => total + runtime.error_count, 0);
   const pendingCount = pendingApprovals.length;
 
   return (

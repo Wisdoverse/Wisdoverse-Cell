@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import useSWR from "swr";
 
 import {
   ActivityFiltersBar,
@@ -9,19 +10,26 @@ import {
 } from "./activity-filters";
 import { ActivityTimeline } from "./activity-timeline";
 import { PageHeader } from "@/shared/ui/page-header";
-import { MOCK_ACTIVITY_EVENTS } from "@/entities/activity/model/mock-events";
+import { controlPlaneRunsToActivityEvents } from "@/entities/activity/model/control-plane-events";
+import { listControlPlaneRuns } from "@/entities/control-plane";
 import { AGENT_REGISTRY } from "@/lib/registry/agents";
 
 export function ActivityPageWidget() {
   const t = useTranslations("activity");
   const [filters, setFilters] = useState<ActivityFilters>({});
+  const { data, error, isLoading } = useSWR(["activity-control-plane-runs"], () =>
+    listControlPlaneRuns({ limit: 100 }),
+  );
 
+  const events = controlPlaneRunsToActivityEvents(data?.runs ?? [], (run) =>
+    t("runEvent", { runId: run.run_id, status: run.status }),
+  );
   const filteredEvents = filters.domain
-    ? MOCK_ACTIVITY_EVENTS.filter((event) => {
+    ? events.filter((event) => {
         const agentMeta = AGENT_REGISTRY[event.agent_id];
         return agentMeta?.domain === filters.domain;
       })
-    : MOCK_ACTIVITY_EVENTS;
+    : events;
 
   return (
     <div className="space-y-6">
@@ -32,7 +40,13 @@ export function ActivityPageWidget() {
           <ActivityFiltersBar filters={filters} onFiltersChange={setFilters} />
         }
       />
-      <ActivityTimeline events={filteredEvents} />
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">{t("loading")}</p>
+      ) : error ? (
+        <p className="text-sm text-destructive">{t("loadError")}</p>
+      ) : (
+        <ActivityTimeline events={filteredEvents} />
+      )}
     </div>
   );
 }

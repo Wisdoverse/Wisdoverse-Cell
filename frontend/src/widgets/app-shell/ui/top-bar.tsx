@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useSession, signOut } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
+import useSWR from "swr";
 import { Sun, Moon, LogOut, User, Bell } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { Separator } from "@/shared/ui/separator";
@@ -27,6 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/shared/ui/dropdown-menu";
+import { listControlPlaneApprovals } from "@/entities/control-plane";
 import { LocaleSwitcher } from "./locale-switcher";
 
 const segmentLabels: Record<string, string> = {
@@ -45,9 +47,6 @@ const segmentLabels: Record<string, string> = {
   settings: "Settings",
 };
 
-// Mock: number of unread notifications
-const UNREAD_NOTIFICATION_COUNT = 3;
-
 export function TopBar() {
   const { theme, setTheme } = useTheme();
   const { data: session } = useSession();
@@ -55,6 +54,11 @@ export function TopBar() {
   const tc = useTranslations("common");
   const locale = useLocale();
   const pathname = usePathname();
+  const { data: pendingApprovals } = useSWR(
+    ["topbar-pending-approvals"],
+    () => listControlPlaneApprovals({ status: "pending", limit: 50 }),
+    { refreshInterval: 15000 },
+  );
 
   const userName = session?.user?.name || "";
   const userInitial = userName.charAt(0).toUpperCase() || "U";
@@ -63,7 +67,7 @@ export function TopBar() {
   const segments = pathname.split("/").filter(Boolean);
   const pathSegments = segments.slice(1); // remove locale segment
 
-  const hasNotifications = UNREAD_NOTIFICATION_COUNT > 0;
+  const hasNotifications = (pendingApprovals?.approvals.length ?? 0) > 0;
 
   return (
     <header className="flex h-14 items-center gap-2 border-b px-4">

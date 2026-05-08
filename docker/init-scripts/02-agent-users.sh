@@ -37,8 +37,10 @@ create_or_update_role() {
     dev_default="$3"
     password="$(agent_password "$env_name" "$dev_default")"
 
-    exists="$(psql_cmd -v role="$role" --tuples-only --no-align \
-        -c "SELECT 1 FROM pg_roles WHERE rolname = :'role';")"
+    exists="$(psql_cmd -v role="$role" --tuples-only --no-align <<'EOSQL'
+SELECT 1 FROM pg_roles WHERE rolname = :'role';
+EOSQL
+)"
 
     if [ "$exists" = "1" ]; then
         psql_cmd -v role="$role" -v password="$password" <<'EOSQL'

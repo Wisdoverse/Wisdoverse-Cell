@@ -67,26 +67,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        // Development credentials require explicit opt-in via ENABLE_DEV_AUTH=true.
+        // Default credentials require explicit opt-in via ENABLE_DEV_AUTH=true.
         // Real auth via Feishu/WeCom OAuth is configured separately.
-        if (process.env.NODE_ENV === "production" || process.env.ENABLE_DEV_AUTH !== "true")
+        if (process.env.ENABLE_DEV_AUTH !== "true") {
           return null;
+        }
 
         const devUsername = getEnvValue("DEV_AUTH_USERNAME");
         const devPassword = getEnvValue("DEV_AUTH_PASSWORD");
         if (!devUsername || !devPassword) return null;
 
         const username =
-          typeof credentials?.username === "string" ? credentials.username : undefined;
+          typeof credentials?.username === "string"
+            ? credentials.username.trim().toLowerCase()
+            : undefined;
         const password =
           typeof credentials?.password === "string" ? credentials.password : undefined;
 
         if (!username || !password) return null;
-        if (username !== devUsername || password !== devPassword) return null;
+        if (username !== devUsername.toLowerCase() || password !== devPassword) return null;
 
         return {
           id: username,
-          name: getEnvValue("DEV_AUTH_DISPLAY_NAME") ?? username,
+          name: getEnvValue("DEV_AUTH_DISPLAY_NAME") ?? getEnvValue("DEV_AUTH_NAME") ?? username,
           email: devAuthEmail(username),
           role: parseDevAuthRole(getEnvValue("DEV_AUTH_ROLE")),
         };

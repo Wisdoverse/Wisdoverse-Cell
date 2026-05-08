@@ -1,49 +1,54 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
+
 import { DOMAIN_LIST } from "@/lib/registry/domains";
-import { getAgentsByDomain, getAllAgents } from "@/lib/registry/agents";
 import { AgentCard } from "@/entities/agent/ui/agent-display-card";
-import type { AgentRuntimeStatus, AgentMeta } from "@/lib/api/types";
-
-const MOCK_RUNTIME_LAST_ACTIVE_AT = "2026-05-03T02:00:00.000Z";
-
-function seedRandom(seed: number): number {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
-
-function createMockRuntimes(agents: AgentMeta[]): Record<string, AgentRuntimeStatus> {
-  const runtimes: Record<string, AgentRuntimeStatus> = {};
-  agents.forEach((agent, i) => {
-    runtimes[agent.id] = {
-      agent_id: agent.id,
-      status: "running",
-      health: 85 + Math.floor(seedRandom(i + 1) * 15),
-      task_count: Math.floor(seedRandom(i + 10) * 200),
-      pending_count: Math.floor(seedRandom(i + 20) * 10),
-      error_count: Math.floor(seedRandom(i + 30) * 3),
-      uptime_seconds: 259200,
-      last_active_at: MOCK_RUNTIME_LAST_ACTIVE_AT,
-    };
-  });
-  return runtimes;
-}
+import { agentDefinitionsToMetas, useControlPlaneAgents } from "@/entities/agent";
+import {
+  listControlPlaneRuns,
+  listControlPlaneWorkItems,
+} from "@/entities/control-plane";
+import {
+  controlPlaneRuntimeForAgent,
+  runsForAgent,
+  workItemsForAgent,
+} from "../model/control-plane-home";
 
 export function FleetGrid() {
   const t = useTranslations("home");
+  const tc = useTranslations("common");
   const locale = useLocale();
   const router = useRouter();
+  const agentsQuery = useControlPlaneAgents({ limit: 500 });
+  const runsQuery = useSWR(["home-control-plane-runs", 200], () =>
+    listControlPlaneRuns({ limit: 200 }),
+  );
+  const workItemsQuery = useSWR(["home-control-plane-work-items", 500], () =>
+    listControlPlaneWorkItems({ limit: 500 }),
+  );
 
-  const allAgents = getAllAgents();
-  const [mockRuntimes] = useState(() => createMockRuntimes(allAgents));
+  const controlPlaneAgents = useMemo(
+    () => agentsQuery.data?.agents ?? [],
+    [agentsQuery.data?.agents],
+  );
+  const agentMetas = useMemo(
+    () => agentDefinitionsToMetas(controlPlaneAgents),
+    [controlPlaneAgents],
+  );
+  const agentById = new Map(controlPlaneAgents.map((agent) => [agent.agent_id, agent]));
+  const runs = runsQuery.data?.runs ?? [];
+  const workItems = workItemsQuery.data?.work_items ?? [];
+  const isLoading = agentsQuery.isLoading || runsQuery.isLoading || workItemsQuery.isLoading;
+  const hasError = agentsQuery.error || runsQuery.error || workItemsQuery.error;
 
-  const domainsWithAgents = DOMAIN_LIST.map((domain) => ({
-    domain,
-    agents: getAgentsByDomain(domain.id),
-  })).filter(({ agents }) => agents.length > 0);
+  const domainsWithAgents = DOMAIN_LIST.map((domain) => {
+    const agents = agentMetas.filter((agent) => agent.domain === domain.id);
+    return { domain, agents };
+  }).filter(({ agents }) => agents.length > 0);
 
   return (
     <section className="space-y-6">
@@ -51,9 +56,17 @@ export function FleetGrid() {
         {t("agentFleet")}
       </h2>
 
-      {domainsWithAgents.length === 0 ? (
+      {isLoading ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-44 animate-pulse rounded-lg bg-muted" />
+          ))}
+        </div>
+      ) : hasError ? (
+        <p className="text-sm text-destructive">{tc("error")}</p>
+      ) : domainsWithAgents.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No agents registered yet.
+          {t("noAgents")}
         </p>
       ) : (
         domainsWithAgents.map(({ domain, agents }) => (
@@ -63,7 +76,15 @@ export function FleetGrid() {
               <span className="text-xs">({agents.length})</span>
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {agents.map((agent: AgentMeta, index: number) => (
+              {agents.map((agent, index) => {
+                const definition = agentById.get(agent.id);
+                if (!definition) return null;
+                const runtime = controlPlaneRuntimeForAgent(
+                  definition,
+                  runsForAgent(runs, agent.id),
+                  workItemsForAgent(workItems, agent.id),
+                );
+                return (
                 <div
                   key={agent.id}
                   className="animate-slide-up"
@@ -71,13 +92,13 @@ export function FleetGrid() {
                 >
                   <AgentCard
                     meta={agent}
-                    runtime={mockRuntimes[agent.id]}
+                    runtime={runtime}
                     onClick={() =>
                       router.push(`/${locale}/agents/${agent.id}`)
                     }
                   />
                 </div>
-              ))}
+              )})}
             </div>
           </div>
         ))

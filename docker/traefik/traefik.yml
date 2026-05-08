@@ -5,6 +5,8 @@ api:
 entryPoints:
   web:
     address: ":80"
+    forwardedHeaders:
+      insecure: true
   grpc:
     address: ":50051"
     http2:
@@ -16,7 +18,6 @@ providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-    network: projectcell_frontend
     watch: true
   file:
     directory: "/etc/traefik/dynamic"

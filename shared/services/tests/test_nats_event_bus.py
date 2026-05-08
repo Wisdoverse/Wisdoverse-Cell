@@ -85,6 +85,7 @@ class TestNATSEventBusConnect:
         assert config.name == STREAM_NAME
         assert f"{SUBJECT_PREFIX}.>" in config.subjects
         assert config.num_replicas == 1
+        assert config.max_age == 7 * 24 * 3600
 
     @pytest.mark.asyncio
     async def test_connect_uses_configured_stream_replicas(self):
