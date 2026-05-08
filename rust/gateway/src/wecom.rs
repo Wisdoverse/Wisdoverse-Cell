@@ -324,7 +324,10 @@ mod tests {
     use aes::Aes256;
     use base64::{engine::general_purpose, Engine as _};
     use cbc::cipher::{block_padding::Pkcs7, BlockEncryptMut, KeyIvInit};
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::{
+        sync::atomic::{AtomicU64, Ordering},
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     type Aes256CbcEnc = cbc::Encryptor<Aes256>;
 
@@ -346,7 +349,7 @@ mod tests {
     #[test]
     fn generates_and_verifies_signature() {
         let crypt = WecomCrypto::new(TOKEN, KEY, CORP_ID).unwrap();
-        let nonce = test_nonce("signature");
+        let nonce = test_nonce();
         let signature = crypt.generate_signature("1704067200", &nonce, "encrypted-data");
 
         assert!(crypt.verify_signature(&signature, "1704067200", &nonce, "encrypted-data"));
@@ -367,7 +370,7 @@ mod tests {
     fn verifies_url_and_returns_decrypted_echo() {
         let crypt = WecomCrypto::new(TOKEN, KEY, CORP_ID).unwrap();
         let encrypted = encrypt_for_test("echo-ok", &crypt.aes_key, CORP_ID);
-        let nonce = test_nonce("url");
+        let nonce = test_nonce();
         let signature = crypt.generate_signature("1704067200", &nonce, &encrypted);
 
         let echo = crypt
@@ -383,7 +386,7 @@ mod tests {
         let plain =
             "<xml><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[hello]]></Content></xml>";
         let encrypted = encrypt_for_test(plain, &crypt.aes_key, CORP_ID);
-        let nonce = test_nonce("xml");
+        let nonce = test_nonce();
         let signature = crypt.generate_signature("1704067200", &nonce, &encrypted);
         let xml = format!(
             "<xml><ToUserName><![CDATA[{CORP_ID}]]></ToUserName><Encrypt><![CDATA[{encrypted}]]></Encrypt><AgentID>1</AgentID></xml>"
@@ -472,7 +475,7 @@ mod tests {
         );
         assert_eq!(
             crypt
-                .decrypt_msg("invalid", "1704067200", &test_nonce("invalid"), b"not xml")
+                .decrypt_msg("invalid", "1704067200", &test_nonce(), b"not xml")
                 .unwrap_err(),
             WecomCryptoError::MissingEncrypt
         );
@@ -510,12 +513,14 @@ mod tests {
         general_purpose::STANDARD.encode(cipher_text)
     }
 
-    fn test_nonce(label: &str) -> String {
+    fn test_nonce() -> String {
+        static NONCE_COUNTER: AtomicU64 = AtomicU64::new(1);
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        format!("nonce-{label}-{nanos}")
+        let counter = NONCE_COUNTER.fetch_add(1, Ordering::Relaxed);
+        format!("{nanos:x}{counter:x}")
     }
 
     fn test_random_prefix() -> [u8; 16] {

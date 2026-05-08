@@ -176,14 +176,17 @@ mod tests {
     use base64::{engine::general_purpose, Engine as _};
     use cbc::cipher::{block_padding::NoPadding, BlockEncryptMut, KeyIvInit};
     use sha2::{Digest, Sha256};
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::{
+        sync::atomic::{AtomicU64, Ordering},
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     type Aes256CbcEnc = cbc::Encryptor<Aes256>;
 
     #[test]
     fn verifies_valid_signature() {
         let timestamp = "1704067200";
-        let nonce = test_nonce("valid");
+        let nonce = test_nonce();
         let encrypt_key = "test-encrypt-key";
         let body = br#"{"event":"test"}"#;
         let signature = signature_for(timestamp, &nonce, encrypt_key, body);
@@ -200,7 +203,7 @@ mod tests {
     #[test]
     fn rejects_invalid_signature_inputs() {
         let timestamp = "1704067200";
-        let nonce = test_nonce("invalid");
+        let nonce = test_nonce();
         let encrypt_key = "test-encrypt-key";
         let body = br#"{"event":"test"}"#;
         let signature = signature_for(timestamp, &nonce, encrypt_key, body);
@@ -284,12 +287,14 @@ mod tests {
         hex::encode(hasher.finalize())
     }
 
-    fn test_nonce(label: &str) -> String {
+    fn test_nonce() -> String {
+        static NONCE_COUNTER: AtomicU64 = AtomicU64::new(1);
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        format!("nonce-{label}-{nanos}")
+        let counter = NONCE_COUNTER.fetch_add(1, Ordering::Relaxed);
+        format!("{nanos:x}{counter:x}")
     }
 
     fn encrypt_for_test(plain_text: &str, encrypt_key: &str) -> String {

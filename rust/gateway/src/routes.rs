@@ -1552,7 +1552,10 @@ mod tests {
     use serde_json::Value;
     use std::{
         net::SocketAddr,
-        sync::{Arc, Mutex},
+        sync::{
+            atomic::{AtomicU64, Ordering},
+            Arc, Mutex,
+        },
         time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     };
     use tokio::net::TcpListener;
@@ -2326,7 +2329,7 @@ mod tests {
     async fn feishu_accepts_valid_signature() {
         let body = br#"{"type":"event_callback"}"#;
         let timestamp = "1704067200";
-        let nonce = test_nonce("feishu");
+        let nonce = test_nonce();
         let encrypt_key = "test-encrypt-key";
         let signature = signature_for(timestamp, &nonce, encrypt_key, body);
         assert!(verify_signature(
@@ -2367,7 +2370,7 @@ mod tests {
     async fn wecom_get_verifies_url() {
         let crypt = WecomCrypto::new(WECOM_TOKEN, WECOM_KEY, WECOM_CORP_ID).unwrap();
         let encrypted = encrypt_wecom_for_test("echo-ok", WECOM_KEY, WECOM_CORP_ID);
-        let nonce = test_nonce("wecom-get");
+        let nonce = test_nonce();
         let signature = crypt.generate_signature("1704067200", &nonce, &encrypted);
         let app = router(wecom_test_config());
 
@@ -2397,7 +2400,7 @@ mod tests {
         let plain =
             "<xml><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[hello]]></Content></xml>";
         let encrypted = encrypt_wecom_for_test(plain, WECOM_KEY, WECOM_CORP_ID);
-        let nonce = test_nonce("wecom-post");
+        let nonce = test_nonce();
         let signature = crypt.generate_signature("1704067200", &nonce, &encrypted);
         let xml = format!(
             "<xml><ToUserName><![CDATA[{WECOM_CORP_ID}]]></ToUserName><Encrypt><![CDATA[{encrypted}]]></Encrypt><AgentID>1</AgentID></xml>"
@@ -2432,7 +2435,7 @@ mod tests {
         let crypt = WecomCrypto::new(WECOM_TOKEN, WECOM_KEY, WECOM_CORP_ID).unwrap();
         let plain = "<xml><FromUserName><![CDATA[wecom_user_1]]></FromUserName><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[/confirm req_wecom_1]]></Content><MsgId>777</MsgId></xml>";
         let encrypted = encrypt_wecom_for_test(plain, WECOM_KEY, WECOM_CORP_ID);
-        let nonce = test_nonce("wecom-confirm");
+        let nonce = test_nonce();
         let signature = crypt.generate_signature("1704067200", &nonce, &encrypted);
         let xml = format!(
             "<xml><ToUserName><![CDATA[{WECOM_CORP_ID}]]></ToUserName><Encrypt><![CDATA[{encrypted}]]></Encrypt><AgentID>1</AgentID></xml>"
@@ -2488,7 +2491,7 @@ mod tests {
         let crypt = WecomCrypto::new(WECOM_TOKEN, WECOM_KEY, WECOM_CORP_ID).unwrap();
         let plain = "<xml><FromUserName><![CDATA[wecom_user_2]]></FromUserName><MsgType><![CDATA[event]]></MsgType><Event><![CDATA[click]]></Event><EventKey><![CDATA[list_requirements]]></EventKey><MsgId>778</MsgId></xml>";
         let encrypted = encrypt_wecom_for_test(plain, WECOM_KEY, WECOM_CORP_ID);
-        let nonce = test_nonce("wecom-list");
+        let nonce = test_nonce();
         let signature = crypt.generate_signature("1704067200", &nonce, &encrypted);
         let xml = format!(
             "<xml><ToUserName><![CDATA[{WECOM_CORP_ID}]]></ToUserName><Encrypt><![CDATA[{encrypted}]]></Encrypt><AgentID>1</AgentID></xml>"
@@ -2533,7 +2536,7 @@ mod tests {
         let crypt = WecomCrypto::new(WECOM_TOKEN, WECOM_KEY, WECOM_CORP_ID).unwrap();
         let plain = r#"<xml><FromUserName><![CDATA[wecom_user_3]]></FromUserName><MsgType><![CDATA[event]]></MsgType><Event><![CDATA[template_card_event]]></Event><EventKey><![CDATA[confirm:{"req_id":"req_wecom_card_1"}]]></EventKey><ResponseCode><![CDATA[resp_card_1]]></ResponseCode><TaskId><![CDATA[task_card_1]]></TaskId><MsgId>779</MsgId></xml>"#;
         let encrypted = encrypt_wecom_for_test(plain, WECOM_KEY, WECOM_CORP_ID);
-        let nonce = test_nonce("wecom-card");
+        let nonce = test_nonce();
         let signature = crypt.generate_signature("1704067200", &nonce, &encrypted);
         let xml = format!(
             "<xml><ToUserName><![CDATA[{WECOM_CORP_ID}]]></ToUserName><Encrypt><![CDATA[{encrypted}]]></Encrypt><AgentID>1</AgentID></xml>"
@@ -2610,12 +2613,14 @@ mod tests {
         hex::encode(hasher.finalize())
     }
 
-    fn test_nonce(label: &str) -> String {
+    fn test_nonce() -> String {
+        static NONCE_COUNTER: AtomicU64 = AtomicU64::new(1);
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        format!("nonce-{label}-{nanos}")
+        let counter = NONCE_COUNTER.fetch_add(1, Ordering::Relaxed);
+        format!("{nanos:x}{counter:x}")
     }
 
     fn wecom_test_config() -> GatewayConfig {
