@@ -42,7 +42,7 @@ class RequirementServicer(pb2_grpc.RequirementServiceServicer):
     """
     gRPC Servicer for Requirement Management.
 
-    Handles requests from Go Gateway and delegates to the requirement manager agent.
+    Handles requests from the Rust gateway and delegates to the requirement manager agent.
     """
 
     def __init__(self, agent: Optional[RequirementManagerAgent] = None):

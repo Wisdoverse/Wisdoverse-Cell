@@ -119,10 +119,10 @@ This changelog is English-first and follows [Keep a Changelog](https://keepachan
 ### Changed
 - Renamed the project integration target from Moltbot to OpenClaw.
 
-## [2026-01-27] - Go Gateway and Skill System
+## [2026-01-27] - Gateway and Skill System
 
 ### Added
-- Go + Gin API Gateway hybrid architecture.
+- Legacy gateway prototype, now retired.
 - Skill system design.
 - Docker Compose production-grade configuration.
 - CI audit improvements for security, reliability, and performance.

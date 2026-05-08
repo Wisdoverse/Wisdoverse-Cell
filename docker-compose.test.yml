@@ -79,11 +79,11 @@ services:
       retries: 10
       start_period: 30s
 
-  # Go Gateway
+  # Rust Gateway
   gateway:
     build:
-      context: ./gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: rust/gateway/Dockerfile
     environment:
       GATEWAY_GRPC_AI_SERVICE_ADDR: ai-core:50051
       GATEWAY_REDIS_ADDR: redis:6379

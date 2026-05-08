@@ -120,5 +120,5 @@ LITELLM_API_BASE=https://llm-proxy.example.com/v1
 ## Dependency Management
 
 - Python: `requirements.txt` with `scripts/lock-deps.sh` for reproducible builds
-- Go: `go.sum` for integrity verification
+- Rust: `Cargo.lock` for dependency integrity and reproducible gateway builds
 - Regular dependency updates via CI scanning

@@ -1,7 +1,7 @@
 """
 gRPC Server
 
-Provides the gRPC server for Go Gateway communication.
+Provides the gRPC server for Rust gateway communication.
 """
 import asyncio
 import os

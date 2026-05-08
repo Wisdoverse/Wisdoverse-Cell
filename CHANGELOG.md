@@ -44,7 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - ADR-0001 through ADR-0004 architecture decision records
 
 ### Changed
-- Runtime versions: Python 3.13, Go 1.25, PostgreSQL 18, Redis 8
+- Runtime versions: Python 3.13, Rust 1.86, PostgreSQL 18, Redis 8
 - **Agent decoupling**: `requirement_manager` no longer imports `pjm_agent` directly; uses HTTP REST via `PMAgentClient`
 - **channel_gateway**: moved from `agents/` to `shared/services/channel_gateway/` (infrastructure, not a business agent)
 - Chat Agent: all LLM calls via centralized LLMGateway (no direct provider SDK clients)
@@ -55,7 +55,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Dockerfile: removed `pjm_agent` COPY from `requirement_manager` and `ai-core` targets
 
 ### Fixed
-- GO-005: Webhook signature timing attack (`subtle.ConstantTimeCompare`)
+- SEC-005: Webhook signature timing attack fixed with constant-time comparison
 - SEC-003: Prompt injection defense (XML escaping, no PII in LLM prompt)
 - COMP-C03: `ANTHROPIC_BASE_URL` proxy enforcement (raise on violation)
 - DR-001: EventBus queue overflow (maxlen + TTL)
@@ -73,7 +73,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.1.0] - 2026-01-25
 ### Added
 - Initial release: Requirement Manager Agent (M1-M4)
-- Go API Gateway with gRPC forwarding
+- Initial API gateway with gRPC forwarding; current gateway runtime is Rust.
 - EventBus (Redis LIST), LLM Gateway, BaseAgent
 - Feishu deep integration (Bot, Cards, Events)
 - Next.js Frontend (Dashboard, Requirements, i18n)

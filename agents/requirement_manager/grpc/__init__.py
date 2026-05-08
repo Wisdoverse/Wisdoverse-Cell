@@ -1,7 +1,7 @@
 """
 Requirement manager agent gRPC package.
 
-Provides the RequirementService boundary consumed by the Go Gateway.
+Provides the RequirementService boundary consumed by the Rust gateway.
 """
 from .servicer import RequirementServicer
 

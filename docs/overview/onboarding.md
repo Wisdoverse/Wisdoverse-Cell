@@ -377,7 +377,7 @@ graph LR
     end
 
     subgraph Gateway Layer
-        GW[Go Gateway]
+        GW[Rust Gateway]
     end
 
     subgraph Agent Layer

@@ -82,6 +82,18 @@ def evaluate_migration(
         ),
         exists(root, "rust/Cargo.toml", "Rust workspace exists"),
         exists(root, "rust/gateway/src/routes.rs", "Rust gateway routes exist"),
+        absent(root, "gateway", "legacy Go gateway source tree is removed"),
+        absent(
+            root,
+            "docker/compose/docker-compose.go-gateway-legacy.yml",
+            "legacy Go gateway development rollback overlay is removed",
+        ),
+        absent(
+            root,
+            "docker/compose/docker-compose.go-gateway-legacy-prod.yml",
+            "legacy Go gateway production rollback overlay is removed",
+        ),
+        absent(root, "scripts/resolve-go-version.sh", "Go toolchain resolver is removed"),
         contains(
             root,
             "docker/compose/docker-compose.app.yml",
@@ -104,15 +116,9 @@ def evaluate_migration(
         ),
         contains(
             root,
-            "docker/compose/docker-compose.go-gateway-legacy.yml",
-            ["projectcell/gateway", "GATEWAY_IMPLEMENTATION: go-legacy"],
-            "legacy Go gateway is available only through an explicit rollback overlay",
-        ),
-        contains(
-            root,
             "docker/compose/docker-compose.rust-gateway-shadow.yml",
             ["rust-gateway-shadow", "RUST_GATEWAY_SHADOW_PORT", "replicas: 1"],
-            "shadow overlay adds a separate Rust gateway listener for legacy comparison or canaries",
+            "shadow overlay adds a separate Rust gateway listener for canaries",
         ),
         contains(
             root,
@@ -133,12 +139,6 @@ def evaluate_migration(
                 "GATEWAY_IMPLEMENTATION: rust",
             ],
             "root production Compose uses the prebuilt Rust gateway image by default",
-        ),
-        contains(
-            root,
-            "docker/compose/docker-compose.go-gateway-legacy-prod.yml",
-            ["projectcell/gateway", "build: !reset null", "GATEWAY_IMPLEMENTATION: go-legacy"],
-            "production legacy Go gateway is available only through an explicit rollback overlay",
         ),
         contains(
             root,
@@ -186,8 +186,6 @@ def evaluate_migration(
                 "ANALYSIS_MODULE_DB_PASSWORD",
                 "EVOLUTION_MODULE_DB_PASSWORD",
                 "RUST_GATEWAY_SHADOW_HOST",
-                "LEGACY_GATEWAY_URL",
-                "RUST_GATEWAY_URL",
                 "RUST_GATEWAY_LOCAL_EVIDENCE_REPORT",
                 "RUST_GATEWAY_PROD_EVIDENCE_REPORT",
                 "GATEWAY_HOST",
@@ -237,14 +235,10 @@ def evaluate_migration(
                 "rust-gateway-prod-gate:",
                 "rust-gateway-prod-shadow-config:",
                 "rust-gateway-prod-cutover-config:",
-                "COMPOSE_GO_GATEWAY_LEGACY",
-                "COMPOSE_GO_GATEWAY_LEGACY_PROD",
-                "up-dev-go-gateway-legacy:",
                 "up-prod-rust-gateway-shadow:",
                 "up-prod-rust-gateway: rust-gateway-prod-cutover-config rust-gateway-prod-gate",
-                "up-prod-go-gateway-legacy:",
             ],
-            "Make targets cover Rust defaults, legacy rollback, shadow evidence, and production gate",
+            "Make targets cover Rust defaults, shadow evidence, and production gate",
         ),
         contains(
             root,
@@ -312,7 +306,7 @@ def evaluate_migration(
             ],
             "PR template requires local and production Rust gateway evidence",
         ),
-        route_parity(root),
+        rust_public_routes(root),
         prod_evidence(
             root,
             prod_report_path=prod_report_path,
@@ -325,6 +319,11 @@ def evaluate_migration(
 def exists(root: Path, relative_path: str, detail: str) -> AuditCheck:
     path = root / relative_path
     return AuditCheck(relative_path, path.exists(), True, detail)
+
+
+def absent(root: Path, relative_path: str, detail: str) -> AuditCheck:
+    path = root / relative_path
+    return AuditCheck(relative_path, not path.exists(), True, detail)
 
 
 def contains(
@@ -369,59 +368,36 @@ def not_contains(
     return AuditCheck(relative_path, True, True, detail)
 
 
-def route_parity(root: Path) -> AuditCheck:
-    go_main = (root / "gateway/cmd/gateway/main.go").read_text(encoding="utf-8")
+def rust_public_routes(root: Path) -> AuditCheck:
     rust_routes = (root / "rust/gateway/src/routes.rs").read_text(encoding="utf-8")
     compose = (root / "docker/compose/docker-compose.app.yml").read_text(encoding="utf-8")
-    required_pairs = [
+    required_markers = [
+        (rust_routes, '.route("/health", get(health))'),
+        (rust_routes, '.route("/ready", get(ready))'),
+        (rust_routes, '.route("/api/feishu/webhook", post(feishu_webhook))'),
         (
-            'router.GET("/health", healthHandler.Health)',
-            go_main,
-            '.route("/health", get(health))',
-        ),
-        (
-            'router.GET("/ready", healthHandler.Ready)',
-            go_main,
-            '.route("/ready", get(ready))',
-        ),
-        (
-            'api.POST("/feishu/webhook", feishuHandler.Webhook)',
-            go_main,
-            '.route("/api/feishu/webhook", post(feishu_webhook))',
-        ),
-        (
-            'api.GET("/wecom/webhook", wecomHandler.Webhook)',
-            go_main,
+            rust_routes,
             '.route("/api/wecom/webhook", get(wecom_verify).post(wecom_webhook))',
         ),
+        (compose, "traefik.http.routers.gateway.rule=PathPrefix(`/webhook`)"),
+        (rust_routes, '.route("/webhook/feishu", post(feishu_webhook))'),
         (
-            'api.POST("/wecom/webhook", wecomHandler.Webhook)',
-            go_main,
-            '.route("/api/wecom/webhook", get(wecom_verify).post(wecom_webhook))',
-        ),
-        (
-            "traefik.http.routers.gateway.rule=PathPrefix(`/webhook`)",
-            compose,
-            '.route("/webhook/feishu", post(feishu_webhook))',
-        ),
-        (
-            "traefik.http.routers.gateway.rule=PathPrefix(`/webhook`)",
-            compose,
+            rust_routes,
             '.route("/webhook/wecom", get(wecom_verify).post(wecom_webhook))',
         ),
     ]
     missing = [
-        f"{source_marker} -> {rust_marker}"
-        for source_marker, source_content, rust_marker in required_pairs
-        if source_marker not in source_content or rust_marker not in rust_routes
+        marker
+        for content, marker in required_markers
+        if marker not in content
     ]
     return AuditCheck(
-        "rust_gateway.route_parity",
+        "rust_gateway.public_routes",
         not missing,
         True,
-        "Rust gateway preserves public Go gateway routes"
+        "Rust gateway owns the public gateway routes"
         if not missing
-        else f"missing route parity: {missing}",
+        else f"missing public route markers: {missing}",
     )
 
 

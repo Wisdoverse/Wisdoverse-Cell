@@ -508,7 +508,7 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     #[test]
-    fn state_keys_match_go_gateway_contract() {
+    fn state_keys_match_gateway_contract() {
         assert_eq!(dedup_key("msg_123"), "dedup:msg_123");
         assert_eq!(event_key("evt_abc"), "event:evt_abc");
         assert_eq!(session_key("chat1", "user1"), "session:chat1:user1");

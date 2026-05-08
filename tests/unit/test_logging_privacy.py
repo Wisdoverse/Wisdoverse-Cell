@@ -5,7 +5,6 @@ import re
 from pathlib import Path
 
 RUNTIME_ROOTS = ("agents", "services", "shared")
-GO_LOG_ROOTS = ("gateway/internal/handler", "gateway/internal/client")
 RAW_CONTENT_SLICE_LOG = re.compile(
     r"logger\.(?:debug|info|warning|error)\([^\n]*(?:content|message\.content)\[:"
 )
@@ -45,25 +44,6 @@ RAW_LOG_KWARGS = {
     "user_name",
     "text_preview",
 }
-RAW_ZAP_FIELDS = {
-    "body",
-    "chat_id",
-    "content",
-    "event_key",
-    "from",
-    "keyword",
-    "message_id",
-    "msg_id",
-    "nonce",
-    "operator",
-    "params",
-    "record_id",
-    "user_id",
-    "value",
-}
-RAW_ZAP_FIELD_RE = re.compile(
-    r"zap\.(?:Any|ByteString|String)\(\s*\"([^\"]+)\""
-)
 
 
 def _runtime_python_files() -> list[Path]:
@@ -72,17 +52,6 @@ def _runtime_python_files() -> list[Path]:
     for runtime_root in RUNTIME_ROOTS:
         for path in (root / runtime_root).rglob("*.py"):
             if "tests" in path.parts or "__pycache__" in path.parts:
-                continue
-            files.append(path)
-    return files
-
-
-def _runtime_go_files() -> list[Path]:
-    root = Path(__file__).resolve().parents[2]
-    files: list[Path] = []
-    for runtime_root in GO_LOG_ROOTS:
-        for path in (root / runtime_root).rglob("*.go"):
-            if path.name.endswith("_test.go"):
                 continue
             files.append(path)
     return files
@@ -113,17 +82,5 @@ def test_runtime_logs_do_not_emit_raw_pii_identifiers() -> None:
             ]
             if bad_kwargs:
                 offenders.append(f"{path}:{node.lineno}:{','.join(bad_kwargs)}")
-
-    assert offenders == []
-
-
-def test_go_gateway_logs_do_not_emit_raw_pii_identifiers() -> None:
-    offenders: list[str] = []
-    for path in _runtime_go_files():
-        text = path.read_text(encoding="utf-8")
-        for match in RAW_ZAP_FIELD_RE.finditer(text):
-            field_name = match.group(1)
-            if field_name in RAW_ZAP_FIELDS:
-                offenders.append(f"{path}:{field_name}")
 
     assert offenders == []

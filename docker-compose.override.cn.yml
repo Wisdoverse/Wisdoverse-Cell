@@ -61,5 +61,4 @@ services:
   gateway:
     build:
       args:
-        GOPROXY: https://goproxy.cn,direct
-        APK_MIRROR: mirrors.aliyun.com
+        ALPINE_MIRROR: mirrors.aliyun.com

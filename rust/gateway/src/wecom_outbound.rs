@@ -434,7 +434,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn api_client_sends_go_compatible_message_payloads_and_reuses_token() {
+    async fn api_client_sends_gateway_compatible_message_payloads_and_reuses_token() {
         let api = RecordingWecomApi::default();
         let addr = spawn_recording_wecom_api(api.clone()).await;
         let client = WecomApiClient::new("corp_1", 42, "secret_1", format!("http://{addr}"));

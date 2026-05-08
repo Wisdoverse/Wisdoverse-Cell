@@ -48,9 +48,7 @@ chat alone.
 ### Requirements
 
 - Docker and Docker Compose for local infrastructure.
-- Python 3.11+, Rust 1.86+, Node.js/npm, and Go 1.25 only when exercising the
-  legacy gateway rollback path
-  for local development.
+- Python 3.11+, Rust 1.86+, and Node.js/npm for local development.
 - LiteLLM provider keys and other secrets configured in `.env`.
 
 ### Option 1. Docker Compose stack
@@ -86,7 +84,6 @@ Additional services:
 
 ```bash
 make rust-gateway-run
-make gateway-dev  # legacy Go rollback path only
 make frontend-dev
 ```
 
@@ -99,7 +96,6 @@ make frontend-dev
 - `rust/gateway/`: default Rust gateway for edge HTTP and webhook entry points;
   it preserves the existing gateway routes and calls Python requirement services
   through the shared gRPC contract.
-- `gateway/`: legacy Go gateway retained only for explicit rollback drills.
 - `frontend/`: Next.js console for operators.
 - `docs/`: product model, architecture, guides, ADRs, and specs.
 - `docker/`: Compose assets for local and production-style deployments.
