@@ -1165,18 +1165,22 @@ fn verify_feishu_request(
         return Ok(());
     }
 
-    let timestamp = header_value(headers, "x-lark-request-timestamp");
-    let nonce = header_value(headers, "x-lark-request-nonce");
-    let signature = header_value(headers, "x-lark-signature");
+    let timestamp = required_header(headers, "x-lark-request-timestamp");
+    let nonce = required_header(headers, "x-lark-request-nonce");
+    let signature = required_header(headers, "x-lark-signature");
 
     let unsigned_encrypted_challenge = encrypted_body
         && payload.r#type == "url_verification"
-        && timestamp.is_empty()
-        && nonce.is_empty()
-        && signature.is_empty();
+        && timestamp.is_none()
+        && nonce.is_none()
+        && signature.is_none();
     if unsigned_encrypted_challenge {
         return Ok(());
     }
+
+    let (Some(timestamp), Some(nonce), Some(signature)) = (timestamp, nonce, signature) else {
+        return Err(invalid_feishu_signature_response());
+    };
 
     if config.feishu_encrypt_key.is_empty() {
         return Err(Box::new(
@@ -1189,30 +1193,40 @@ fn verify_feishu_request(
     }
 
     if !feishu::verify_signature(
-        &timestamp,
-        &nonce,
+        timestamp,
+        nonce,
         &config.feishu_encrypt_key,
         raw_body,
-        &signature,
+        signature,
     ) {
-        return Err(Box::new(
-            (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "code": -1, "msg": "invalid signature" })),
-            )
-                .into_response(),
-        ));
+        return Err(invalid_feishu_signature_response());
     }
 
     Ok(())
 }
 
-fn header_value(headers: &HeaderMap, name: &str) -> String {
+fn required_header<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
     headers
         .get(name)
         .and_then(|value| value.to_str().ok())
-        .unwrap_or_default()
-        .to_string()
+        .filter(|value| !value.is_empty())
+}
+
+fn invalid_feishu_signature_response() -> Box<Response> {
+    Box::new(
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "code": -1, "msg": "invalid signature" })),
+        )
+            .into_response(),
+    )
+}
+
+fn required_query<'a>(params: &'a HashMap<String, String>, key: &str) -> Option<&'a str> {
+    params
+        .get(key)
+        .map(String::as_str)
+        .filter(|value| !value.is_empty())
 }
 
 async fn wecom_verify(
@@ -1224,13 +1238,14 @@ async fn wecom_verify(
         Err(response) => return *response,
     };
 
-    let msg_signature = params
-        .get("msg_signature")
-        .map(String::as_str)
-        .unwrap_or("");
-    let timestamp = params.get("timestamp").map(String::as_str).unwrap_or("");
-    let nonce = params.get("nonce").map(String::as_str).unwrap_or("");
-    let echo_str = params.get("echostr").map(String::as_str).unwrap_or("");
+    let (Some(msg_signature), Some(timestamp), Some(nonce), Some(echo_str)) = (
+        required_query(&params, "msg_signature"),
+        required_query(&params, "timestamp"),
+        required_query(&params, "nonce"),
+        required_query(&params, "echostr"),
+    ) else {
+        return (StatusCode::FORBIDDEN, "verification failed").into_response();
+    };
 
     match crypt.verify_url(msg_signature, timestamp, nonce, echo_str) {
         Ok(echo) => (StatusCode::OK, echo).into_response(),
@@ -1248,12 +1263,13 @@ async fn wecom_webhook(
         Err(response) => return *response,
     };
 
-    let msg_signature = params
-        .get("msg_signature")
-        .map(String::as_str)
-        .unwrap_or("");
-    let timestamp = params.get("timestamp").map(String::as_str).unwrap_or("");
-    let nonce = params.get("nonce").map(String::as_str).unwrap_or("");
+    let (Some(msg_signature), Some(timestamp), Some(nonce)) = (
+        required_query(&params, "msg_signature"),
+        required_query(&params, "timestamp"),
+        required_query(&params, "nonce"),
+    ) else {
+        return (StatusCode::FORBIDDEN, "decrypt failed").into_response();
+    };
 
     match crypt.decrypt_msg(msg_signature, timestamp, nonce, &body) {
         Ok(plain) => {
@@ -1537,7 +1553,7 @@ mod tests {
     use std::{
         net::SocketAddr,
         sync::{Arc, Mutex},
-        time::{Duration, Instant},
+        time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     };
     use tokio::net::TcpListener;
     use tokio_stream::wrappers::TcpListenerStream;
@@ -2310,12 +2326,12 @@ mod tests {
     async fn feishu_accepts_valid_signature() {
         let body = br#"{"type":"event_callback"}"#;
         let timestamp = "1704067200";
-        let nonce = "abc123";
+        let nonce = test_nonce("feishu");
         let encrypt_key = "test-encrypt-key";
-        let signature = signature_for(timestamp, nonce, encrypt_key, body);
+        let signature = signature_for(timestamp, &nonce, encrypt_key, body);
         assert!(verify_signature(
             timestamp,
-            nonce,
+            &nonce,
             encrypt_key,
             body,
             &signature
@@ -2333,7 +2349,7 @@ mod tests {
                     .uri("/api/feishu/webhook")
                     .header("content-type", "application/json")
                     .header("x-lark-request-timestamp", timestamp)
-                    .header("x-lark-request-nonce", nonce)
+                    .header("x-lark-request-nonce", nonce.as_str())
                     .header("x-lark-signature", signature)
                     .body(Body::from(body.as_slice()))
                     .unwrap(),
@@ -2351,7 +2367,8 @@ mod tests {
     async fn wecom_get_verifies_url() {
         let crypt = WecomCrypto::new(WECOM_TOKEN, WECOM_KEY, WECOM_CORP_ID).unwrap();
         let encrypted = encrypt_wecom_for_test("echo-ok", WECOM_KEY, WECOM_CORP_ID);
-        let signature = crypt.generate_signature("1704067200", "abc123", &encrypted);
+        let nonce = test_nonce("wecom-get");
+        let signature = crypt.generate_signature("1704067200", &nonce, &encrypted);
         let app = router(wecom_test_config());
 
         let response = app
@@ -2359,7 +2376,7 @@ mod tests {
                 Request::builder()
                     .method(Method::GET)
                     .uri(format!(
-                        "/api/wecom/webhook?msg_signature={}&timestamp=1704067200&nonce=abc123&echostr={}",
+                        "/api/wecom/webhook?msg_signature={}&timestamp=1704067200&nonce={nonce}&echostr={}",
                         signature,
                         encode_query_component(&encrypted)
                     ))
@@ -2380,7 +2397,8 @@ mod tests {
         let plain =
             "<xml><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[hello]]></Content></xml>";
         let encrypted = encrypt_wecom_for_test(plain, WECOM_KEY, WECOM_CORP_ID);
-        let signature = crypt.generate_signature("1704067200", "abc123", &encrypted);
+        let nonce = test_nonce("wecom-post");
+        let signature = crypt.generate_signature("1704067200", &nonce, &encrypted);
         let xml = format!(
             "<xml><ToUserName><![CDATA[{WECOM_CORP_ID}]]></ToUserName><Encrypt><![CDATA[{encrypted}]]></Encrypt><AgentID>1</AgentID></xml>"
         );
@@ -2391,7 +2409,7 @@ mod tests {
                 Request::builder()
                     .method(Method::POST)
                     .uri(format!(
-                        "/api/wecom/webhook?msg_signature={signature}&timestamp=1704067200&nonce=abc123"
+                        "/api/wecom/webhook?msg_signature={signature}&timestamp=1704067200&nonce={nonce}"
                     ))
                     .body(Body::from(xml))
                     .unwrap(),
@@ -2414,7 +2432,8 @@ mod tests {
         let crypt = WecomCrypto::new(WECOM_TOKEN, WECOM_KEY, WECOM_CORP_ID).unwrap();
         let plain = "<xml><FromUserName><![CDATA[wecom_user_1]]></FromUserName><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[/confirm req_wecom_1]]></Content><MsgId>777</MsgId></xml>";
         let encrypted = encrypt_wecom_for_test(plain, WECOM_KEY, WECOM_CORP_ID);
-        let signature = crypt.generate_signature("1704067200", "abc123", &encrypted);
+        let nonce = test_nonce("wecom-confirm");
+        let signature = crypt.generate_signature("1704067200", &nonce, &encrypted);
         let xml = format!(
             "<xml><ToUserName><![CDATA[{WECOM_CORP_ID}]]></ToUserName><Encrypt><![CDATA[{encrypted}]]></Encrypt><AgentID>1</AgentID></xml>"
         );
@@ -2435,7 +2454,7 @@ mod tests {
                     Request::builder()
                         .method(Method::POST)
                         .uri(format!(
-                            "/api/wecom/webhook?msg_signature={signature}&timestamp=1704067200&nonce=abc123"
+                            "/api/wecom/webhook?msg_signature={signature}&timestamp=1704067200&nonce={nonce}"
                         ))
                         .body(Body::from(xml.clone()))
                         .unwrap(),
@@ -2469,7 +2488,8 @@ mod tests {
         let crypt = WecomCrypto::new(WECOM_TOKEN, WECOM_KEY, WECOM_CORP_ID).unwrap();
         let plain = "<xml><FromUserName><![CDATA[wecom_user_2]]></FromUserName><MsgType><![CDATA[event]]></MsgType><Event><![CDATA[click]]></Event><EventKey><![CDATA[list_requirements]]></EventKey><MsgId>778</MsgId></xml>";
         let encrypted = encrypt_wecom_for_test(plain, WECOM_KEY, WECOM_CORP_ID);
-        let signature = crypt.generate_signature("1704067200", "abc123", &encrypted);
+        let nonce = test_nonce("wecom-list");
+        let signature = crypt.generate_signature("1704067200", &nonce, &encrypted);
         let xml = format!(
             "<xml><ToUserName><![CDATA[{WECOM_CORP_ID}]]></ToUserName><Encrypt><![CDATA[{encrypted}]]></Encrypt><AgentID>1</AgentID></xml>"
         );
@@ -2488,7 +2508,7 @@ mod tests {
                 Request::builder()
                     .method(Method::POST)
                     .uri(format!(
-                        "/api/wecom/webhook?msg_signature={signature}&timestamp=1704067200&nonce=abc123"
+                        "/api/wecom/webhook?msg_signature={signature}&timestamp=1704067200&nonce={nonce}"
                     ))
                     .body(Body::from(xml))
                     .unwrap(),
@@ -2513,7 +2533,8 @@ mod tests {
         let crypt = WecomCrypto::new(WECOM_TOKEN, WECOM_KEY, WECOM_CORP_ID).unwrap();
         let plain = r#"<xml><FromUserName><![CDATA[wecom_user_3]]></FromUserName><MsgType><![CDATA[event]]></MsgType><Event><![CDATA[template_card_event]]></Event><EventKey><![CDATA[confirm:{"req_id":"req_wecom_card_1"}]]></EventKey><ResponseCode><![CDATA[resp_card_1]]></ResponseCode><TaskId><![CDATA[task_card_1]]></TaskId><MsgId>779</MsgId></xml>"#;
         let encrypted = encrypt_wecom_for_test(plain, WECOM_KEY, WECOM_CORP_ID);
-        let signature = crypt.generate_signature("1704067200", "abc123", &encrypted);
+        let nonce = test_nonce("wecom-card");
+        let signature = crypt.generate_signature("1704067200", &nonce, &encrypted);
         let xml = format!(
             "<xml><ToUserName><![CDATA[{WECOM_CORP_ID}]]></ToUserName><Encrypt><![CDATA[{encrypted}]]></Encrypt><AgentID>1</AgentID></xml>"
         );
@@ -2532,7 +2553,7 @@ mod tests {
                 Request::builder()
                     .method(Method::POST)
                     .uri(format!(
-                        "/api/wecom/webhook?msg_signature={signature}&timestamp=1704067200&nonce=abc123"
+                        "/api/wecom/webhook?msg_signature={signature}&timestamp=1704067200&nonce={nonce}"
                     ))
                     .body(Body::from(xml))
                     .unwrap(),
@@ -2589,6 +2610,14 @@ mod tests {
         hex::encode(hasher.finalize())
     }
 
+    fn test_nonce(label: &str) -> String {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        format!("nonce-{label}-{nanos}")
+    }
+
     fn wecom_test_config() -> GatewayConfig {
         GatewayConfig::from_lookup(|key| match key {
             "GATEWAY_WECOM_CORP_ID" => Some(WECOM_CORP_ID.to_string()),
@@ -2601,7 +2630,7 @@ mod tests {
     fn encrypt_wecom_for_test(plain_text: &str, encoding_aes_key: &str, corp_id: &str) -> String {
         let aes_key = decode_encoding_aes_key(encoding_aes_key).unwrap();
         let mut plain = Vec::new();
-        plain.extend(0u8..16u8);
+        plain.extend_from_slice(&test_random_prefix());
         plain.extend_from_slice(&(plain_text.len() as u32).to_be_bytes());
         plain.extend_from_slice(plain_text.as_bytes());
         plain.extend_from_slice(corp_id.as_bytes());
@@ -2614,6 +2643,14 @@ mod tests {
             .unwrap();
 
         general_purpose::STANDARD.encode(cipher_text)
+    }
+
+    fn test_random_prefix() -> [u8; 16] {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+            .to_be_bytes()
     }
 
     fn encode_query_component(value: &str) -> String {

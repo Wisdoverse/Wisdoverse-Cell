@@ -9,14 +9,29 @@ const ROLE_HIERARCHY: Record<UserRole, number> = {
   viewer: 1,
 };
 
+const USER_ROLES: readonly UserRole[] = ["admin", "manager", "viewer"];
+
+function getEnvValue(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value ? value : undefined;
+}
+
+function parseDevAuthRole(value: string | undefined): UserRole {
+  if (USER_ROLES.includes(value as UserRole)) {
+    return value as UserRole;
+  }
+  return "admin";
+}
+
+function devAuthEmail(username: string): string {
+  return username.includes("@") ? username : `${username}@projectcell.dev`;
+}
+
 /**
  * Check if a user role meets the required role level.
  * admin > manager > viewer
  */
-export function hasRequiredRole(
-  userRole: UserRole | undefined,
-  requiredRole: UserRole,
-): boolean {
+export function hasRequiredRole(userRole: UserRole | undefined, requiredRole: UserRole): boolean {
   if (!userRole) return false;
   return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
 }
@@ -52,36 +67,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        // Development credentials - requires explicit opt-in via ENABLE_DEV_AUTH=true
-        // Real auth via Feishu/WeCom OAuth added later
-        if (
-          process.env.NODE_ENV === "production" ||
-          process.env.ENABLE_DEV_AUTH !== "true"
-        )
+        // Development credentials require explicit opt-in via ENABLE_DEV_AUTH=true.
+        // Real auth via Feishu/WeCom OAuth is configured separately.
+        if (process.env.NODE_ENV === "production" || process.env.ENABLE_DEV_AUTH !== "true")
           return null;
 
-        const devUsers: Record<
-          string,
-          { password: string; role: UserRole; name: string }
-        > = {
-          admin: { password: "admin123", role: "admin", name: "Admin" },
-          manager: { password: "manager123", role: "manager", name: "Manager" },
-          viewer: { password: "viewer123", role: "viewer", name: "Viewer" },
-        };
+        const devUsername = getEnvValue("DEV_AUTH_USERNAME");
+        const devPassword = getEnvValue("DEV_AUTH_PASSWORD");
+        if (!devUsername || !devPassword) return null;
 
-        const username = credentials?.username as string | undefined;
-        const password = credentials?.password as string | undefined;
+        const username =
+          typeof credentials?.username === "string" ? credentials.username : undefined;
+        const password =
+          typeof credentials?.password === "string" ? credentials.password : undefined;
 
         if (!username || !password) return null;
-
-        const user = devUsers[username];
-        if (!user || user.password !== password) return null;
+        if (username !== devUsername || password !== devPassword) return null;
 
         return {
           id: username,
-          name: user.name,
-          email: `${username}@projectcell.dev`,
-          role: user.role,
+          name: getEnvValue("DEV_AUTH_DISPLAY_NAME") ?? username,
+          email: devAuthEmail(username),
+          role: parseDevAuthRole(getEnvValue("DEV_AUTH_ROLE")),
         };
       },
     }),

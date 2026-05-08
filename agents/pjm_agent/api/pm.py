@@ -18,6 +18,17 @@ router = APIRouter(prefix="/api/v1/pm", tags=["pm"])
 logger = get_logger("pjm_agent.api")
 
 
+def _raise_agent_error(
+    *,
+    status_code: int,
+    public_detail: str,
+    log_event: str,
+    result: dict,
+) -> None:
+    logger.warning(log_event, error=str(result.get("error", "")))
+    raise HTTPException(status_code=status_code, detail=public_detail)
+
+
 @router.get("/config", response_model=PMConfigResponse)
 async def get_config():
     """Get PM configuration."""
@@ -27,7 +38,9 @@ async def get_config():
         return PMConfigResponse(**result)
     except Exception as e:
         logger.error("config_api_error", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to get PM configuration. Please retry later.")
+        raise HTTPException(
+            status_code=500, detail="Failed to get PM configuration. Please retry later."
+        )
 
 
 @router.post("/config/refresh", response_model=ConfigRefreshResponse)
@@ -39,7 +52,9 @@ async def refresh_config():
         return ConfigRefreshResponse(**result)
     except Exception as e:
         logger.error("config_refresh_api_error", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to refresh PM configuration. Please retry later.")
+        raise HTTPException(
+            status_code=500, detail="Failed to refresh PM configuration. Please retry later."
+        )
 
 
 @router.get("/alerts", response_model=AlertListResponse)
@@ -61,7 +76,12 @@ async def trigger_daily_report():
     agent = get_agent()
     result = await agent.handle_request({"action": "daily_report"})
     if result.get("error"):
-        raise HTTPException(status_code=500, detail=result["error"])
+        _raise_agent_error(
+            status_code=500,
+            public_detail="Failed to generate daily report. Please retry later.",
+            log_event="daily_report_api_result_error",
+            result=result,
+        )
     return result
 
 
@@ -71,7 +91,12 @@ async def trigger_weekly_report():
     agent = get_agent()
     result = await agent.handle_request({"action": "weekly_report"})
     if result.get("error"):
-        raise HTTPException(status_code=500, detail=result["error"])
+        _raise_agent_error(
+            status_code=500,
+            public_detail="Failed to generate weekly report. Please retry later.",
+            log_event="weekly_report_api_result_error",
+            result=result,
+        )
     return result
 
 
@@ -81,7 +106,12 @@ async def retry_decomposition(wp_id: int):
     agent = get_agent()
     result = await agent.handle_request({"action": "retry_decompose", "wp_id": wp_id})
     if result.get("error"):
-        raise HTTPException(status_code=400, detail=result["error"])
+        _raise_agent_error(
+            status_code=400,
+            public_detail="Failed to retry decomposition. Please retry later.",
+            log_event="retry_decompose_api_result_error",
+            result=result,
+        )
     return result
 
 

@@ -4,12 +4,9 @@ const playwrightHost = "127.0.0.1";
 const playwrightPort = process.env.PLAYWRIGHT_PORT ?? "3100";
 const defaultBaseURL = `http://${playwrightHost}:${playwrightPort}`;
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? defaultBaseURL;
-const workers = process.env.PLAYWRIGHT_WORKERS
-  ? Number(process.env.PLAYWRIGHT_WORKERS)
-  : 1;
+const workers = process.env.PLAYWRIGHT_WORKERS ? Number(process.env.PLAYWRIGHT_WORKERS) : 1;
 const useExternalServer =
-  process.env.PLAYWRIGHT_SKIP_WEB_SERVER === "1" ||
-  Boolean(process.env.PLAYWRIGHT_BASE_URL);
+  process.env.PLAYWRIGHT_SKIP_WEB_SERVER === "1" || Boolean(process.env.PLAYWRIGHT_BASE_URL);
 
 /**
  * Playwright configuration for E2E tests.
@@ -38,8 +35,7 @@ export default defineConfig({
   webServer: useExternalServer
     ? undefined
     : {
-        command:
-          `AUTH_SECRET=playwright-dev-secret ENABLE_DEV_AUTH=true NEXTAUTH_URL=${defaultBaseURL} npm run dev -- --hostname ${playwrightHost} --port ${playwrightPort}`,
+        command: `AUTH_SECRET=playwright-dev-secret ENABLE_DEV_AUTH=true DEV_AUTH_USERNAME=dev@itoy.ai DEV_AUTH_PASSWORD=itoy@2025 DEV_AUTH_ROLE=admin NEXTAUTH_URL=${defaultBaseURL} npm run dev -- --hostname ${playwrightHost} --port ${playwrightPort}`,
         url: baseURL,
         reuseExistingServer: false,
         timeout: 120_000,

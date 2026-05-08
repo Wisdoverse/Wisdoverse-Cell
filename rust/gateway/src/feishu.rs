@@ -176,20 +176,21 @@ mod tests {
     use base64::{engine::general_purpose, Engine as _};
     use cbc::cipher::{block_padding::NoPadding, BlockEncryptMut, KeyIvInit};
     use sha2::{Digest, Sha256};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     type Aes256CbcEnc = cbc::Encryptor<Aes256>;
 
     #[test]
     fn verifies_valid_signature() {
         let timestamp = "1704067200";
-        let nonce = "abc123";
+        let nonce = test_nonce("valid");
         let encrypt_key = "test-encrypt-key";
         let body = br#"{"event":"test"}"#;
-        let signature = signature_for(timestamp, nonce, encrypt_key, body);
+        let signature = signature_for(timestamp, &nonce, encrypt_key, body);
 
         assert!(verify_signature(
             timestamp,
-            nonce,
+            &nonce,
             encrypt_key,
             body,
             &signature
@@ -199,28 +200,28 @@ mod tests {
     #[test]
     fn rejects_invalid_signature_inputs() {
         let timestamp = "1704067200";
-        let nonce = "abc123";
+        let nonce = test_nonce("invalid");
         let encrypt_key = "test-encrypt-key";
         let body = br#"{"event":"test"}"#;
-        let signature = signature_for(timestamp, nonce, encrypt_key, body);
+        let signature = signature_for(timestamp, &nonce, encrypt_key, body);
 
         assert!(!verify_signature(
             "1704067201",
-            nonce,
+            &nonce,
             encrypt_key,
             body,
             &signature
         ));
         assert!(!verify_signature(
             timestamp,
-            nonce,
+            &nonce,
             "",
             body,
             "any-signature"
         ));
         assert!(!verify_signature(
             timestamp,
-            nonce,
+            &nonce,
             encrypt_key,
             br#"{"event":"modified"}"#,
             &signature
@@ -283,20 +284,36 @@ mod tests {
         hex::encode(hasher.finalize())
     }
 
+    fn test_nonce(label: &str) -> String {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        format!("nonce-{label}-{nanos}")
+    }
+
     fn encrypt_for_test(plain_text: &str, encrypt_key: &str) -> String {
         let key = Sha256::digest(encrypt_key.as_bytes());
-        let iv = b"1234567890abcdef";
+        let iv = test_iv();
         let mut padded = plain_text.as_bytes().to_vec();
         let padding = 16 - padded.len() % 16;
         padded.extend(std::iter::repeat_n(padding as u8, padding));
 
         let msg_len = padded.len();
-        let cipher_text = Aes256CbcEnc::new(&key, iv.into())
+        let cipher_text = Aes256CbcEnc::new(&key, (&iv).into())
             .encrypt_padded_mut::<NoPadding>(&mut padded, msg_len)
             .unwrap();
 
         let mut payload = iv.to_vec();
         payload.extend_from_slice(cipher_text);
         general_purpose::STANDARD.encode(payload)
+    }
+
+    fn test_iv() -> [u8; 16] {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+            .to_be_bytes()
     }
 }

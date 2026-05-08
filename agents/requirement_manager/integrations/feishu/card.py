@@ -101,21 +101,11 @@ class CardHandler:
 
             else:
                 logger.warning("unknown_card_action", action=action_type)
-                return {
-                    "toast": {
-                        "type": "info",
-                        "content": "未知操作"
-                    }
-                }
+                return {"toast": {"type": "info", "content": "未知操作"}}
 
         except Exception as e:
             logger.error("card_action_error", action=action_type, error=str(e))
-            return {
-                "toast": {
-                    "type": "error",
-                    "content": "操作失败，请稍后重试"
-                }
-            }
+            return {"toast": {"type": "error", "content": "操作失败，请稍后重试"}}
 
     async def _get_user_name(self, open_id: str) -> str:
         """Get user name with cache."""
@@ -155,7 +145,7 @@ class CardHandler:
                 "description": requirement.description,
                 "priority": requirement.priority,
             },
-            confirmed_by=user_name
+            confirmed_by=user_name,
         )
 
         logger.info(
@@ -164,20 +154,9 @@ class CardHandler:
             operator_hash=hash_identifier(operator_id),
         )
 
-        return {
-            "toast": {
-                "type": "success",
-                "content": "需求已确认"
-            },
-            "card": card
-        }
+        return {"toast": {"type": "success", "content": "需求已确认"}, "card": card}
 
-    async def _handle_reject(
-        self,
-        action_value: dict,
-        operator_id: str,
-        data: dict
-    ) -> dict:
+    async def _handle_reject(self, action_value: dict, operator_id: str, data: dict) -> dict:
         """Handle requirement rejection."""
         req_id = action_value.get("req_id")
         if not req_id:
@@ -207,7 +186,7 @@ class CardHandler:
                 "description": getattr(requirement, "description", ""),
             },
             rejected_by=user_name,
-            reason=reason
+            reason=reason,
         )
 
         logger.info(
@@ -218,13 +197,7 @@ class CardHandler:
             reason_length=len(reason),
         )
 
-        return {
-            "toast": {
-                "type": "success",
-                "content": "需求已拒绝"
-            },
-            "card": card
-        }
+        return {"toast": {"type": "success", "content": "需求已拒绝"}, "card": card}
 
     async def _handle_view_detail(self, action_value: dict) -> dict:
         """Handle detail view and return the detail card."""
@@ -246,10 +219,7 @@ class CardHandler:
         meeting_data = self._meeting_to_dict(meeting) if meeting else None
         card = build_requirement_detail_card(req_data, meeting_data)
 
-        return {
-            "toast": {"type": "success", "content": "已加载详情"},
-            "card": card
-        }
+        return {"toast": {"type": "success", "content": "已加载详情"}, "card": card}
 
     def _requirement_to_dict(self, requirement) -> dict:
         """Convert requirement model to dict for card rendering"""
@@ -304,8 +274,7 @@ class CardHandler:
 
         # Refresh list card
         requirements, total, total_pages = await self.agent.list_pending_requirements(
-            page=page,
-            page_size=5
+            page=page, page_size=5
         )
 
         card = build_requirement_list_card(
@@ -313,23 +282,15 @@ class CardHandler:
             page=page,
             total_pages=total_pages,
             total_count=total,
-            chat_id=chat_id
+            chat_id=chat_id,
         )
 
         return {
-            "toast": {
-                "type": "success",
-                "content": f"已确认: {requirement.title}"
-            },
-            "card": card
+            "toast": {"type": "success", "content": f"已确认: {requirement.title}"},
+            "card": card,
         }
 
-    async def _handle_list_reject(
-        self,
-        action_value: dict,
-        operator_id: str,
-        data: dict
-    ) -> dict:
+    async def _handle_list_reject(self, action_value: dict, operator_id: str, data: dict) -> dict:
         """Handle requirement rejection from the list card."""
         req_id = action_value.get("req_id")
         page = action_value.get("page", 1)
@@ -364,8 +325,7 @@ class CardHandler:
 
         # Refresh list card
         requirements, total, total_pages = await self.agent.list_pending_requirements(
-            page=page,
-            page_size=5
+            page=page, page_size=5
         )
 
         card = build_requirement_list_card(
@@ -373,15 +333,12 @@ class CardHandler:
             page=page,
             total_pages=total_pages,
             total_count=total,
-            chat_id=chat_id
+            chat_id=chat_id,
         )
 
         return {
-            "toast": {
-                "type": "success",
-                "content": f"已拒绝: {requirement.title}"
-            },
-            "card": card
+            "toast": {"type": "success", "content": f"已拒绝: {requirement.title}"},
+            "card": card,
         }
 
     async def _handle_list_pagination(self, action_value: dict) -> dict:
@@ -391,8 +348,7 @@ class CardHandler:
 
         # Get requirements for the page
         requirements, total, total_pages = await self.agent.list_pending_requirements(
-            page=page,
-            page_size=5
+            page=page, page_size=5
         )
 
         card = build_requirement_list_card(
@@ -400,7 +356,7 @@ class CardHandler:
             page=page,
             total_pages=total_pages,
             total_count=total,
-            chat_id=chat_id
+            chat_id=chat_id,
         )
 
         return {"card": card}
@@ -432,15 +388,12 @@ class CardHandler:
             action_type="confirm",
             success_count=success_count,
             failed_count=failed_count,
-            operator_name=user_name
+            operator_name=user_name,
         )
 
         return {
-            "toast": {
-                "type": "success",
-                "content": f"已确认 {success_count} 个需求"
-            },
-            "card": card
+            "toast": {"type": "success", "content": f"已确认 {success_count} 个需求"},
+            "card": card,
         }
 
     async def _handle_batch_reject(self, action_value: dict, operator_id: str) -> dict:
@@ -474,15 +427,12 @@ class CardHandler:
             action_type="reject",
             success_count=success_count,
             failed_count=failed_count,
-            operator_name=user_name
+            operator_name=user_name,
         )
 
         return {
-            "toast": {
-                "type": "success",
-                "content": f"已拒绝 {success_count} 个需求"
-            },
-            "card": card
+            "toast": {"type": "success", "content": f"已拒绝 {success_count} 个需求"},
+            "card": card,
         }
 
     async def _handle_approve_decomposition(self, action_value: dict, operator_id: str) -> dict:
@@ -497,7 +447,7 @@ class CardHandler:
             result = await self.pm_client.approve_decomposition(wp_id=wp_id, operator=user_name)
         except Exception as e:
             logger.error("approve_decomposition_request_failed", wp_id=wp_id, error=str(e))
-            return {"toast": {"type": "error", "content": f"审批请求失败: {e}"}}
+            return {"toast": {"type": "error", "content": "审批请求失败，请稍后重试"}}
 
         if not result:
             return {"toast": {"type": "error", "content": "审批失败：记录不存在"}}
@@ -516,7 +466,9 @@ class CardHandler:
         )
         return {"toast": {"type": "success", "content": "拆解已批准，正在写入 OP"}, "card": card}
 
-    async def _handle_reject_decomposition(self, action_value: dict, operator_id: str, data: dict) -> dict:
+    async def _handle_reject_decomposition(
+        self, action_value: dict, operator_id: str, data: dict
+    ) -> dict:
         wp_id = action_value.get("wp_id")
         if not wp_id:
             return {"toast": {"type": "error", "content": "缺少工作包 ID"}}
@@ -529,10 +481,12 @@ class CardHandler:
 
         user_name = await self._get_user_name(operator_id)
         try:
-            result = await self.pm_client.reject_decomposition(wp_id=wp_id, operator=user_name, reason=reason)
+            result = await self.pm_client.reject_decomposition(
+                wp_id=wp_id, operator=user_name, reason=reason
+            )
         except Exception as e:
             logger.error("reject_decomposition_request_failed", wp_id=wp_id, error=str(e))
-            return {"toast": {"type": "error", "content": f"拒绝请求失败: {e}"}}
+            return {"toast": {"type": "error", "content": "拒绝请求失败，请稍后重试"}}
 
         if not result:
             return {"toast": {"type": "error", "content": "操作失败：记录不存在"}}

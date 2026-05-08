@@ -20,8 +20,11 @@ _API_KEY_RE = re.compile(
 _BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/-]+=*")
 _SECRET_ASSIGNMENT_RE = re.compile(
     r"(?i)\b("
-    r"(?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|"
-    r"authorization|client[_-]?secret)"
+    r"[A-Za-z0-9_-]{0,32}"
+    r"(?:api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|token|"
+    r"secret|password|authorization|signature|auth|encoding[_-]?aes[_-]?key|"
+    r"encrypt[_-]?key)"
+    r"[A-Za-z0-9_-]{0,32}"
     r"\s*[:=]\s*)([\"']?)[^\s,\"'}\]]+"
 )
 _URL_SECRET_QUERY_RE = re.compile(
@@ -59,10 +62,7 @@ def _is_sensitive_key(key: Any) -> bool:
         normalized.endswith("_secret")
         or normalized.endswith("_password")
         or normalized.endswith("_signature")
-        or (
-            normalized.endswith("_token")
-            and not normalized.endswith("_tokens")
-        )
+        or (normalized.endswith("_token") and not normalized.endswith("_tokens"))
         or normalized.endswith("_api_key")
     )
 

@@ -28,6 +28,7 @@ def test_redact_sensitive_text_masks_direct_pii_and_secrets() -> None:
         "Email user@example.com or +1 (415) 555-0199. "
         "OpenID ou_1234567890abcdef. "
         "Use Authorization: Bearer eyJabc.def.ghi and api_key=sk-1234567890abcdefghijklmnop. "
+        "Also CLIENT-SECRET='plain-secret' and harmless_key=visible. "
         "See https://example.com/path?token=raw-token"
     )
 
@@ -38,7 +39,9 @@ def test_redact_sensitive_text_masks_direct_pii_and_secrets() -> None:
     assert "ou_1234567890abcdef" not in redacted
     assert "eyJabc.def.ghi" not in redacted
     assert "sk-1234567890abcdefghijklmnop" not in redacted
+    assert "plain-secret" not in redacted
     assert "raw-token" not in redacted
+    assert "harmless_key=visible" in redacted
     assert "[REDACTED_EMAIL]" in redacted
     assert "[REDACTED_PHONE]" in redacted
     assert "[REDACTED_PLATFORM_ID]" in redacted
