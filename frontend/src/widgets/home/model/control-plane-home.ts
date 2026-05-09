@@ -1,4 +1,5 @@
 import type {
+  AgentStatus,
   AgentRuntimeStatus,
   ControlPlaneAgentDefinition,
   ControlPlaneAgentRun,
@@ -14,13 +15,16 @@ const OPEN_WORK_STATUSES = new Set([
   "blocked",
   "awaiting_approval",
 ]);
-const STOPPED_AGENT_STATUSES = new Set([
-  "paused",
-  "stopped",
-  "disabled",
-  "inactive",
-  "retired",
-]);
+
+function mapAgentRoleStatus(status: string): AgentStatus {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "active" || normalized === "running") return "running";
+  if (normalized === "error" || normalized === "failed") return "error";
+  if (normalized === "paused" || normalized === "stopped" || normalized === "terminated") {
+    return "stopped";
+  }
+  return "idle";
+}
 
 function latestRun(runs: ControlPlaneAgentRun[]): ControlPlaneAgentRun | undefined {
   return runs.reduce<ControlPlaneAgentRun | undefined>((latest, run) => {
@@ -46,6 +50,24 @@ function latestTimestamp(
   );
 }
 
+function runtimeStatus(
+  agent: ControlPlaneAgentDefinition,
+  latest: ControlPlaneAgentRun | undefined,
+  failedWorkItemCount: number,
+): AgentStatus {
+  if (latest && RUNNING_RUN_STATUSES.has(latest.status)) return "running";
+  if ((latest && FAILED_RUN_STATUSES.has(latest.status)) || failedWorkItemCount > 0) {
+    return "error";
+  }
+  return mapAgentRoleStatus(agent.status);
+}
+
+function runtimeHealth(status: AgentStatus): number {
+  if (status === "running") return 100;
+  if (status === "idle" || status === "warning") return 50;
+  return 0;
+}
+
 export function controlPlaneRuntimeForAgent(
   agent: ControlPlaneAgentDefinition,
   runs: ControlPlaneAgentRun[],
@@ -57,20 +79,12 @@ export function controlPlaneRuntimeForAgent(
   const pendingWorkCount = workItems.filter((workItem) =>
     OPEN_WORK_STATUSES.has(workItem.status),
   ).length;
-
-  const status =
-    latest && RUNNING_RUN_STATUSES.has(latest.status)
-      ? "running"
-      : (latest && FAILED_RUN_STATUSES.has(latest.status)) || failedWorkItems.length > 0
-        ? "error"
-        : STOPPED_AGENT_STATUSES.has(agent.status)
-          ? "stopped"
-          : "idle";
+  const status = runtimeStatus(agent, latest, failedWorkItems.length);
 
   return {
     agent_id: agent.agent_id,
     status,
-    health: status === "running" ? 100 : status === "idle" ? 50 : 0,
+    health: runtimeHealth(status),
     task_count: runs.length,
     pending_count: pendingWorkCount,
     error_count: failedRunCount + failedWorkItems.length,
