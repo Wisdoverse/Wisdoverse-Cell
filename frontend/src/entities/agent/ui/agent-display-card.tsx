@@ -1,6 +1,6 @@
 "use client";
 
-import type { AgentMeta, AgentRuntimeStatus, AgentStatus } from "@/lib/api/types";
+import type { AgentMeta, AgentRuntimeStatus, AgentStatus } from "../model/types";
 import { AgentAvatar } from "./agent-display-avatar";
 import { AgentStatusDot } from "./agent-display-status-dot";
 import { cn } from "@/lib/utils";

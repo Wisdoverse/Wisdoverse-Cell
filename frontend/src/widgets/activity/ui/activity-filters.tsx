@@ -8,8 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/select";
-import type { AgentDomain } from "@/lib/api/types";
-import { DOMAIN_LIST } from "@/lib/registry/domains";
+import { DOMAIN_LIST, type AgentDomain } from "@/entities/agent";
 
 export interface ActivityFilters {
   domain?: AgentDomain;

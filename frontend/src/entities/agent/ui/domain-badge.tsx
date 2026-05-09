@@ -1,6 +1,6 @@
-import type { AgentDomain } from "@/lib/api/types";
-import { getDomainConfig } from "@/lib/registry/domains";
 import { cn } from "@/lib/utils";
+import { getDomainConfig } from "../model/domains";
+import type { AgentDomain } from "../model/types";
 
 interface DomainBadgeProps {
   domain: AgentDomain;

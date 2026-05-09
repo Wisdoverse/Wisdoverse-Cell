@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type {
   ControlPlaneAgentDefinition,
+} from "@/entities/agent";
+import type {
   ControlPlaneAgentRun,
   ControlPlaneWorkItem,
-} from "@/lib/api/types";
+} from "@/entities/control-plane";
 import { controlPlaneRuntimeForAgent } from "./control-plane-home";
 
 const NOW = "2026-05-09T07:00:00.000Z";

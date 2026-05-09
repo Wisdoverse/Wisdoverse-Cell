@@ -1,7 +1,7 @@
 import useSWR from "swr";
 
-import { getAgentStatus, getAgents } from "@/lib/api/agents";
-import type { AgentListResponse, AgentRuntimeStatus } from "@/lib/api/types";
+import { getAgentStatus, getAgents } from "../api/agents";
+import type { AgentListResponse, AgentRuntimeStatus } from "./types";
 
 export function useAgents(filters?: {
   status?: string;

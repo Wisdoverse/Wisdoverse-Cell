@@ -10,9 +10,9 @@ import {
 } from "./activity-filters";
 import { ActivityTimeline } from "./activity-timeline";
 import { PageHeader } from "@/shared/ui/page-header";
-import { controlPlaneRunsToActivityEvents } from "@/entities/activity/model/control-plane-events";
+import { controlPlaneRunsToActivityEvents } from "@/entities/activity";
 import { listControlPlaneRuns } from "@/entities/control-plane";
-import { AGENT_REGISTRY } from "@/lib/registry/agents";
+import { AGENT_REGISTRY } from "@/entities/agent";
 
 export function ActivityPageWidget() {
   const t = useTranslations("activity");

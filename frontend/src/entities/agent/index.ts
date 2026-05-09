@@ -1,3 +1,4 @@
+export * from "./api/agents";
 export * from "./api/control-plane-agents";
 export * from "./model/domains";
 export * from "./model/registry";
@@ -7,5 +8,9 @@ export * from "./model/use-agents";
 export * from "./model/use-control-plane-agents";
 export { AgentAvatar } from "./ui/agent-avatar";
 export { AgentCard } from "./ui/agent-card";
+export { AgentAvatar as AgentDisplayAvatar } from "./ui/agent-display-avatar";
+export { AgentCard as AgentDisplayCard } from "./ui/agent-display-card";
+export { AgentStatusDot as AgentDisplayStatusDot } from "./ui/agent-display-status-dot";
 export { AgentDomainBadge } from "./ui/agent-domain-badge";
 export { AgentStatusDot } from "./ui/agent-status-dot";
+export { DomainBadge } from "./ui/domain-badge";

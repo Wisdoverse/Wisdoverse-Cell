@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { QuestionCard } from "@/features/question-answer";
 import { PageHeader } from "@/shared/ui/page-header";
 import { QueryBoundary } from "@/shared/ui/query-boundary";
-import { useQuestions } from "@/entities/question/model/use-questions";
+import { useQuestions } from "@/entities/question";
 
 export function QuestionsPageWidget() {
   const t = useTranslations("questions");

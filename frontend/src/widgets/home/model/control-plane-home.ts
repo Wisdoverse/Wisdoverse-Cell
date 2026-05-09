@@ -2,9 +2,11 @@ import type {
   AgentStatus,
   AgentRuntimeStatus,
   ControlPlaneAgentDefinition,
+} from "@/entities/agent";
+import type {
   ControlPlaneAgentRun,
   ControlPlaneWorkItem,
-} from "@/lib/api/types";
+} from "@/entities/control-plane";
 import { mapControlPlaneAgentStatus } from "@/entities/agent";
 
 const RUNNING_RUN_STATUSES = new Set(["pending", "running"]);

@@ -8,7 +8,7 @@ import {
   AgentDomainBadge,
 } from "@/entities/agent";
 import { useControlPlaneRuns } from "@/entities/control-plane";
-import { controlPlaneRunsToActivityEvents } from "@/entities/activity/model/control-plane-events";
+import { controlPlaneRunsToActivityEvents } from "@/entities/activity";
 import type { ActivityEvent } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 

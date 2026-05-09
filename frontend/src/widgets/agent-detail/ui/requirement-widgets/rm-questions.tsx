@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuestions } from "@/entities/question/model/use-questions";
+import { useQuestions } from "@/entities/question";
 import { QuestionCard } from "@/features/question-answer";
 
 export default function RmQuestionsWidget() {

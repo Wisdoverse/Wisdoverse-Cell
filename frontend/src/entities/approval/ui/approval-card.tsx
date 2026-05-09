@@ -1,10 +1,8 @@
 "use client";
 
 import type { ApprovalRequest } from "@/lib/api/types";
-import { AgentAvatar } from "@/entities/agent/ui/agent-display-avatar";
-import { DomainBadge } from "@/entities/agent/ui/domain-badge";
+import { AgentDisplayAvatar, AGENT_REGISTRY, DomainBadge } from "@/entities/agent";
 import { Button } from "@/shared/ui/button";
-import { AGENT_REGISTRY } from "@/lib/registry/agents";
 import { Check, X, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -46,7 +44,7 @@ export function ApprovalCard({
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           {agentMeta && (
-            <AgentAvatar
+            <AgentDisplayAvatar
               domain={agentMeta.domain}
               icon={agentMeta.icon}
               shortName={agentMeta.shortName}

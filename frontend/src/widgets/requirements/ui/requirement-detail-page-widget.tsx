@@ -8,15 +8,15 @@ import {
   ContextMessages,
   RequirementHeader,
   RequirementInfo,
+  PriorityBadge,
   SimilarRequirements,
+  StatusBadge,
+  useRequirement,
 } from "@/entities/requirement";
 import { ConfirmDialog, RejectSheet } from "@/features/requirement-review";
-import { PriorityBadge } from "@/entities/requirement/ui/priority-badge";
-import { StatusBadge } from "@/entities/requirement/ui/status-badge";
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Skeleton } from "@/shared/ui/skeleton";
-import { useRequirement } from "@/entities/requirement/model/use-requirements";
 
 type RequirementDetailPageWidgetProps = {
   id: string;

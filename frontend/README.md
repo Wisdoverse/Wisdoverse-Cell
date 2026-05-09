@@ -48,7 +48,8 @@ the repository root `.env.example`.
 | `npm run dev` | Start the local Next.js dev server |
 | `npm run build` | Build the standalone production artifact |
 | `npm run start` | Serve the built production artifact |
-| `npm run lint` | Run ESLint |
+| `npm run lint` | Run ESLint and FSD boundary checks |
+| `npm run lint:fsd` | Check Feature-Sliced Design layer and public API boundaries |
 | `npm run test` | Run Vitest once |
 | `npm run test:watch` | Run Vitest in watch mode |
 | `npm run test:e2e` | Run Playwright end-to-end tests |
@@ -67,7 +68,6 @@ frontend/
 |-- src/widgets/      # Composed operator surfaces assembled from slices
 |-- src/shared/       # Business-neutral UI primitives, providers, and foundations
 |-- src/lib/          # API transport, auth, telemetry, registries, and neutral utilities
-|-- src/lib/hooks/    # Compatibility re-exports only; domain hook logic lives in entities
 |-- src/i18n/         # Locale routing and request configuration
 |-- src/messages/     # Locale message catalogs
 |-- src/test/         # Test setup and shared test utilities
@@ -87,9 +87,9 @@ The frontend follows strict Feature-Sliced Design.
 - Business-neutral UI primitives, providers, and UI-only hooks live in
   `src/shared/`.
 - `src/components/` is retired. Do not add files there.
-- `src/hooks/` and `src/lib/hooks/` are compatibility-only re-export surfaces.
-  New code imports canonical shared UI hooks from `src/shared/` and domain hooks
-  from `src/entities/<domain>/model/`.
+- `src/hooks/`, `src/lib/hooks/`, and `src/lib/registry/` are retired. New code
+  imports canonical shared UI hooks from `src/shared/` and domain hooks or
+  registry data through each slice public API.
 - Frontend code calls documented HTTP/API contracts and typed hooks. It must not
   import backend, agent, adapter, database, or LLM implementation modules.
 - Preserve runtime identifiers exactly, including names such as `projectcell`,
@@ -107,6 +107,8 @@ src/app -> src/widgets -> src/features -> src/entities -> src/shared and src/lib
 `entities` must not import from `features` or `widgets`. `features` should not
 own long-lived domain state. `widgets` may compose slices, but should avoid
 duplicating API clients or registry data already owned by entities.
+Cross-slice imports must use the target slice public API, such as
+`@/entities/agent`, not a deep path under `ui/`, `model/`, or `api/`.
 
 ## Working on a Slice
 

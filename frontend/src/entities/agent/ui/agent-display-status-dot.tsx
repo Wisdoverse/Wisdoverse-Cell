@@ -1,5 +1,5 @@
-import type { AgentStatus } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import type { AgentStatus } from "../model/types";
 
 interface AgentStatusDotProps {
   status: AgentStatus;
