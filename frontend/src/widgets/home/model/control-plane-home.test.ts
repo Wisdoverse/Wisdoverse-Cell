@@ -93,10 +93,10 @@ describe("controlPlaneRuntimeForAgent", () => {
     expect(runtime.task_count).toBe(0);
   });
 
-  it("keeps paused role state visible as stopped instead of collapsing it to idle", () => {
+  it("keeps paused role state visible instead of collapsing it to idle", () => {
     const runtime = controlPlaneRuntimeForAgent(agent("paused"), [], []);
 
-    expect(runtime.status).toBe("stopped");
+    expect(runtime.status).toBe("paused");
     expect(runtime.health).toBe(0);
   });
 

@@ -4,6 +4,7 @@ import type {
   ControlPlaneAgentDefinition,
   ControlPlaneAgentListResponse,
   CreateControlPlaneAgentRequest,
+  UpdateControlPlaneAgentRequest,
   UpdateAgentPromptConfigRequest,
   WakeControlPlaneAgentRequest,
   WakeControlPlaneAgentResponse,
@@ -52,6 +53,16 @@ export function createControlPlaneAgent(
 ): Promise<ControlPlaneAgentDefinition> {
   return apiClient.post<ControlPlaneAgentDefinition>(
     "/control-plane/agents",
+    payload,
+  );
+}
+
+export function updateControlPlaneAgent(
+  agentId: string,
+  payload: UpdateControlPlaneAgentRequest,
+): Promise<ControlPlaneAgentDefinition> {
+  return apiClient.put<ControlPlaneAgentDefinition>(
+    `/control-plane/agents/${agentId}`,
     payload,
   );
 }

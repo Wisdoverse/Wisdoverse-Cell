@@ -3,6 +3,7 @@ Tests for NATSEventBus, EventBusProtocol, and EventBus factory.
 """
 import asyncio
 import hashlib
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -115,6 +116,23 @@ class TestNATSEventBusConnect:
         with patch.object(_nats_mod.nats, "connect", return_value=mock_nc):
             await bus.connect()
 
+        mock_js.add_stream.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_connect_supports_newer_find_stream_name_api(self, bus):
+        mock_nc = AsyncMock()
+        mock_js = SimpleNamespace(
+            find_stream_name_by_subject=AsyncMock(return_value=STREAM_NAME),
+            add_stream=AsyncMock(),
+        )
+        mock_nc.jetstream = MagicMock(return_value=mock_js)
+
+        with patch.object(_nats_mod.nats, "connect", return_value=mock_nc):
+            await bus.connect()
+
+        mock_js.find_stream_name_by_subject.assert_awaited_once_with(
+            f"{SUBJECT_PREFIX}.>"
+        )
         mock_js.add_stream.assert_not_awaited()
 
     @pytest.mark.asyncio

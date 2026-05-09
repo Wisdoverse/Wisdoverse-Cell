@@ -19,6 +19,7 @@ from shared.schemas.event_payloads import (
     AgentPromptConfigUpdatedPayload,
     AgentRoleCreatedPayload,
     AgentRoleStatusUpdatedPayload,
+    AgentRoleUpdatedPayload,
     AgentRunLifecyclePayload,
     AgentWakeupCompletedPayload,
     AgentWakeupRequestedPayload,
@@ -97,6 +98,11 @@ class TestEventTypes:
         assert EventTypes.AGENT_RUN_STARTED == "agent_run.started"
         assert EventTypes.AGENT_RUN_SUCCEEDED == "agent_run.succeeded"
         assert EventTypes.AGENT_RUN_FAILED == "agent_run.failed"
+
+    def test_control_plane_agent_role(self):
+        assert EventTypes.AGENT_ROLE_CREATED == "agent_role.created"
+        assert EventTypes.AGENT_ROLE_UPDATED == "agent_role.updated"
+        assert EventTypes.AGENT_ROLE_STATUS_UPDATED == "agent_role.status-updated"
 
     def test_control_plane_goal_and_work_item(self):
         assert EventTypes.COMPANY_CREATED == "company.created"
@@ -370,6 +376,7 @@ class TestEventPayloadModelsRegistration:
             ("agent_run.succeeded", AgentRunLifecyclePayload),
             ("agent_run.failed", AgentRunLifecyclePayload),
             ("agent_role.created", AgentRoleCreatedPayload),
+            ("agent_role.updated", AgentRoleUpdatedPayload),
             ("agent_role.status-updated", AgentRoleStatusUpdatedPayload),
             ("agent.prompt-config-updated", AgentPromptConfigUpdatedPayload),
             ("approval.requested", ApprovalEventPayload),
@@ -516,6 +523,19 @@ class TestEventPayloadModelsRegistration:
             },
         )
         assert isinstance(result, AgentRoleStatusUpdatedPayload)
+
+    def test_validate_control_plane_agent_role_updated_payload(self):
+        result = validate_event_payload(
+            "agent_role.updated",
+            {
+                "company_id": "cmp_test",
+                "agent_id": "requirement-manager",
+                "role_id": "role_123",
+                "changed_fields": ["display_name", "interaction_mode"],
+                "actor_id": "human:operator",
+            },
+        )
+        assert isinstance(result, AgentRoleUpdatedPayload)
 
     def test_validate_control_plane_agent_prompt_config_payload(self):
         result = validate_event_payload(

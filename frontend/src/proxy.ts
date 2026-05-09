@@ -2,20 +2,19 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import createIntlMiddleware from "next-intl/middleware";
 import { routing } from "./i18n/routing";
-import { auth } from "./lib/auth/config";
+import { auth } from "./lib/auth/proxy-auth";
 
 const intlMiddleware = createIntlMiddleware(routing);
 
 // Paths that don't require authentication
-const publicPaths = ["/login"];
+const publicPaths = ["/login", "/setup"];
 const locales = routing.locales as readonly string[];
 
 function isPublicPath(pathname: string): boolean {
-  // Remove locale prefix to check the actual path
-  // e.g. /en/login -> /login, /zh/login -> /login
-  const segments = pathname.split("/");
-  // segments: ["", "en", "login", ...]
-  const pathWithoutLocale = "/" + segments.slice(2).join("/");
+  const [, maybeLocale, ...rest] = pathname.split("/");
+  const pathWithoutLocale = locales.includes(maybeLocale)
+    ? `/${rest.join("/")}`
+    : pathname;
   return publicPaths.some((p) => pathWithoutLocale.startsWith(p));
 }
 

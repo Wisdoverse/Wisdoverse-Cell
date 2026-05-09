@@ -6,11 +6,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 
 import {
   AGENT_REGISTRY,
+  agentDefinitionsToMetas,
   agentDefinitionToMeta,
+  getAllAgents,
+  mapControlPlaneAgentStatus,
   useAgentDetail,
   useControlPlaneAgent,
+  useControlPlaneAgents,
   type AgentRuntimeStatus,
-  type AgentStatus,
 } from "@/entities/agent";
 import {
   useControlPlaneRuns,
@@ -19,6 +22,7 @@ import {
   type ControlPlaneWorkItem,
   type WorkItemStatus,
 } from "@/entities/control-plane";
+import { AgentEditDialog } from "@/features/agent-edit";
 import { AgentControlActions } from "@/features/agent-wakeup";
 import { AgentConfig } from "./agent-config";
 import { AgentDetailLayout } from "./agent-detail-layout";
@@ -27,14 +31,6 @@ import { AgentOverview } from "./agent-overview";
 
 interface AgentDetailPageProps {
   agentId: string;
-}
-
-function mapControlPlaneStatus(status: string): AgentStatus {
-  const normalized = status.toLowerCase();
-  if (normalized === "running") return "running";
-  if (normalized === "error") return "error";
-  if (normalized === "paused" || normalized === "terminated") return "stopped";
-  return "idle";
 }
 
 const OPEN_WORK_STATUSES: WorkItemStatus[] = [
@@ -104,16 +100,24 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
     owner_agent_id: agentId,
     limit: 100,
   });
-  const { data, error, isLoading, mutate } = useControlPlaneAgent(
-    builtinAgent ? undefined : agentId,
-  );
+  const { data, error, isLoading, mutate } = useControlPlaneAgent(agentId);
+  const controlPlaneAgents = useControlPlaneAgents({ limit: 500 });
 
   const agentMeta = useMemo(
-    () => builtinAgent ?? (data ? agentDefinitionToMeta(data) : undefined),
+    () => (data ? agentDefinitionToMeta(data) : builtinAgent),
     [builtinAgent, data],
   );
+  const availableAgents = useMemo(() => {
+    const byId = new Map(getAllAgents().map((agent) => [agent.id, agent]));
+    for (const agent of agentDefinitionsToMetas(
+      controlPlaneAgents.data?.agents ?? [],
+    )) {
+      byId.set(agent.id, agent);
+    }
+    return [...byId.values()];
+  }, [controlPlaneAgents.data?.agents]);
 
-  if ((!agentMeta && isLoading) || (!runtimeQuery.data && runtimeQuery.isLoading)) {
+  if (!agentMeta && isLoading) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground">
         <p>{tc("loading")}</p>
@@ -121,15 +125,7 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
     );
   }
 
-  if (runtimeQuery.error) {
-    return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <p>{t("runtimeLoadError")}</p>
-      </div>
-    );
-  }
-
-  if (!agentMeta || error) {
+  if (!agentMeta || (!builtinAgent && error)) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground">
         <p>{t("notFound")}</p>
@@ -137,32 +133,21 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
     );
   }
 
-  const controlPlaneStatus = data ? mapControlPlaneStatus(data.status) : "stopped";
+  const controlPlaneStatus = data ? mapControlPlaneAgentStatus(data.status) : "stopped";
   const baseRuntime =
-    agentMeta.source === "control-plane"
-      ? {
-          agent_id: agentId,
-          status: controlPlaneStatus,
-          health:
-            controlPlaneStatus === "running" || controlPlaneStatus === "idle"
-              ? 90
-              : 0,
-          task_count: 0,
-          pending_count: 0,
-          error_count: controlPlaneStatus === "error" ? 1 : 0,
-          uptime_seconds: 0,
-          last_active_at: data?.updated_at ?? new Date(0).toISOString(),
-        }
-      : runtimeQuery.data ?? {
-          agent_id: agentId,
-          status: controlPlaneStatus,
-          health: controlPlaneStatus === "running" ? 100 : 0,
-          task_count: 0,
-          pending_count: 0,
-          error_count: 0,
-          uptime_seconds: 0,
-          last_active_at: data?.updated_at ?? new Date(0).toISOString(),
-        };
+    runtimeQuery.data ?? {
+      agent_id: agentId,
+      status: controlPlaneStatus,
+      health:
+        controlPlaneStatus === "running" || controlPlaneStatus === "idle"
+          ? 90
+          : 0,
+      task_count: 0,
+      pending_count: 0,
+      error_count: controlPlaneStatus === "error" ? 1 : 0,
+      uptime_seconds: 0,
+      last_active_at: data?.updated_at ?? new Date(0).toISOString(),
+    };
   const runtime = runtimeWithControlPlaneCounts({
     runtime: baseRuntime,
     runs: runsQuery.data?.runs,
@@ -175,18 +160,28 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
         agentMeta={agentMeta}
         runtime={runtime}
         actions={
-          agentMeta.source === "control-plane" ? (
-            <AgentControlActions
-              agentId={agentId}
-              status={data?.status}
-              onChanged={() =>
-                Promise.all([
-                  mutate(),
-                  runsQuery.mutate(),
-                  workItemsQuery.mutate(),
-                ]).then(() => undefined)
-              }
-            />
+          data ? (
+            <div className="flex flex-wrap justify-end gap-2">
+              <AgentEditDialog
+                agent={data}
+                availableAgents={availableAgents}
+                onUpdated={async (updated) => {
+                  await mutate(updated, { revalidate: false });
+                  await controlPlaneAgents.mutate();
+                }}
+              />
+              <AgentControlActions
+                agentId={agentId}
+                status={data.status}
+                onChanged={() =>
+                  Promise.all([
+                    mutate(),
+                    runsQuery.mutate(),
+                    workItemsQuery.mutate(),
+                  ]).then(() => undefined)
+                }
+              />
+            </div>
           ) : undefined
         }
       />

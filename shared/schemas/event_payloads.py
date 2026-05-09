@@ -383,6 +383,15 @@ class AgentRoleCreatedPayload(ControlPlaneReferencePayload):
     reports_to_agent_id: str | None = None
 
 
+class AgentRoleUpdatedPayload(ControlPlaneReferencePayload):
+    """agent_role.updated event payload."""
+
+    agent_id: str
+    role_id: str | None = None
+    changed_fields: list[str] = Field(default_factory=list)
+    actor_id: str | None = None
+
+
 class AgentRoleStatusUpdatedPayload(ControlPlaneReferencePayload):
     """agent_role.status-updated event payload."""
 
@@ -968,6 +977,7 @@ EVENT_PAYLOAD_MODELS = {
     "agent_run.succeeded": AgentRunLifecyclePayload,
     "agent_run.failed": AgentRunLifecyclePayload,
     "agent_role.created": AgentRoleCreatedPayload,
+    "agent_role.updated": AgentRoleUpdatedPayload,
     "agent_role.status-updated": AgentRoleStatusUpdatedPayload,
     "agent.prompt-config-updated": AgentPromptConfigUpdatedPayload,
     "approval.requested": ApprovalEventPayload,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { type UserRole, hasRequiredRole } from "@/lib/auth/config";
+import { hasRequiredRole, type UserRole } from "@/lib/auth/roles";
 
 interface RoleGateProps {
   role: UserRole;

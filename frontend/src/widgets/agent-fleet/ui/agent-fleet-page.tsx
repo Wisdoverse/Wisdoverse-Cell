@@ -6,11 +6,11 @@ import { useTranslations } from "next-intl";
 import {
   agentDefinitionsToMetas,
   getAllAgents,
+  mapControlPlaneAgentStatus,
   useAgents,
   useControlPlaneAgents,
   type AgentMeta,
   type AgentRuntimeStatus,
-  type AgentStatus,
   type ControlPlaneAgentDefinition,
 } from "@/entities/agent";
 import { AgentCreateDialog } from "@/features/agent-create";
@@ -21,14 +21,6 @@ import {
   type AgentFleetFiltersState,
 } from "./agent-fleet-filters";
 import { AgentFleetOverview } from "./agent-fleet-overview";
-
-function mapControlPlaneStatus(status: string): AgentStatus {
-  const normalized = status.toLowerCase();
-  if (normalized === "running") return "running";
-  if (normalized === "error") return "error";
-  if (normalized === "paused" || normalized === "terminated") return "stopped";
-  return "idle";
-}
 
 function buildRuntimes(
   agents: AgentMeta[],
@@ -48,8 +40,9 @@ function buildRuntimes(
     }
 
     const definition = definitionById.get(agent.id);
-    const status = definition ? mapControlPlaneStatus(definition.status) : "stopped";
-    const health = status === "stopped" ? 0 : status === "error" ? 35 : 90;
+    const status = definition ? mapControlPlaneAgentStatus(definition.status) : "stopped";
+    const isOffline = status === "paused" || status === "stopped";
+    const health = isOffline ? 0 : status === "error" ? 35 : 90;
 
     acc[agent.id] = {
       agent_id: agent.id,

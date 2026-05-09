@@ -24,6 +24,7 @@ interface AgentConfigProps {
 
 export function AgentConfig({ agentMeta }: AgentConfigProps) {
   const t = useTranslations("agentDetail");
+  const ta = useTranslations("agents");
   const promptQuery = useAgentPromptConfig(agentMeta.id);
   const [draftPrompt, setDraftPrompt] = useState("");
   const [savingPrompt, setSavingPrompt] = useState(false);
@@ -85,7 +86,7 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
             label: t("agentKind"),
             value: (
               <Badge variant="outline" className="rounded-md">
-                {agentMeta.agentKind}
+                {ta(`agentKinds.${agentMeta.agentKind}`)}
               </Badge>
             ),
           },
@@ -97,7 +98,7 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
             label: t("interactionMode"),
             value: (
               <Badge variant="outline" className="rounded-md">
-                {agentMeta.interactionMode}
+                {ta(`interactionModes.${agentMeta.interactionMode}`)}
               </Badge>
             ),
           },

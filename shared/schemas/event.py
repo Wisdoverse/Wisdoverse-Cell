@@ -236,6 +236,7 @@ class EventTypes:
     DECISION_CREATED = "decision.created"
     DECISION_UPDATED = "decision.updated"
     AGENT_ROLE_CREATED = "agent_role.created"
+    AGENT_ROLE_UPDATED = "agent_role.updated"
     AGENT_ROLE_STATUS_UPDATED = "agent_role.status-updated"
     AGENT_PROMPT_CONFIG_UPDATED = "agent.prompt-config-updated"
     AGENT_WAKEUP_REQUESTED = "agent.wakeup-requested"
