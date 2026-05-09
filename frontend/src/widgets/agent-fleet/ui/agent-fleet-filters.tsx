@@ -25,7 +25,14 @@ interface AgentFleetFiltersProps {
   onFiltersChange: (filters: AgentFleetFiltersState) => void;
 }
 
-const STATUS_OPTIONS = ["all", "running", "idle", "error", "stopped"] as const;
+const STATUS_OPTIONS = [
+  "all",
+  "running",
+  "idle",
+  "paused",
+  "error",
+  "stopped",
+] as const;
 const AGENT_KIND_OPTIONS = [
   "all",
   "organization_role",

@@ -336,25 +336,32 @@ class ControlPlanePlugin(RuntimePlugin):
         try:
             from shared.control_plane.bootstrap import (
                 ensure_core_organization_role_agents,
+                ensure_core_runtime_agent_roles,
             )
 
             async with self._resolve_session_provider()() as session:
                 repo = ControlPlaneRepository(session)
-                created = await ensure_core_organization_role_agents(
+                created_role_agents = await ensure_core_organization_role_agents(
                     repo,
                     company_id=self._default_company_id,
                     company_name=self._default_company_name,
                 )
+                created_runtime_agents = await ensure_core_runtime_agent_roles(
+                    repo,
+                    company_id=self._default_company_id,
+                    company_name=self._default_company_name,
+                )
+            created = created_role_agents + created_runtime_agents
             if created:
                 logger.info(
-                    "control_plane_role_agents_bootstrapped",
+                    "control_plane_agents_bootstrapped",
                     agent_id=runtime.agent_id,
                     company_id=self._default_company_id,
-                    role_agent_ids=created,
+                    agent_ids=created,
                 )
         except Exception as exc:
             logger.error(
-                "control_plane_role_agent_bootstrap_failed",
+                "control_plane_agent_bootstrap_failed",
                 agent_id=runtime.agent_id,
                 company_id=self._default_company_id,
                 error=str(exc),

@@ -1,4 +1,10 @@
-export type AgentStatus = "running" | "idle" | "warning" | "error" | "stopped";
+export type AgentStatus =
+  | "running"
+  | "idle"
+  | "paused"
+  | "warning"
+  | "error"
+  | "stopped";
 
 export type AgentKind =
   | "organization_role"
@@ -147,6 +153,8 @@ export interface CreateControlPlaneAgentRequest {
   created_by?: string;
   metadata?: Record<string, unknown>;
 }
+
+export type UpdateControlPlaneAgentRequest = CreateControlPlaneAgentRequest;
 
 export interface OrganizationRoleTemplate {
   agentId: string;

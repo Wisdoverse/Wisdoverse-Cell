@@ -26,6 +26,7 @@
     "approvals": "审批中心",
     "agents": "智能体",
     "fleetOverview": "舰队总览",
+    "agentWorkspaces": "智能体工作台",
     "analytics": "分析",
     "costUsage": "成本与用量",
     "system": "系统",
@@ -227,7 +228,20 @@
     "loginError": "用户名或密码错误",
     "networkError": "无法连接服务器，请稍后重试",
     "loginDescription": "登录您的账户以继续",
-    "signingIn": "登录中..."
+    "signingIn": "登录中...",
+    "setupDescription": "创建第一个管理员账户",
+    "adminEmail": "管理员邮箱",
+    "adminEmailPlaceholder": "admin@example.com",
+    "displayName": "显示名称",
+    "displayNamePlaceholder": "管理员",
+    "confirmPassword": "确认密码",
+    "confirmPasswordPlaceholder": "再次输入密码",
+    "createAdmin": "创建管理员",
+    "creatingAdmin": "创建中...",
+    "setupPasswordMismatch": "两次输入的密码不一致",
+    "setupConflict": "管理员账户已存在",
+    "setupError": "无法创建管理员账户",
+    "setupLoginError": "管理员已创建，但自动登录失败"
   },
   "errorPage": {
     "title": "出了点问题",
@@ -336,6 +350,7 @@
     "all": "全部",
     "running": "运行中",
     "idle": "空闲",
+    "paused": "已暂停",
     "error": "异常",
     "stopped": "已停止",
     "allKinds": "全部智能体类型",
@@ -355,12 +370,18 @@
       "integration_gateway": "交互网关",
       "system_worker": "系统任务"
     },
-    "interactionMode": "交互方式",
+    "interactionMode": "调用入口",
     "interactionModes": {
-      "direct": "直接面向用户",
-      "routed": "经网关路由",
-      "internal": "仅内部调用",
-      "none": "无交互"
+      "direct": "用户可直接对话",
+      "routed": "由网关分派",
+      "internal": "仅后台协作",
+      "none": "不可调用"
+    },
+    "interactionModeDescriptions": {
+      "direct": "用户可以从聊天或运营界面直接打开这个智能体。",
+      "routed": "由网关或协调器决定什么时候把请求分派给这个智能体。",
+      "internal": "只允许其他服务或智能体调用，用户不会直接和它对话。",
+      "none": "这个记录只保留目录或运维元数据，不作为可调用智能体。"
     },
     "role": "角色",
     "titleField": "职能标题",
@@ -412,7 +433,7 @@
     "agentId": "智能体 ID",
     "domain": "领域",
     "agentKind": "智能体类型",
-    "interactionMode": "交互方式",
+    "interactionMode": "调用入口",
     "role": "角色",
     "titleField": "职能标题",
     "adapterType": "运行适配器",
@@ -433,6 +454,11 @@
     "promptSave": "保存",
     "promptSaving": "保存中",
     "promptSaveSuccess": "提示词配置已保存",
-    "promptSaveError": "提示词配置保存失败"
+    "promptSaveError": "提示词配置保存失败",
+    "editAgent": "编辑智能体",
+    "editAgentDescription": "更新当前控制面智能体的角色、调用入口、运行适配器、上下文和事件契约。",
+    "saveAgent": "保存智能体",
+    "agentUpdating": "保存中",
+    "agentUpdateSuccess": "智能体已更新"
   }
 }

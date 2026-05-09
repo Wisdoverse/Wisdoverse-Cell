@@ -5,6 +5,7 @@ import type {
   ControlPlaneAgentRun,
   ControlPlaneWorkItem,
 } from "@/lib/api/types";
+import { mapControlPlaneAgentStatus } from "@/entities/agent";
 
 const RUNNING_RUN_STATUSES = new Set(["pending", "running"]);
 const FAILED_RUN_STATUSES = new Set(["failed", "timed_out"]);
@@ -15,16 +16,6 @@ const OPEN_WORK_STATUSES = new Set([
   "blocked",
   "awaiting_approval",
 ]);
-
-function mapAgentRoleStatus(status: string): AgentStatus {
-  const normalized = status.trim().toLowerCase();
-  if (normalized === "active" || normalized === "running") return "running";
-  if (normalized === "error" || normalized === "failed") return "error";
-  if (normalized === "paused" || normalized === "stopped" || normalized === "terminated") {
-    return "stopped";
-  }
-  return "idle";
-}
 
 function latestRun(runs: ControlPlaneAgentRun[]): ControlPlaneAgentRun | undefined {
   return runs.reduce<ControlPlaneAgentRun | undefined>((latest, run) => {
@@ -59,7 +50,7 @@ function runtimeStatus(
   if ((latest && FAILED_RUN_STATUSES.has(latest.status)) || failedWorkItemCount > 0) {
     return "error";
   }
-  return mapAgentRoleStatus(agent.status);
+  return mapControlPlaneAgentStatus(agent.status);
 }
 
 function runtimeHealth(status: AgentStatus): number {

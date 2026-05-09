@@ -12,6 +12,7 @@ interface AgentStatusDotProps {
 const statusStyles: Record<AgentStatus, string> = {
   running: "bg-[var(--status-running)]",
   idle: "bg-muted-foreground",
+  paused: "bg-[var(--status-paused)]",
   warning: "bg-[var(--status-warning)]",
   error: "bg-[var(--status-error)]",
   stopped: "bg-muted-foreground/50",

@@ -54,14 +54,19 @@ const navGroups: NavGroup[] = [
     items: [
       { key: "controlPlane", href: "/workflows", icon: Workflow },
       { key: "approvals", href: "/approvals", icon: CircleCheck },
-      { key: "requirements", href: "/requirements", icon: ClipboardList },
-      { key: "ingest", href: "/ingest", icon: Upload },
     ],
   },
   {
     labelKey: "agents",
     items: [
       { key: "fleetOverview", href: "/agents", icon: Bot },
+    ],
+  },
+  {
+    labelKey: "agentWorkspaces",
+    items: [
+      { key: "requirements", href: "/requirements", icon: ClipboardList },
+      { key: "ingest", href: "/ingest", icon: Upload },
     ],
   },
   {

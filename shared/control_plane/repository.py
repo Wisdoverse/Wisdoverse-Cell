@@ -254,6 +254,24 @@ class ControlPlaneRepository:
         await self.session.flush()
         return row
 
+    async def update_agent_role(
+        self,
+        *,
+        company_id: str,
+        agent_id: str,
+        values: dict[str, Any],
+    ) -> AgentRoleTable | None:
+        row = await self.get_agent_role(company_id=company_id, agent_id=agent_id)
+        if row is None:
+            return None
+
+        for key, value in values.items():
+            db_key = "metadata_json" if key == "metadata" else key
+            setattr(row, db_key, _to_db_value(value))
+        row.updated_at = _now()
+        await self.session.flush()
+        return row
+
     async def get_agent_prompt_config(
         self,
         *,

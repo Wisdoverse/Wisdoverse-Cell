@@ -1391,6 +1391,81 @@ def create_control_plane_router(
             raise HTTPException(status_code=404, detail="agent_not_found")
         return _row_to_dict(row)
 
+    @router.put("/agents/{agent_id}")
+    async def update_agent(
+        agent_id: str,
+        body: AgentDefinitionCreateRequest,
+        session: AsyncSession = Depends(get_session),
+    ):
+        if body.agent_id != agent_id:
+            raise HTTPException(status_code=400, detail="agent_id_mismatch")
+        if not DEFAULT_ADAPTER_REGISTRY.is_registered(body.adapter_type):
+            raise HTTPException(status_code=400, detail="unsupported_adapter_type")
+
+        repo = ControlPlaneRepository(session)
+        company_id = resolve_company(body.company_id)
+        row = await repo.update_agent_role(
+            company_id=company_id,
+            agent_id=agent_id,
+            values={
+                "display_name": body.display_name,
+                "agent_kind": body.agent_kind,
+                "interaction_mode": body.interaction_mode,
+                "role": body.role,
+                "title": body.title,
+                "domain": body.domain,
+                "reports_to_agent_id": body.reports_to_agent_id,
+                "adapter_type": body.adapter_type,
+                "adapter_config": body.adapter_config,
+                "context_sources": body.context_sources,
+                "capabilities": body.capabilities,
+                "responsibilities": body.responsibilities,
+                "subscribed_events": body.subscribed_events,
+                "published_events": body.published_events,
+                "permissions": body.permissions,
+                "budget_policy_id": body.budget_policy_id,
+                "escalation_policy": body.escalation_policy,
+                "metadata": body.metadata,
+            },
+        )
+        if row is None:
+            raise HTTPException(status_code=404, detail="agent_not_found")
+        await repo.append_audit_event(
+            AuditEvent(
+                company_id=company_id,
+                action=EventTypes.AGENT_ROLE_UPDATED,
+                target_type="agent_role",
+                target_id=row.agent_id,
+                actor_type="user",
+                actor_id=body.created_by,
+                detail={
+                    "agent_id": row.agent_id,
+                    "role_id": row.role_id,
+                    "changed_fields": [
+                        "display_name",
+                        "agent_kind",
+                        "interaction_mode",
+                        "role",
+                        "title",
+                        "domain",
+                        "reports_to_agent_id",
+                        "adapter_type",
+                        "adapter_config",
+                        "context_sources",
+                        "capabilities",
+                        "responsibilities",
+                        "subscribed_events",
+                        "published_events",
+                        "permissions",
+                        "budget_policy_id",
+                        "escalation_policy",
+                        "metadata",
+                    ],
+                },
+            )
+        )
+        return _row_to_dict(row)
+
     @router.get("/agents/{agent_id}/prompt-config")
     async def get_agent_prompt_config(
         agent_id: str,

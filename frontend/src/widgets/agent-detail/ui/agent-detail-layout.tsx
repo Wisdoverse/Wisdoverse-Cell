@@ -33,6 +33,7 @@ export function AgentDetailLayout({
   actions,
 }: AgentDetailLayoutProps) {
   const t = useTranslations("agentDetail");
+  const ta = useTranslations("agents");
   const locale = useLocale();
   const domainConfig = getDomainConfig(agentMeta.domain);
 
@@ -74,9 +75,7 @@ export function AgentDetailLayout({
           {actions}
           <div className="flex items-center gap-2">
             <AgentStatusDot status={runtime.status} />
-            <span className="text-sm font-medium capitalize">
-              {runtime.status}
-            </span>
+            <span className="text-sm font-medium">{ta(runtime.status)}</span>
           </div>
           <span className="text-xs text-muted-foreground">
             {t("uptime")}: {formatUptime(runtime.uptime_seconds)}

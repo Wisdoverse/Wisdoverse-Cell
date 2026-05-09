@@ -534,6 +534,41 @@ async def test_control_plane_api_creates_frontend_agent_definition(
             "/api/v1/control-plane/agents",
             params={"company_id": "cmp_agents", "search": "growth"},
         )
+        updated = await client.put(
+            "/api/v1/control-plane/agents/growth-researcher",
+            json={
+                "company_id": "cmp_agents",
+                "agent_id": "growth-researcher",
+                "display_name": "Growth Research Lead",
+                "agent_kind": "organization_role",
+                "interaction_mode": "routed",
+                "role": "researcher",
+                "title": "Market Research Lead",
+                "domain": "product",
+                "reports_to_agent_id": None,
+                "adapter_type": "http",
+                "adapter_config": {
+                    "base_url": "https://agents.internal",
+                    "path": "/growth/request",
+                    "model": "gpt-5.4",
+                },
+                "context_sources": ["control_plane", "gitlab"],
+                "capabilities": ["market analysis", "pricing review"],
+                "responsibilities": ["Find market signals"],
+                "subscribed_events": ["work_item.created"],
+                "published_events": ["market.signal-detected"],
+                "permissions": ["work_items:create"],
+                "created_by": "human:board",
+            },
+        )
+        mismatch = await client.put(
+            "/api/v1/control-plane/agents/growth-researcher",
+            json={
+                "company_id": "cmp_agents",
+                "agent_id": "other-agent",
+                "display_name": "Other Agent",
+            },
+        )
         status = await client.patch(
             "/api/v1/control-plane/agents/growth-researcher/status",
             params={"company_id": "cmp_agents"},
@@ -559,6 +594,20 @@ async def test_control_plane_api_creates_frontend_agent_definition(
         "work_item.created",
         "market.signal-requested",
     ]
+    assert updated.status_code == 200
+    assert updated.json()["display_name"] == "Growth Research Lead"
+    assert updated.json()["interaction_mode"] == "routed"
+    assert updated.json()["domain"] == "product"
+    assert updated.json()["reports_to_agent_id"] is None
+    assert updated.json()["adapter_type"] == "http"
+    assert updated.json()["adapter_config"] == {
+        "base_url": "https://agents.internal",
+        "path": "/growth/request",
+        "model": "gpt-5.4",
+    }
+    assert updated.json()["capabilities"] == ["market analysis", "pricing review"]
+    assert mismatch.status_code == 400
+    assert mismatch.json()["detail"] == "agent_id_mismatch"
     assert status.status_code == 200
     assert status.json()["status"] == "paused"
 

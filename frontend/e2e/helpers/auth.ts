@@ -1,12 +1,12 @@
 import { expect, type Page } from "@playwright/test";
 
+const username = process.env.E2E_ADMIN_USERNAME ?? "e2e-admin@example.com";
+const password = process.env.E2E_ADMIN_PASSWORD ?? "e2e-admin-password";
+
 export async function loginAsAdmin(page: Page, targetPath = "/en/dashboard") {
   const isTargetUrl = (url: URL) => url.pathname === targetPath;
-  const username = process.env.DEV_AUTH_USERNAME;
-  const password = process.env.DEV_AUTH_PASSWORD;
-  if (!username || !password) {
-    throw new Error("DEV_AUTH_USERNAME and DEV_AUTH_PASSWORD are required for e2e login.");
-  }
+
+  await ensureBootstrapAdmin(page);
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await page.goto(`/en/login?callbackUrl=${encodeURIComponent(targetPath)}`);
@@ -27,4 +27,16 @@ export async function loginAsAdmin(page: Page, targetPath = "/en/dashboard") {
   }
 
   await expect(page).toHaveURL(isTargetUrl, { timeout: 15_000 });
+}
+
+async function ensureBootstrapAdmin(page: Page) {
+  const response = await page.request.post("/api/auth/bootstrap-admin", {
+    data: {
+      username,
+      password,
+      displayName: "E2E Admin",
+    },
+  });
+
+  expect([201, 409]).toContain(response.status());
 }
