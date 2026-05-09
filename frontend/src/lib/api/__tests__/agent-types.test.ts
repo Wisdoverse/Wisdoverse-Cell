@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
+import type { AgentMeta } from "@/entities/agent";
 import type {
-  AgentMeta,
   ApprovalRequest,
   ActivityEvent,
 } from "../types";

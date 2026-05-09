@@ -1,8 +1,8 @@
 "use client";
 
-import { getDomainConfig } from "@/lib/registry/domains";
-import type { AgentDomain } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import { getDomainConfig } from "../model/domains";
+import type { AgentDomain } from "../model/types";
 
 interface AgentAvatarProps {
   domain: AgentDomain;

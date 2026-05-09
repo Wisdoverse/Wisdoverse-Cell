@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import type { ApprovalRequest } from "@/lib/api/types";
-import { ApprovalCard } from "@/entities/approval/ui/approval-card";
+import { ApprovalCard } from "@/entities/approval";
 import { cn } from "@/lib/utils";
 
 interface ApprovalListProps {

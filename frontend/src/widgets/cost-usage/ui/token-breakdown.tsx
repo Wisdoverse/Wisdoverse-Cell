@@ -3,8 +3,7 @@
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
-import { AgentAvatar } from "@/entities/agent/ui/agent-display-avatar";
-import { AGENT_REGISTRY } from "@/lib/registry/agents";
+import { AgentDisplayAvatar, AGENT_REGISTRY } from "@/entities/agent";
 import type { LLMUsageResponse } from "@/lib/api/types";
 
 interface TokenBreakdownProps {
@@ -70,7 +69,7 @@ export function TokenBreakdown({ data, isLoading }: TokenBreakdownProps) {
             <div key={row.agentId} className="grid grid-cols-[1fr_100px_80px_60px] gap-2 items-center text-sm">
               <div className="flex items-center gap-2 min-w-0">
                 {agent && (
-                  <AgentAvatar
+                  <AgentDisplayAvatar
                     domain={agent.domain}
                     icon={agent.icon}
                     shortName={agent.shortName}

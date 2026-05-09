@@ -1,7 +1,5 @@
 import type { ActivityEvent } from "@/lib/api/types";
-import { AgentAvatar } from "@/entities/agent/ui/agent-display-avatar";
-import { DomainBadge } from "@/entities/agent/ui/domain-badge";
-import { AGENT_REGISTRY } from "@/lib/registry/agents";
+import { AgentDisplayAvatar, AGENT_REGISTRY, DomainBadge } from "@/entities/agent";
 import { cn } from "@/lib/utils";
 
 interface ActivityItemProps {
@@ -22,7 +20,7 @@ export function ActivityItem({ event, className }: ActivityItemProps) {
   return (
     <div className={cn("flex items-start gap-3 py-2", className)}>
       {agentMeta ? (
-        <AgentAvatar
+        <AgentDisplayAvatar
           domain={agentMeta.domain}
           icon={agentMeta.icon}
           shortName={agentMeta.shortName}

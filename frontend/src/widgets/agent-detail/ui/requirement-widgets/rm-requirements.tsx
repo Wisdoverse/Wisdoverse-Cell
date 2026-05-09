@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRequirements } from "@/entities/requirement/model/use-requirements";
-import { RequirementsTable } from "@/entities/requirement";
+import { RequirementsTable, useRequirements } from "@/entities/requirement";
 import { confirmRequirement, rejectRequirement } from "@/lib/api/feedback";
 import { toast } from "sonner";
 

@@ -5,9 +5,12 @@ import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 
-import { DOMAIN_LIST } from "@/lib/registry/domains";
-import { AgentCard } from "@/entities/agent/ui/agent-display-card";
-import { agentDefinitionsToMetas, useControlPlaneAgents } from "@/entities/agent";
+import {
+  AgentDisplayCard,
+  agentDefinitionsToMetas,
+  DOMAIN_LIST,
+  useControlPlaneAgents,
+} from "@/entities/agent";
 import {
   listControlPlaneRuns,
   listControlPlaneWorkItems,
@@ -90,7 +93,7 @@ export function FleetGrid() {
                   className="animate-slide-up"
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
-                  <AgentCard
+                  <AgentDisplayCard
                     meta={agent}
                     runtime={runtime}
                     onClick={() =>

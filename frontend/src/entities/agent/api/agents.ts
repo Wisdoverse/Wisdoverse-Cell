@@ -1,5 +1,6 @@
-import { apiClient } from "./client";
-import type { AgentListResponse, AgentRuntimeStatus } from "./types";
+import { apiClient } from "@/lib/api/client";
+
+import type { AgentListResponse, AgentRuntimeStatus } from "../model/types";
 
 export function getAgents(filters?: {
   status?: string;
@@ -9,8 +10,6 @@ export function getAgents(filters?: {
   return apiClient.get<AgentListResponse>("/agents", filters);
 }
 
-export function getAgentStatus(
-  agentId: string,
-): Promise<AgentRuntimeStatus> {
+export function getAgentStatus(agentId: string): Promise<AgentRuntimeStatus> {
   return apiClient.get<AgentRuntimeStatus>(`/agents/${agentId}/status`);
 }

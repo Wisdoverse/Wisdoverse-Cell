@@ -1,4 +1,5 @@
-import type { ActivityEvent, ControlPlaneAgentRun } from "@/lib/api/types";
+import type { ActivityEvent } from "@/lib/api/types";
+import type { ControlPlaneAgentRun } from "@/entities/control-plane";
 
 function eventTimestamp(run: ControlPlaneAgentRun): string {
   return run.completed_at ?? run.started_at;

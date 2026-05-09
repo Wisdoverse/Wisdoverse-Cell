@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowRight, ActivityIcon } from "lucide-react";
-import { ActivityItem } from "@/entities/activity/ui/activity-item";
+import {
+  ActivityItem,
+  controlPlaneRunsToActivityEvents,
+} from "@/entities/activity";
 import useSWR from "swr";
 
-import { controlPlaneRunsToActivityEvents } from "@/entities/activity/model/control-plane-events";
 import { listControlPlaneRuns } from "@/entities/control-plane";
 
 export function RecentActivity() {

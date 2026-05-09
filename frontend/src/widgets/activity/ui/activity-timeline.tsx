@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import type { ActivityEvent } from "@/lib/api/types";
-import { ActivityItem } from "@/entities/activity/ui/activity-item";
+import { ActivityItem } from "@/entities/activity";
 
 interface ActivityTimelineProps {
   events: ActivityEvent[];

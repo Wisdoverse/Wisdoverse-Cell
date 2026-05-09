@@ -1,3 +1,4 @@
+export { useRequirement, useRequirements } from "./model/use-requirements";
 export { ChangeHistory } from "./ui/change-history";
 export { ContextMessages } from "./ui/context-messages";
 export { PriorityBadge } from "./ui/priority-badge";

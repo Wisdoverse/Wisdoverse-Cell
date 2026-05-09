@@ -11,7 +11,7 @@ import {
   RejectSheet,
 } from "@/features/requirement-review";
 import { PageHeader } from "@/shared/ui/page-header";
-import { useRequirements } from "@/entities/requirement/model/use-requirements";
+import { useRequirements } from "@/entities/requirement";
 import type { RequirementFilters } from "@/lib/api/types";
 
 export function RequirementsPageWidget() {

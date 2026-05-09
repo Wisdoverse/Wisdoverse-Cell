@@ -5,7 +5,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { ArrowRight, InboxIcon } from "lucide-react";
 import useSWR from "swr";
 
-import { ApprovalCard } from "@/entities/approval/ui/approval-card";
+import { ApprovalCard } from "@/entities/approval";
 import { listControlPlaneApprovals, type ControlPlaneApproval } from "@/entities/control-plane";
 import type { ApprovalRequest } from "@/lib/api/types";
 

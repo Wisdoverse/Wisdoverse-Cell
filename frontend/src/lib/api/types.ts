@@ -1,50 +1,5 @@
-import type { ApprovalType } from "@/entities/agent/model/types";
-
-export type {
-  ControlPlaneAgentRun,
-  ControlPlaneApproval,
-  ControlPlaneApprovalListResponse,
-  ControlPlaneArtifact,
-  ControlPlaneArtifactListResponse,
-  ControlPlaneAuditEvent,
-  ControlPlaneBudgetUsage,
-  ControlPlaneBudgetUsageListResponse,
-  ControlPlaneDecision,
-  ControlPlaneDecisionListResponse,
-  ControlPlaneGoal,
-  ControlPlaneGoalListResponse,
-  ControlPlaneRunListResponse,
-  ControlPlaneTimelineItem,
-  ControlPlaneTimelineResponse,
-  ControlPlaneTimelineType,
-  ControlPlaneWorkbenchSummary,
-  ControlPlaneWorkItem,
-  ControlPlaneWorkItemListResponse,
-  DecisionStatus,
-  GoalStatus,
-  WorkItemPriority,
-  WorkItemStatus,
-} from "@/entities/control-plane";
-
-export type {
-  AgentDomain,
-  AgentInteractionMode,
-  AgentKind,
-  AgentListResponse,
-  AgentMeta,
-  AgentRuntimeStatus,
-  AgentStatus,
-  AgentTabId,
-  ApprovalType,
-  ControlPlaneAgentDefinition,
-  ControlPlaneAgentListResponse,
-  CreateControlPlaneAgentRequest,
-  UpdateControlPlaneAgentRequest,
-  WakeControlPlaneAgentRequest,
-  WakeControlPlaneAgentResponse,
-} from "@/entities/agent/model/types";
-
 // Enums
+export type ApprovalType = "finance" | "legal" | "technical" | "customer";
 export type RequirementStatus = "pending" | "confirmed" | "changed" | "rejected";
 export type Priority = "high" | "medium" | "low";
 export type Category = "功能" | "性能" | "硬件" | "集成" | "UI" | "安全" | "其他";

@@ -9,9 +9,11 @@ import {
   CardTitle,
   CardContent,
 } from "@/shared/ui/card";
-import { AgentStatusDot } from "@/entities/agent/ui/agent-display-status-dot";
-import { useAgents } from "@/entities/agent";
-import type { AgentStatus } from "@/lib/api/types";
+import {
+  AgentDisplayStatusDot,
+  type AgentStatus,
+  useAgents,
+} from "@/entities/agent";
 
 interface FleetCounts {
   total: number;
@@ -68,7 +70,7 @@ export function FleetSummaryCard() {
           {badges.map(({ key, status }) => (
             <div key={key} className="rounded-lg border p-3 text-center">
               <div className="flex items-center justify-center gap-1.5">
-                <AgentStatusDot status={status} size="sm" />
+                <AgentDisplayStatusDot status={status} size="sm" />
                 <p className="text-sm text-muted-foreground">
                   {t(`fleet_${key}`)}
                 </p>

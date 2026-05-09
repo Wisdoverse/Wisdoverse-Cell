@@ -14,7 +14,7 @@ import {
   COST_USAGE_PERIODS,
   costUsagePeriodDays,
   type CostUsagePeriod,
-} from "@/entities/usage/model/cost-usage";
+} from "@/entities/usage";
 import { getLLMUsage } from "@/lib/api/admin";
 import type { LLMUsageResponse } from "@/lib/api/types";
 

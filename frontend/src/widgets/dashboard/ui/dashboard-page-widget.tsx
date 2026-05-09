@@ -14,7 +14,7 @@ import {
   useCircuitBreaker,
   useEnhancedStats,
   useLLMUsage,
-} from "@/entities/control-plane/model/use-operations-metrics";
+} from "@/entities/control-plane";
 
 export function DashboardPageWidget() {
   const t = useTranslations("dashboard");

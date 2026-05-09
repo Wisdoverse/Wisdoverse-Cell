@@ -11,7 +11,7 @@ import {
   useCircuitBreaker,
   useHealthReady,
   useLLMUsage,
-} from "@/entities/control-plane/model/use-operations-metrics";
+} from "@/entities/control-plane";
 
 export function MonitorPageWidget() {
   const t = useTranslations("monitor");
