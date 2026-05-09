@@ -53,7 +53,7 @@ groups:
           description: >-
             Service {{ $labels.job }} P99 latency is {{ $value | humanizeDuration }}
             over the last 5 minutes, exceeding the 2s SLO target.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/high-p99-latency"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/high-p99-latency"
 
       # -- P99 Latency Critical (> 5s) ---------------------------------------
       - alert: CriticalP99Latency
@@ -68,7 +68,7 @@ groups:
           description: >-
             Service {{ $labels.job }} P99 latency is {{ $value | humanizeDuration }},
             significantly degrading user experience. Immediate investigation required.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/critical-p99-latency"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/critical-p99-latency"
 
       # -- Error Rate SLO (target: < 1%) -------------------------------------
       - alert: HighErrorRate
@@ -83,7 +83,7 @@ groups:
           description: >-
             Service {{ $labels.job }} 5xx error rate is {{ $value | humanizePercentage }}
             over the last 5 minutes, exceeding the 1% SLO target.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/high-error-rate"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/high-error-rate"
 
       # -- Error Rate Critical (> 5%) ----------------------------------------
       - alert: CriticalErrorRate
@@ -98,7 +98,7 @@ groups:
           description: >-
             Service {{ $labels.job }} 5xx error rate is {{ $value | humanizePercentage }}.
             Major service degradation. Immediate investigation required.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/critical-error-rate"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/critical-error-rate"
 
   # ---------------------------------------------------------------------------
   # Agent Health Alerts
@@ -119,7 +119,7 @@ groups:
             Target {{ $labels.instance }} (job={{ $labels.job }}) has been
             unreachable for more than 1 minute. The agent process may have
             crashed or the container is unhealthy.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/agent-down"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/agent-down"
 
       # -- Agent High Restart Rate --------------------------------------------
       - alert: AgentHighRestartRate
@@ -134,7 +134,7 @@ groups:
           description: >-
             Agent {{ $labels.job }} has restarted {{ $value }} times in the last
             30 minutes. This indicates a crash loop or OOM condition.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/agent-restart-loop"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/agent-restart-loop"
 
   # ---------------------------------------------------------------------------
   # LLM API Alerts
@@ -155,7 +155,7 @@ groups:
             LLM API error rate for {{ $labels.job }} is {{ $value | humanizePercentage }}
             over the last 5 minutes. The configured LLM provider may be degraded
             or rate-limited.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/llm-api-failure"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/llm-api-failure"
 
       # -- LLM API Warning Failure Rate (> 5%) -------------------------------
       - alert: LLMAPIElevatedFailureRate
@@ -170,7 +170,7 @@ groups:
           description: >-
             LLM API error rate for {{ $labels.job }} is {{ $value | humanizePercentage }}.
             Monitor for further degradation.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/llm-api-failure"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/llm-api-failure"
 
       # -- LLM Daily Cost Over Budget -----------------------------------------
       - alert: LLMDailyBudgetExceeded
@@ -186,7 +186,7 @@ groups:
             Current daily LLM spend is ${{ $value | printf "%.2f" }},
             exceeding the $100 daily budget. Review usage patterns and
             consider rate-limiting or disabling non-critical LLM calls.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/llm-budget-exceeded"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/llm-budget-exceeded"
 
       # -- LLM Daily Cost Warning (> 80% budget) -----------------------------
       - alert: LLMDailyBudgetWarning
@@ -201,7 +201,7 @@ groups:
           description: >-
             Current daily LLM spend is ${{ $value | printf "%.2f" }},
             at 80% of the $100 daily budget.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/llm-budget-exceeded"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/llm-budget-exceeded"
 
       # -- LLM Response Latency High -----------------------------------------
       - alert: LLMResponseLatencyHigh
@@ -216,7 +216,7 @@ groups:
           description: >-
             LLM P95 latency for {{ $labels.job }} is {{ $value | humanizeDuration }}.
             The configured LLM provider may be experiencing increased load.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/llm-high-latency"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/llm-high-latency"
 
   # ---------------------------------------------------------------------------
   # Chat & Tool Call Alerts
@@ -237,7 +237,7 @@ groups:
             Tool call rate is {{ $value | printf "%.1f" }}/s, indicating a
             possible infinite loop in the ChatService tool calling pipeline.
             The MAX_TOOL_CALLS safeguard may not be triggering.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/tool-call-loop"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/tool-call-loop"
 
       # -- Tool Call Elevated Rate (warning) ----------------------------------
       - alert: ToolCallRateElevated
@@ -252,7 +252,7 @@ groups:
           description: >-
             Tool call rate is {{ $value | printf "%.1f" }}/s. This may indicate
             inefficient tool usage or an approaching loop condition.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/tool-call-loop"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/tool-call-loop"
 
   # ---------------------------------------------------------------------------
   # Event Bus Alerts
@@ -272,7 +272,7 @@ groups:
           description: >-
             Event queue length is {{ $value }} messages. Consumers may be
             stalled or overwhelmed. Risk of message loss if queue hits capacity.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/event-queue-backlog"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/event-queue-backlog"
 
       # -- Event Queue Backlog Warning ----------------------------------------
       - alert: EventQueueBacklogWarning
@@ -287,7 +287,7 @@ groups:
           description: >-
             Event queue length is {{ $value }} messages. Consumers are falling
             behind. Investigate consumer health and throughput.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/event-queue-backlog"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/event-queue-backlog"
 
       # -- Event Processing Errors --------------------------------------------
       - alert: EventProcessingErrors
@@ -302,4 +302,4 @@ groups:
           description: >-
             {{ $value | printf "%.0f" }} event processing errors in the last
             5 minutes. Check dead-letter queue and consumer logs.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/event-processing-errors"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/event-processing-errors"

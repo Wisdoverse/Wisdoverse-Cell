@@ -10,12 +10,68 @@
 
 ## Reporting Vulnerabilities
 
-If you discover a security vulnerability, please report it responsibly:
+Report suspected vulnerabilities privately. Do not open a public issue, public
+pull request, or public discussion thread for a vulnerability under embargo.
 
-1. **Do NOT** open a public issue
-2. Email: security@wisdoverse.ai
-3. Include: description, reproduction steps, impact assessment
-4. Expected response: within 48 hours
+### Preferred channel
+
+Use GitHub private vulnerability reporting:
+<https://github.com/Wisdoverse/Wisdoverse-Cell/security/advisories/new>.
+
+### Backup channel
+
+Email **dev@wisdoverse.com** if GitHub private reporting is unavailable to
+you. Encrypt sensitive material with the maintainer team's published PGP key
+when one is in use.
+
+### What to include
+
+- A description of the issue and the affected component or endpoint.
+- Reproduction steps or a proof-of-concept that demonstrates the impact.
+- Affected versions, commits, or deployment modes.
+- An impact assessment: confidentiality, integrity, availability, and any
+  affected data classes.
+- Suggested remediation, if known.
+
+### Response timeline
+
+| Stage | Target |
+|-------|--------|
+| First reply from the maintainer team | Within 48 hours of report |
+| Triage decision (accept, reject, request more info) | Within 5 business days |
+| Remediation plan with target fix window | Within 10 business days for accepted high or critical reports |
+| Coordinated disclosure | After a fix is available, with reporter agreement on timing |
+
+A standard embargo period of up to 90 days applies from the date the report is
+acknowledged. The maintainer team may request an extension when remediation
+requires upstream coordination, and the reporter may agree or decline.
+
+### Scope
+
+In scope:
+
+- Code in the `main` branch of this repository.
+- Dependencies pinned by `requirements.txt`, `requirements-lock.txt`, and
+  `Cargo.lock` when the issue is exploitable through Wisdoverse Cell's own
+  attack surface.
+- Container images published from this repository.
+
+Out of scope:
+
+- Issues that require physical access, an already-compromised host, or
+  privileged credentials that the legitimate operator already controls.
+- Reports based solely on missing best-practice headers or banner-grab output
+  without a demonstrated exploit path.
+- Denial-of-service through volumetric traffic without a logic-layer
+  amplification component.
+- Vulnerabilities in third-party services (Feishu, WeCom, OpenProject, GitLab,
+  LiteLLM providers) that do not pivot through Wisdoverse Cell.
+
+### Credit and disclosure
+
+Reporters who follow private disclosure receive credit in the published
+GitHub Security Advisory unless they prefer to remain anonymous. The
+maintainer team does not currently operate a paid bug bounty.
 
 ## Security Architecture
 

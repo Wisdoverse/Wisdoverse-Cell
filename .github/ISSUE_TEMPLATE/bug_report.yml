@@ -29,7 +29,7 @@ body:
         Commit:
         OS:
         Python:
-        Go:
+        Rust:
         Node:
         Deployment mode:
     validations:

@@ -221,7 +221,7 @@ ARG GIT_COMMIT
 LABEL org.opencontainers.image.title="Requirement Manager Agent (ai-core runtime id)" \
       org.opencontainers.image.description="Requirements extraction, confirmation, and PRD generation agent" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
-      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/Wisdoverse-Cell" \
       org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
@@ -269,7 +269,7 @@ ARG GIT_COMMIT
 LABEL org.opencontainers.image.title="Sync Module" \
       org.opencontainers.image.description="OpenProject ↔ Feishu bidirectional sync" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
-      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/Wisdoverse-Cell" \
       org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
@@ -312,7 +312,7 @@ ARG GIT_COMMIT
 LABEL org.opencontainers.image.title="Analysis Module" \
       org.opencontainers.image.description="Daily/weekly reports, milestone checks, quality evaluation" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
-      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/Wisdoverse-Cell" \
       org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
@@ -355,7 +355,7 @@ ARG GIT_COMMIT
 LABEL org.opencontainers.image.title="Evolution Capability" \
       org.opencontainers.image.description="Self-evolution analysis and recommendation capability" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
-      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/Wisdoverse-Cell" \
       org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
@@ -398,7 +398,7 @@ ARG GIT_COMMIT
 LABEL org.opencontainers.image.title="PM Agent" \
       org.opencontainers.image.description="PJM alerts, config management, workload monitoring" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
-      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/Wisdoverse-Cell" \
       org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
@@ -442,7 +442,7 @@ ARG GIT_COMMIT
 LABEL org.opencontainers.image.title="QA Agent" \
       org.opencontainers.image.description="Automated acceptance verification for AI-generated code" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
-      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/Wisdoverse-Cell" \
       org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
@@ -487,7 +487,7 @@ ARG GIT_COMMIT
 LABEL org.opencontainers.image.title="Dev Agent" \
       org.opencontainers.image.description="AgentForge-backed software delivery workflow execution" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
-      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/Wisdoverse-Cell" \
       org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
@@ -531,7 +531,7 @@ ARG GIT_COMMIT
 LABEL org.opencontainers.image.title="Chat Agent" \
       org.opencontainers.image.description="Feishu webhook + LLM tool-calling chat" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
-      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/Wisdoverse-Cell" \
       org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}" \

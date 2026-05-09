@@ -1,8 +1,30 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to Wisdoverse Cell are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/),
+and the project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html)
+for tagged releases. Pre-1.0 minor versions may include breaking changes; the
+release notes call out breaking changes explicitly under a `Breaking` heading
+when they apply.
+
+## [Unreleased]
+
+### Added
+
+- (no entries yet)
+
+### Changed
+
+- (no entries yet)
+
+### Fixed
+
+- (no entries yet)
+
+### Security
+
+- (no entries yet)
 
 ## [0.3.0] - 2026-04-02
 
@@ -77,3 +99,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - EventBus (Redis LIST), LLM Gateway, BaseAgent
 - Feishu deep integration (Bot, Cards, Events)
 - Next.js Frontend (Dashboard, Requirements, i18n)
+
+[Unreleased]: https://github.com/Wisdoverse/Wisdoverse-Cell/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Wisdoverse/Wisdoverse-Cell/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/Wisdoverse/Wisdoverse-Cell/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/Wisdoverse/Wisdoverse-Cell/releases/tag/v0.1.0

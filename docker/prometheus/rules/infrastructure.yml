@@ -42,7 +42,7 @@ groups:
           description: >-
             PostgreSQL instance {{ $labels.instance }} is unreachable.
             All database-dependent services will be affected.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-down"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/postgres-down"
 
       # -- PostgreSQL High Connection Usage (> 80% max_connections) -----------
       - alert: PostgresHighConnections
@@ -63,7 +63,7 @@ groups:
             {{ $value | humanizePercentage }} of max_connections.
             New connections may be refused if this continues to climb.
             Check for connection leaks or increase max_connections.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-high-connections"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/postgres-high-connections"
 
       # -- PostgreSQL Connections Critical (> 90%) ----------------------------
       - alert: PostgresConnectionsCritical
@@ -83,7 +83,7 @@ groups:
             PostgreSQL {{ $labels.instance }} is using
             {{ $value | humanizePercentage }} of max_connections.
             Imminent connection exhaustion. Terminate idle connections immediately.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-high-connections"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/postgres-high-connections"
 
       # -- PostgreSQL Slow Queries (avg > 100ms) ------------------------------
       - alert: PostgresSlowQueries
@@ -100,7 +100,7 @@ groups:
             PostgreSQL {{ $labels.instance }} has active transactions with
             duration exceeding 100ms. Review slow query log and check for
             missing indexes or lock contention.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-slow-queries"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/postgres-slow-queries"
 
       # -- PostgreSQL Long-Running Transactions (> 5min) ----------------------
       - alert: PostgresLongRunningTransactions
@@ -116,7 +116,7 @@ groups:
             A transaction on {{ $labels.instance }} has been running for
             {{ $value | humanizeDuration }}. This may cause lock contention
             and bloat. Investigate and terminate if safe.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-long-tx"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/postgres-long-tx"
 
       # -- PostgreSQL Replication Lag -----------------------------------------
       - alert: PostgresReplicationLag
@@ -131,7 +131,7 @@ groups:
           description: >-
             Replication lag on {{ $labels.instance }} is {{ $value | humanizeDuration }}.
             Replica may be falling behind. Check WAL shipping and replica health.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-replication-lag"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/postgres-replication-lag"
 
       # -- PostgreSQL Replication Lag Critical ---------------------------------
       - alert: PostgresReplicationLagCritical
@@ -146,7 +146,7 @@ groups:
           description: >-
             Replication lag on {{ $labels.instance }} is {{ $value | humanizeDuration }}.
             Replica is significantly behind. Failover may produce data loss.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-replication-lag"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/postgres-replication-lag"
 
       # -- PostgreSQL Disk Usage High (> 80%) ---------------------------------
       - alert: PostgresDiskUsageHigh
@@ -166,7 +166,7 @@ groups:
           description: >-
             Database storage is at {{ $value | humanizePercentage }}.
             Consider running VACUUM FULL, archiving old data, or expanding disk.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-disk-usage"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/postgres-disk-usage"
 
       # -- PostgreSQL Dead Tuples High ----------------------------------------
       - alert: PostgresDeadTuplesHigh
@@ -181,7 +181,7 @@ groups:
           description: >-
             Table {{ $labels.relname }} on {{ $labels.instance }} has
             {{ $value | humanize }} dead tuples. Autovacuum may be falling behind.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/postgres-dead-tuples"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/postgres-dead-tuples"
 
   # ---------------------------------------------------------------------------
   # Redis Alerts
@@ -201,7 +201,7 @@ groups:
           description: >-
             Redis instance {{ $labels.instance }} is unreachable.
             EventBus, rate limiting, and caching will be impacted.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/redis-down"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/redis-down"
 
       # -- Redis Memory High (> 80% maxmemory) --------------------------------
       - alert: RedisMemoryHigh
@@ -218,7 +218,7 @@ groups:
             Redis {{ $labels.instance }} memory is at
             {{ $value | humanizePercentage }} of maxmemory (256MB).
             With noeviction policy, new writes will be rejected when full.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/redis-memory-high"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/redis-memory-high"
 
       # -- Redis Memory Critical (> 95% maxmemory) ----------------------------
       - alert: RedisMemoryCritical
@@ -235,7 +235,7 @@ groups:
             Redis {{ $labels.instance }} memory is at
             {{ $value | humanizePercentage }}. With noeviction policy,
             write operations will start failing imminently.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/redis-memory-high"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/redis-memory-high"
 
       # -- Redis Rejected Connections -----------------------------------------
       - alert: RedisRejectedConnections
@@ -251,7 +251,7 @@ groups:
             Redis {{ $labels.instance }} has rejected
             {{ $value | printf "%.0f" }} connections in the last 5 minutes.
             Check maxclients setting and connection pool configuration.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/redis-rejected-connections"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/redis-rejected-connections"
 
       # -- Redis Key Evictions (should be 0 with noeviction) ------------------
       - alert: RedisKeyEvictions
@@ -266,7 +266,7 @@ groups:
           description: >-
             Redis {{ $labels.instance }} evicted {{ $value | printf "%.0f" }} keys.
             This should not happen with noeviction policy. Check Redis configuration.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/redis-key-evictions"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/redis-key-evictions"
 
       # -- Redis Connected Clients High ---------------------------------------
       - alert: RedisConnectedClientsHigh
@@ -281,7 +281,7 @@ groups:
           description: >-
             Redis {{ $labels.instance }} has {{ $value | printf "%.0f" }}
             connected clients. Check for connection pool leaks.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/redis-high-clients"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/redis-high-clients"
 
   # ---------------------------------------------------------------------------
   # Container & System Resource Alerts
@@ -301,7 +301,7 @@ groups:
           description: >-
             CPU utilization on {{ $labels.instance }} has been above 80% for
             10 minutes. Check for runaway processes or consider scaling.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/high-cpu-usage"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/high-cpu-usage"
 
       # -- Critical CPU Usage (> 95% for 5m) ----------------------------------
       - alert: CriticalCPUUsage
@@ -316,7 +316,7 @@ groups:
           description: >-
             CPU utilization on {{ $labels.instance }} has been above 95% for
             5 minutes. System may become unresponsive.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/high-cpu-usage"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/high-cpu-usage"
 
       # -- High Memory Usage (> 85%) ------------------------------------------
       - alert: HighMemoryUsage
@@ -331,7 +331,7 @@ groups:
           description: >-
             Memory utilization on {{ $labels.instance }} is
             {{ $value | humanizePercentage }}. OOM killer may activate.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/high-memory-usage"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/high-memory-usage"
 
       # -- Critical Memory Usage (> 95%) --------------------------------------
       - alert: CriticalMemoryUsage
@@ -346,7 +346,7 @@ groups:
           description: >-
             Memory utilization on {{ $labels.instance }} is
             {{ $value | humanizePercentage }}. OOM kills are imminent.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/high-memory-usage"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/high-memory-usage"
 
       # -- Disk Space Running Low (< 15%) -------------------------------------
       - alert: DiskSpaceRunningLow
@@ -362,7 +362,7 @@ groups:
             Filesystem on {{ $labels.instance }} ({{ $labels.mountpoint }}) is
             at {{ $value | humanizePercentage }} utilization. Clean up logs,
             old backups, or expand disk.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/disk-space-low"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/disk-space-low"
 
       # -- Disk Space Critical (< 5%) -----------------------------------------
       - alert: DiskSpaceCritical
@@ -377,7 +377,7 @@ groups:
           description: >-
             Filesystem on {{ $labels.instance }} ({{ $labels.mountpoint }}) is
             at {{ $value | humanizePercentage }} utilization. Immediate action needed.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/disk-space-low"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/disk-space-low"
 
       # -- Container Restarting (> 3 in 10m) ----------------------------------
       - alert: ContainerRestarting
@@ -393,7 +393,7 @@ groups:
             Container {{ $labels.container }} in pod {{ $labels.pod }} has
             restarted {{ $value | printf "%.0f" }} times in the last 10 minutes.
             Check container logs for crash reasons.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/container-restarting"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/container-restarting"
 
       # -- Container OOMKilled ------------------------------------------------
       - alert: ContainerOOMKilled
@@ -408,4 +408,4 @@ groups:
           description: >-
             Container {{ $labels.container }} was terminated due to OOM.
             Increase memory limits or investigate memory leaks.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/container-oomkilled"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/container-oomkilled"

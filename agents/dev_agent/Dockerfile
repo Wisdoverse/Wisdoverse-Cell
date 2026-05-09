@@ -44,8 +44,8 @@ FROM python:3.13-slim AS runtime
 LABEL org.opencontainers.image.title="Dev Agent" \
       org.opencontainers.image.description="AI development agent for code generation and review" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
-      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
-      org.opencontainers.image.documentation="https://github.com/Wisdoverse/project-cell/docs" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/Wisdoverse-Cell" \
+      org.opencontainers.image.documentation="https://github.com/Wisdoverse/Wisdoverse-Cell/docs" \
       org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1"
 
 ARG VERSION=dev
