@@ -4,56 +4,22 @@ import Link from "next/link";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowRight, ActivityIcon } from "lucide-react";
 import { ActivityItem } from "@/entities/activity/ui/activity-item";
-import type { ActivityEvent } from "@/lib/api/types";
+import useSWR from "swr";
 
-const MOCK_EVENTS: ActivityEvent[] = [
-  {
-    id: "evt-001",
-    agent_id: "requirement-manager",
-    event_type: "requirement.extracted",
-    description: "extracted requirement REQ-042 from meeting notes",
-    payload: {},
-    timestamp: "2026-05-03T01:58:00.000Z",
-  },
-  {
-    id: "evt-002",
-    agent_id: "requirement-manager",
-    event_type: "requirement.confirmed",
-    description: "confirmed requirement REQ-038",
-    payload: {},
-    timestamp: "2026-05-03T01:55:00.000Z",
-  },
-  {
-    id: "evt-003",
-    agent_id: "requirement-manager",
-    event_type: "requirement.extracted",
-    description: "extracted requirement REQ-043 from Slack thread",
-    payload: {},
-    timestamp: "2026-05-03T01:48:00.000Z",
-  },
-  {
-    id: "evt-004",
-    agent_id: "requirement-manager",
-    event_type: "requirement.changed",
-    description: "updated priority of REQ-031 to high",
-    payload: {},
-    timestamp: "2026-05-03T01:35:00.000Z",
-  },
-  {
-    id: "evt-005",
-    agent_id: "requirement-manager",
-    event_type: "requirement.extracted",
-    description: "extracted requirement REQ-044 from customer call",
-    payload: {},
-    timestamp: "2026-05-03T01:20:00.000Z",
-  },
-];
+import { controlPlaneRunsToActivityEvents } from "@/entities/activity/model/control-plane-events";
+import { listControlPlaneRuns } from "@/entities/control-plane";
 
 export function RecentActivity() {
   const t = useTranslations("home");
+  const ta = useTranslations("activity");
   const locale = useLocale();
+  const { data } = useSWR(["recent-control-plane-runs", 5], () =>
+    listControlPlaneRuns({ limit: 5 }),
+  );
 
-  const events = MOCK_EVENTS.slice(0, 5);
+  const events = controlPlaneRunsToActivityEvents(data?.runs ?? [], (run) =>
+    ta("runEvent", { runId: run.run_id, status: run.status }),
+  );
 
   return (
     <section className="space-y-4">

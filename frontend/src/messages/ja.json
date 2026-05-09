@@ -37,6 +37,19 @@
     "messages": "メッセージ",
     "settings": "設定"
   },
+  "costUsage": {
+    "title": "コストと使用量",
+    "totalCost": "総コスト",
+    "totalTokens": "総トークン数",
+    "avgDailyCost": "日次平均",
+    "dailyCost": "日次コスト",
+    "tokenUsageByAgent": "エージェント別トークン使用量",
+    "noCostData": "この期間のコスト記録はありません。",
+    "noTokenData": "この期間のトークン使用量はありません。",
+    "agent": "エージェント",
+    "tokens": "トークン",
+    "cost": "コスト"
+  },
   "dashboard": {
     "title": "ダッシュボード",
     "pending": "確認待ち",
@@ -67,7 +80,8 @@
     "fleetTotal": "合計",
     "fleet_running": "実行中",
     "fleet_idle": "待機中",
-    "fleet_error": "エラー"
+    "fleet_error": "エラー",
+    "fleet_stopped": "停止中"
   },
   "requirements": {
     "title": "要件管理",
@@ -183,6 +197,24 @@
     "extracted": "抽出済み",
     "sessionLoadError": "セッションの読み込みに失敗しました"
   },
+  "settings": {
+    "title": "設定",
+    "account": "アカウント",
+    "accountDescription": "現在サインイン中のオペレーター",
+    "name": "名前",
+    "email": "メール",
+    "role": "ロール",
+    "session": "セッション",
+    "sessionActive": "有効",
+    "signOut": "ログアウト",
+    "preferences": "環境設定",
+    "preferencesDescription": "インターフェース既定値",
+    "theme": "テーマ",
+    "themeSystem": "システム",
+    "themeLight": "ライト",
+    "themeDark": "ダーク",
+    "language": "言語"
+  },
   "auth": {
     "login": "ログイン",
     "logout": "ログアウト",
@@ -237,7 +269,10 @@
     "yesterday": "昨日",
     "allDomains": "すべてのドメイン",
     "noActivity": "アクティビティはありません",
-    "noActivityDescription": "エージェントのアクティビティがここに表示されます。"
+    "noActivityDescription": "エージェントのアクティビティがここに表示されます。",
+    "loading": "アクティビティを読み込み中...",
+    "loadError": "アクティビティを読み込めません。",
+    "runEvent": "実行 {runId} は {status} です"
   },
   "events": {
     "requirementConfirmed": "要件が確認されました",
@@ -347,7 +382,14 @@
     "createSuccess": "エージェントを作成しました",
     "wakeAgent": "起動",
     "wakeSuccess": "エージェントを起動しました: {runId}",
-    "controlPlaneLoadError": "コントロールプレーンのエージェント一覧を読み込めません。ローカル定義のみ表示します。"
+    "startAgent": "開始",
+    "restartAgent": "再起動",
+    "stopAgent": "停止",
+    "startSuccess": "エージェントを開始しました: {runId}",
+    "restartSuccess": "エージェントを再起動しました: {runId}",
+    "stopSuccess": "エージェントを停止しました",
+    "controlPlaneLoadError": "コントロールプレーンのエージェント一覧を読み込めません。ローカル定義のみ表示します。",
+    "runtimeLoadError": "ライブ実行ステータスを読み込めません。"
   },
   "agentDetail": {
     "backToFleet": "フリート",
@@ -361,6 +403,11 @@
     "uptime": "稼働時間",
     "connectedAgents": "接続エージェント",
     "noConnections": "接続なし",
+    "loadingEvents": "イベントを読み込み中...",
+    "eventsLoadError": "イベントを読み込めません。",
+    "noEvents": "このエージェントの実イベントは記録されていません。",
+    "runEvent": "実行 {runId} は {status} です",
+    "runtimeLoadError": "ライブ実行ステータスを読み込めません。",
     "notFound": "エージェントが見つかりません",
     "agentId": "エージェントID",
     "domain": "ドメイン",

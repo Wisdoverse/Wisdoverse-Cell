@@ -43,6 +43,18 @@ class CircuitBreakerStatusResponse(BaseModel):
     last_failure_time: Optional[str]
 
 
+def _format_last_failure_time(value: object) -> Optional[str]:
+    """Normalize circuit-breaker timestamps for the public API contract."""
+
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, int | float):
+        return datetime.fromtimestamp(value, UTC).isoformat()
+    return str(value)
+
+
 @router.get("/llm-usage", response_model=LLMUsageSummaryResponse)
 async def get_llm_usage(
     date: Optional[str] = Query(
@@ -85,10 +97,10 @@ async def get_circuit_breaker_status():
 
     return CircuitBreakerStatusResponse(
         state=stats["state"],
-        failures=stats["failures"],
+        failures=stats.get("failures", stats.get("failure_count", 0)),
         failure_threshold=stats["failure_threshold"],
         recovery_timeout=stats["recovery_timeout"],
-        last_failure_time=stats.get("last_failure_time")
+        last_failure_time=_format_last_failure_time(stats.get("last_failure_time"))
     )
 
 

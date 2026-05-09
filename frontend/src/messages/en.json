@@ -37,6 +37,19 @@
     "messages": "Messages",
     "settings": "Settings"
   },
+  "costUsage": {
+    "title": "Cost & Usage",
+    "totalCost": "Total Cost",
+    "totalTokens": "Total Tokens",
+    "avgDailyCost": "Avg / Day",
+    "dailyCost": "Daily Cost",
+    "tokenUsageByAgent": "Token Usage by Agent",
+    "noCostData": "No cost recorded for this period.",
+    "noTokenData": "No token usage recorded for this period.",
+    "agent": "Agent",
+    "tokens": "Tokens",
+    "cost": "Cost"
+  },
   "dashboard": {
     "title": "Dashboard",
     "pending": "Pending",
@@ -67,7 +80,8 @@
     "fleetTotal": "Total",
     "fleet_running": "Running",
     "fleet_idle": "Idle",
-    "fleet_error": "Error"
+    "fleet_error": "Error",
+    "fleet_stopped": "Stopped"
   },
   "requirements": {
     "title": "Requirements",
@@ -183,6 +197,24 @@
     "extracted": "Extracted",
     "sessionLoadError": "Failed to load session"
   },
+  "settings": {
+    "title": "Settings",
+    "account": "Account",
+    "accountDescription": "Current signed-in operator",
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "session": "Session",
+    "sessionActive": "Active",
+    "signOut": "Sign out",
+    "preferences": "Preferences",
+    "preferencesDescription": "Interface defaults",
+    "theme": "Theme",
+    "themeSystem": "System",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "language": "Language"
+  },
   "auth": {
     "login": "Login",
     "logout": "Logout",
@@ -237,7 +269,10 @@
     "yesterday": "Yesterday",
     "allDomains": "All Domains",
     "noActivity": "No activity yet",
-    "noActivityDescription": "Activity from your agents will appear here."
+    "noActivityDescription": "Activity from your agents will appear here.",
+    "loading": "Loading activity...",
+    "loadError": "Failed to load activity.",
+    "runEvent": "run {runId} is {status}"
   },
   "events": {
     "requirementConfirmed": "Requirement confirmed",
@@ -347,7 +382,14 @@
     "createSuccess": "Agent created",
     "wakeAgent": "Wake",
     "wakeSuccess": "Woke agent, run {runId}",
-    "controlPlaneLoadError": "Failed to load control-plane agents. Showing local built-ins only."
+    "startAgent": "Start",
+    "restartAgent": "Restart",
+    "stopAgent": "Stop",
+    "startSuccess": "Started agent, run {runId}",
+    "restartSuccess": "Restarted agent, run {runId}",
+    "stopSuccess": "Stopped agent",
+    "controlPlaneLoadError": "Failed to load control-plane agents. Showing local built-ins only.",
+    "runtimeLoadError": "Failed to load live agent runtime status."
   },
   "agentDetail": {
     "backToFleet": "Fleet",
@@ -361,6 +403,11 @@
     "uptime": "Uptime",
     "connectedAgents": "Connected Agents",
     "noConnections": "No connections",
+    "loadingEvents": "Loading events...",
+    "eventsLoadError": "Failed to load events.",
+    "noEvents": "No real events recorded for this agent.",
+    "runEvent": "run {runId} is {status}",
+    "runtimeLoadError": "Failed to load live runtime status.",
     "notFound": "Agent not found",
     "agentId": "Agent ID",
     "domain": "Domain",

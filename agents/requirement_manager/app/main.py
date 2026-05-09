@@ -5,6 +5,7 @@ from shared.app import AgentRuntime, create_agent_app
 from shared.app.plugins.infra_health import InfraHealthPlugin
 from shared.app.plugins.vector_store import VectorCollection, VectorStorePlugin
 from shared.config import settings
+from shared.infra.event_bus import event_bus
 from shared.integrations.feishu.cards.requirement import FeishuRequirementCardRenderer
 from shared.integrations.feishu.client import get_feishu_client
 from shared.integrations.feishu.router import router as feishu_router
@@ -20,6 +21,7 @@ from ..api import (
     requirements_router,
     webui_router,
 )
+from ..db.database import db_manager
 from ..db.vector_store import vector_store
 from ..service import agent
 from .plugins import (
@@ -66,6 +68,8 @@ app = create_agent_app(
     ],
     plugins=[
         InfraHealthPlugin(
+            db_manager=db_manager,
+            event_bus=event_bus,
             milvus_uri=settings.milvus_uri,
             check_milvus=True,
             check_nats=settings.event_bus_backend == "nats",

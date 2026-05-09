@@ -3,15 +3,46 @@
 import Link from "next/link";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowRight, InboxIcon } from "lucide-react";
+import useSWR from "swr";
+
 import { ApprovalCard } from "@/entities/approval/ui/approval-card";
-import { useApprovals } from "@/entities/approval/model/use-approvals";
+import { listControlPlaneApprovals, type ControlPlaneApproval } from "@/entities/control-plane";
+import type { ApprovalRequest } from "@/lib/api/types";
+
+function approvalUrgency(approval: ControlPlaneApproval): ApprovalRequest["urgency"] {
+  const urgency = approval.metadata.urgency;
+  if (urgency === "urgent" || urgency === "normal" || urgency === "low") {
+    return urgency;
+  }
+  return "normal";
+}
+
+function toApprovalRequest(approval: ControlPlaneApproval): ApprovalRequest {
+  return {
+    id: approval.approval_id,
+    source_agent_id: approval.source_agent_id,
+    approval_type: approval.category,
+    title: approval.proposed_action,
+    summary: approval.reason || approval.risk,
+    context_link: approval.artifact_links[0],
+    urgency: approvalUrgency(approval),
+    status: "pending",
+    created_at: approval.created_at,
+    resolved_at: approval.resolved_at ?? undefined,
+    resolved_by: approval.resolved_by ?? undefined,
+  };
+}
 
 export function PendingApprovals() {
   const t = useTranslations("home");
+  const tc = useTranslations("common");
   const locale = useLocale();
-  const { data, isLoading } = useApprovals({ status: "pending" });
+  const { data, error, isLoading } = useSWR(
+    ["home-control-plane-approvals", "pending"],
+    () => listControlPlaneApprovals({ status: "pending", limit: 200 }),
+  );
 
-  const approvals = data?.approvals ?? [];
+  const approvals = (data?.approvals ?? []).map(toApprovalRequest);
   const displayApprovals = approvals.slice(0, 3);
 
   return (
@@ -43,6 +74,8 @@ export function PendingApprovals() {
             />
           ))}
         </div>
+      ) : error ? (
+        <p className="text-sm text-destructive">{tc("error")}</p>
       ) : displayApprovals.length > 0 ? (
         <div className="space-y-3">
           {displayApprovals.map((approval) => (

@@ -8,6 +8,7 @@ const intlMiddleware = createIntlMiddleware(routing);
 
 // Paths that don't require authentication
 const publicPaths = ["/login"];
+const locales = routing.locales as readonly string[];
 
 function isPublicPath(pathname: string): boolean {
   // Remove locale prefix to check the actual path
@@ -18,31 +19,48 @@ function isPublicPath(pathname: string): boolean {
   return publicPaths.some((p) => pathWithoutLocale.startsWith(p));
 }
 
+function localeFromPath(pathname: string): string {
+  const locale = pathname.split("/")[1];
+  return locales.includes(locale) ? locale : routing.defaultLocale;
+}
+
+function hasLocalePrefix(pathname: string): boolean {
+  return locales.includes(pathname.split("/")[1]);
+}
+
+function localizedDestination(pathname: string, locale: string): string {
+  if (pathname === "/" || pathname === `/${locale}`) {
+    return `/${locale}/home`;
+  }
+  if (!hasLocalePrefix(pathname)) {
+    return `/${locale}${pathname}`;
+  }
+  return pathname;
+}
+
 export default auth((req) => {
   const { pathname } = req.nextUrl;
-
-  // Run the intl middleware first to handle locale routing
-  const intlResponse = intlMiddleware(req as unknown as NextRequest);
+  const locale = localeFromPath(pathname);
 
   // Skip auth check for public paths
   if (isPublicPath(pathname)) {
-    return intlResponse;
+    return intlMiddleware(req as unknown as NextRequest);
   }
+
+  const destination = localizedDestination(pathname, locale);
 
   // Check if the user is authenticated
   if (!req.auth) {
-    // Determine the locale from the URL or default to the first locale
-    const segments = pathname.split("/");
-    const locale = (routing.locales as readonly string[]).includes(segments[1])
-      ? segments[1]
-      : routing.defaultLocale;
-
     const loginUrl = new URL(`/${locale}/login`, req.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
+    loginUrl.searchParams.set("callbackUrl", destination);
     return NextResponse.redirect(loginUrl);
   }
 
-  return intlResponse;
+  if (destination !== pathname) {
+    return NextResponse.redirect(new URL(destination, req.url));
+  }
+
+  return intlMiddleware(req as unknown as NextRequest);
 });
 
 export const config = {

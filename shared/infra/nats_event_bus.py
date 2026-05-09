@@ -13,6 +13,9 @@ from nats.js.api import (
     AckPolicy,
     ConsumerConfig,
     DeliverPolicy,
+    DiscardPolicy,
+    RetentionPolicy,
+    StorageType,
     StreamConfig,
 )
 from nats.js.errors import NotFoundError
@@ -98,18 +101,18 @@ class NATSEventBus:
 
         # Ensure the PROJECT_EVENTS stream exists
         try:
-            await self._js.find_stream_info_by_subject(f"{SUBJECT_PREFIX}.>")
+            await self._find_stream_by_subject(f"{SUBJECT_PREFIX}.>")
             logger.info("nats_stream_found", stream=STREAM_NAME)
         except NotFoundError:
             await self._js.add_stream(
                 StreamConfig(
                     name=STREAM_NAME,
                     subjects=[f"{SUBJECT_PREFIX}.>"],
-                    retention="limits",
-                    max_age=7 * 24 * 3600 * 1_000_000_000,  # 7 days in nanoseconds
-                    storage="file",
+                    retention=RetentionPolicy.LIMITS,
+                    max_age=7 * 24 * 3600,
+                    storage=StorageType.FILE,
                     num_replicas=self._stream_replicas,
-                    discard="old",
+                    discard=DiscardPolicy.OLD,
                 )
             )
             logger.info(
@@ -119,6 +122,21 @@ class NATSEventBus:
             )
 
         logger.info("nats_event_bus_connected", servers=servers)
+
+    async def _find_stream_by_subject(self, subject: str) -> None:
+        """Find a stream for *subject* across nats-py JetStream API versions."""
+        self._ensure_connected()
+        find_stream_info = getattr(self._js, "find_stream_info_by_subject", None)
+        if callable(find_stream_info):
+            await find_stream_info(subject)
+            return
+
+        find_stream_name = getattr(self._js, "find_stream_name_by_subject", None)
+        if callable(find_stream_name):
+            await find_stream_name(subject)
+            return
+
+        await self._js.stream_info(STREAM_NAME)
 
     async def disconnect(self) -> None:
         """Close NATS connection."""

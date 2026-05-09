@@ -131,11 +131,30 @@ export interface EnhancedStatsResponse {
 }
 
 export interface LLMUsageResponse {
+  date?: string;
   total_cost_usd: number;
   total_input_tokens: number;
   total_output_tokens: number;
   total_calls: number;
+  success_calls?: number;
+  failed_calls?: number;
   avg_latency_ms: number;
+  by_agent?: Record<
+    string,
+    {
+      calls: number;
+      cost_usd: number;
+      input_tokens: number;
+      output_tokens: number;
+    }
+  >;
+  by_task_type?: Record<
+    string,
+    {
+      calls: number;
+      cost_usd: number;
+    }
+  >;
 }
 
 export interface CircuitBreakerResponse {

@@ -1,0 +1,98 @@
+import type {
+  AgentRuntimeStatus,
+  ControlPlaneAgentDefinition,
+  ControlPlaneAgentRun,
+  ControlPlaneWorkItem,
+} from "@/lib/api/types";
+
+const RUNNING_RUN_STATUSES = new Set(["pending", "running"]);
+const FAILED_RUN_STATUSES = new Set(["failed", "timed_out"]);
+const OPEN_WORK_STATUSES = new Set([
+  "queued",
+  "ready",
+  "running",
+  "blocked",
+  "awaiting_approval",
+]);
+const STOPPED_AGENT_STATUSES = new Set([
+  "paused",
+  "stopped",
+  "disabled",
+  "inactive",
+  "retired",
+]);
+
+function latestRun(runs: ControlPlaneAgentRun[]): ControlPlaneAgentRun | undefined {
+  return runs.reduce<ControlPlaneAgentRun | undefined>((latest, run) => {
+    if (!latest) return run;
+    return new Date(run.started_at).getTime() > new Date(latest.started_at).getTime()
+      ? run
+      : latest;
+  }, undefined);
+}
+
+function latestTimestamp(
+  agent: ControlPlaneAgentDefinition,
+  runs: ControlPlaneAgentRun[],
+  workItems: ControlPlaneWorkItem[],
+): string {
+  const timestamps = [
+    agent.updated_at,
+    ...runs.map((run) => run.completed_at ?? run.started_at),
+    ...workItems.map((workItem) => workItem.updated_at),
+  ];
+  return timestamps.reduce((latest, value) =>
+    new Date(value).getTime() > new Date(latest).getTime() ? value : latest,
+  );
+}
+
+export function controlPlaneRuntimeForAgent(
+  agent: ControlPlaneAgentDefinition,
+  runs: ControlPlaneAgentRun[],
+  workItems: ControlPlaneWorkItem[],
+): AgentRuntimeStatus {
+  const latest = latestRun(runs);
+  const failedWorkItems = workItems.filter((workItem) => workItem.status === "failed");
+  const failedRunCount = runs.filter((run) => FAILED_RUN_STATUSES.has(run.status)).length;
+  const pendingWorkCount = workItems.filter((workItem) =>
+    OPEN_WORK_STATUSES.has(workItem.status),
+  ).length;
+
+  const status =
+    latest && RUNNING_RUN_STATUSES.has(latest.status)
+      ? "running"
+      : (latest && FAILED_RUN_STATUSES.has(latest.status)) || failedWorkItems.length > 0
+        ? "error"
+        : STOPPED_AGENT_STATUSES.has(agent.status)
+          ? "stopped"
+          : "idle";
+
+  return {
+    agent_id: agent.agent_id,
+    status,
+    health: status === "running" ? 100 : status === "idle" ? 50 : 0,
+    task_count: runs.length,
+    pending_count: pendingWorkCount,
+    error_count: failedRunCount + failedWorkItems.length,
+    uptime_seconds: 0,
+    last_active_at: latestTimestamp(agent, runs, workItems),
+  };
+}
+
+export function runsForAgent(
+  runs: ControlPlaneAgentRun[],
+  agentId: string,
+): ControlPlaneAgentRun[] {
+  return runs.filter((run) => run.agent_id === agentId);
+}
+
+export function workItemsForAgent(
+  workItems: ControlPlaneWorkItem[],
+  agentId: string,
+): ControlPlaneWorkItem[] {
+  return workItems.filter((workItem) => workItem.owner_agent_id === agentId);
+}
+
+export function countOpenWorkItems(workItems: ControlPlaneWorkItem[]): number {
+  return workItems.filter((workItem) => OPEN_WORK_STATUSES.has(workItem.status)).length;
+}

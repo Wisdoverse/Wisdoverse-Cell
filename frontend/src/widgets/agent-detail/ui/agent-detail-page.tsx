@@ -7,11 +7,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import {
   AGENT_REGISTRY,
   agentDefinitionToMeta,
+  useAgentDetail,
   useControlPlaneAgent,
   type AgentRuntimeStatus,
   type AgentStatus,
 } from "@/entities/agent";
-import { AgentWakeupButton } from "@/features/agent-wakeup";
+import {
+  useControlPlaneRuns,
+  useControlPlaneWorkItems,
+  type ControlPlaneAgentRun,
+  type ControlPlaneWorkItem,
+  type WorkItemStatus,
+} from "@/entities/control-plane";
+import { AgentControlActions } from "@/features/agent-wakeup";
 import { AgentConfig } from "./agent-config";
 import { AgentDetailLayout } from "./agent-detail-layout";
 import { AgentEvents } from "./agent-events";
@@ -29,10 +37,73 @@ function mapControlPlaneStatus(status: string): AgentStatus {
   return "idle";
 }
 
+const OPEN_WORK_STATUSES: WorkItemStatus[] = [
+  "queued",
+  "ready",
+  "running",
+  "blocked",
+  "awaiting_approval",
+];
+
+function isFailedRun(run: ControlPlaneAgentRun): boolean {
+  return run.status === "failed" || run.status === "timed_out";
+}
+
+function latestTimestamp(
+  runtime: AgentRuntimeStatus,
+  runs: ControlPlaneAgentRun[],
+  workItems: ControlPlaneWorkItem[],
+): string {
+  const values: string[] = [
+    runtime.last_active_at,
+    ...runs.flatMap((run) =>
+      run.completed_at ? [run.started_at, run.completed_at] : [run.started_at],
+    ),
+    ...workItems.map((workItem) => workItem.updated_at),
+  ];
+  return values.reduce((latest, value) =>
+    new Date(value).getTime() > new Date(latest).getTime() ? value : latest,
+  );
+}
+
+function runtimeWithControlPlaneCounts(input: {
+  runtime: AgentRuntimeStatus;
+  runs?: ControlPlaneAgentRun[];
+  workItems?: ControlPlaneWorkItem[];
+}): AgentRuntimeStatus {
+  const runs = input.runs;
+  const workItems = input.workItems;
+  const failedRuns = runs?.filter(isFailedRun).length ?? 0;
+  const failedWorkItems =
+    workItems?.filter((workItem) => workItem.status === "failed").length ?? 0;
+
+  return {
+    ...input.runtime,
+    task_count: runs ? runs.length : input.runtime.task_count,
+    pending_count: workItems
+      ? workItems.filter((workItem) => OPEN_WORK_STATUSES.includes(workItem.status))
+          .length
+      : input.runtime.pending_count,
+    error_count: runs || workItems
+      ? failedRuns + failedWorkItems
+      : input.runtime.error_count,
+    last_active_at:
+      runs || workItems
+        ? latestTimestamp(input.runtime, runs ?? [], workItems ?? [])
+        : input.runtime.last_active_at,
+  };
+}
+
 export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
   const t = useTranslations("agentDetail");
   const tc = useTranslations("common");
   const builtinAgent = AGENT_REGISTRY[agentId];
+  const runtimeQuery = useAgentDetail(agentId);
+  const runsQuery = useControlPlaneRuns({ agent_id: agentId, limit: 100 });
+  const workItemsQuery = useControlPlaneWorkItems({
+    owner_agent_id: agentId,
+    limit: 100,
+  });
   const { data, error, isLoading, mutate } = useControlPlaneAgent(
     builtinAgent ? undefined : agentId,
   );
@@ -42,10 +113,18 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
     [builtinAgent, data],
   );
 
-  if (!agentMeta && isLoading) {
+  if ((!agentMeta && isLoading) || (!runtimeQuery.data && runtimeQuery.isLoading)) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground">
         <p>{tc("loading")}</p>
+      </div>
+    );
+  }
+
+  if (runtimeQuery.error) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground">
+        <p>{t("runtimeLoadError")}</p>
       </div>
     );
   }
@@ -58,17 +137,37 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
     );
   }
 
-  const status = data ? mapControlPlaneStatus(data.status) : "running";
-  const runtime: AgentRuntimeStatus = {
-    agent_id: agentId,
-    status,
-    health: status === "stopped" ? 0 : status === "error" ? 35 : 92,
-    task_count: data ? 0 : 142,
-    pending_count: data ? 0 : 8,
-    error_count: status === "error" ? 1 : data ? 0 : 2,
-    uptime_seconds: data ? 0 : 259200,
-    last_active_at: data?.updated_at ?? new Date().toISOString(),
-  };
+  const controlPlaneStatus = data ? mapControlPlaneStatus(data.status) : "stopped";
+  const baseRuntime =
+    agentMeta.source === "control-plane"
+      ? {
+          agent_id: agentId,
+          status: controlPlaneStatus,
+          health:
+            controlPlaneStatus === "running" || controlPlaneStatus === "idle"
+              ? 90
+              : 0,
+          task_count: 0,
+          pending_count: 0,
+          error_count: controlPlaneStatus === "error" ? 1 : 0,
+          uptime_seconds: 0,
+          last_active_at: data?.updated_at ?? new Date(0).toISOString(),
+        }
+      : runtimeQuery.data ?? {
+          agent_id: agentId,
+          status: controlPlaneStatus,
+          health: controlPlaneStatus === "running" ? 100 : 0,
+          task_count: 0,
+          pending_count: 0,
+          error_count: 0,
+          uptime_seconds: 0,
+          last_active_at: data?.updated_at ?? new Date(0).toISOString(),
+        };
+  const runtime = runtimeWithControlPlaneCounts({
+    runtime: baseRuntime,
+    runs: runsQuery.data?.runs,
+    workItems: workItemsQuery.data?.work_items,
+  });
 
   return (
     <div className="space-y-6">
@@ -77,7 +176,17 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
         runtime={runtime}
         actions={
           agentMeta.source === "control-plane" ? (
-            <AgentWakeupButton agentId={agentId} onWoken={() => mutate()} />
+            <AgentControlActions
+              agentId={agentId}
+              status={data?.status}
+              onChanged={() =>
+                Promise.all([
+                  mutate(),
+                  runsQuery.mutate(),
+                  workItemsQuery.mutate(),
+                ]).then(() => undefined)
+              }
+            />
           ) : undefined
         }
       />
