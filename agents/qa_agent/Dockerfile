@@ -31,7 +31,7 @@ FROM python:3.13-slim AS runtime
 LABEL org.opencontainers.image.title="QA Agent" \
       org.opencontainers.image.description="Automated acceptance verification for AI-generated code" \
       org.opencontainers.image.vendor="Wisdoverse Cell" \
-      org.opencontainers.image.source="https://github.com/Wisdoverse/project-cell" \
+      org.opencontainers.image.source="https://github.com/Wisdoverse/Wisdoverse-Cell" \
       org.opencontainers.image.licenses="LicenseRef-Wisdoverse-Cell-BSL-1.1"
 
 RUN groupadd --gid 1000 appgroup \

@@ -41,7 +41,7 @@ groups:
             No Feishu webhook events have been received in the last 30 minutes
             during business hours (UTC+8 09:00-18:00). The webhook endpoint
             may be misconfigured or Feishu may have stopped sending events.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/no-feishu-messages"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/no-feishu-messages"
 
       # -- Feishu Webhook Error Rate ------------------------------------------
       - alert: FeishuWebhookErrorRate
@@ -61,7 +61,7 @@ groups:
             {{ $value | humanizePercentage }} of Feishu webhook requests are
             failing. Check signature verification, payload parsing, and
             downstream service health.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/feishu-webhook-errors"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/feishu-webhook-errors"
 
       # -- Feishu API Rate Limited --------------------------------------------
       - alert: FeishuAPIRateLimited
@@ -76,7 +76,7 @@ groups:
           description: >-
             {{ $value | printf "%.0f" }} Feishu API requests were rate-limited
             in the last 5 minutes. Implement backoff or reduce API call frequency.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/feishu-rate-limited"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/feishu-rate-limited"
 
   # ---------------------------------------------------------------------------
   # Sync Pipeline Alerts
@@ -97,7 +97,7 @@ groups:
             {{ $value | printf "%.0f" }} sync failures occurred in the last hour.
             Data between OpenProject and Feishu Bitable may be out of sync.
             Check sync-module logs for details.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/sync-failure"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/sync-failure"
 
       # -- Sync Failure Critical (multiple in short window) -------------------
       - alert: SyncFailureCritical
@@ -112,7 +112,7 @@ groups:
           description: >-
             {{ $value | printf "%.0f" }} sync failures in 15 minutes indicates
             a systemic issue. Sync pipeline may need manual intervention.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/sync-failure"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/sync-failure"
 
       # -- Sync Duration Excessive --------------------------------------------
       - alert: SyncDurationExcessive
@@ -127,7 +127,7 @@ groups:
           description: >-
             Sync operations are taking {{ $value | humanizeDuration }} at P95.
             This may indicate API throttling or large data volumes.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/sync-slow"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/sync-slow"
 
   # ---------------------------------------------------------------------------
   # Card Callback Alerts
@@ -148,7 +148,7 @@ groups:
             Card callback P95 latency is {{ $value | humanizeDuration }}.
             Feishu enforces a ~15s timeout on card callbacks; responses above
             12s risk timing out and showing errors to users.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/card-callback-slow"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/card-callback-slow"
 
       # -- Card Callback Critical (P95 > 14s, near Feishu timeout) -----------
       - alert: CardCallbackCritical
@@ -164,7 +164,7 @@ groups:
             Card callback P95 latency is {{ $value | humanizeDuration }},
             extremely close to the ~15s Feishu timeout. Users are likely
             seeing callback failures.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/card-callback-slow"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/card-callback-slow"
 
       # -- Card Callback Errors -----------------------------------------------
       - alert: CardCallbackErrors
@@ -179,7 +179,7 @@ groups:
           description: >-
             {{ $value | printf "%.0f" }} card callback errors in the last 5 minutes.
             Users may see broken interactive cards.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/card-callback-errors"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/card-callback-errors"
 
   # ---------------------------------------------------------------------------
   # Daily Report & Scheduled Task Alerts
@@ -200,7 +200,7 @@ groups:
             {{ $value | printf "%.0f" }} daily report push failures in the last hour.
             Team members may not receive their daily status update.
             Check analysis-module logs and Feishu API connectivity.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/daily-report-failure"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/daily-report-failure"
 
       # -- Daily Report Push Not Executed (business day) ----------------------
       - alert: DailyReportNotSent
@@ -219,7 +219,7 @@ groups:
             No daily report push has been recorded in the last 24 hours.
             The scheduled task may have failed silently or the cron trigger
             is misconfigured.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/daily-report-not-sent"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/daily-report-not-sent"
 
       # -- Task Decomposition Failure -----------------------------------------
       - alert: TaskDecompositionFailure
@@ -234,4 +234,4 @@ groups:
           description: >-
             {{ $value | printf "%.0f" }} task decomposition failures in the last
             hour. PM-agent may be unable to break down requirements into tasks.
-          runbook_url: "https://github.com/Wisdoverse/project-cell/blob/main/docs/guides/incident-response.md#/task-decomposition-failure"
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/task-decomposition-failure"

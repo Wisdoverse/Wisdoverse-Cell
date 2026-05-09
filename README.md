@@ -1,124 +1,78 @@
 # Wisdoverse Cell
 
-Wisdoverse Cell is a source-available control plane for AI-native companies:
-humans set goals and approve high-leverage decisions while agent services
-handle repeatable operational work with traces, budgets, approvals, and audit
-trails.
+Wisdoverse Cell turns company operations into governed, autonomous agent runs, allowing teams to
+manage goals and approvals instead of supervising agents.
 
-It packages a FastAPI agent runtime, a Rust/Axum gateway, a Next.js console, and
-PostgreSQL/Redis/NATS/Milvus infrastructure for requirement extraction, task
-decomposition, Feishu/OpenProject sync, QA checks, and self-evolution loops.
+_Wisdoverse Cell models goals, work items, agent roles, runs, approvals, budgets, and audit trails
+as first-class control-plane objects. Humans set direction and approve high-leverage decisions while
+agent services handle repeatable operational work with full traces, cost controls, and proof of
+work. Each agent run produces verifiable evidence: events, artifacts, approvals, and audit logs._
 
 > [!WARNING]
-> Wisdoverse Cell is an engineering preview for trusted development and
-> evaluation environments. Review [SECURITY.md](./SECURITY.md) before
-> production-like deployment.
-
-## Agent Handoff
-
-New implementation agents should read the root contracts before entering module
-code:
-
-| Read first | Use for |
-|------------|---------|
-| [SPEC.md](./SPEC.md) | Root service contract, domain model, and implementation requirements |
-| [docs/INDEX.md](./docs/INDEX.md) | Documentation map for product, architecture, specs, guides, and ADRs |
-| [docs/guides/agent-development.md](./docs/guides/agent-development.md) | New-agent service pattern, tests, and deployment checklist |
-
-Concise continuation prompt:
-
-> Continue Wisdoverse Cell from the current repository state. Read `SPEC.md`
-> and `docs/INDEX.md` first. Preserve the `SPEC.md` contract, keep runtime
-> identifiers such as `projectcell`, `project-cell`, and `project_cell` stable
-> unless a migration is explicitly planned, and verify changes with the
-> narrowest relevant tests.
-
-### Frontend Console Direction
-
-The frontend is an operator console, not a marketing site. Prefer a compact,
-high-signal workbench where goals, work items, agent runs, approvals, budgets,
-audit evidence, and integration health are visible in one scannable flow. Useful
-patterns include split-pane inspection, status rails, timeline and replay
-views, inline approvals, and proof-of-work panels. Avoid decorative hero
-surfaces, low-information cards, and views that hide operational evidence behind
-chat alone.
+> Wisdoverse Cell is an engineering preview for trusted development and evaluation environments.
+> Review [SECURITY.md](./SECURITY.md) before any production-like deployment.
 
 ## Running Wisdoverse Cell
 
 ### Requirements
 
-- Docker and Docker Compose for local infrastructure.
-- Python 3.11+, Rust 1.86+, and Node.js/npm for local development.
-- LiteLLM provider keys and other secrets configured in `.env`.
+Wisdoverse Cell is built around an explicit service contract ([SPEC.md](./SPEC.md)) and a control
+plane vocabulary ([docs/overview/product-model.md](./docs/overview/product-model.md)). Implementing
+or extending it works best when your coding agent has read both before touching code.
 
-### Option 1. Docker Compose stack
+Local development requires Docker, Python 3.11+, Rust 1.86+, Node.js, and LiteLLM provider keys.
+
+### Option 1. Build your own
+
+Hand the contract to your coding agent and let it implement Wisdoverse Cell in the language and
+runtime of your choice:
+
+> Implement Wisdoverse Cell according to the following spec:
+> https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/SPEC.md
+>
+> Preserve the runtime identifiers `projectcell`, `project-cell`, and `project_cell`. Treat the
+> documents under `docs/overview/` and `docs/guides/` as the operator-facing contract.
+
+### Option 2. Use the reference implementation
+
+This repository ships a FastAPI agent runtime, a Rust/Axum gateway, a Next.js operator console, and
+PostgreSQL/Redis/NATS/Milvus infrastructure.
 
 ```bash
-git clone https://github.com/Wisdoverse/project-cell.git
-cd project-cell
+git clone https://github.com/Wisdoverse/Wisdoverse-Cell.git
+cd Wisdoverse-Cell
 cp .env.example .env
-# Fill in POSTGRES_PASSWORD, AUTH_SECRET, and provider keys for the selected LiteLLM models.
 make up-dev
 ```
 
-Default local endpoints:
-
-- Compose ingress and frontend: <http://localhost>
-- Compose API docs: <http://localhost/docs> when `DEBUG=true`
-- Traefik dashboard: <http://localhost:8081/dashboard/>
-- Local frontend dev server: <http://localhost:3000> when running `make frontend-dev`
-- Grafana: <http://localhost:3001> when running `make monitoring-up`
-
-### Option 2. Local development
+For local Python development against shared infra:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
 make up-infra
 make dev
 ```
 
-Additional services:
+You can also ask your coding agent to bring up the reference implementation:
 
-```bash
-make rust-gateway-run
-make frontend-dev
-```
+> Set up Wisdoverse Cell for my environment based on
+> https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/README.md and
+> https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/operations.md
 
-## What Is Included
+## Agent Handoff
 
-- `agents/`: real business runtime agents: requirement manager, PJM, QA, and Dev.
-- `services/`: non-agent gateways and orchestration workers.
-- `shared/`: runtime, schemas, integrations, messaging, observability, and
-  infra clients, plus support capabilities that are not business agents.
-- `rust/gateway/`: default Rust gateway for edge HTTP and webhook entry points;
-  it preserves the existing gateway routes and calls Python requirement services
-  through the shared gRPC contract.
-- `frontend/`: Next.js console for operators.
-- `docs/`: product model, architecture, guides, ADRs, and specs.
-- `docker/`: Compose assets for local and production-style deployments.
+Implementation agents should read the root contracts before entering module code:
 
-See [Project layout](./docs/overview/project-layout.md) for the full source
-root map, structure cleanup roadmap, and local-only file policy.
-
-## Documentation
-
-- [SPEC.md](./SPEC.md)
-- [docs/INDEX.md](./docs/INDEX.md)
-- [Product model](./docs/overview/product-model.md)
-- [Architecture overview](./docs/overview/architecture.md)
-- [Agent development guide](./docs/guides/agent-development.md)
-- [Operations guide](./docs/guides/operations.md)
-- [Security policy](./SECURITY.md)
-- [Contributing guide](./CONTRIBUTING.md)
+| Read first | Use for |
+|------------|---------|
+| [SPEC.md](./SPEC.md) | Service contract, domain model, normative requirements |
+| [docs/INDEX.md](./docs/INDEX.md) | Documentation map: product, architecture, guides, ADRs |
+| [docs/guides/agent-development.md](./docs/guides/agent-development.md) | New-agent service pattern, tests, deployment checklist |
+| [AGENTS.md](./AGENTS.md) | Repository-level rules for AI agents working in this codebase |
 
 ## License
 
-Wisdoverse Cell is source-available under the Wisdoverse Cell Business Source
-License 1.1 (`LicenseRef-Wisdoverse-Cell-BSL-1.1`).
-
-Each version automatically becomes available under the Apache License, Version
-2.0 four years after that version is first made publicly available. See
-[LICENSE](./LICENSE).
+Wisdoverse Cell is source-available under the Wisdoverse Cell Business Source License 1.1
+(`LicenseRef-Wisdoverse-Cell-BSL-1.1`). Each version automatically converts to Apache License 2.0
+four years after first public release. See [LICENSE](./LICENSE).
