@@ -1,0 +1,152 @@
+# Dependabot version-update config.
+# Security CVE PRs are handled by GitHub's automated security fixes
+# (Settings → Code security → Dependabot security updates). This file
+# covers routine version bumps across every ecosystem in the repo.
+#
+# Schedule: weekly Monday morning, Asia/Shanghai timezone, so update PRs
+# arrive in a single batch and don't compete with end-of-week ship work.
+# Patch + minor bumps are grouped per ecosystem to cap PR noise; major
+# bumps are split out so they get explicit review.
+
+version: 2
+
+updates:
+  # ----- Python (pip) ------------------------------------------------------
+  - package-ecosystem: pip
+    directories:
+      - "/"
+      - "/agents/requirement_manager"
+      - "/agents/pjm_agent"
+      - "/agents/qa_agent"
+      - "/agents/dev_agent"
+      - "/services/gateways/user_interaction"
+      - "/shared/capabilities/sync"
+      - "/shared/capabilities/analysis"
+      - "/shared/capabilities/evolution"
+      - "/docker/requirements"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
+    commit-message:
+      prefix: "deps(python)"
+      include: scope
+    groups:
+      python-minor-patch:
+        update-types:
+          - patch
+          - minor
+
+  # ----- Rust (Cargo) ------------------------------------------------------
+  - package-ecosystem: cargo
+    directory: "/rust"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - rust
+    commit-message:
+      prefix: "deps(rust)"
+      include: scope
+    groups:
+      rust-minor-patch:
+        update-types:
+          - patch
+          - minor
+
+  # ----- Node (npm) - frontend --------------------------------------------
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - frontend
+    commit-message:
+      prefix: "deps(frontend)"
+      include: scope
+    groups:
+      frontend-types:
+        patterns:
+          - "@types/*"
+      frontend-react:
+        patterns:
+          - react
+          - react-dom
+          - next
+          - "@next/*"
+        update-types:
+          - patch
+          - minor
+      frontend-minor-patch:
+        update-types:
+          - patch
+          - minor
+    ignore:
+      # Sentry releases ship breaking changes inside minor versions; pin and
+      # bump explicitly when upgrading.
+      - dependency-name: "@sentry/*"
+        update-types: ["version-update:semver-minor"]
+
+  # ----- Docker base images ------------------------------------------------
+  - package-ecosystem: docker
+    directories:
+      - "/docker"
+      - "/agents/requirement_manager"
+      - "/agents/pjm_agent"
+      - "/agents/qa_agent"
+      - "/agents/dev_agent"
+      - "/services/gateways/user_interaction"
+      - "/rust/gateway"
+      - "/frontend"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - docker
+    commit-message:
+      prefix: "deps(docker)"
+      include: scope
+    groups:
+      docker-base-images:
+        update-types:
+          - patch
+          - minor
+
+  # ----- GitHub Actions ----------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: "deps(actions)"
+      include: scope
+    groups:
+      actions-minor-patch:
+        update-types:
+          - patch
+          - minor
