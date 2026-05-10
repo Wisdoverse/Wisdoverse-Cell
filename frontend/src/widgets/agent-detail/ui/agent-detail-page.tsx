@@ -9,7 +9,7 @@ import {
   agentDefinitionsToMetas,
   agentDefinitionToMeta,
   getAllAgents,
-  mapControlPlaneAgentStatus,
+  mapControlPlaneLifecycleStatus,
   useAgentDetail,
   useControlPlaneAgent,
   useControlPlaneAgents,
@@ -133,15 +133,12 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
     );
   }
 
-  const controlPlaneStatus = data ? mapControlPlaneAgentStatus(data.status) : "stopped";
+  const controlPlaneStatus = data ? mapControlPlaneLifecycleStatus(data.status) : "stopped";
   const baseRuntime =
     runtimeQuery.data ?? {
       agent_id: agentId,
       status: controlPlaneStatus,
-      health:
-        controlPlaneStatus === "running" || controlPlaneStatus === "idle"
-          ? 90
-          : 0,
+      health: controlPlaneStatus === "idle" ? 60 : 0,
       task_count: 0,
       pending_count: 0,
       error_count: controlPlaneStatus === "error" ? 1 : 0,

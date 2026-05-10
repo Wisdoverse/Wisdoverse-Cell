@@ -87,30 +87,44 @@ function workItem(status: ControlPlaneWorkItem["status"]): ControlPlaneWorkItem 
 }
 
 describe("controlPlaneRuntimeForAgent", () => {
-  it("maps active role state to running even when there are no active runs", () => {
+  it("treats catalog-active agents with no runs as idle, not running", () => {
+    // Regression guard: previously this returned `running` because the
+    // catalog lifecycle flag `active` was conflated with runtime execution,
+    // which painted every seeded agent as live on the home page.
     const runtime = controlPlaneRuntimeForAgent(agent("active"), [], []);
 
-    expect(runtime.status).toBe("running");
-    expect(runtime.health).toBe(100);
+    expect(runtime.status).toBe("idle");
+    expect(runtime.health).toBe(50);
     expect(runtime.task_count).toBe(0);
   });
 
-  it("keeps paused role state visible instead of collapsing it to idle", () => {
+  it("keeps paused lifecycle state visible instead of collapsing it to idle", () => {
     const runtime = controlPlaneRuntimeForAgent(agent("paused"), [], []);
 
     expect(runtime.status).toBe("paused");
     expect(runtime.health).toBe(0);
   });
 
-  it("uses current run and failed work evidence when it is stronger than role state", () => {
-    expect(controlPlaneRuntimeForAgent(agent("paused"), [run("running")], []).status).toBe(
-      "running",
-    );
+  it("promotes to running when a run is in flight, regardless of lifecycle", () => {
+    const runtime = controlPlaneRuntimeForAgent(agent("paused"), [run("running")], []);
+
+    expect(runtime.status).toBe("running");
+    expect(runtime.health).toBe(100);
+  });
+
+  it("surfaces runtime failures from runs and work items as error", () => {
     expect(controlPlaneRuntimeForAgent(agent("active"), [run("failed")], []).status).toBe(
       "error",
     );
     expect(controlPlaneRuntimeForAgent(agent("active"), [], [workItem("failed")]).status).toBe(
       "error",
     );
+  });
+
+  it("does not treat a succeeded run as ongoing execution", () => {
+    const runtime = controlPlaneRuntimeForAgent(agent("active"), [run("succeeded")], []);
+
+    expect(runtime.status).toBe("idle");
+    expect(runtime.task_count).toBe(1);
   });
 });

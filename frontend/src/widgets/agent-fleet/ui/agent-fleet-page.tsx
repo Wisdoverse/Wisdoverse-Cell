@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import {
   agentDefinitionsToMetas,
   getAllAgents,
-  mapControlPlaneAgentStatus,
+  mapControlPlaneLifecycleStatus,
   useAgents,
   useControlPlaneAgents,
   type AgentMeta,
@@ -40,9 +40,9 @@ function buildRuntimes(
     }
 
     const definition = definitionById.get(agent.id);
-    const status = definition ? mapControlPlaneAgentStatus(definition.status) : "stopped";
+    const status = definition ? mapControlPlaneLifecycleStatus(definition.status) : "stopped";
     const isOffline = status === "paused" || status === "stopped";
-    const health = isOffline ? 0 : status === "error" ? 35 : 90;
+    const health = isOffline ? 0 : status === "error" ? 35 : 60;
 
     acc[agent.id] = {
       agent_id: agent.id,
