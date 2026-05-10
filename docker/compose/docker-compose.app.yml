@@ -51,11 +51,11 @@ services:
     build:
       context: ../..
       dockerfile: docker/Dockerfile.agents
-      target: ai-core
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
-    image: ${REGISTRY:-}wisdoverse/cell-ai-core:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["ai-core"]
     hostname: ai-core
     environment:
       # Database — via PgBouncer
@@ -227,13 +227,13 @@ services:
     build:
       context: ../..
       dockerfile: docker/Dockerfile.agents
-      target: sync-module
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-sync-module:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["sync-module"]
     hostname: sync-module
     environment:
       POSTGRES_HOST: postgres
@@ -284,13 +284,13 @@ services:
     build:
       context: ../..
       dockerfile: docker/Dockerfile.agents
-      target: analysis-module
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-analysis-module:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["analysis-module"]
     hostname: analysis-module
     environment:
       POSTGRES_HOST: postgres
@@ -339,13 +339,13 @@ services:
     build:
       context: ../..
       dockerfile: docker/Dockerfile.agents
-      target: pjm-agent
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-pjm-agent:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["pjm-agent"]
     hostname: pjm-agent
     environment:
       POSTGRES_HOST: postgres
@@ -403,13 +403,13 @@ services:
     build:
       context: ../..
       dockerfile: docker/Dockerfile.agents
-      target: chat-agent
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-chat-agent:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["chat-agent"]
     hostname: chat-agent
     environment:
       POSTGRES_HOST: postgres
@@ -464,13 +464,13 @@ services:
     build:
       context: ../..
       dockerfile: docker/Dockerfile.agents
-      target: qa-agent
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-qa-agent:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["qa-agent"]
     hostname: qa-agent
     environment:
       POSTGRES_HOST: postgres
@@ -523,13 +523,13 @@ services:
     build:
       context: ../..
       dockerfile: docker/Dockerfile.agents
-      target: dev-agent
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-dev-agent:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["dev-agent"]
     hostname: dev-agent
     environment:
       POSTGRES_HOST: postgres
@@ -579,13 +579,13 @@ services:
     build:
       context: ../..
       dockerfile: docker/Dockerfile.agents
-      target: evolution-module
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-evolution-module:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["evolution-module"]
     hostname: evolution-module
     environment:
       POSTGRES_HOST: postgres
