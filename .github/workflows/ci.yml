@@ -67,8 +67,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Install Rust toolchain
         run: |
-          rustup toolchain install 1.86.0 --profile minimal --component clippy,rustfmt
-          rustup default 1.86.0
+          rustup toolchain install stable --profile minimal --component clippy,rustfmt
+          rustup default stable
       - name: Rust format
         run: cargo fmt --manifest-path rust/Cargo.toml --check
       - name: Rust tests
