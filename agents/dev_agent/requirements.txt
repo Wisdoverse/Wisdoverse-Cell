@@ -17,7 +17,7 @@ apscheduler>=3.10.0
 
 # Observability
 prometheus-client>=0.20.0
-structlog>=24.0.0
+structlog>=25.5.0
 
 # Security scanning
 pip-audit>=2.7.0
