@@ -10,6 +10,6 @@ lark-oapi>=1.5.3
 litellm==1.83.14
 apscheduler>=3.11.0
 pydantic-settings>=2.7.0
-structlog>=25.1.0
+structlog>=25.5.0
 prometheus-client>=0.21.0
 prometheus-fastapi-instrumentator>=7.0.0
