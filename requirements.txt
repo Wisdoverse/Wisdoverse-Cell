@@ -19,7 +19,7 @@ nats-py>=2.9.0
 
 # Vector Database (Milvus)
 pymilvus>=2.5.0
-sentence-transformers>=3.0.0
+sentence-transformers>=5.4.1
 
 # LLM
 litellm==1.83.14
