@@ -5,4 +5,4 @@
 # INSTALL_VECTOR_DEPS=true only when local Milvus semantic indexing is required.
 
 pymilvus>=2.5.0
-sentence-transformers>=3.0.0
+sentence-transformers>=5.4.1
