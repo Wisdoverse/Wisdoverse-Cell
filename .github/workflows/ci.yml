@@ -80,6 +80,22 @@ jobs:
       - name: Rust gateway Docker build
         run: docker build -f rust/gateway/Dockerfile -t wisdoverse/cell-rust-gateway:ci .
 
+  agents-image:
+    name: Agents image smoke build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - name: Build unified agents image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.agents
+          push: false
+          tags: wisdoverse/cell-agents:ci
+          cache-from: type=gha,scope=cell-agents-ci
+          cache-to: type=gha,scope=cell-agents-ci,mode=max
+
   frontend:
     name: Frontend lint, tests, audit
     runs-on: ubuntu-latest

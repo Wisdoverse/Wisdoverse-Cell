@@ -1,0 +1,125 @@
+name: Release Images
+
+# Publish three GHCR images on a tagged release:
+#   ghcr.io/wisdoverse/cell-agents        — unified Python runtime (every agent
+#                                            and capability bundled; selected
+#                                            by the first command argument).
+#   ghcr.io/wisdoverse/cell-rust-gateway  — Rust + Axum gateway.
+#   ghcr.io/wisdoverse/cell-web           — Next.js operator console.
+#
+# Trigger: pushing a `v*` git tag (semver). Manual `workflow_dispatch` is
+# also wired so a maintainer can rebuild on demand against `main`.
+#
+# Each image is built for linux/amd64 + linux/arm64 and signed with cosign
+# keyless OIDC against the workflow's identity. Tags include the full
+# semver (`1.2.3`), the minor lane (`1.2`), the major lane (`1`), and
+# `latest` (only when the tag is on the main branch's HEAD).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (branch, tag, or SHA) to build"
+        required: false
+        default: "main"
+      tag:
+        description: "Override image tag (defaults to ref-derived)"
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io
+  ORG: wisdoverse
+
+jobs:
+  build:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: cell-agents
+            dockerfile: docker/Dockerfile.agents
+            context: .
+          - image: cell-rust-gateway
+            dockerfile: rust/gateway/Dockerfile
+            context: .
+          - image: cell-web
+            dockerfile: frontend/Dockerfile
+            context: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Set up QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags + labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.ORG }}/${{ matrix.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=ref,event=branch
+            type=sha,format=long
+            type=raw,value=${{ inputs.tag }},enable=${{ inputs.tag != '' }}
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.vendor=Wisdoverse Cell
+            org.opencontainers.image.licenses=LicenseRef-Wisdoverse-Cell-BSL-1.1
+
+      - name: Build + push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+            GIT_COMMIT=${{ github.sha }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image (keyless OIDC)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          for tag in $TAGS; do
+            cosign sign --yes "${tag}@${DIGEST}"
+          done

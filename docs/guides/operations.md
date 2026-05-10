@@ -153,48 +153,72 @@ anchor when a new provider is promoted to production use.
 | Web | `3000` | Next.js frontend |
 | Traefik | `80`, `443`, `8081` | Ingress and dashboard |
 
-## 4.1 Docker Build Targets
+## 4.1 Docker Images
 
-`docker/Dockerfile.agents` is the canonical Python runtime image. Compose target
-names preserve runtime identifiers for compatibility even when a service is a
-gateway or support capability.
+The repository publishes three release images on tagged `v*` pushes via
+`.github/workflows/release-images.yml`:
 
-Both the root Compose file and the layered application Compose file include the
-canonical Python runtime services: `ai-core`, `sync-module`, `analysis-module`,
-`pjm-agent`, `chat-agent`, `qa-agent`, `dev-agent`, and `evolution-module`.
+| Image | Source | Roles |
+|-------|--------|-------|
+| `ghcr.io/wisdoverse/cell-agents` | `docker/Dockerfile.agents` | Every Python agent and capability bundled into a single image. The first command argument selects the role at runtime. |
+| `ghcr.io/wisdoverse/cell-rust-gateway` | `rust/gateway/Dockerfile` | Rust + Axum API gateway. |
+| `ghcr.io/wisdoverse/cell-web` | `frontend/Dockerfile` | Next.js operator console. |
 
-Python service images use a runtime-only dependency split:
+The unified `cell-agents` image is the canonical Python runtime artifact. It
+ships every agent and module so a single tagged release backs every Python
+container in the compose topology. Compose services pick their role through
+the entrypoint dispatcher in `docker/agents-entrypoint.sh`, either via the
+first command argument or the `WISDOVERSE_AGENT` environment variable.
 
-- `docker/requirements/agent-base.txt` contains shared runtime dependencies for
-  `shared/app`, middleware, control-plane clients, EventBus, metrics, and
-  tracing.
-- Each service target installs only its own package requirements on top, for
-  example `agents/requirement_manager/requirements.txt`.
-- Root `requirements.txt` remains the local development and CI dependency set;
-  it intentionally includes test and developer tooling and is not used by
-  production runtime images.
-- `.dockerignore` excludes test trees from production image build context.
-- Requirement vector-search dependencies are optional because local
-  `sentence-transformers` pulls a large torch stack. Build `ai-core` with
-  `--build-arg INSTALL_VECTOR_DEPS=true` only when local Milvus semantic
-  indexing is required.
+| Role | Package | Default port |
+|------|---------|--------------|
+| `ai-core` (alias `requirement-manager`) | `agents.requirement_manager` | 8000 |
+| `sync-module` | `shared.capabilities.sync` | 8010 |
+| `analysis-module` | `shared.capabilities.analysis` | 8011 |
+| `evolution-module` | `shared.capabilities.evolution` | 8016 |
+| `pjm-agent` | `agents.pjm_agent` | 8012 |
+| `chat-agent` (alias `user-interaction-gateway`) | `services.gateways.user_interaction` | 8013 |
+| `qa-agent` | `agents.qa_agent` | 8014 |
+| `dev-agent` | `agents.dev_agent` | 8015 |
 
-| Target | Package | Runtime kind |
-|--------|---------|--------------|
-| `ai-core` | `agents.requirement_manager` | Requirements business runtime agent, using the historical `ai-core` service id |
-| `sync-module` | `shared.capabilities.sync` | Support capability |
-| `analysis-module` | `shared.capabilities.analysis` | Support capability |
-| `evolution-module` | `shared.capabilities.evolution` | Support capability |
-| `pjm-agent` | `agents.pjm_agent` | Business runtime agent |
-| `chat-agent` | `services.gateways.user_interaction` | User interaction gateway runtime id |
-| `qa-agent` | `agents.qa_agent` | Business runtime agent |
-| `dev-agent` | `agents.dev_agent` | Business runtime agent |
-
-Build a single target before changing Compose service wiring:
+Build the image locally with:
 
 ```bash
-docker build --target dev-agent -f docker/Dockerfile.agents .
+docker build -t wisdoverse/cell-agents:dev -f docker/Dockerfile.agents .
+docker run --rm wisdoverse/cell-agents:dev help
+docker run --rm -p 8010:8010 wisdoverse/cell-agents:dev sync-module
 ```
+
+Pull the prebuilt release image instead of building locally:
+
+```bash
+docker pull ghcr.io/wisdoverse/cell-agents:1.0.0
+docker run --rm -p 8014:8014 ghcr.io/wisdoverse/cell-agents:1.0.0 qa-agent
+```
+
+Override env knobs:
+
+| Env | Default | Purpose |
+|-----|---------|---------|
+| `WISDOVERSE_AGENT` | (unset) | Role to start when no positional argument is given. |
+| `WISDOVERSE_BIND_PORT` | per-role default | Override the gunicorn bind port. |
+| `WISDOVERSE_APP_PATH` | per-role default | Override the ASGI app import path. |
+| `GUNICORN_WORKERS` | `1` | gunicorn worker count. |
+| `GUNICORN_EXTRA_ARGS` | (empty) | Verbatim extra gunicorn flags. |
+
+Dependency layering:
+
+- `docker/requirements/agent-base.txt` is the shared runtime baseline (FastAPI,
+  Uvicorn, Gunicorn, control-plane clients, EventBus, metrics, tracing).
+- Each agent and capability ships its own `requirements.txt`. The unified
+  builder installs the union so every role starts cold without extra pip work.
+- Root `requirements.txt` remains the local development and CI dependency set
+  (includes test/build tooling) and is not used by production runtime images.
+- `.dockerignore` excludes test trees from the build context.
+- Requirement vector-search dependencies are optional because the
+  `sentence-transformers` stack is heavy. Build with
+  `--build-arg INSTALL_VECTOR_DEPS=true` only when local Milvus semantic
+  indexing is required.
 
 ## 5. Health Checks
 

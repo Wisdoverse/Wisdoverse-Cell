@@ -197,13 +197,13 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
-      target: ai-core
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-ai-core:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["ai-core"]
     container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-ai-core
     hostname: ai-core
     environment:
@@ -351,13 +351,13 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
-      target: sync-module
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-sync-module:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["sync-module"]
     container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-sync-module
     hostname: sync-module
     environment:
@@ -408,13 +408,13 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
-      target: analysis-module
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-analysis-module:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["analysis-module"]
     container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-analysis-module
     hostname: analysis-module
     environment:
@@ -463,13 +463,13 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
-      target: evolution-module
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-evolution-module:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["evolution-module"]
     container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-evolution-module
     hostname: evolution-module
     environment:
@@ -517,13 +517,13 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
-      target: pjm-agent
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-pjm-agent:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["pjm-agent"]
     container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-pjm-agent
     hostname: pjm-agent
     environment:
@@ -583,13 +583,13 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
-      target: qa-agent
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-qa-agent:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["qa-agent"]
     container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-qa-agent
     hostname: qa-agent
     environment:
@@ -644,13 +644,13 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
-      target: dev-agent
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-dev-agent:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["dev-agent"]
     container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-dev-agent
     hostname: dev-agent
     environment:
@@ -702,13 +702,13 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
-      target: chat-agent
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}wisdoverse/cell-chat-agent:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["chat-agent"]
     container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-chat-agent
     hostname: chat-agent
     environment:

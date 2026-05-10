@@ -14,15 +14,15 @@ RUNTIME_REQUIREMENTS = {
     Path("shared/capabilities/evolution"): Path("shared/capabilities/evolution/requirements.txt"),
 }
 
-PYTHON_RUNTIME_TARGETS = {
-    "ai-core": "ai-core",
-    "sync-module": "sync-module",
-    "analysis-module": "analysis-module",
-    "pjm-agent": "pjm-agent",
-    "chat-agent": "chat-agent",
-    "qa-agent": "qa-agent",
-    "dev-agent": "dev-agent",
-    "evolution-module": "evolution-module",
+PYTHON_RUNTIME_ROLES = {
+    "ai-core": "agents.requirement_manager.app.main:app",
+    "sync-module": "shared.capabilities.sync.app.main:app",
+    "analysis-module": "shared.capabilities.analysis.app.main:app",
+    "pjm-agent": "agents.pjm_agent.app.main:app",
+    "chat-agent": "services.gateways.user_interaction.app.main:app",
+    "qa-agent": "agents.qa_agent.app.main:app",
+    "dev-agent": "agents.dev_agent.app.main:app",
+    "evolution-module": "shared.capabilities.evolution.app.main:app",
 }
 
 RUNTIME_DB_USERS = {
@@ -60,7 +60,7 @@ def _compose_service_block(compose: str, service: str) -> str:
 
 
 def test_docker_runtime_units_that_use_llm_gateway_install_litellm() -> None:
-    """Canonical Docker targets must include LiteLLM when their runtime uses LLMGateway."""
+    """Per-package requirements files must include LiteLLM when their runtime uses LLMGateway."""
     for root, requirements_path in RUNTIME_REQUIREMENTS.items():
         uses_llm_gateway = any(
             _imports_llm_gateway(path)
@@ -73,40 +73,46 @@ def test_docker_runtime_units_that_use_llm_gateway_install_litellm() -> None:
         requirements = requirements_path.read_text(encoding="utf-8")
         assert "litellm" in requirements.lower(), (
             f"{root} imports shared.infra.llm_gateway but {requirements_path} "
-            "does not install litellm for its Docker runtime target"
+            "does not install litellm for the unified Docker runtime image"
         )
 
 
-def test_evolution_capability_has_docker_runtime_boundary() -> None:
-    """The evolution support capability must be independently deployable."""
+def test_unified_agents_image_dispatches_every_role() -> None:
+    """The platform Dockerfile + entrypoint must reach every agent and capability."""
     dockerfile = Path("docker/Dockerfile.agents").read_text(encoding="utf-8")
-    compose = Path("docker-compose.yml").read_text(encoding="utf-8")
+    entrypoint = Path("docker/agents-entrypoint.sh").read_text(encoding="utf-8")
 
-    assert "FROM builder-base AS evolution-builder" in dockerfile
-    assert "FROM runtime-base AS evolution-module" in dockerfile
-    assert "FROM sync-module AS sync-agent" not in dockerfile
-    assert "FROM analysis-module AS analysis-agent" not in dockerfile
-    assert "FROM evolution-module AS evolution-agent" not in dockerfile
-    assert "shared.capabilities.evolution.app.main:app" in dockerfile
+    # Single platform image: one runtime stage, no per-role builder/runtime stages.
+    assert "AS runtime" in dockerfile
+    assert "AS builder" in dockerfile
+    assert "FROM builder-base AS evolution-builder" not in dockerfile
+    assert "FROM runtime-base AS evolution-module" not in dockerfile
 
-    assert "  evolution-module:" in compose
-    assert "target: evolution-module" in compose
-    assert "${EVOLUTION_MODULE_PORT:-8016}:8016" in compose
+    # Every role appears in the dispatcher and points at the right ASGI app.
+    for role, app_path in PYTHON_RUNTIME_ROLES.items():
+        assert role in entrypoint, f"entrypoint missing dispatch case for {role}"
+        assert app_path in entrypoint, (
+            f"entrypoint dispatcher does not bind {role} to {app_path}"
+        )
 
 
-def test_compose_topologies_include_python_runtime_targets() -> None:
-    """Root and layered Compose topologies must cover every Python runtime target."""
+def test_compose_topologies_share_unified_agents_image() -> None:
+    """Every Python service in every Compose topology must share the platform image and dispatch its role."""
     compose_files = [
         Path("docker-compose.yml"),
         Path("docker/compose/docker-compose.app.yml"),
     ]
     for compose_path in compose_files:
         compose = compose_path.read_text(encoding="utf-8")
-        for service, target in PYTHON_RUNTIME_TARGETS.items():
-            assert f"  {service}:" in compose, f"{compose_path} is missing {service}"
-            assert f"target: {target}" in compose, (
-                f"{compose_path} is missing Docker target {target} for {service}"
-            )
+        for role in PYTHON_RUNTIME_ROLES:
+            assert f"  {role}:" in compose, f"{compose_path} is missing {role}"
+            block = _compose_service_block(compose, role)
+            assert (
+                "wisdoverse/cell-agents:" in block
+            ), f"{compose_path} does not point {role} at the unified platform image"
+            assert (
+                f'- {role}' in block or f'"{role}"' in block
+            ), f"{compose_path} does not dispatch {role} via command"
 
 
 def test_rust_gateway_is_default_and_only_gateway_runtime() -> None:
@@ -231,20 +237,22 @@ def test_rust_gateway_is_default_and_only_gateway_runtime() -> None:
     assert "/etc/traefik/traefik.yml" not in prod_traefik_service
 
 
-def test_production_overrides_use_prebuilt_python_runtime_images() -> None:
-    """Production Compose overlays must not rebuild Python runtime services."""
+def test_production_overrides_share_unified_agents_image() -> None:
+    """Production Compose overlays must point every Python service at the unified image and disable local builds."""
     prod_files = [
         Path("docker-compose.prod.yml"),
         Path("docker/compose/docker-compose.prod.yml"),
     ]
     for compose_path in prod_files:
         compose = compose_path.read_text(encoding="utf-8")
-        for service in PYTHON_RUNTIME_TARGETS:
-            assert f"  {service}:" in compose, f"{compose_path} is missing {service}"
-            assert f"image: ${{REGISTRY}}wisdoverse/cell-{service}:${{VERSION}}" in compose
-            service_block = _compose_service_block(compose, service)
-            assert "build: !reset null" in service_block, (
-                f"{compose_path} must disable local build for {service} in production"
+        for role in PYTHON_RUNTIME_ROLES:
+            assert f"  {role}:" in compose, f"{compose_path} is missing {role}"
+            assert (
+                "image: ${REGISTRY}wisdoverse/cell-agents:${VERSION}" in compose
+            ), f"{compose_path} does not pin the unified agents image"
+            block = _compose_service_block(compose, role)
+            assert "build: !reset null" in block, (
+                f"{compose_path} must disable local build for {role} in production"
             )
 
 
