@@ -27,7 +27,7 @@ defusedxml>=0.7.1
 PyJWT>=2.10.0
 
 # Logging, metrics, and tracing
-structlog>=25.1.0
+structlog>=25.5.0
 prometheus-client>=0.21.0
 prometheus-fastapi-instrumentator>=7.0.0
 opentelemetry-api
