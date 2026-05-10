@@ -46,7 +46,7 @@ PyJWT>=2.10.0
 
 # gRPC (for Gateway communication)
 grpcio>=1.70.0
-grpcio-tools>=1.70.0
+grpcio-tools>=1.80.0
 grpcio-reflection>=1.70.0
 protobuf>=5.29.0
 
