@@ -5,7 +5,7 @@
 
 # Web runtime
 fastapi>=0.115.0
-uvicorn[standard]>=0.34.0
+uvicorn[standard]>=0.46.0
 gunicorn>=23.0.0
 
 # Persistence and messaging
