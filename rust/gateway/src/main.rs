@@ -2,6 +2,8 @@ use std::net::SocketAddr;
 
 use std::sync::Arc;
 
+use tracing::{info, warn};
+use tracing_subscriber::{fmt, EnvFilter};
 use wisdoverse_cell_rust_gateway::{
     bitable_forward::{
         BitableActionForwarder, HttpBitableActionForwarder, NoopBitableActionForwarder,
@@ -15,8 +17,6 @@ use wisdoverse_cell_rust_gateway::{
     wecom_outbound::{NoopWecomMessenger, WecomApiClient, WecomMessenger},
     GatewayComponents, GatewayConfig,
 };
-use tracing::{info, warn};
-use tracing_subscriber::{fmt, EnvFilter};
 
 #[tokio::main]
 async fn main() {
