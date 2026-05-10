@@ -1,5 +1,5 @@
 [project]
-name = "project_cell"
+name = "wisdoverse_cell"
 version = "1.0.0"
 description = "AI Native OS - Wisdoverse Cell"
 license = { text = "LicenseRef-Wisdoverse-Cell-BSL-1.1" }

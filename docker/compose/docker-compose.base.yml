@@ -25,12 +25,12 @@ services:
   # ===========================================================================
   postgres:
     image: postgres:18-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-postgres
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-postgres
     hostname: postgres
     command: postgres -c config_file=/etc/postgresql/primary.conf
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
-      POSTGRES_USER: ${POSTGRES_USER:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
+      POSTGRES_USER: ${POSTGRES_USER:-wisdoverse-cell}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_REPLICATION_PASSWORD: ${POSTGRES_REPLICATION_PASSWORD:-replicator}
       CHAT_AGENT_DB_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:-chat_agent_dev}
@@ -50,7 +50,7 @@ services:
       - backend
     healthcheck:
       <<: *healthcheck-defaults
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-projectcell} -d ${POSTGRES_DB:-projectcell}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wisdoverse-cell} -d ${POSTGRES_DB:-wisdoverse-cell}"]
       interval: 10s
     deploy:
       resources:
@@ -66,10 +66,10 @@ services:
   # ===========================================================================
   pg-replica:
     image: postgres:18-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-pg-replica
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-pg-replica
     hostname: pg-replica
     environment:
-      PGUSER: ${POSTGRES_USER:-projectcell}
+      PGUSER: ${POSTGRES_USER:-wisdoverse-cell}
       PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - pg_replica_data:/var/lib/postgresql/data
@@ -95,7 +95,7 @@ services:
         condition: service_healthy
     healthcheck:
       <<: *healthcheck-defaults
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-projectcell}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wisdoverse-cell}"]
       interval: 10s
       start_period: 60s
     deploy:
@@ -113,10 +113,10 @@ services:
   # ===========================================================================
   pgbouncer:
     image: edoburu/pgbouncer:v1.25.1-p0
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-pgbouncer
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-pgbouncer
     hostname: pgbouncer
     environment:
-      DB_USER: ${POSTGRES_USER:-projectcell}
+      DB_USER: ${POSTGRES_USER:-wisdoverse-cell}
       DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       AUTH_TYPE: scram-sha-256
     volumes:
@@ -144,7 +144,7 @@ services:
   # ===========================================================================
   redis-master:
     image: redis:8-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-redis-master
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-redis-master
     hostname: redis-master
     command: redis-server /usr/local/etc/redis/redis.conf
     volumes:
@@ -169,7 +169,7 @@ services:
 
   redis-replica-1:
     image: redis:8-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-redis-replica-1
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-redis-replica-1
     hostname: redis-replica-1
     command: redis-server /usr/local/etc/redis/redis.conf --replicaof redis-master 6379
     volumes:
@@ -195,7 +195,7 @@ services:
 
   redis-replica-2:
     image: redis:8-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-redis-replica-2
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-redis-replica-2
     hostname: redis-replica-2
     command: redis-server /usr/local/etc/redis/redis.conf --replicaof redis-master 6379
     volumes:
@@ -221,7 +221,7 @@ services:
 
   redis-sentinel-1:
     image: redis:8-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-sentinel-1
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-sentinel-1
     hostname: redis-sentinel-1
     command: >
       sh -c "cp /etc/redis/sentinel-template.conf /data/sentinel.conf && redis-sentinel /data/sentinel.conf"
@@ -242,7 +242,7 @@ services:
 
   redis-sentinel-2:
     image: redis:8-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-sentinel-2
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-sentinel-2
     hostname: redis-sentinel-2
     command: >
       sh -c "cp /etc/redis/sentinel-template.conf /data/sentinel.conf && redis-sentinel /data/sentinel.conf"
@@ -263,7 +263,7 @@ services:
 
   redis-sentinel-3:
     image: redis:8-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-sentinel-3
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-sentinel-3
     hostname: redis-sentinel-3
     command: >
       sh -c "cp /etc/redis/sentinel-template.conf /data/sentinel.conf && redis-sentinel /data/sentinel.conf"
@@ -287,7 +287,7 @@ services:
   # ===========================================================================
   nats-1:
     image: nats:2.10-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-nats-1
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-nats-1
     hostname: nats-1
     environment:
       NATS_SERVER_NAME: nats-1
@@ -314,7 +314,7 @@ services:
 
   nats-2:
     image: nats:2.10-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-nats-2
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-nats-2
     hostname: nats-2
     environment:
       NATS_SERVER_NAME: nats-2
@@ -341,7 +341,7 @@ services:
 
   nats-3:
     image: nats:2.10-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-nats-3
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-nats-3
     hostname: nats-3
     environment:
       NATS_SERVER_NAME: nats-3
@@ -371,7 +371,7 @@ services:
   # ===========================================================================
   milvus:
     image: milvusdb/milvus:v2.6.10
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-milvus
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-milvus
     hostname: milvus
     command: ["milvus", "run", "standalone"]
     environment:
@@ -399,31 +399,31 @@ services:
 
 volumes:
   postgres_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_postgres_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_postgres_data
   pg_replica_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_pg_replica_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_pg_replica_data
   redis_master_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_redis_master_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_redis_master_data
   redis_replica1_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_redis_replica1_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_redis_replica1_data
   redis_replica2_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_redis_replica2_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_redis_replica2_data
   sentinel_1_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_sentinel_1_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_sentinel_1_data
   sentinel_2_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_sentinel_2_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_sentinel_2_data
   sentinel_3_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_sentinel_3_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_sentinel_3_data
   milvus_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_milvus_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_milvus_data
   nats_1_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_nats_1_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_nats_1_data
   nats_2_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_nats_2_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_nats_2_data
   nats_3_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_nats_3_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_nats_3_data
 
 networks:
   backend:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_backend
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_backend
     driver: bridge

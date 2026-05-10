@@ -17,7 +17,7 @@ providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-    network: projectcell_frontend
+    network: wisdoverse-cell_frontend
     watch: true
   file:
     directory: "/etc/traefik/dynamic"

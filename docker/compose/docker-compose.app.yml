@@ -36,7 +36,7 @@ x-app-security-env: &app-security-env
   INTERNAL_TRANSPORT_PROTECTION: ${INTERNAL_TRANSPORT_PROTECTION:-}
   A2A_JWT_SECRET: ${A2A_JWT_SECRET:-dev-only-change-in-production}
   CONTROL_PLANE_ENABLED: ${CONTROL_PLANE_ENABLED:-false}
-  CONTROL_PLANE_COMPANY_ID: ${CONTROL_PLANE_COMPANY_ID:-cmp_projectcell}
+  CONTROL_PLANE_COMPANY_ID: ${CONTROL_PLANE_COMPANY_ID:-cmp_wisdoverse_cell}
   CONTROL_PLANE_APPROVAL_ENFORCED: ${CONTROL_PLANE_APPROVAL_ENFORCED:-false}
   CONTROL_PLANE_LLM_BUDGET_ENFORCED: ${CONTROL_PLANE_LLM_BUDGET_ENFORCED:-false}
   CONTROL_PLANE_TOOL_BUDGET_ENFORCED: ${CONTROL_PLANE_TOOL_BUDGET_ENFORCED:-false}
@@ -55,14 +55,14 @@ services:
       args:
         <<: *python-mirror-args
         VERSION: ${VERSION:-dev}
-    image: ${REGISTRY:-}projectcell/ai-core:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-ai-core:${VERSION:-latest}
     hostname: ai-core
     environment:
       # Database — via PgBouncer
       POSTGRES_HOST: pgbouncer
       POSTGRES_PORT: "6432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
-      POSTGRES_USER: ${POSTGRES_USER:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
+      POSTGRES_USER: ${POSTGRES_USER:-wisdoverse-cell}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       # Redis
       REDIS_HOST: redis
@@ -122,7 +122,7 @@ services:
     labels:
       # Traefik HTTP routing
       - "traefik.enable=true"
-      - "traefik.docker.network=${COMPOSE_PROJECT_NAME:-projectcell}_frontend"
+      - "traefik.docker.network=${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_frontend"
       - "traefik.http.routers.ai-core.rule=PathPrefix(`/api`) || PathPrefix(`/health`) || PathPrefix(`/docs`) || PathPrefix(`/openapi.json`) || PathPrefix(`/metrics`)"
       - "traefik.http.routers.ai-core.entrypoints=web"
       - "traefik.http.routers.ai-core.service=ai-core"
@@ -145,7 +145,7 @@ services:
       dockerfile: rust/gateway/Dockerfile
       args:
         ALPINE_MIRROR: ${ALPINE_MIRROR:-}
-    image: ${REGISTRY:-}projectcell/rust-gateway:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-rust-gateway:${VERSION:-latest}
     hostname: gateway
     environment:
       GATEWAY_IMPLEMENTATION: rust
@@ -210,7 +210,7 @@ services:
     labels:
       # Traefik HTTP routing
       - "traefik.enable=true"
-      - "traefik.docker.network=${COMPOSE_PROJECT_NAME:-projectcell}_frontend"
+      - "traefik.docker.network=${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_frontend"
       - "traefik.http.routers.gateway.rule=PathPrefix(`/webhook`) || Path(`/ready`) || PathPrefix(`/api/feishu`) || PathPrefix(`/api/wecom`)"
       - "traefik.http.routers.gateway.entrypoints=web"
       - "traefik.http.routers.gateway.priority=200"
@@ -233,12 +233,12 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/sync-module:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-sync-module:${VERSION:-latest}
     hostname: sync-module
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
       POSTGRES_USER: ${SYNC_MODULE_DB_USER:-sync_agent}
       POSTGRES_PASSWORD: ${SYNC_MODULE_DB_PASSWORD:-sync_agent_dev}
       REDIS_HOST: redis
@@ -290,12 +290,12 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/analysis-module:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-analysis-module:${VERSION:-latest}
     hostname: analysis-module
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
       POSTGRES_USER: ${ANALYSIS_MODULE_DB_USER:-analysis_agent}
       POSTGRES_PASSWORD: ${ANALYSIS_MODULE_DB_PASSWORD:-analysis_agent_dev}
       REDIS_HOST: redis
@@ -345,12 +345,12 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/pjm-agent:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-pjm-agent:${VERSION:-latest}
     hostname: pjm-agent
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
       POSTGRES_USER: ${PM_AGENT_DB_USER:-pjm_agent}
       POSTGRES_PASSWORD: ${PM_AGENT_DB_PASSWORD:-pjm_agent_dev}
       REDIS_HOST: redis
@@ -409,12 +409,12 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/chat-agent:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-chat-agent:${VERSION:-latest}
     hostname: chat-agent
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
       POSTGRES_USER: ${CHAT_AGENT_DB_USER:-chat_agent}
       POSTGRES_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:-chat_agent_dev}
       REDIS_HOST: redis
@@ -470,12 +470,12 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/qa-agent:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-qa-agent:${VERSION:-latest}
     hostname: qa-agent
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
       POSTGRES_USER: ${QA_AGENT_DB_USER:-qa_agent}
       POSTGRES_PASSWORD: ${QA_AGENT_DB_PASSWORD:-qa_agent_dev}
       REDIS_HOST: redis
@@ -529,12 +529,12 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/dev-agent:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-dev-agent:${VERSION:-latest}
     hostname: dev-agent
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
       POSTGRES_USER: ${DEV_AGENT_DB_USER:-dev_agent}
       POSTGRES_PASSWORD: ${DEV_AGENT_DB_PASSWORD:-dev_agent_dev}
       REDIS_HOST: redis
@@ -585,12 +585,12 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/evolution-module:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-evolution-module:${VERSION:-latest}
     hostname: evolution-module
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
       POSTGRES_USER: ${EVOLUTION_MODULE_DB_USER:-evolution_agent}
       POSTGRES_PASSWORD: ${EVOLUTION_MODULE_DB_PASSWORD:-evolution_agent_dev}
       REDIS_HOST: redis
@@ -637,7 +637,7 @@ services:
       args:
         NPM_REGISTRY: ${NPM_REGISTRY:-}
         ALPINE_MIRROR: ${ALPINE_MIRROR:-}
-    image: ${REGISTRY:-}projectcell/web:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-web:${VERSION:-latest}
     hostname: web
     environment:
       NODE_ENV: ${NODE_ENV:-production}
@@ -674,7 +674,7 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=${COMPOSE_PROJECT_NAME:-projectcell}_frontend"
+      - "traefik.docker.network=${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_frontend"
       - "traefik.http.routers.web-auth.rule=PathPrefix(`/api/auth`)"
       - "traefik.http.routers.web-auth.entrypoints=web"
       - "traefik.http.routers.web-auth.priority=300"
@@ -691,12 +691,12 @@ services:
 
 networks:
   frontend:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_frontend
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_frontend
     driver: bridge
   backend:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_backend
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_backend
     external: true
 
 volumes:
   web_auth_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_web_auth_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_web_auth_data

@@ -1,5 +1,5 @@
 {
-  "name": "projectcell",
+  "name": "wisdoverse-cell",
   "version": "1.0.0",
   "description": "Wisdoverse Cell AI agent channel plugin for OpenClaw",
   "author": "Wisdoverse Cell Team",
@@ -9,7 +9,7 @@
     "tools"
   ],
   "channel": {
-    "id": "projectcell",
+    "id": "wisdoverse-cell",
     "name": "Wisdoverse Cell",
     "description": "Route messages through Wisdoverse Cell AI agents",
     "supports": [

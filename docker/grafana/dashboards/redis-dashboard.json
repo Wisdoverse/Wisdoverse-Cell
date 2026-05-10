@@ -12,7 +12,7 @@
   "id": null,
   "uid": "redis-monitoring",
   "title": "Redis",
-  "tags": ["project-cell", "redis", "cache"],
+  "tags": ["wisdoverse-cell", "redis", "cache"],
   "schemaVersion": 39,
   "version": 1,
   "editable": true,

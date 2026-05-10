@@ -940,7 +940,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "projectcell-rust-gateway"
+name = "wisdoverse-cell-rust-gateway"
 version = "0.1.0"
 dependencies = [
  "aes",

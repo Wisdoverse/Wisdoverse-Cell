@@ -5,7 +5,7 @@ from shared.utils.logger import get_logger
 
 logger = get_logger("pjm_agent.op_writer")
 
-# OP type IDs (itoy project)
+# OpenProject work package type IDs configured for this deployment.
 TYPE_USER_STORY = 272
 TYPE_TASK = 267
 

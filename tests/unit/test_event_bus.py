@@ -73,7 +73,7 @@ def test_safe_url_no_password(bus):
 def test_get_stream_key(bus):
     """Stream key is always {prefix}:{event_type} — no group suffix."""
     result = bus._get_stream_key("sync.completed")
-    assert result == "projectcell:events:sync.completed"
+    assert result == "wisdoverse-cell:events:sync.completed"
 
 
 # ── subscribe / pending replay ───────────────────────────────────────
@@ -144,8 +144,8 @@ async def test_successful_event_is_marked_processed_before_ack(bus, mock_redis):
     with pytest.raises(StopAsyncIteration):
         await anext(generator)
 
-    processed_key = f"projectcell:events:processed:qa-agent:{event.event_id}"
-    processing_key = f"projectcell:events:processing:qa-agent:{event.event_id}"
+    processed_key = f"wisdoverse-cell:events:processed:qa-agent:{event.event_id}"
+    processing_key = f"wisdoverse-cell:events:processing:qa-agent:{event.event_id}"
     mock_redis.set.assert_has_awaits(
         [
             call(processing_key, "consumer-1", nx=True, ex=360),
@@ -228,7 +228,7 @@ async def test_subscribe_invalid_pending_message_goes_to_dlq(bus, mock_redis):
     assert received.event_id == valid_event.event_id
     mock_redis.xack.assert_any_await(stream_key, "qa-agent", "100-0")
     dlq_call = mock_redis.xadd.call_args
-    assert dlq_call.args[0] == "projectcell:events:dlq.failed"
+    assert dlq_call.args[0] == "wisdoverse-cell:events:dlq.failed"
 
 
 @pytest.mark.asyncio
@@ -266,7 +266,7 @@ async def test_publish_calls_xadd(bus, mock_redis):
     mock_redis.xadd.assert_awaited_once()
     call_args = mock_redis.xadd.call_args
     # First arg is stream key
-    assert call_args.args[0] == "projectcell:events:sync.completed"
+    assert call_args.args[0] == "wisdoverse-cell:events:sync.completed"
     # Second arg is field dict with "data" key
     assert "data" in call_args.args[1]
 
@@ -310,7 +310,7 @@ async def test_publish_dlq_writes_observable_failed_event(bus, mock_redis):
 
     mock_redis.xadd.assert_awaited_once()
     call_args = mock_redis.xadd.call_args
-    assert call_args.args[0] == "projectcell:events:dlq.failed"
+    assert call_args.args[0] == "wisdoverse-cell:events:dlq.failed"
 
     dlq_event = Event.model_validate_json(call_args.args[1]["data"])
     assert dlq_event.event_type == "dlq.failed"
@@ -331,7 +331,7 @@ async def test_publish_raw_dlq_writes_validation_failure(bus, mock_redis):
     )
 
     call_args = mock_redis.xadd.call_args
-    assert call_args.args[0] == "projectcell:events:dlq.failed"
+    assert call_args.args[0] == "wisdoverse-cell:events:dlq.failed"
 
     from shared.schemas.event import Event
 
@@ -351,16 +351,16 @@ async def test_get_dead_letter_count_uses_dlq_stream(bus, mock_redis):
     result = await bus.get_dead_letter_count()
 
     assert result == 2
-    mock_redis.xlen.assert_awaited_once_with("projectcell:events:dlq.failed")
+    mock_redis.xlen.assert_awaited_once_with("wisdoverse-cell:events:dlq.failed")
 
 
 @pytest.mark.asyncio
 async def test_get_all_queue_lengths_ignores_idempotency_keys(bus, mock_redis):
     mock_redis.scan_iter = _async_scan(
         [
-            "projectcell:events:sync.completed",
-            "projectcell:events:processed:qa-agent:evt_1",
-            "projectcell:events:processing:qa-agent:evt_2",
+            "wisdoverse-cell:events:sync.completed",
+            "wisdoverse-cell:events:processed:qa-agent:evt_1",
+            "wisdoverse-cell:events:processing:qa-agent:evt_2",
         ]
     )
     mock_redis.xlen = AsyncMock(return_value=3)
@@ -368,7 +368,7 @@ async def test_get_all_queue_lengths_ignores_idempotency_keys(bus, mock_redis):
     result = await bus.get_all_queue_lengths()
 
     assert result == {"sync.completed": 3}
-    mock_redis.xlen.assert_awaited_once_with("projectcell:events:sync.completed")
+    mock_redis.xlen.assert_awaited_once_with("wisdoverse-cell:events:sync.completed")
 
 
 @pytest.mark.asyncio
@@ -384,7 +384,7 @@ async def test_list_dead_letters_returns_recent_events(bus, mock_redis):
     assert events[0].event_type == "dlq.failed"
     assert events[0].payload["failed_by_agent"] == "qa-agent"
     mock_redis.xrevrange.assert_awaited_once_with(
-        "projectcell:events:dlq.failed",
+        "wisdoverse-cell:events:dlq.failed",
         count=25,
     )
 

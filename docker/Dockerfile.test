@@ -14,7 +14,7 @@
 ARG PYTHON_VERSION=3.13
 FROM python:${PYTHON_VERSION}-slim
 
-LABEL org.opencontainers.image.title="project-cell-test" \
+LABEL org.opencontainers.image.title="wisdoverse-cell-test" \
       org.opencontainers.image.description="Pre-built CI test image with all Python dependencies" \
       org.opencontainers.image.source="https://github.com/Wisdoverse/Wisdoverse-Cell"
 

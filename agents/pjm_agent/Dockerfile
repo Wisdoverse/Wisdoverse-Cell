@@ -8,7 +8,7 @@
 #   docker compose build pjm-agent
 #
 # Legacy standalone:
-#   docker build -t projectcell/pjm-agent:latest \
+#   docker build -t wisdoverse/cell-pjm-agent:latest \
 #     -f agents/pjm_agent/Dockerfile .
 #
 # ==============================================================================

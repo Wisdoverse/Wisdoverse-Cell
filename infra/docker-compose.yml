@@ -47,7 +47,7 @@ services:
   # ============================================================================
   milvus:
     image: milvusdb/milvus:v2.6.10
-    container_name: projectcell-milvus
+    container_name: wisdoverse-cell-milvus
     command: ["milvus", "run", "standalone"]
     ports:
       - "${MILVUS_PORT:-19530}:19530"
@@ -72,7 +72,7 @@ services:
         reservations:
           memory: 1G
     networks:
-      - projectcell-internal
+      - wisdoverse-cell-internal
 
   # ============================================================================
   # Requirements capability (legacy standalone service)
@@ -85,8 +85,8 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: projectcell/requirement-manager:${VERSION:-latest}
-    container_name: projectcell-requirement-manager
+    image: wisdoverse/cell-requirement-manager:${VERSION:-latest}
+    container_name: wisdoverse-cell-requirement-manager
     ports:
       - "${REQUIREMENT_MANAGER_PORT:-8001}:8000"
     env_file:
@@ -116,7 +116,7 @@ services:
           memory: 256M
           cpus: "0.25"
     networks:
-      - projectcell-internal
+      - wisdoverse-cell-internal
     # Connect to host services (PostgreSQL, Redis)
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -137,8 +137,8 @@ services:
   #   build:
   #     context: ..
   #     dockerfile: agents/dev_agent/Dockerfile
-  #   image: projectcell/dev-agent:${VERSION:-latest}
-  #   container_name: projectcell-dev-agent
+  #   image: wisdoverse/cell-dev-agent:${VERSION:-latest}
+  #   container_name: wisdoverse-cell-dev-agent
   #   ports:
   #     - "${DEV_AGENT_PORT:-8015}:8015"
   #   env_file:
@@ -152,7 +152,7 @@ services:
   #   restart: unless-stopped
   #   logging: *default-logging
   #   networks:
-  #     - projectcell-internal
+  #     - wisdoverse-cell-internal
 
 # ------------------------------------------------------------------------------
 # Volumes
@@ -160,17 +160,17 @@ services:
 volumes:
   milvus_data:
     driver: local
-    name: projectcell-milvus-data
+    name: wisdoverse-cell-milvus-data
   app_data:
     driver: local
-    name: projectcell-app-data
+    name: wisdoverse-cell-app-data
 
 # ------------------------------------------------------------------------------
 # Networks
 # ------------------------------------------------------------------------------
 networks:
-  projectcell-internal:
-    name: projectcell-network
+  wisdoverse-cell-internal:
+    name: wisdoverse-cell-network
     driver: bridge
     ipam:
       driver: default

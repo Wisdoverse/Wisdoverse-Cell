@@ -14,7 +14,7 @@ const NOW = "2026-05-09T07:00:00.000Z";
 function agent(status: string): ControlPlaneAgentDefinition {
   return {
     role_id: "role_test",
-    company_id: "cmp_projectcell",
+    company_id: "cmp_wisdoverse_cell",
     agent_id: "requirement-manager",
     display_name: "Requirement Manager",
     agent_kind: "business_runtime_agent",
@@ -44,7 +44,7 @@ function agent(status: string): ControlPlaneAgentDefinition {
 function run(status: ControlPlaneAgentRun["status"]): ControlPlaneAgentRun {
   return {
     run_id: "run_test",
-    company_id: "cmp_projectcell",
+    company_id: "cmp_wisdoverse_cell",
     agent_id: "requirement-manager",
     status,
     trace_id: null,
@@ -68,7 +68,7 @@ function run(status: ControlPlaneAgentRun["status"]): ControlPlaneAgentRun {
 function workItem(status: ControlPlaneWorkItem["status"]): ControlPlaneWorkItem {
   return {
     work_item_id: "work_test",
-    company_id: "cmp_projectcell",
+    company_id: "cmp_wisdoverse_cell",
     title: "Work",
     description: "",
     status,

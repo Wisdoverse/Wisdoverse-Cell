@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use std::sync::Arc;
 
-use projectcell_rust_gateway::{
+use wisdoverse-cell_rust_gateway::{
     bitable_forward::{
         BitableActionForwarder, HttpBitableActionForwarder, NoopBitableActionForwarder,
     },

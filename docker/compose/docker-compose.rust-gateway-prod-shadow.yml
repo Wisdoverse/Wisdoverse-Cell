@@ -7,7 +7,7 @@
 
 services:
   rust-gateway-shadow:
-    image: ${REGISTRY}projectcell/rust-gateway:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-rust-gateway:${VERSION}
     build: !reset null
     hostname: rust-gateway-shadow
     environment:

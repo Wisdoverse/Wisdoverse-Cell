@@ -136,7 +136,7 @@ docker compose -f docker/compose/docker-compose.base.yml \
   -f docker/compose/docker-compose.observability.yml \
   -f docker/compose/docker-compose.prod.yml \
   config
-docker build -f rust/gateway/Dockerfile -t projectcell/rust-gateway:local .
+docker build -f rust/gateway/Dockerfile -t wisdoverse/cell-rust-gateway:local .
 ```
 
 The canary and shadow targets produce evidence reports under `.artifacts/` by

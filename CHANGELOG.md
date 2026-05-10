@@ -33,7 +33,7 @@ when they apply.
 - ConversationEngine: shared multi-turn tool-calling loop with AsyncGenerator streaming (`shared/infra/conversation_engine.py`)
 - MicroCompact: free pre-pass clearing stale tool_result content by block count
 - ReactiveCompact: emergency compression on prompt-too-long (ContentSizeError)
-- Prometheus counters: `projectcell_llm_error_total`, `projectcell_llm_fallback_total`
+- Prometheus counters: `wisdoverse-cell_llm_error_total`, `wisdoverse-cell_llm_fallback_total`
 - 133 new tests across all P0 units (error taxonomy, retry, compression, engine, integration)
 
 ### Changed

@@ -25,7 +25,7 @@ class OpenClawClient:
     Usage:
         client = OpenClawClient(
             gateway_url="ws://127.0.0.1:18789",
-            device_id="projectcell-001",
+            device_id="wisdoverse-cell-001",
             auth_token="secret",
         )
         client.on_event(handle_event)
@@ -35,7 +35,7 @@ class OpenClawClient:
     def __init__(
         self,
         gateway_url: str = "ws://127.0.0.1:18789",
-        device_id: str = "projectcell",
+        device_id: str = "wisdoverse-cell",
         auth_token: str = "",
         reconnect_max_delay: float = 60.0,
     ):
@@ -188,7 +188,7 @@ class OpenClawClient:
             "params": {
                 "device_id": self._device_id,
                 "token": self._auth_token,
-                "client_type": "projectcell",
+                "client_type": "wisdoverse-cell",
                 "capabilities": ["channel", "tools"],
             },
         }

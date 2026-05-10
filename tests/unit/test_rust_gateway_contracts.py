@@ -38,5 +38,5 @@ def test_github_actions_runs_rust_gateway_cutover_checks() -> None:
         "cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked -- -D warnings"
         in workflow
     )
-    assert "cargo build --manifest-path rust/Cargo.toml --locked -p projectcell-rust-gateway" in workflow
-    assert "docker build -f rust/gateway/Dockerfile -t projectcell/rust-gateway:ci ." in workflow
+    assert "cargo build --manifest-path rust/Cargo.toml --locked -p wisdoverse-cell-rust-gateway" in workflow
+    assert "docker build -f rust/gateway/Dockerfile -t wisdoverse/cell-rust-gateway:ci ." in workflow

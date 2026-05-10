@@ -29,7 +29,7 @@ def test_redact_sensitive_text_masks_direct_pii_and_secrets() -> None:
         "OpenID ou_1234567890abcdef. "
         "Use Authorization: Bearer eyJabc.def.ghi and api_key=sk-1234567890abcdefghijklmnop. "
         "Also CLIENT-SECRET='plain-secret' and harmless_key=visible. "
-        "Database postgresql://user:plain-db-pass@db/project_cell. "
+        "Database postgresql://user:plain-db-pass@db/wisdoverse_cell. "
         "See https://example.com/path?token=raw-token"
     )
 
@@ -57,7 +57,7 @@ def test_redact_for_observability_masks_sensitive_keys_and_nested_values() -> No
             "input_tokens": 42,
             "api_key": "sk-1234567890abcdefghijklmnop",
             "nested": {
-                "database_url": "postgresql://user:pg-secret@db/project_cell",
+                "database_url": "postgresql://user:pg-secret@db/wisdoverse_cell",
                 "items": ["contact ou_1234567890abcdef"],
             },
         }

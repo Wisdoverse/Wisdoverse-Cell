@@ -19,7 +19,7 @@ from shared.utils.logger import get_logger
 logger = get_logger("denial_tracker")
 
 DENIAL_BLOCKED_TOTAL = Counter(
-    "projectcell_denial_tracker_blocked_total",
+    "wisdoverse-cell_denial_tracker_blocked_total",
     "Total times a tool call was blocked by denial cache",
     ["agent_id", "action_type"],
 )

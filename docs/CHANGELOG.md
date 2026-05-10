@@ -18,7 +18,7 @@ This changelog is English-first and follows [Keep a Changelog](https://keepachan
 - ConversationEngine, a shared multi-turn tool-calling engine with AsyncGenerator event streaming in `shared/infra/conversation_engine.py`.
 - MicroCompact for free pre-cleanup of stale `tool_result` blocks.
 - ReactiveCompact for prompt-too-long emergency compression recovery.
-- Prometheus metrics: `projectcell_llm_error_total` and `projectcell_llm_fallback_total`.
+- Prometheus metrics: `wisdoverse-cell_llm_error_total` and `wisdoverse-cell_llm_fallback_total`.
 - 133 new tests covering the P0 unit surface.
 
 ### Changed

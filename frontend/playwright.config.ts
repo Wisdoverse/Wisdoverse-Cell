@@ -11,7 +11,7 @@ const useExternalServer =
   process.env.PLAYWRIGHT_SKIP_WEB_SERVER === "1" || Boolean(process.env.PLAYWRIGHT_BASE_URL);
 const adminStorePath =
   process.env.PLAYWRIGHT_ADMIN_STORE_PATH ??
-  path.join(tmpdir(), `projectcell-playwright-admin-${process.pid}-${Date.now()}.json`);
+  path.join(tmpdir(), `wisdoverse-cell-playwright-admin-${process.pid}-${Date.now()}.json`);
 
 /**
  * Playwright configuration for E2E tests.

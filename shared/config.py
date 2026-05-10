@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # PostgreSQL
     postgres_host: str = "localhost"
     postgres_port: int = 5432
-    postgres_db: str = "projectcell"
+    postgres_db: str = "wisdoverse-cell"
     postgres_user: str = "cell"
     postgres_password: SecretStr = SecretStr("")
 
@@ -114,7 +114,7 @@ class Settings(BaseSettings):
 
     # ============ Control Plane Configuration ============
     control_plane_enabled: bool = False
-    control_plane_company_id: str = "cmp_projectcell"
+    control_plane_company_id: str = "cmp_wisdoverse_cell"
     control_plane_approval_enforced: bool = False
     control_plane_llm_budget_enforced: bool = False
     control_plane_llm_budget_scope: Literal["company", "goal", "agent", "work_item"] = "agent"
@@ -188,7 +188,7 @@ class Settings(BaseSettings):
     openclaw_enabled: bool = False
     openclaw_gateway_url: str = "ws://127.0.0.1:18789"
     openclaw_gateway_token: SecretStr = SecretStr("")
-    openclaw_device_id: str = "projectcell"
+    openclaw_device_id: str = "wisdoverse-cell"
 
     # ============ CORS Configuration ============
     cors_allowed_origins: str = ""

@@ -307,14 +307,17 @@ and disable WAF for those two temporary site records. The current local drill
 uses:
 
 ```bash
-GATEWAY_HOST=projectcell.itoy.dev \
-LEGACY_GATEWAY_URL=https://projectcell.itoy.dev \
-RUST_GATEWAY_SHADOW_HOST=projectcell-rust.itoy.dev \
-RUST_GATEWAY_URL=https://projectcell-rust.itoy.dev \
+GATEWAY_HOST=<gateway-hostname> \
+LEGACY_GATEWAY_URL=https://<gateway-hostname> \
+RUST_GATEWAY_SHADOW_HOST=<rust-gateway-shadow-hostname> \
+RUST_GATEWAY_URL=https://<rust-gateway-shadow-hostname> \
 make rust-gateway-prod-shadow-check
 
 make rust-python-migration-audit-prod
 ```
+
+Substitute `<gateway-hostname>` and `<rust-gateway-shadow-hostname>` with the
+two hostnames you reserved in OpenResty for the legacy and shadow listeners.
 
 Both OpenResty server blocks must route `/health`, `/ready`, and webhook paths
 to the base listener without adding a path prefix. The baseline host proxies to
@@ -323,7 +326,7 @@ shadow listener.
 
 `up-prod-rust-gateway` runs the standard production topology after evidence
 validation, so the canonical `gateway` service uses the prebuilt
-`projectcell/rust-gateway` image and keeps local builds disabled. It depends on
+`wisdoverse/cell-rust-gateway` image and keeps local builds disabled. It depends on
 `rust-gateway-prod-gate`, which rejects stale reports, local or private-network
 evidence, failed checks, and `degraded` readiness unless explicitly overridden
 for a non-production drill. `rust-gateway-prod-shadow-check` is the preferred
@@ -513,7 +516,7 @@ API is ready for the target environment.
 
 ```bash
 CONTROL_PLANE_ENABLED=true
-CONTROL_PLANE_COMPANY_ID=cmp_projectcell
+CONTROL_PLANE_COMPANY_ID=cmp_wisdoverse_cell
 CONTROL_PLANE_APPROVAL_ENFORCED=true
 CONTROL_PLANE_LLM_BUDGET_ENFORCED=true
 CONTROL_PLANE_TOOL_BUDGET_ENFORCED=true

@@ -8,7 +8,7 @@
 #   docker compose build ai-core
 #
 # Legacy standalone:
-#   docker build -t projectcell/requirement-manager:latest \
+#   docker build -t wisdoverse/cell-requirement-manager:latest \
 #     --build-arg VERSION=$(git describe --tags --always) \
 #     -f agents/requirement_manager/Dockerfile .
 #

@@ -13,6 +13,6 @@ services:
       dockerfile: rust/gateway/Dockerfile
       args:
         ALPINE_MIRROR: ${ALPINE_MIRROR:-}
-    image: ${REGISTRY:-}projectcell/rust-gateway:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-rust-gateway:${VERSION:-latest}
     environment:
       GATEWAY_IMPLEMENTATION: rust

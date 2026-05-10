@@ -70,7 +70,7 @@ def ai_core_process() -> Generator[subprocess.Popen | None, None, None]:
     env.update({
         "POSTGRES_HOST": os.environ.get("POSTGRES_HOST", "localhost"),
         "POSTGRES_PORT": os.environ.get("POSTGRES_PORT", "5432"),
-        "POSTGRES_DB": os.environ.get("POSTGRES_DB", "projectcell_test"),
+        "POSTGRES_DB": os.environ.get("POSTGRES_DB", "wisdoverse-cell_test"),
         "POSTGRES_USER": os.environ.get("POSTGRES_USER", "test"),
         "POSTGRES_PASSWORD": os.environ.get("POSTGRES_PASSWORD", "test"),
         "REDIS_HOST": os.environ.get("REDIS_HOST", "localhost"),
@@ -134,8 +134,8 @@ def gateway_process(ai_core_process) -> Generator[subprocess.Popen | None, None,
     # Find Rust gateway binary
     gateway_paths = [
         "/tmp/gateway",  # CI build location
-        "./rust/target/debug/projectcell-rust-gateway",  # Local debug build
-        "./rust/target/release/projectcell-rust-gateway",  # Local release build
+        "./rust/target/debug/wisdoverse-cell-rust-gateway",  # Local debug build
+        "./rust/target/release/wisdoverse-cell-rust-gateway",  # Local release build
     ]
 
     gateway_bin = None
@@ -147,7 +147,7 @@ def gateway_process(ai_core_process) -> Generator[subprocess.Popen | None, None,
     if not gateway_bin:
         pytest.skip(
             "Gateway binary not found. Build with: "
-            "cargo build --manifest-path rust/Cargo.toml -p projectcell-rust-gateway"
+            "cargo build --manifest-path rust/Cargo.toml -p wisdoverse-cell-rust-gateway"
         )
 
     # Start Gateway

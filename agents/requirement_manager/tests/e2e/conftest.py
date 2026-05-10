@@ -34,7 +34,7 @@ from httpx import ASGITransport, AsyncClient
 # CI may override these defaults with standard ports.
 os.environ.setdefault("POSTGRES_HOST", "localhost")
 os.environ.setdefault("POSTGRES_PORT", "5433")
-os.environ.setdefault("POSTGRES_DB", "projectcell_test")
+os.environ.setdefault("POSTGRES_DB", "wisdoverse-cell_test")
 os.environ.setdefault("POSTGRES_USER", "test")
 os.environ.setdefault("POSTGRES_PASSWORD", "test")
 os.environ.setdefault("REDIS_HOST", "localhost")
@@ -45,7 +45,7 @@ os.environ["FEISHU_ENABLED"] = "false"  # Disable Feishu notifications during te
 # Read effective configuration values; CI can override the defaults.
 _POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "localhost")
 _POSTGRES_PORT = os.environ.get("POSTGRES_PORT", "5433")
-_POSTGRES_DB = os.environ.get("POSTGRES_DB", "projectcell_test")
+_POSTGRES_DB = os.environ.get("POSTGRES_DB", "wisdoverse-cell_test")
 _POSTGRES_USER = os.environ.get("POSTGRES_USER", "test")
 _POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "test")
 _REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
@@ -97,13 +97,13 @@ async def test_event_bus() -> AsyncGenerator[EventBus, None]:
     """Test EventBus."""
     bus = EventBus(
         redis_url=f"redis://{_REDIS_HOST}:{_REDIS_PORT}/0",
-        queue_prefix="projectcell_test:events"
+        queue_prefix="wisdoverse-cell_test:events"
     )
     await bus.connect()
 
     # Clear test queues.
     if bus._redis:
-        keys = await bus._redis.keys("projectcell_test:events:*")
+        keys = await bus._redis.keys("wisdoverse-cell_test:events:*")
         if keys:
             await bus._redis.delete(*keys)
 
@@ -111,7 +111,7 @@ async def test_event_bus() -> AsyncGenerator[EventBus, None]:
 
     # Cleanup.
     if bus._redis:
-        keys = await bus._redis.keys("projectcell_test:events:*")
+        keys = await bus._redis.keys("wisdoverse-cell_test:events:*")
         if keys:
             await bus._redis.delete(*keys)
     await bus.disconnect()
@@ -182,7 +182,7 @@ async def get_published_events(test_event_bus: EventBus):
     yield _get_events
 
     # Cleanup: best-effort removal.  The parent test_event_bus fixture
-    # does a full key cleanup anyway via keys("projectcell_test:events:*").
+    # does a full key cleanup anyway via keys("wisdoverse-cell_test:events:*").
     for et in _observed_types:
         try:
             stream_key = test_event_bus._get_stream_key(et)

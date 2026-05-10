@@ -17,7 +17,7 @@
 
 services:
   ai-core:
-    image: ${REGISTRY}projectcell/ai-core:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-ai-core:${VERSION}
     build: !reset null
     container_name: !reset null
     environment:
@@ -44,7 +44,7 @@ services:
         max_attempts: 3
 
   gateway:
-    image: ${REGISTRY}projectcell/rust-gateway:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-rust-gateway:${VERSION}
     build: !reset null
     container_name: !reset null
     environment:
@@ -71,7 +71,7 @@ services:
         max_attempts: 3
 
   sync-module:
-    image: ${REGISTRY}projectcell/sync-module:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-sync-module:${VERSION}
     build: !reset null
     container_name: !reset null
     environment:
@@ -95,7 +95,7 @@ services:
         max_attempts: 3
 
   analysis-module:
-    image: ${REGISTRY}projectcell/analysis-module:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-analysis-module:${VERSION}
     build: !reset null
     container_name: !reset null
     environment:
@@ -119,7 +119,7 @@ services:
         max_attempts: 3
 
   pjm-agent:
-    image: ${REGISTRY}projectcell/pjm-agent:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-pjm-agent:${VERSION}
     build: !reset null
     container_name: !reset null
     environment:
@@ -143,7 +143,7 @@ services:
         max_attempts: 3
 
   chat-agent:
-    image: ${REGISTRY}projectcell/chat-agent:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-chat-agent:${VERSION}
     build: !reset null
     container_name: !reset null
     environment:
@@ -167,7 +167,7 @@ services:
         max_attempts: 3
 
   qa-agent:
-    image: ${REGISTRY}projectcell/qa-agent:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-qa-agent:${VERSION}
     build: !reset null
     container_name: !reset null
     environment:
@@ -191,7 +191,7 @@ services:
         max_attempts: 3
 
   dev-agent:
-    image: ${REGISTRY}projectcell/dev-agent:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-dev-agent:${VERSION}
     build: !reset null
     container_name: !reset null
     environment:
@@ -215,7 +215,7 @@ services:
         max_attempts: 3
 
   evolution-module:
-    image: ${REGISTRY}projectcell/evolution-module:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-evolution-module:${VERSION}
     build: !reset null
     container_name: !reset null
     environment:

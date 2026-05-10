@@ -6,7 +6,7 @@ import { parseAuthRole } from "./roles";
 import { authCallbacks, authPages, authSession } from "./session";
 
 function devAuthEmail(username: string): string {
-  return username.includes("@") ? username : `${username}@projectcell.dev`;
+  return username.includes("@") ? username : `${username}@wisdoverse-cell.dev`;
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({

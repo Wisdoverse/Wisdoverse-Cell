@@ -77,7 +77,7 @@ class EventBus:
     def __init__(
         self,
         redis_url: Optional[str] = None,
-        queue_prefix: str = "projectcell:events"
+        queue_prefix: str = "wisdoverse-cell:events"
     ):
         self.redis_url = redis_url or settings.redis_event_bus_url  # Always db 0
         self.queue_prefix = queue_prefix
@@ -619,7 +619,7 @@ def create_event_bus(backend: str | None = None) -> EventBusProtocol:
         consumer_name = (
             settings.event_bus_consumer_name.strip()
             or settings.otel_service_name.strip()
-            or "projectcell"
+            or "wisdoverse-cell"
         )
         logger.info(
             "event_bus_backend_selected",

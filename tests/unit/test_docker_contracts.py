@@ -123,27 +123,27 @@ def test_rust_gateway_is_default_and_only_gateway_runtime() -> None:
 
     app_gateway = _compose_service_block(app, "gateway")
     assert "dockerfile: rust/gateway/Dockerfile" in app_gateway
-    assert "image: ${REGISTRY:-}projectcell/rust-gateway:${VERSION:-latest}" in app_gateway
+    assert "image: ${REGISTRY:-}wisdoverse/cell-rust-gateway:${VERSION:-latest}" in app_gateway
     assert "GATEWAY_IMPLEMENTATION: rust" in app_gateway
-    assert "image: ${REGISTRY:-}projectcell/gateway:${VERSION:-latest}" not in app_gateway
+    assert "image: ${REGISTRY:-}wisdoverse/cell-gateway:${VERSION:-latest}" not in app_gateway
     assert "context: ../../gateway" not in app_gateway
 
     root_gateway = _compose_service_block(root_compose, "gateway")
     assert "dockerfile: rust/gateway/Dockerfile" in root_gateway
-    assert "image: ${REGISTRY:-}projectcell/rust-gateway:${VERSION:-latest}" in root_gateway
+    assert "image: ${REGISTRY:-}wisdoverse/cell-rust-gateway:${VERSION:-latest}" in root_gateway
     assert "GATEWAY_IMPLEMENTATION: rust" in root_gateway
 
     prod_compose = Path("docker/compose/docker-compose.prod.yml").read_text(
         encoding="utf-8"
     )
     prod_gateway = _compose_service_block(prod_compose, "gateway")
-    assert "image: ${REGISTRY}projectcell/rust-gateway:${VERSION}" in prod_gateway
+    assert "image: ${REGISTRY}wisdoverse/cell-rust-gateway:${VERSION}" in prod_gateway
     assert "build: !reset null" in prod_gateway
     assert "GATEWAY_IMPLEMENTATION: rust" in prod_gateway
 
     root_prod = Path("docker-compose.prod.yml").read_text(encoding="utf-8")
     root_prod_gateway = _compose_service_block(root_prod, "gateway")
-    assert "image: ${REGISTRY}projectcell/rust-gateway:${VERSION}" in root_prod_gateway
+    assert "image: ${REGISTRY}wisdoverse/cell-rust-gateway:${VERSION}" in root_prod_gateway
     assert "build: !reset null" in root_prod_gateway
     assert "GATEWAY_IMPLEMENTATION: rust" in root_prod_gateway
 
@@ -175,7 +175,7 @@ def test_rust_gateway_is_default_and_only_gateway_runtime() -> None:
     assert "$(COMPOSE_GO_GATEWAY_LEGACY_PROD)" not in makefile
 
     prod_shadow_runtime = _compose_service_block(prod_shadow, "rust-gateway-shadow")
-    assert "image: ${REGISTRY}projectcell/rust-gateway:${VERSION}" in prod_shadow_runtime
+    assert "image: ${REGISTRY}wisdoverse/cell-rust-gateway:${VERSION}" in prod_shadow_runtime
     assert "build: !reset null" in prod_shadow_runtime
     assert "GATEWAY_IMPLEMENTATION: rust-shadow" in prod_shadow_runtime
     assert "RUST_GATEWAY_SHADOW_HOST is required" in prod_shadow_runtime
@@ -195,7 +195,7 @@ def test_rust_gateway_is_default_and_only_gateway_runtime() -> None:
     assert "GATEWAY_IMPLEMENTATION:" not in shadow_gateway
 
     shadow_runtime = _compose_service_block(shadow, "rust-gateway-shadow")
-    assert "image: ${REGISTRY:-}projectcell/rust-gateway:${VERSION:-latest}" in shadow_runtime
+    assert "image: ${REGISTRY:-}wisdoverse/cell-rust-gateway:${VERSION:-latest}" in shadow_runtime
     assert "GATEWAY_IMPLEMENTATION: rust-shadow" in shadow_runtime
     assert "${RUST_GATEWAY_SHADOW_PORT:-18080}:8080" in shadow_runtime
     assert "external: false" in shadow
@@ -241,7 +241,7 @@ def test_production_overrides_use_prebuilt_python_runtime_images() -> None:
         compose = compose_path.read_text(encoding="utf-8")
         for service in PYTHON_RUNTIME_TARGETS:
             assert f"  {service}:" in compose, f"{compose_path} is missing {service}"
-            assert f"image: ${{REGISTRY}}projectcell/{service}:${{VERSION}}" in compose
+            assert f"image: ${{REGISTRY}}wisdoverse/cell-{service}:${{VERSION}}" in compose
             service_block = _compose_service_block(compose, service)
             assert "build: !reset null" in service_block, (
                 f"{compose_path} must disable local build for {service} in production"

@@ -87,7 +87,7 @@ Each playbook follows: **Symptoms → Diagnosis → Fix → Prevention**.
 ```bash
 # Check current connections by user and state
 docker compose -f docker/compose/docker-compose.base.yml exec postgres \
-  psql -U projectcell -c "
+  psql -U wisdoverse-cell -c "
     SELECT usename, state, count(*)
     FROM pg_stat_activity
     GROUP BY usename, state
@@ -96,7 +96,7 @@ docker compose -f docker/compose/docker-compose.base.yml exec postgres \
 
 # Check connection usage percentage
 docker compose -f docker/compose/docker-compose.base.yml exec postgres \
-  psql -U projectcell -c "
+  psql -U wisdoverse-cell -c "
     SELECT count(*) AS current,
            setting::int AS max,
            round(count(*)::numeric / setting::numeric * 100, 1) AS pct
@@ -107,7 +107,7 @@ docker compose -f docker/compose/docker-compose.base.yml exec postgres \
 
 # Check PgBouncer pool status
 docker compose -f docker/compose/docker-compose.base.yml exec pgbouncer \
-  psql -p 6432 -U projectcell pgbouncer -c "SHOW POOLS;"
+  psql -p 6432 -U wisdoverse-cell pgbouncer -c "SHOW POOLS;"
 ```
 
 **Fix**:
@@ -115,12 +115,12 @@ docker compose -f docker/compose/docker-compose.base.yml exec pgbouncer \
 ```bash
 # Step 1: Kill idle connections older than 10 minutes (non-superuser only)
 docker compose -f docker/compose/docker-compose.base.yml exec postgres \
-  psql -U projectcell -c "
+  psql -U wisdoverse-cell -c "
     SELECT pg_terminate_backend(pid)
     FROM pg_stat_activity
     WHERE state = 'idle'
       AND query_start < now() - interval '10 minutes'
-      AND usename != 'projectcell';
+      AND usename != 'wisdoverse-cell';
   "
 
 # Step 2: If PgBouncer pool is saturated, restart PgBouncer
@@ -623,23 +623,23 @@ ls -la backups/*.dump
 
 # Step 3: Option A — Restore to existing database (DESTRUCTIVE: overwrites current data)
 docker compose -f docker/compose/docker-compose.base.yml exec -T postgres \
-  pg_restore -U projectcell -d projectcell --clean --if-exists --no-owner \
-  < backups/projectcell_YYYYMMDD_HHMMSS.dump
+  pg_restore -U wisdoverse-cell -d wisdoverse-cell --clean --if-exists --no-owner \
+  < backups/wisdoverse-cell_YYYYMMDD_HHMMSS.dump
 
 # Step 3: Option B — Restore to a new database (SAFE: preserves current data)
 docker compose -f docker/compose/docker-compose.base.yml exec postgres \
-  createdb -U projectcell projectcell_restored
+  createdb -U wisdoverse-cell wisdoverse-cell_restored
 
 docker compose -f docker/compose/docker-compose.base.yml exec -T postgres \
-  pg_restore -U projectcell -d projectcell_restored --no-owner \
-  < backups/projectcell_YYYYMMDD_HHMMSS.dump
+  pg_restore -U wisdoverse-cell -d wisdoverse-cell_restored --no-owner \
+  < backups/wisdoverse-cell_YYYYMMDD_HHMMSS.dump
 
 # Step 4: Re-run per-agent permission grants
 docker compose -f docker/compose/docker-compose.base.yml exec -T postgres \
   sh /docker-entrypoint-initdb.d/02-agent-users.sh
 
 docker compose -f docker/compose/docker-compose.base.yml exec -T postgres \
-  psql -U projectcell -d projectcell -f /docker-entrypoint-initdb.d/02-agent-users.sql
+  psql -U wisdoverse-cell -d wisdoverse-cell -f /docker-entrypoint-initdb.d/02-agent-users.sql
 
 # Step 5: Restart application services
 docker compose -f docker/compose/docker-compose.app.yml start

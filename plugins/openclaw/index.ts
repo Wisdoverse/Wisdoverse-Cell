@@ -1,7 +1,7 @@
 /**
  * Wisdoverse Cell Channel Plugin for OpenClaw
  *
- * Registers a "projectcell" channel that bridges OpenClaw platforms
+ * Registers a "wisdoverse-cell" channel that bridges OpenClaw platforms
  * to Wisdoverse Cell's AI agent system via WebSocket JSON-RPC.
  */
 
@@ -20,14 +20,14 @@ export default function register(api: OpenClawPluginAPI): void {
 
   // Register the Wisdoverse Cell channel
   api.registerChannel({
-    id: "projectcell",
+    id: "wisdoverse-cell",
     name: "Wisdoverse Cell",
     description: "Route messages through Wisdoverse Cell AI agents",
 
     async onMessage(message: ChannelMessage): Promise<void> {
       // Forward inbound messages to Wisdoverse Cell adapter via gateway event
       await api.emitEvent("channel.message", {
-        channel: "projectcell",
+        channel: "wisdoverse-cell",
         message_id: message.id,
         chat_id: message.chatId,
         chat_type: message.chatType ?? "private",
@@ -45,7 +45,7 @@ export default function register(api: OpenClawPluginAPI): void {
 
     async onAction(callback: Record<string, unknown>): Promise<void> {
       await api.emitEvent("channel.action", {
-        channel: "projectcell",
+        channel: "wisdoverse-cell",
         ...callback,
       });
     },
@@ -53,7 +53,7 @@ export default function register(api: OpenClawPluginAPI): void {
 
   // Register Wisdoverse Cell agent tools
   api.registerTool({
-    name: "projectcell.query",
+    name: "wisdoverse-cell.query",
     description: "Send a query to Wisdoverse Cell AI agents and get a response",
     parameters: {
       query: { type: "string", description: "The query text", required: true },
@@ -61,16 +61,16 @@ export default function register(api: OpenClawPluginAPI): void {
       context: { type: "object", description: "Additional context" },
     },
     async execute(params: Record<string, unknown>): Promise<unknown> {
-      return api.callRPC("projectcell.query", params);
+      return api.callRPC("wisdoverse-cell.query", params);
     },
   });
 
   // Register status RPC method
-  api.registerRPC("projectcell.status", async (): Promise<ProjectCellStatus> => {
+  api.registerRPC("wisdoverse-cell.status", async (): Promise<ProjectCellStatus> => {
     const config: ChannelConfig = api.getConfig();
     return {
-      connected: api.isChannelConnected("projectcell"),
-      device_id: (config.PROJECTCELL_DEVICE_ID as string) ?? "projectcell",
+      connected: api.isChannelConnected("wisdoverse-cell"),
+      device_id: (config.PROJECTCELL_DEVICE_ID as string) ?? "wisdoverse-cell",
       uptime_seconds: Math.floor((Date.now() - startTime) / 1000),
     };
   });

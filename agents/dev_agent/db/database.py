@@ -15,7 +15,7 @@ class DatabaseManager(BaseDatabaseManager):
         read_database_url: Optional[str] = None,
     ):
         super().__init__(
-            application_name="projectcell-dev-agent",
+            application_name="wisdoverse-cell-dev-agent",
             metadata=Base.metadata,
             database_url=database_url,
             read_database_url=read_database_url,

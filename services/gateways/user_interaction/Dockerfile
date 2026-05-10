@@ -8,7 +8,7 @@
 #   docker compose build chat-agent
 #
 # Legacy standalone:
-#   docker build -t projectcell/chat-agent:latest \
+#   docker build -t wisdoverse/cell-chat-agent:latest \
 #     -f services/gateways/user_interaction/Dockerfile .
 #
 # ==============================================================================

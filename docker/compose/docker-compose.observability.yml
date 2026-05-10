@@ -25,7 +25,7 @@ services:
   # ===========================================================================
   prometheus:
     image: prom/prometheus:v2.55.1
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-prometheus
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-prometheus
     hostname: prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -57,7 +57,7 @@ services:
   # ===========================================================================
   alertmanager:
     image: prom/alertmanager:v0.27.0
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-alertmanager
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-alertmanager
     hostname: alertmanager
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
@@ -87,11 +87,11 @@ services:
   # ===========================================================================
   grafana:
     image: grafana/grafana:11.4.0
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-grafana
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-grafana
     hostname: grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-projectcell}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-wisdoverse-cell}
       GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:%(http_port)s/grafana/"
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
@@ -128,7 +128,7 @@ services:
   # ===========================================================================
   loki:
     image: grafana/loki:3.3.2
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-loki
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-loki
     hostname: loki
     command: -config.file=/etc/loki/config.yml
     volumes:
@@ -153,7 +153,7 @@ services:
   # ===========================================================================
   tempo:
     image: grafana/tempo:2.6.1
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-tempo
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-tempo
     hostname: tempo
     command: -config.file=/etc/tempo/config.yml
     volumes:
@@ -178,7 +178,7 @@ services:
   # ===========================================================================
   promtail:
     image: grafana/promtail:3.3.2
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-promtail
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-promtail
     hostname: promtail
     command: -config.file=/etc/promtail/config.yml
     volumes:
@@ -202,10 +202,10 @@ services:
   # ===========================================================================
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.15.0
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-postgres-exporter
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-postgres-exporter
     hostname: postgres-exporter
     environment:
-      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-projectcell}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-projectcell}?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-wisdoverse-cell}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-wisdoverse-cell}?sslmode=disable"
     networks:
       - backend
     depends_on:
@@ -223,7 +223,7 @@ services:
   # ===========================================================================
   redis-exporter:
     image: oliver006/redis_exporter:v1.66.0
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-redis-exporter
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-redis-exporter
     hostname: redis-exporter
     environment:
       REDIS_ADDR: "redis://redis-master:6379"
@@ -244,12 +244,12 @@ services:
   # ===========================================================================
   pgbouncer-exporter:
     image: prometheuscommunity/pgbouncer-exporter:v0.8.0
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-pgbouncer-exporter
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-pgbouncer-exporter
     hostname: pgbouncer-exporter
     environment:
       PGBOUNCER_EXPORTER_HOST: pgbouncer
       PGBOUNCER_EXPORTER_PORT: "6432"
-      PGBOUNCER_EXPORTER_USER: ${POSTGRES_USER:-projectcell}
+      PGBOUNCER_EXPORTER_USER: ${POSTGRES_USER:-wisdoverse-cell}
       PGBOUNCER_EXPORTER_PASS: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     networks:
       - backend
@@ -268,7 +268,7 @@ services:
   # ===========================================================================
   nats-exporter:
     image: natsio/prometheus-nats-exporter:0.15.0
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-nats-exporter
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-nats-exporter
     hostname: nats-exporter
     command: -varz -connz -jsz=all http://nats-1:8222
     networks:
@@ -282,20 +282,20 @@ services:
 
 volumes:
   prometheus_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_prometheus_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_prometheus_data
   alertmanager_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_alertmanager_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_alertmanager_data
   grafana_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_grafana_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_grafana_data
   loki_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_loki_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_loki_data
   tempo_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_tempo_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_tempo_data
 
 networks:
   backend:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_backend
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_backend
     external: true
   frontend:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_frontend
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_frontend
     external: true
