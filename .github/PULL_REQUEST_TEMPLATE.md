@@ -17,7 +17,7 @@
 - [ ] `make rust-gateway-prod-cutover-config`
 - [ ] `make up-prod-rust-gateway-shadow` config path reviewed when this PR changes production shadow routing
 - [ ] `make rust-gateway-prod-shadow-check` with `GATEWAY_HOST` matching the baseline gateway host and distinct globally routable baseline / shadow gateway URLs when this PR changes production gateway rollout or shadow evidence behavior
-- [ ] `docker build -f rust/gateway/Dockerfile -t projectcell/rust-gateway:local .`
+- [ ] `docker build -f rust/gateway/Dockerfile -t wisdoverse/cell-rust-gateway:local .`
 - [ ] `cd frontend && npm ci && npm run lint && npm test && npm audit --omit=dev --audit-level=high && npm run build`
 - [ ] Public hygiene checks pass
 

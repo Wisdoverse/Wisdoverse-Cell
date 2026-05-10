@@ -1,27 +1,29 @@
 import { describe, expect, it } from "vitest";
 
-import { mapControlPlaneAgentStatus } from "./status";
+import { mapControlPlaneLifecycleStatus } from "./status";
 
-describe("mapControlPlaneAgentStatus", () => {
+describe("mapControlPlaneLifecycleStatus", () => {
   it("keeps paused lifecycle state visible", () => {
-    expect(mapControlPlaneAgentStatus("paused")).toBe("paused");
-    expect(mapControlPlaneAgentStatus(" PAUSED ")).toBe("paused");
+    expect(mapControlPlaneLifecycleStatus("paused")).toBe("paused");
+    expect(mapControlPlaneLifecycleStatus(" PAUSED ")).toBe("paused");
   });
 
-  it("maps active control-plane agents to running UI state", () => {
-    expect(mapControlPlaneAgentStatus("active")).toBe("running");
-    expect(mapControlPlaneAgentStatus("running")).toBe("running");
+  it("maps catalog-enabled lifecycle states to idle, not running", () => {
+    // `active` is a lifecycle flag, not evidence of an in-flight run.
+    // Runtime `running` must come from AgentRun rows.
+    expect(mapControlPlaneLifecycleStatus("active")).toBe("idle");
+    expect(mapControlPlaneLifecycleStatus("running")).toBe("idle");
   });
 
-  it("maps terminal and failed states without falling back to idle", () => {
-    expect(mapControlPlaneAgentStatus("terminated")).toBe("stopped");
-    expect(mapControlPlaneAgentStatus("stopped")).toBe("stopped");
-    expect(mapControlPlaneAgentStatus("failed")).toBe("error");
-    expect(mapControlPlaneAgentStatus("error")).toBe("error");
+  it("maps terminal and failed lifecycle states", () => {
+    expect(mapControlPlaneLifecycleStatus("terminated")).toBe("stopped");
+    expect(mapControlPlaneLifecycleStatus("stopped")).toBe("stopped");
+    expect(mapControlPlaneLifecycleStatus("failed")).toBe("error");
+    expect(mapControlPlaneLifecycleStatus("error")).toBe("error");
   });
 
-  it("defaults unknown statuses to idle", () => {
-    expect(mapControlPlaneAgentStatus("")).toBe("idle");
-    expect(mapControlPlaneAgentStatus("provisioning")).toBe("idle");
+  it("defaults unknown lifecycle states to idle", () => {
+    expect(mapControlPlaneLifecycleStatus("")).toBe("idle");
+    expect(mapControlPlaneLifecycleStatus("provisioning")).toBe("idle");
   });
 });

@@ -12,7 +12,7 @@
   "id": null,
   "uid": "postgres-monitoring",
   "title": "PostgreSQL + PgBouncer",
-  "tags": ["project-cell", "postgres", "pgbouncer", "database"],
+  "tags": ["wisdoverse-cell", "postgres", "pgbouncer", "database"],
   "schemaVersion": 39,
   "version": 1,
   "editable": true,
@@ -136,7 +136,7 @@
       "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
       "targets": [
         {
-          "expr": "rate(pg_stat_database_xact_commit{datname=\"projectcell\"}[5m]) + rate(pg_stat_database_xact_rollback{datname=\"projectcell\"}[5m])",
+          "expr": "rate(pg_stat_database_xact_commit{datname=\"wisdoverse-cell\"}[5m]) + rate(pg_stat_database_xact_rollback{datname=\"wisdoverse-cell\"}[5m])",
           "legendFormat": "TPS",
           "refId": "A"
         }
@@ -171,7 +171,7 @@
       "gridPos": { "x": 0, "y": 8, "w": 6, "h": 6 },
       "targets": [
         {
-          "expr": "pg_stat_database_blks_hit{datname=\"projectcell\"} / (pg_stat_database_blks_hit{datname=\"projectcell\"} + pg_stat_database_blks_read{datname=\"projectcell\"}) * 100",
+          "expr": "pg_stat_database_blks_hit{datname=\"wisdoverse-cell\"} / (pg_stat_database_blks_hit{datname=\"wisdoverse-cell\"} + pg_stat_database_blks_read{datname=\"wisdoverse-cell\"}) * 100",
           "legendFormat": "Cache Hit %",
           "refId": "A"
         }
@@ -213,7 +213,7 @@
       "gridPos": { "x": 6, "y": 8, "w": 6, "h": 6 },
       "targets": [
         {
-          "expr": "pg_database_size_bytes{datname=\"projectcell\"}",
+          "expr": "pg_database_size_bytes{datname=\"wisdoverse-cell\"}",
           "legendFormat": "Size",
           "refId": "A"
         }

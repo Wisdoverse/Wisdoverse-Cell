@@ -46,7 +46,7 @@ export function initBrowserTelemetry(): void {
     }
 
     const resource = resourceFromAttributes({
-      [ATTR_SERVICE_NAME]: "project-cell-frontend-browser",
+      [ATTR_SERVICE_NAME]: "wisdoverse-cell-frontend-browser",
       "deployment.environment": process.env.NODE_ENV || "development",
     });
 
@@ -95,7 +95,7 @@ export function initBrowserTelemetry(): void {
  * ```
  */
 export function getBrowserTracer() {
-  return trace.getTracer("project-cell-frontend-browser", "1.0.0");
+  return trace.getTracer("wisdoverse-cell-frontend-browser", "1.0.0");
 }
 
 /**

@@ -18,7 +18,7 @@ services:
       dockerfile: rust/gateway/Dockerfile
       args:
         ALPINE_MIRROR: ${ALPINE_MIRROR:-}
-    image: ${REGISTRY:-}projectcell/rust-gateway:${VERSION:-latest}
+    image: ${REGISTRY:-}wisdoverse/cell-rust-gateway:${VERSION:-latest}
     hostname: rust-gateway-shadow
     environment:
       GATEWAY_IMPLEMENTATION: rust-shadow
@@ -74,10 +74,10 @@ services:
 
 networks:
   frontend:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_frontend
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_frontend
     driver: bridge
     external: false
   backend:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_backend
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_backend
     driver: bridge
     external: false

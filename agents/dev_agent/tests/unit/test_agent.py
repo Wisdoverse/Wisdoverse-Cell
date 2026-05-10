@@ -175,7 +175,7 @@ async def test_plan_and_execute_injects_project_id_before_submit():
     with patch.object(
         agent_module.settings,
         "dev_agentforge_project_id",
-        "project-cell",
+        "wisdoverse-cell",
         create=True,
     ):
         await agent._plan_and_execute(
@@ -188,13 +188,13 @@ async def test_plan_and_execute_injects_project_id_before_submit():
 
     submitted_plan = agent._execute_workflow.await_args.args[0]
     assert all(
-        node.config["projectId"] == "project-cell" for node in submitted_plan.nodes
+        node.config["projectId"] == "wisdoverse-cell" for node in submitted_plan.nodes
     )
     assert all(node.config["cliTool"] == "codex" for node in submitted_plan.nodes)
 
     stored_workflow = log_repo.create_log.await_args.kwargs["workflow_json"]
     assert all(
-        node["config"]["projectId"] == "project-cell"
+        node["config"]["projectId"] == "wisdoverse-cell"
         for node in stored_workflow["nodes"]
     )
 

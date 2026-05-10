@@ -45,7 +45,7 @@ async function registerNodeTracing() {
     });
 
     const resource = resourceFromAttributes({
-      [ATTR_SERVICE_NAME]: "project-cell-frontend",
+      [ATTR_SERVICE_NAME]: "wisdoverse-cell-frontend",
       "deployment.environment": process.env.APP_ENV || "development",
     });
 
@@ -74,7 +74,7 @@ async function registerNodeTracing() {
     onSignal?.("SIGINT", shutdown);
 
     console.info(
-      `[telemetry] OpenTelemetry initialized for project-cell-frontend (endpoint: ${endpoint})`,
+      `[telemetry] OpenTelemetry initialized for wisdoverse-cell-frontend (endpoint: ${endpoint})`,
     );
   } catch (err) {
     // Gracefully degrade if OTel initialization fails

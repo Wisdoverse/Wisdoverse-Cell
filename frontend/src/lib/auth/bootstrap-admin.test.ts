@@ -14,7 +14,7 @@ import {
 let tempDir: string;
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(path.join(tmpdir(), "projectcell-admin-"));
+  tempDir = await mkdtemp(path.join(tmpdir(), "wisdoverse-cell-admin-"));
   vi.stubEnv("WEBUI_ADMIN_STORE_PATH", path.join(tempDir, "webui-admin.json"));
 });
 

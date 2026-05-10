@@ -127,7 +127,7 @@ class MetricsPlugin(RuntimePlugin):
 
     name = "custom-metrics"
 
-    def __init__(self, namespace: str = "project_cell"):
+    def __init__(self, namespace: str = "wisdoverse_cell"):
         self._namespace = namespace
         self._counter = 0
 

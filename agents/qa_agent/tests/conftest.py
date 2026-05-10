@@ -24,7 +24,7 @@ if str(_project_root) not in sys.path:
 # Set test environment variables
 os.environ.setdefault("POSTGRES_HOST", "localhost")
 os.environ.setdefault("POSTGRES_PORT", "5433")
-os.environ.setdefault("POSTGRES_DB", "projectcell_test")
+os.environ.setdefault("POSTGRES_DB", "wisdoverse-cell_test")
 os.environ.setdefault("POSTGRES_USER", "test")
 os.environ.setdefault("POSTGRES_PASSWORD", "test")
 
@@ -39,7 +39,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """
     pg_host = os.environ.get("POSTGRES_HOST", "localhost")
     pg_port = os.environ.get("POSTGRES_PORT", "5433")
-    pg_db = os.environ.get("POSTGRES_DB", "projectcell_test")
+    pg_db = os.environ.get("POSTGRES_DB", "wisdoverse-cell_test")
     pg_user = os.environ.get("POSTGRES_USER", "test")
     pg_password = os.environ.get("POSTGRES_PASSWORD", "test")
     database_url = f"postgresql+asyncpg://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"

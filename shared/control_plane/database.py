@@ -16,7 +16,7 @@ class ControlPlaneDatabaseManager(BaseDatabaseManager):
         read_database_url: str | None = None,
     ):
         super().__init__(
-            application_name="projectcell-control-plane",
+            application_name="wisdoverse-cell-control-plane",
             metadata=control_plane_metadata,
             database_url=database_url,
             read_database_url=read_database_url,

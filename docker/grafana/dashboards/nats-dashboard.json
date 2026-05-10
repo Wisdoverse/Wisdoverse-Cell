@@ -12,7 +12,7 @@
   "id": null,
   "uid": "nats-monitoring",
   "title": "NATS JetStream",
-  "tags": ["project-cell", "nats", "messaging"],
+  "tags": ["wisdoverse-cell", "nats", "messaging"],
   "schemaVersion": 39,
   "version": 1,
   "editable": true,

@@ -30,8 +30,10 @@ runtime of your choice:
 > Implement Wisdoverse Cell according to the following spec:
 > https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/SPEC.md
 >
-> Preserve the runtime identifiers `projectcell`, `project-cell`, and `project_cell`. Treat the
-> documents under `docs/overview/` and `docs/guides/` as the operator-facing contract.
+> Use the canonical runtime identifiers `wisdoverse-cell` (kebab — services,
+> networks, compose), `wisdoverse_cell` (snake — Python distribution), and
+> `Wisdoverse Cell` (display). Treat the documents under `docs/overview/` and
+> `docs/guides/` as the operator-facing contract.
 
 ### Option 2. Use the reference implementation
 

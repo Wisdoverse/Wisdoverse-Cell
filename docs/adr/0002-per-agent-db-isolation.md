@@ -5,7 +5,7 @@ Accepted (2026-03-07)
 
 ## Context
 All runtime services shared:
-- Same PostgreSQL superuser (`projectcell`) with full access to all tables
+- Same PostgreSQL superuser (`wisdoverse-cell`) with full access to all tables
 - Same Redis database (db 0) with potential key collisions
 
 This violates the principle of least privilege and makes it impossible to audit which runtime accessed which data.

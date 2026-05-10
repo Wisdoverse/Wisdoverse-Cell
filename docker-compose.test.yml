@@ -8,14 +8,14 @@ services:
   postgres:
     image: postgres:18-alpine
     environment:
-      POSTGRES_DB: projectcell_test
+      POSTGRES_DB: wisdoverse-cell_test
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U test -d projectcell_test && psql -U test -d projectcell_test -c 'SELECT 1' >/dev/null",
+          "pg_isready -U test -d wisdoverse-cell_test && psql -U test -d wisdoverse-cell_test -c 'SELECT 1' >/dev/null",
         ]
       interval: 5s
       timeout: 5s
@@ -36,11 +36,11 @@ services:
       context: .
       dockerfile: docker/Dockerfile.agents
       target: ai-core
-    image: project_cell-ai-core
+    image: wisdoverse_cell-ai-core
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: projectcell_test
+      POSTGRES_DB: wisdoverse-cell_test
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
       REDIS_HOST: redis
@@ -112,7 +112,7 @@ services:
       AI_CORE_URL: http://ai-core:8000
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: projectcell_test
+      POSTGRES_DB: wisdoverse-cell_test
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
       PM_API_KEY: test-pm-api-key

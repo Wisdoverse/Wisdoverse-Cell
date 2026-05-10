@@ -10,7 +10,7 @@
 
 services:
   ai-core:
-    image: ${REGISTRY}projectcell/ai-core:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-ai-core:${VERSION}
     build: !reset null
     environment:
       DEBUG: "false"
@@ -36,7 +36,7 @@ services:
         max_attempts: 3
 
   gateway:
-    image: ${REGISTRY}projectcell/rust-gateway:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-rust-gateway:${VERSION}
     build: !reset null
     environment:
       GATEWAY_IMPLEMENTATION: rust
@@ -67,7 +67,7 @@ services:
         max_attempts: 3
 
   sync-module:
-    image: ${REGISTRY}projectcell/sync-module:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-sync-module:${VERSION}
     build: !reset null
     environment:
       DEBUG: "false"
@@ -90,7 +90,7 @@ services:
         max_attempts: 3
 
   analysis-module:
-    image: ${REGISTRY}projectcell/analysis-module:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-analysis-module:${VERSION}
     build: !reset null
     environment:
       DEBUG: "false"
@@ -113,7 +113,7 @@ services:
         max_attempts: 3
 
   pjm-agent:
-    image: ${REGISTRY}projectcell/pjm-agent:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-pjm-agent:${VERSION}
     build: !reset null
     environment:
       DEBUG: "false"
@@ -136,7 +136,7 @@ services:
         max_attempts: 3
 
   chat-agent:
-    image: ${REGISTRY}projectcell/chat-agent:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-chat-agent:${VERSION}
     build: !reset null
     environment:
       DEBUG: "false"
@@ -159,7 +159,7 @@ services:
         max_attempts: 3
 
   qa-agent:
-    image: ${REGISTRY}projectcell/qa-agent:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-qa-agent:${VERSION}
     build: !reset null
     environment:
       DEBUG: "false"
@@ -182,7 +182,7 @@ services:
         max_attempts: 3
 
   dev-agent:
-    image: ${REGISTRY}projectcell/dev-agent:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-dev-agent:${VERSION}
     build: !reset null
     environment:
       DEBUG: "false"
@@ -205,7 +205,7 @@ services:
         max_attempts: 3
 
   evolution-module:
-    image: ${REGISTRY}projectcell/evolution-module:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-evolution-module:${VERSION}
     build: !reset null
     environment:
       DEBUG: "false"
@@ -228,7 +228,7 @@ services:
         max_attempts: 3
 
   web:
-    image: ${REGISTRY}projectcell/web:${VERSION}
+    image: ${REGISTRY}wisdoverse/cell-web:${VERSION}
     build: !reset null
     restart: unless-stopped
     deploy:
@@ -270,7 +270,7 @@ services:
       - --entrypoints.traefik.address=:8081
       - --providers.docker.endpoint=unix:///var/run/docker.sock
       - --providers.docker.exposedByDefault=false
-      - --providers.docker.network=${COMPOSE_PROJECT_NAME:-projectcell}_frontend
+      - --providers.docker.network=${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_frontend
       - --providers.docker.watch=true
       - --providers.file.directory=/etc/traefik/dynamic
       - --providers.file.watch=true
@@ -322,4 +322,4 @@ services:
 
 volumes:
   traefik_letsencrypt:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_traefik_letsencrypt
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_traefik_letsencrypt

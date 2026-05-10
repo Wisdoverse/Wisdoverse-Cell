@@ -1,13 +1,13 @@
 """
 SQLite to PostgreSQL data migration script.
 
-Migrates data from the feishu-to-openproject SQLite database to the project_cell
+Migrates data from the feishu-to-openproject SQLite database to the wisdoverse_cell
 PostgreSQL database.
 
 Usage:
     python scripts/migrate_sqlite_to_postgres.py \
         --sqlite-path /path/to/app.db \
-        --pg-url postgresql+asyncpg://user:pass@host:5432/projectcell
+        --pg-url postgresql+asyncpg://user:pass@host:5432/wisdoverse-cell
 """
 import argparse
 import asyncio

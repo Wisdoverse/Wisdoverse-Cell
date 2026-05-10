@@ -8,7 +8,7 @@
 #   docker compose build dev-agent
 #
 # Legacy standalone:
-#   docker build -t projectcell/dev-agent:latest \
+#   docker build -t wisdoverse/cell-dev-agent:latest \
 #     -f agents/dev_agent/Dockerfile .
 #
 # ==============================================================================

@@ -123,9 +123,10 @@ systems. HTTP clients, SDK clients, webhook clients, and provider-specific
 retry/circuit-breaker code belong in `adapters/` or `shared/integrations/`,
 then get wired from `service/` or `app/`.
 
-Runtime identifiers such as `projectcell`, `project-cell`, `project_cell`,
-`requirement-manager`, `chat-agent`, `pjm-agent`, `sync-module`,
-`analysis-module`, `qa-agent`, `dev-agent`, and `evolution-module` are
-compatibility contracts. Historical `sync-agent`, `analysis-agent`, and
-`evolution-agent` identifiers are legacy aliases only; do not reintroduce them
-as canonical capability names.
+Canonical runtime identifiers (post 2026-05-10 brand unification):
+`wisdoverse-cell` (kebab — services, networks, compose), `wisdoverse_cell`
+(snake — Python distribution), and the agent IDs `requirement-manager`,
+`chat-agent`, `pjm-agent`, `sync-module`, `analysis-module`, `qa-agent`,
+`dev-agent`, and `evolution-module`. Historical `sync-agent`,
+`analysis-agent`, and `evolution-agent` identifiers are legacy aliases only;
+do not reintroduce them as canonical capability names.

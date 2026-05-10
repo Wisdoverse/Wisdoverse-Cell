@@ -7,7 +7,7 @@ import type {
   ControlPlaneAgentRun,
   ControlPlaneWorkItem,
 } from "@/entities/control-plane";
-import { mapControlPlaneAgentStatus } from "@/entities/agent";
+import { mapControlPlaneLifecycleStatus } from "@/entities/agent";
 
 const RUNNING_RUN_STATUSES = new Set(["pending", "running"]);
 const FAILED_RUN_STATUSES = new Set(["failed", "timed_out"]);
@@ -43,6 +43,18 @@ function latestTimestamp(
   );
 }
 
+/**
+ * Resolves the runtime status of an agent from runtime evidence first,
+ * falling back to the catalog lifecycle flag only when no evidence exists.
+ *
+ * Precedence:
+ *   1. An in-flight run (`pending`/`running`) → `running`.
+ *   2. A failed run or failed work item        → `error`.
+ *   3. Catalog lifecycle (`active` → `idle`, `paused`, `stopped`, ...).
+ *
+ * This split prevents catalog-enabled (`active`) agents from being shown
+ * as live `running` on the dashboard when nothing is actually executing.
+ */
 function runtimeStatus(
   agent: ControlPlaneAgentDefinition,
   latest: ControlPlaneAgentRun | undefined,
@@ -52,7 +64,7 @@ function runtimeStatus(
   if ((latest && FAILED_RUN_STATUSES.has(latest.status)) || failedWorkItemCount > 0) {
     return "error";
   }
-  return mapControlPlaneAgentStatus(agent.status);
+  return mapControlPlaneLifecycleStatus(agent.status);
 }
 
 function runtimeHealth(status: AgentStatus): number {

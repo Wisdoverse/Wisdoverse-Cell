@@ -8,7 +8,7 @@
 #   docker compose build analysis-module
 #
 # Legacy standalone:
-#   docker build -t projectcell/analysis-module:latest \
+#   docker build -t wisdoverse/cell-analysis-module:latest \
 #     -f shared/capabilities/analysis/Dockerfile .
 #
 # ==============================================================================

@@ -314,7 +314,7 @@ class ControlPlanePlugin(RuntimePlugin):
         self,
         *,
         session_provider: SessionProvider | None = None,
-        default_company_id: str = "cmp_projectcell",
+        default_company_id: str = "cmp_wisdoverse_cell",
         default_company_name: str = "Wisdoverse Cell",
         fail_closed: bool = False,
     ) -> None:

@@ -12,7 +12,7 @@ RUN if [ -n "$ALPINE_MIRROR" ]; then \
 COPY rust ./rust
 COPY agents/requirement_manager/grpc/proto ./agents/requirement_manager/grpc/proto
 
-RUN cargo build --manifest-path rust/Cargo.toml --release -p projectcell-rust-gateway
+RUN cargo build --manifest-path rust/Cargo.toml --release -p wisdoverse-cell-rust-gateway
 
 FROM alpine:3.23
 
@@ -25,7 +25,7 @@ RUN if [ -n "$ALPINE_MIRROR" ]; then \
     fi && \
     apk add --no-cache ca-certificates tzdata wget
 
-COPY --from=builder /app/rust/target/release/projectcell-rust-gateway /app/gateway
+COPY --from=builder /app/rust/target/release/wisdoverse-cell-rust-gateway /app/gateway
 
 RUN adduser -D -g '' appuser
 USER appuser

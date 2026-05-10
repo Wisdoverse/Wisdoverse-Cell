@@ -36,7 +36,7 @@ class NATSEventBus:
     def __init__(
         self,
         nats_url: str,
-        consumer_name: str = "projectcell",
+        consumer_name: str = "wisdoverse-cell",
         stream_replicas: int = 1,
     ):
         self._nats_url = nats_url

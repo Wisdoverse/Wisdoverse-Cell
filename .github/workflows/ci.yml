@@ -30,8 +30,8 @@ jobs:
             echo "$tracked_env_files"
             exit 1
           fi
-          if git grep -n -I -E 'Project Cell|project-cell-prd\.md|security@projectcell\.ai|wiki\.projectcell\.ai|--insecure-skip-tls-verify' -- . ':(exclude).github/workflows/ci.yml'; then
-            echo "Found stale private or pre-rename public references"
+          if git grep -n -I -E 'Project Cell|projectcell|project_cell|project-cell|project-cell-prd\.md|security@projectcell\.ai|wiki\.projectcell\.ai|itoy\.dev|itoy\.ai|cell\.wisdoverse\.com|--insecure-skip-tls-verify' -- . ':(exclude).github/workflows/ci.yml'; then
+            echo "Found stale pre-rebrand identifiers, internal hostnames, or banned flags on the public branch"
             exit 1
           fi
 
@@ -76,9 +76,9 @@ jobs:
       - name: Rust clippy
         run: cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked -- -D warnings
       - name: Rust gateway build
-        run: cargo build --manifest-path rust/Cargo.toml --locked -p projectcell-rust-gateway
+        run: cargo build --manifest-path rust/Cargo.toml --locked -p wisdoverse-cell-rust-gateway
       - name: Rust gateway Docker build
-        run: docker build -f rust/gateway/Dockerfile -t projectcell/rust-gateway:ci .
+        run: docker build -f rust/gateway/Dockerfile -t wisdoverse/cell-rust-gateway:ci .
 
   frontend:
     name: Frontend lint, tests, audit

@@ -12,7 +12,7 @@
   "id": null,
   "uid": "service-overview",
   "title": "Service Overview",
-  "tags": ["project-cell", "overview"],
+  "tags": ["wisdoverse-cell", "overview"],
   "schemaVersion": 39,
   "version": 1,
   "editable": true,
@@ -355,7 +355,7 @@
       "gridPos": { "x": 0, "y": 23, "w": 8, "h": 8 },
       "targets": [
         {
-          "expr": "sum(rate(projectcell_llm_requests_total[5m]))",
+          "expr": "sum(rate(wisdoverse-cell_llm_requests_total[5m]))",
           "legendFormat": "LLM req/s",
           "refId": "A"
         }
@@ -390,7 +390,7 @@
       "gridPos": { "x": 8, "y": 23, "w": 4, "h": 4 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(projectcell_llm_latency_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(wisdoverse-cell_llm_latency_seconds_bucket[5m])))",
           "legendFormat": "P95",
           "refId": "A"
         }
@@ -432,7 +432,7 @@
       "gridPos": { "x": 12, "y": 23, "w": 4, "h": 4 },
       "targets": [
         {
-          "expr": "sum(increase(projectcell_requirements_extracted_total[1h]))",
+          "expr": "sum(increase(wisdoverse-cell_requirements_extracted_total[1h]))",
           "legendFormat": "Extracted",
           "refId": "A"
         }
@@ -472,7 +472,7 @@
       "gridPos": { "x": 16, "y": 23, "w": 8, "h": 8 },
       "targets": [
         {
-          "expr": "sum by (event_type) (rate(projectcell_events_published_total[5m]))",
+          "expr": "sum by (event_type) (rate(wisdoverse-cell_events_published_total[5m]))",
           "legendFormat": "{{event_type}}",
           "refId": "A"
         }

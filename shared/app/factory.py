@@ -44,7 +44,7 @@ def create_agent_app(
     evolution_enabled: bool = True,
     evolution_excluded: bool = False,
     control_plane_enabled: bool = False,
-    control_plane_company_id: str = "cmp_projectcell",
+    control_plane_company_id: str = "cmp_wisdoverse_cell",
     harden_excluded: bool = False,
     include_api_key_middleware: bool = True,
     plugins: list[RuntimePlugin] | None = None,

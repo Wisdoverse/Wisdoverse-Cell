@@ -130,7 +130,7 @@ Rules:
 10. Frontend user actions belong to `features`.
 11. Frontend composed operator surfaces belong to `widgets`.
 12. All cross-boundary contracts must be documented in `SPEC.md`, API docs, or the Event Catalog.
-13. Runtime identifiers such as `projectcell`, `project-cell`, `project_cell`, and existing agent IDs must not be renamed during directory cleanup.
+13. Canonical runtime identifiers after the 2026-05-10 brand unification: `wisdoverse-cell` (kebab — services, networks, compose project, image suffixes), `wisdoverse_cell` (snake — Python distribution, fully-qualified DB references), and `Wisdoverse Cell` (display). Existing agent IDs (`requirement-manager`, `pjm-agent`, `qa-agent`, `dev-agent`, `chat-agent`, `sync-module`, `analysis-module`, `evolution-module`) and the company ID `cmp_wisdoverse_cell` are stable from this point forward and must not be renamed.
 
 ## Part 4: Coding Standards
 

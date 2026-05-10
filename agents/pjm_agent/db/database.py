@@ -12,7 +12,7 @@ from ..models.base import Base
 class DatabaseManager(BaseDatabaseManager):
     def __init__(self, database_url: Optional[str] = None, read_database_url: Optional[str] = None):
         super().__init__(
-            application_name="projectcell-pjm-agent",
+            application_name="wisdoverse-cell-pjm-agent",
             metadata=Base.metadata,
             database_url=database_url,
             read_database_url=read_database_url,

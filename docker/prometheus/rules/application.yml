@@ -31,9 +31,9 @@ groups:
 
       - record: job:llm_error_rate:ratio_5m
         expr: >
-          sum by (job) (rate(projectcell_llm_requests_total{success="false"}[5m]))
+          sum by (job) (rate(wisdoverse-cell_llm_requests_total{success="false"}[5m]))
           /
-          sum by (job) (rate(projectcell_llm_requests_total[5m]))
+          sum by (job) (rate(wisdoverse-cell_llm_requests_total[5m]))
 
   # ---------------------------------------------------------------------------
   # SLO Alerts — Latency & Error Budget
@@ -174,7 +174,7 @@ groups:
 
       # -- LLM Daily Cost Over Budget -----------------------------------------
       - alert: LLMDailyBudgetExceeded
-        expr: projectcell_llm_daily_cost_dollars > 100
+        expr: wisdoverse-cell_llm_daily_cost_dollars > 100
         for: 1m
         labels:
           severity: critical
@@ -190,7 +190,7 @@ groups:
 
       # -- LLM Daily Cost Warning (> 80% budget) -----------------------------
       - alert: LLMDailyBudgetWarning
-        expr: projectcell_llm_daily_cost_dollars > 80
+        expr: wisdoverse-cell_llm_daily_cost_dollars > 80
         for: 5m
         labels:
           severity: warning
@@ -205,7 +205,7 @@ groups:
 
       # -- LLM Response Latency High -----------------------------------------
       - alert: LLMResponseLatencyHigh
-        expr: histogram_quantile(0.95, rate(projectcell_llm_request_duration_seconds_bucket[5m])) > 30
+        expr: histogram_quantile(0.95, rate(wisdoverse-cell_llm_request_duration_seconds_bucket[5m])) > 30
         for: 5m
         labels:
           severity: warning
@@ -225,7 +225,7 @@ groups:
     rules:
       # -- Tool Call Loop Detection -------------------------------------------
       - alert: ToolCallLoopDetected
-        expr: rate(projectcell_chat_tool_calls_total[5m]) > 50
+        expr: rate(wisdoverse-cell_chat_tool_calls_total[5m]) > 50
         for: 2m
         labels:
           severity: critical
@@ -241,7 +241,7 @@ groups:
 
       # -- Tool Call Elevated Rate (warning) ----------------------------------
       - alert: ToolCallRateElevated
-        expr: rate(projectcell_chat_tool_calls_total[5m]) > 20
+        expr: rate(wisdoverse-cell_chat_tool_calls_total[5m]) > 20
         for: 5m
         labels:
           severity: warning
@@ -261,7 +261,7 @@ groups:
     rules:
       # -- Event Queue Backlog Critical ---------------------------------------
       - alert: EventQueueBacklogCritical
-        expr: projectcell_eventbus_queue_length > 5000
+        expr: wisdoverse-cell_eventbus_queue_length > 5000
         for: 5m
         labels:
           severity: critical
@@ -276,7 +276,7 @@ groups:
 
       # -- Event Queue Backlog Warning ----------------------------------------
       - alert: EventQueueBacklogWarning
-        expr: projectcell_eventbus_queue_length > 1000
+        expr: wisdoverse-cell_eventbus_queue_length > 1000
         for: 10m
         labels:
           severity: warning
@@ -291,7 +291,7 @@ groups:
 
       # -- Event Processing Errors --------------------------------------------
       - alert: EventProcessingErrors
-        expr: increase(projectcell_eventbus_processing_errors_total[5m]) > 10
+        expr: increase(wisdoverse-cell_eventbus_processing_errors_total[5m]) > 10
         for: 5m
         labels:
           severity: warning

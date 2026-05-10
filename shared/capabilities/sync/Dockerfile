@@ -8,7 +8,7 @@
 #   docker compose build sync-module
 #
 # Legacy standalone:
-#   docker build -t projectcell/sync-module:latest \
+#   docker build -t wisdoverse/cell-sync-module:latest \
 #     -f shared/capabilities/sync/Dockerfile .
 #
 # ==============================================================================

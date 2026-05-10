@@ -91,7 +91,7 @@ Enable the control-plane surface only after migrations are applied:
 
 ```bash
 CONTROL_PLANE_ENABLED=true
-CONTROL_PLANE_COMPANY_ID=cmp_projectcell
+CONTROL_PLANE_COMPANY_ID=cmp_wisdoverse_cell
 ```
 
 Production deployments should keep local execution adapters disabled unless an

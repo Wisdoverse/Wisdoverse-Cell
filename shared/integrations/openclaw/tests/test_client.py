@@ -30,7 +30,7 @@ class TestClientInit:
     def test_defaults(self) -> None:
         c = OpenClawClient()
         assert c._gateway_url == "ws://127.0.0.1:18789"
-        assert c._device_id == "projectcell"
+        assert c._device_id == "wisdoverse-cell"
         assert c._auth_token == ""
         assert c.connected is False
 

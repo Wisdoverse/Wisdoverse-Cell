@@ -92,8 +92,8 @@ The frontend follows strict Feature-Sliced Design.
   registry data through each slice public API.
 - Frontend code calls documented HTTP/API contracts and typed hooks. It must not
   import backend, agent, adapter, database, or LLM implementation modules.
-- Preserve runtime identifiers exactly, including names such as `projectcell`,
-  `project-cell`, `project_cell`, and existing agent IDs.
+- Use the canonical runtime identifiers exactly: `wisdoverse-cell` (kebab),
+  `wisdoverse_cell` (snake), and the existing agent IDs.
 - Project language is English for docs, code comments, API descriptions, and
   internal prompts. Locale files and intentional user-facing copy may use other
   languages.

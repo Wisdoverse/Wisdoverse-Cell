@@ -50,7 +50,7 @@ x-app-security-env: &app-security-env
   INTERNAL_TRANSPORT_PROTECTION: ${INTERNAL_TRANSPORT_PROTECTION:-}
   A2A_JWT_SECRET: ${A2A_JWT_SECRET:-dev-only-change-in-production}
   CONTROL_PLANE_ENABLED: ${CONTROL_PLANE_ENABLED:-false}
-  CONTROL_PLANE_COMPANY_ID: ${CONTROL_PLANE_COMPANY_ID:-cmp_projectcell}
+  CONTROL_PLANE_COMPANY_ID: ${CONTROL_PLANE_COMPANY_ID:-cmp_wisdoverse_cell}
   CONTROL_PLANE_APPROVAL_ENFORCED: ${CONTROL_PLANE_APPROVAL_ENFORCED:-false}
   CONTROL_PLANE_LLM_BUDGET_ENFORCED: ${CONTROL_PLANE_LLM_BUDGET_ENFORCED:-false}
   CONTROL_PLANE_TOOL_BUDGET_ENFORCED: ${CONTROL_PLANE_TOOL_BUDGET_ENFORCED:-false}
@@ -77,11 +77,11 @@ services:
 
   postgres:
     image: postgres:18-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-postgres
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-postgres
     hostname: postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
-      POSTGRES_USER: ${POSTGRES_USER:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
+      POSTGRES_USER: ${POSTGRES_USER:-wisdoverse-cell}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       CHAT_AGENT_DB_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:-chat_agent_dev}
       PM_AGENT_DB_PASSWORD: ${PM_AGENT_DB_PASSWORD:-pjm_agent_dev}
@@ -102,7 +102,7 @@ services:
       - backend
     healthcheck:
       <<: *healthcheck-defaults
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-projectcell} -d ${POSTGRES_DB:-projectcell}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wisdoverse-cell} -d ${POSTGRES_DB:-wisdoverse-cell}"]
       interval: 10s
     deploy:
       <<: *deploy-defaults
@@ -114,12 +114,12 @@ services:
     logging: *default-logging
     restart: unless-stopped
     labels:
-      - "com.projectcell.service=database"
-      - "com.projectcell.tier=infrastructure"
+      - "com.wisdoverse-cell.service=database"
+      - "com.wisdoverse-cell.tier=infrastructure"
 
   redis:
     image: redis:8-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-redis
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-redis
     hostname: redis
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
@@ -153,12 +153,12 @@ services:
     logging: *default-logging
     restart: unless-stopped
     labels:
-      - "com.projectcell.service=cache"
-      - "com.projectcell.tier=infrastructure"
+      - "com.wisdoverse-cell.service=cache"
+      - "com.wisdoverse-cell.tier=infrastructure"
 
   milvus:
     image: milvusdb/milvus:v2.6.10
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-milvus
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-milvus
     hostname: milvus
     command: ["milvus", "run", "standalone"]
     environment:
@@ -186,8 +186,8 @@ services:
     logging: *default-logging
     restart: unless-stopped
     labels:
-      - "com.projectcell.service=vector-db"
-      - "com.projectcell.tier=infrastructure"
+      - "com.wisdoverse-cell.service=vector-db"
+      - "com.wisdoverse-cell.tier=infrastructure"
 
   # ===========================================================================
   # Application Layer
@@ -203,15 +203,15 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/ai-core:${VERSION:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-ai-core
+    image: ${REGISTRY:-}wisdoverse/cell-ai-core:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-ai-core
     hostname: ai-core
     environment:
       # Database
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
-      POSTGRES_USER: ${POSTGRES_USER:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
+      POSTGRES_USER: ${POSTGRES_USER:-wisdoverse-cell}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       # Redis
       REDIS_HOST: redis
@@ -263,9 +263,9 @@ services:
     logging: *default-logging
     restart: unless-stopped
     labels:
-      - "com.projectcell.service=ai-core"
-      - "com.projectcell.tier=application"
-      - "com.projectcell.version=${VERSION:-dev}"
+      - "com.wisdoverse-cell.service=ai-core"
+      - "com.wisdoverse-cell.tier=application"
+      - "com.wisdoverse-cell.version=${VERSION:-dev}"
 
   gateway:
     build:
@@ -273,8 +273,8 @@ services:
       dockerfile: rust/gateway/Dockerfile
       args:
         ALPINE_MIRROR: ${ALPINE_MIRROR:-}
-    image: ${REGISTRY:-}projectcell/rust-gateway:${VERSION:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-gateway
+    image: ${REGISTRY:-}wisdoverse/cell-rust-gateway:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-gateway
     hostname: gateway
     environment:
       GATEWAY_IMPLEMENTATION: rust
@@ -339,9 +339,9 @@ services:
     logging: *default-logging
     restart: unless-stopped
     labels:
-      - "com.projectcell.service=gateway"
-      - "com.projectcell.tier=application"
-      - "com.projectcell.version=${VERSION:-dev}"
+      - "com.wisdoverse-cell.service=gateway"
+      - "com.wisdoverse-cell.tier=application"
+      - "com.wisdoverse-cell.version=${VERSION:-dev}"
 
   # ===========================================================================
   # Business runtime agents and support capability modules
@@ -357,13 +357,13 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/sync-module:${VERSION:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-sync-module
+    image: ${REGISTRY:-}wisdoverse/cell-sync-module:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-sync-module
     hostname: sync-module
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
       POSTGRES_USER: ${SYNC_MODULE_DB_USER:-sync_agent}
       POSTGRES_PASSWORD: ${SYNC_MODULE_DB_PASSWORD:-sync_agent_dev}
       REDIS_HOST: redis
@@ -401,8 +401,8 @@ services:
     restart: unless-stopped
     stop_grace_period: 35s
     labels:
-      - "com.projectcell.service=sync-module"
-      - "com.projectcell.tier=application"
+      - "com.wisdoverse-cell.service=sync-module"
+      - "com.wisdoverse-cell.tier=application"
 
   analysis-module:
     build:
@@ -414,13 +414,13 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/analysis-module:${VERSION:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-analysis-module
+    image: ${REGISTRY:-}wisdoverse/cell-analysis-module:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-analysis-module
     hostname: analysis-module
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
       POSTGRES_USER: ${ANALYSIS_MODULE_DB_USER:-analysis_agent}
       POSTGRES_PASSWORD: ${ANALYSIS_MODULE_DB_PASSWORD:-analysis_agent_dev}
       REDIS_HOST: redis
@@ -456,8 +456,8 @@ services:
     restart: unless-stopped
     stop_grace_period: 35s
     labels:
-      - "com.projectcell.service=analysis-module"
-      - "com.projectcell.tier=application"
+      - "com.wisdoverse-cell.service=analysis-module"
+      - "com.wisdoverse-cell.tier=application"
 
   evolution-module:
     build:
@@ -469,13 +469,13 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/evolution-module:${VERSION:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-evolution-module
+    image: ${REGISTRY:-}wisdoverse/cell-evolution-module:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-evolution-module
     hostname: evolution-module
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
       POSTGRES_USER: ${EVOLUTION_MODULE_DB_USER:-evolution_agent}
       POSTGRES_PASSWORD: ${EVOLUTION_MODULE_DB_PASSWORD:-evolution_agent_dev}
       REDIS_HOST: redis
@@ -510,8 +510,8 @@ services:
     restart: unless-stopped
     stop_grace_period: 35s
     labels:
-      - "com.projectcell.service=evolution-module"
-      - "com.projectcell.tier=application"
+      - "com.wisdoverse-cell.service=evolution-module"
+      - "com.wisdoverse-cell.tier=application"
 
   pjm-agent:
     build:
@@ -523,13 +523,13 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/pjm-agent:${VERSION:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-pjm-agent
+    image: ${REGISTRY:-}wisdoverse/cell-pjm-agent:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-pjm-agent
     hostname: pjm-agent
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
       POSTGRES_USER: ${PM_AGENT_DB_USER:-pjm_agent}
       POSTGRES_PASSWORD: ${PM_AGENT_DB_PASSWORD:-pjm_agent_dev}
       REDIS_HOST: redis
@@ -576,8 +576,8 @@ services:
     restart: unless-stopped
     stop_grace_period: 35s
     labels:
-      - "com.projectcell.service=pjm-agent"
-      - "com.projectcell.tier=application"
+      - "com.wisdoverse-cell.service=pjm-agent"
+      - "com.wisdoverse-cell.tier=application"
 
   qa-agent:
     build:
@@ -589,13 +589,13 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/qa-agent:${VERSION:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-qa-agent
+    image: ${REGISTRY:-}wisdoverse/cell-qa-agent:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-qa-agent
     hostname: qa-agent
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
       POSTGRES_USER: ${QA_AGENT_DB_USER:-qa_agent}
       POSTGRES_PASSWORD: ${QA_AGENT_DB_PASSWORD:-qa_agent_dev}
       REDIS_HOST: redis
@@ -637,8 +637,8 @@ services:
     restart: unless-stopped
     stop_grace_period: 35s
     labels:
-      - "com.projectcell.service=qa-agent"
-      - "com.projectcell.tier=application"
+      - "com.wisdoverse-cell.service=qa-agent"
+      - "com.wisdoverse-cell.tier=application"
 
   dev-agent:
     build:
@@ -650,13 +650,13 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/dev-agent:${VERSION:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-dev-agent
+    image: ${REGISTRY:-}wisdoverse/cell-dev-agent:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-dev-agent
     hostname: dev-agent
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
       POSTGRES_USER: ${DEV_AGENT_DB_USER:-dev_agent}
       POSTGRES_PASSWORD: ${DEV_AGENT_DB_PASSWORD:-dev_agent_dev}
       REDIS_HOST: redis
@@ -695,8 +695,8 @@ services:
     restart: unless-stopped
     stop_grace_period: 35s
     labels:
-      - "com.projectcell.service=dev-agent"
-      - "com.projectcell.tier=application"
+      - "com.wisdoverse-cell.service=dev-agent"
+      - "com.wisdoverse-cell.tier=application"
 
   chat-agent:
     build:
@@ -708,13 +708,13 @@ services:
         VERSION: ${VERSION:-dev}
         BUILD_DATE: ${BUILD_DATE:-}
         GIT_COMMIT: ${GIT_COMMIT:-}
-    image: ${REGISTRY:-}projectcell/chat-agent:${VERSION:-latest}
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-chat-agent
+    image: ${REGISTRY:-}wisdoverse/cell-chat-agent:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-chat-agent
     hostname: chat-agent
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-projectcell}
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
       POSTGRES_USER: ${CHAT_AGENT_DB_USER:-chat_agent}
       POSTGRES_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:-chat_agent_dev}
       REDIS_HOST: redis
@@ -756,17 +756,17 @@ services:
     restart: unless-stopped
     stop_grace_period: 35s
     labels:
-      - "com.projectcell.service=chat-agent"
-      - "com.projectcell.tier=application"
+      - "com.wisdoverse-cell.service=chat-agent"
+      - "com.wisdoverse-cell.tier=application"
 
   pg-backup:
     image: postgres:18-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-pg-backup
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-pg-backup
     environment:
       PGHOST: postgres
-      PGUSER: ${POSTGRES_USER:-projectcell}
+      PGUSER: ${POSTGRES_USER:-wisdoverse-cell}
       PGPASSWORD: ${POSTGRES_PASSWORD}
-      PGDATABASE: ${POSTGRES_DB:-projectcell}
+      PGDATABASE: ${POSTGRES_DB:-wisdoverse-cell}
     volumes:
       - pg_backups:/backups
     entrypoint: >
@@ -781,12 +781,12 @@ services:
       - postgres
     restart: unless-stopped
     labels:
-      - "com.projectcell.service=pg-backup"
-      - "com.projectcell.tier=infrastructure"
+      - "com.wisdoverse-cell.service=pg-backup"
+      - "com.wisdoverse-cell.tier=infrastructure"
 
   jaeger:
     image: jaegertracing/all-in-one:1.60
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-jaeger
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-jaeger
     hostname: jaeger
     profiles:
       - monitoring
@@ -803,12 +803,12 @@ services:
     logging: *default-logging
     restart: unless-stopped
     labels:
-      - "com.projectcell.service=tracing"
-      - "com.projectcell.tier=observability"
+      - "com.wisdoverse-cell.service=tracing"
+      - "com.wisdoverse-cell.tier=observability"
 
   prometheus:
     image: prom/prometheus:v2.55.1
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-prometheus
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-prometheus
     hostname: prometheus
     profiles:
       - monitoring
@@ -830,12 +830,12 @@ services:
     logging: *default-logging
     restart: unless-stopped
     labels:
-      - "com.projectcell.service=metrics"
-      - "com.projectcell.tier=observability"
+      - "com.wisdoverse-cell.service=metrics"
+      - "com.wisdoverse-cell.tier=observability"
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
-    container_name: ${COMPOSE_PROJECT_NAME:-projectcell}-alertmanager
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-alertmanager
     hostname: alertmanager
     profiles:
       - monitoring
@@ -865,8 +865,8 @@ services:
     logging: *default-logging
     restart: unless-stopped
     labels:
-      - "com.projectcell.service=alertmanager"
-      - "com.projectcell.tier=observability"
+      - "com.wisdoverse-cell.service=alertmanager"
+      - "com.wisdoverse-cell.tier=observability"
 
 # =============================================================================
 # Volumes
@@ -874,37 +874,37 @@ services:
 
 volumes:
   postgres_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_postgres_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_postgres_data
     labels:
-      - "com.projectcell.volume=postgres"
-      - "com.projectcell.backup=required"
+      - "com.wisdoverse-cell.volume=postgres"
+      - "com.wisdoverse-cell.backup=required"
 
   redis_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_redis_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_redis_data
     labels:
-      - "com.projectcell.volume=redis"
+      - "com.wisdoverse-cell.volume=redis"
 
   milvus_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_milvus_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_milvus_data
     labels:
-      - "com.projectcell.volume=milvus"
-      - "com.projectcell.backup=required"
+      - "com.wisdoverse-cell.volume=milvus"
+      - "com.wisdoverse-cell.backup=required"
 
   prometheus_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_prometheus_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_prometheus_data
     labels:
-      - "com.projectcell.volume=prometheus"
+      - "com.wisdoverse-cell.volume=prometheus"
 
   alertmanager_data:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_alertmanager_data
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_alertmanager_data
     labels:
-      - "com.projectcell.volume=alertmanager"
+      - "com.wisdoverse-cell.volume=alertmanager"
 
   pg_backups:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_pg_backups
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_pg_backups
     labels:
-      - "com.projectcell.volume=pg-backups"
-      - "com.projectcell.backup=required"
+      - "com.wisdoverse-cell.volume=pg-backups"
+      - "com.wisdoverse-cell.backup=required"
 
 # =============================================================================
 # Networks
@@ -912,14 +912,14 @@ volumes:
 
 networks:
   frontend:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_frontend
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_frontend
     driver: bridge
     labels:
-      - "com.projectcell.network=frontend"
+      - "com.wisdoverse-cell.network=frontend"
 
   backend:
-    name: ${COMPOSE_PROJECT_NAME:-projectcell}_backend
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_backend
     driver: bridge
     internal: true
     labels:
-      - "com.projectcell.network=backend"
+      - "com.wisdoverse-cell.network=backend"

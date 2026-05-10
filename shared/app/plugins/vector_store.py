@@ -34,31 +34,31 @@ _RETRY_BASE_DELAY_SECONDS = 0.1
 T = TypeVar("T")
 
 VECTOR_STORE_OPERATIONS = Counter(
-    "projectcell_vector_store_operations_total",
+    "wisdoverse-cell_vector_store_operations_total",
     "Total vector store operations by collection, operation, and outcome.",
     ["collection", "operation", "status"],
 )
 
 VECTOR_STORE_OPERATION_DURATION = Histogram(
-    "projectcell_vector_store_operation_duration_seconds",
+    "wisdoverse-cell_vector_store_operation_duration_seconds",
     "Vector store operation duration in seconds.",
     ["collection", "operation"],
     buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30),
 )
 
 VECTOR_STORE_AVAILABLE = Gauge(
-    "projectcell_vector_store_available",
+    "wisdoverse-cell_vector_store_available",
     "Whether the vector store plugin currently has a usable client.",
 )
 
 VECTOR_STORE_DOCUMENTS = Gauge(
-    "projectcell_vector_store_documents",
+    "wisdoverse-cell_vector_store_documents",
     "Number of indexed documents per vector collection.",
     ["collection"],
 )
 
 VECTOR_STORE_CIRCUIT_BREAKER_OPEN_TOTAL = Counter(
-    "projectcell_vector_store_circuit_breaker_open_total",
+    "wisdoverse-cell_vector_store_circuit_breaker_open_total",
     "Number of vector store operations short-circuited by an open circuit breaker.",
 )
 

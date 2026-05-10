@@ -23,7 +23,7 @@ vi.mock("@/entities/agent/api/control-plane-agents", async (importOriginal) => {
 
 const requirementManager: ControlPlaneAgentDefinition = {
   role_id: "role_requirement_manager",
-  company_id: "cmp_projectcell",
+  company_id: "cmp_wisdoverse_cell",
   agent_id: "requirement-manager",
   display_name: "Requirement Manager",
   agent_kind: "business_runtime_agent",
@@ -74,7 +74,7 @@ describe("AgentDetailPage", () => {
       total: 1,
     });
     vi.mocked(getAgentPromptConfig).mockResolvedValue({
-      company_id: "cmp_projectcell",
+      company_id: "cmp_wisdoverse_cell",
       agent_id: "requirement-manager",
       system_prompt: "",
       updated_by: null,

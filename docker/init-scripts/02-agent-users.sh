@@ -11,8 +11,8 @@ APP_ENV="${APP_ENV:-development}"
 psql_cmd() {
     PGPASSWORD="${POSTGRES_PASSWORD:-}" psql \
         -v ON_ERROR_STOP=1 \
-        --username "${POSTGRES_USER:-projectcell}" \
-        --dbname "${POSTGRES_DB:-projectcell}" \
+        --username "${POSTGRES_USER:-wisdoverse-cell}" \
+        --dbname "${POSTGRES_DB:-wisdoverse-cell}" \
         "$@"
 }
 

@@ -116,10 +116,10 @@ test-python-full:
 # === Gateway ===
 
 rust-gateway-build:
-	cargo build --manifest-path rust/Cargo.toml -p projectcell-rust-gateway
+	cargo build --manifest-path rust/Cargo.toml -p wisdoverse-cell-rust-gateway
 
 rust-gateway-run:
-	cargo run --manifest-path rust/Cargo.toml -p projectcell-rust-gateway
+	cargo run --manifest-path rust/Cargo.toml -p wisdoverse-cell-rust-gateway
 
 rust-gateway-test:
 	cargo test --manifest-path rust/Cargo.toml

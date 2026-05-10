@@ -99,7 +99,7 @@ def evaluate_migration(
             "docker/compose/docker-compose.app.yml",
             [
                 "dockerfile: rust/gateway/Dockerfile",
-                "projectcell/rust-gateway",
+                "wisdoverse/cell-rust-gateway",
                 "GATEWAY_IMPLEMENTATION: rust",
             ],
             "application Compose runs the canonical gateway with Rust",
@@ -109,7 +109,7 @@ def evaluate_migration(
             "docker-compose.yml",
             [
                 "dockerfile: rust/gateway/Dockerfile",
-                "projectcell/rust-gateway",
+                "wisdoverse/cell-rust-gateway",
                 "GATEWAY_IMPLEMENTATION: rust",
             ],
             "root Compose runs the canonical gateway with Rust",
@@ -124,7 +124,7 @@ def evaluate_migration(
             root,
             "docker/compose/docker-compose.prod.yml",
             [
-                "projectcell/rust-gateway",
+                "wisdoverse/cell-rust-gateway",
                 "build: !reset null",
                 "GATEWAY_IMPLEMENTATION: rust",
             ],
@@ -134,7 +134,7 @@ def evaluate_migration(
             root,
             "docker-compose.prod.yml",
             [
-                "projectcell/rust-gateway",
+                "wisdoverse/cell-rust-gateway",
                 "build: !reset null",
                 "GATEWAY_IMPLEMENTATION: rust",
             ],
@@ -246,7 +246,7 @@ def evaluate_migration(
             [
                 "rust-gateway:",
                 "cargo test --manifest-path rust/Cargo.toml --locked",
-                "docker build -f rust/gateway/Dockerfile -t projectcell/rust-gateway:ci .",
+                "docker build -f rust/gateway/Dockerfile -t wisdoverse/cell-rust-gateway:ci .",
             ],
             "GitHub Actions runs Rust gateway checks",
         ),

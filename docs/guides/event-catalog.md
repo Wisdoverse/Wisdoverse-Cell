@@ -134,7 +134,7 @@ Example `agent.prompt-config-updated` payload:
 
 ```json
 {
-  "company_id": "cmp_projectcell",
+  "company_id": "cmp_wisdoverse_cell",
   "agent_id": "requirement-manager",
   "updated_by": "human:operator",
   "prompt_length": 128,
@@ -146,7 +146,7 @@ Example `agent.wakeup-requested` payload:
 
 ```json
 {
-  "company_id": "cmp_projectcell",
+  "company_id": "cmp_wisdoverse_cell",
   "agent_id": "ops-runner",
   "run_id": "run_...",
   "actor_id": "human:operator",
@@ -161,7 +161,7 @@ Example `agent_run.failed` payload:
 
 ```json
 {
-  "company_id": "cmp_projectcell",
+  "company_id": "cmp_wisdoverse_cell",
   "agent_id": "ops-runner",
   "run_id": "run_...",
   "trace_id": "trace_...",
