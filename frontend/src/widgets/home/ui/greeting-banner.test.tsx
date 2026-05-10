@@ -61,7 +61,7 @@ function makeAgent(
 ): ControlPlaneAgentDefinition {
   return {
     role_id: `role_${agentId}`,
-    company_id: "cmp_projectcell",
+    company_id: "cmp_wisdoverse_cell",
     agent_id: agentId,
     display_name: displayName,
     agent_kind: "business_runtime_agent",
@@ -91,7 +91,7 @@ function makeAgent(
 function makeSucceededRun(agentId: string): ControlPlaneAgentRun {
   return {
     run_id: `run_${agentId}`,
-    company_id: "cmp_projectcell",
+    company_id: "cmp_wisdoverse_cell",
     agent_id: agentId,
     status: "succeeded",
     trace_id: null,
