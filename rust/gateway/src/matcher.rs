@@ -86,10 +86,8 @@ impl Matcher {
                     parameters.insert("reason".to_string(), parts[2..].join(" "));
                 }
             }
-            "search" => {
-                if parts.len() > 1 {
-                    parameters.insert("keyword".to_string(), parts[1..].join(" "));
-                }
+            "search" if parts.len() > 1 => {
+                parameters.insert("keyword".to_string(), parts[1..].join(" "));
             }
             "list" => {
                 if let Some(page) = parts.get(1) {
