@@ -4,7 +4,7 @@
 # grpcio-tools, or other test/build-time tooling here.
 
 # Web runtime
-fastapi>=0.115.0
+fastapi>=0.136.1
 uvicorn[standard]>=0.46.0
 gunicorn>=23.0.0
 
