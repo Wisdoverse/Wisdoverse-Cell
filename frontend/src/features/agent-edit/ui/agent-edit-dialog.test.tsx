@@ -66,11 +66,13 @@ describe("AgentEditDialog", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "editAgent" }));
+    expect(screen.getByText("operatorBasics")).toBeInTheDocument();
+    expect(screen.getByLabelText("capabilities")).toHaveValue("architecture");
+    await user.click(screen.getByRole("button", { name: "showAdvanced" }));
 
     expect(screen.getByLabelText("agentName")).toHaveValue("CTO");
     expect(screen.getByLabelText("agentId")).toHaveValue("cto");
     expect(screen.getByLabelText("titleField")).toHaveValue("Chief Technology Officer");
     expect(screen.getByLabelText("baseUrl")).toHaveValue("https://agents.internal");
-    expect(screen.getByLabelText("capabilities")).toHaveValue("architecture");
   });
 });
