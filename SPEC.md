@@ -431,6 +431,9 @@ Requirements:
 - Retry behavior MUST be bounded.
 - Model fallback MAY be used when the configured strategy allows it.
 - Daily and monthly budget controls SHOULD be enforced before expensive work.
+- Budget policies SHOULD be configurable through the control-plane API, audited
+  as `budget_policy.created` and `budget_policy.updated`, and enforced as one
+  active policy per company/scope/scope-id/period.
 - PII and secrets MUST NOT be sent to LLM prompts unless explicitly approved by
   policy and protected by deployment controls.
 

@@ -119,6 +119,8 @@ without coupling runtime packages.
 | `agent_run.started` | runtime plugin or runner | operator console | AgentRun started |
 | `agent_run.succeeded` | runtime plugin or runner | operator console | AgentRun succeeded |
 | `agent_run.failed` | runtime plugin or runner | operator console | AgentRun failed |
+| `budget_policy.created` | control-plane API | operator console | Budget policy created |
+| `budget_policy.updated` | control-plane API | operator console | Budget policy limit, status, allowlist, or metadata changed |
 | `budget.usage-recorded` | BudgetGuard or LLM gateway | operator console | Budget usage appended |
 | `artifact.created` | agents | operator console | Artifact produced |
 | `audit.event-recorded` | control-plane ledger | operator console | Audit event appended |

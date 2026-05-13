@@ -136,12 +136,21 @@ Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.
 | `GET` | `/approvals` | List approval requests |
 | `POST` | `/approvals/{approval_id}/approve` | Approve one request |
 | `POST` | `/approvals/{approval_id}/reject` | Reject one request |
+| `GET` | `/budgets/policies` | List budget policies by scope, period, status, or scope id |
+| `POST` | `/budgets/policies` | Create a budget policy |
+| `GET` | `/budgets/policies/{budget_id}` | Read one budget policy |
+| `PATCH` | `/budgets/policies/{budget_id}` | Update budget limit, threshold, status, model allowlist, or metadata |
 | `GET` | `/budgets/usage` | List budget usage records |
 | `GET` | `/audit-events` | List append-only audit events |
 | `GET` | `/timeline` | Merge audit, approval, and budget evidence |
 
 Creation endpoints validate that referenced company, goal, work item, and run
 IDs belong to the same company context.
+
+Budget policy endpoints enforce one active policy per
+`company_id + scope + scope_id + period`. Company-scoped policies must not set
+`scope_id`; goal, agent, and work-item scoped policies must set it. Supported
+policy statuses are `active`, `paused`, and `archived`.
 
 The WebUI compatibility surface also exposes
 `GET /api/v1/agents/{agent_id}/prompt-config` and
