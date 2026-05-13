@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   AlertCircle,
@@ -11,6 +11,7 @@ import {
   GitBranch,
   Loader2,
   PanelRightOpen,
+  Plus,
   RefreshCw,
   ShieldCheck,
   Sparkles,
@@ -33,6 +34,16 @@ import {
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/shared/ui/dialog";
+import { Input } from "@/shared/ui/input";
+import { Label } from "@/shared/ui/label";
 import { Skeleton } from "@/shared/ui/skeleton";
 import {
   Tabs,
@@ -40,6 +51,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/shared/ui/tabs";
+import { Textarea } from "@/shared/ui/textarea";
 import {
   Table,
   TableBody,
@@ -207,11 +219,13 @@ function SummaryMetric({
 function ColumnShell({
   title,
   icon: Icon,
+  action,
   children,
   className,
 }: {
   title: string;
   icon: typeof Workflow;
+  action?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
@@ -229,9 +243,170 @@ function ColumnShell({
           </div>
           <h2 className="text-sm font-semibold">{title}</h2>
         </div>
+        {action}
       </div>
       <div className="h-[calc(100%-3.25rem)] overflow-y-auto p-3">{children}</div>
     </section>
+  );
+}
+
+function CreateGoalDialog({ workbench }: { workbench: Workbench }) {
+  const t = useTranslations("controlPlane");
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [ownerAgentId, setOwnerAgentId] = useState("pjm-agent");
+  const isCreating = workbench.goalActionId === "create";
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const cleanedTitle = title.trim();
+    if (!cleanedTitle) return;
+    await workbench.createGoal({
+      title: cleanedTitle,
+      description: description.trim(),
+      owner_agent_id: ownerAgentId.trim() || undefined,
+    });
+    setTitle("");
+    setDescription("");
+    setOwnerAgentId("pjm-agent");
+    setOpen(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="xs">
+          <Plus className="size-3.5" />
+          {t("newGoal")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("newGoal")}</DialogTitle>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={(event) => void submit(event)}>
+          <div className="space-y-2">
+            <Label htmlFor="control-plane-goal-title">{t("goalTitle")}</Label>
+            <Input
+              id="control-plane-goal-title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="control-plane-goal-description">
+              {t("description")}
+            </Label>
+            <Textarea
+              id="control-plane-goal-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              rows={3}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="control-plane-goal-owner">{t("ownerAgent")}</Label>
+            <Input
+              id="control-plane-goal-owner"
+              value={ownerAgentId}
+              onChange={(event) => setOwnerAgentId(event.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={isCreating || !title.trim()}>
+              {isCreating ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Plus className="size-4" />
+              )}
+              {isCreating ? t("creating") : t("create")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreateWorkItemDialog({ workbench }: { workbench: Workbench }) {
+  const t = useTranslations("controlPlane");
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [ownerAgentId, setOwnerAgentId] = useState("dev-agent");
+  const isCreating = workbench.workItemActionId === "create";
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const cleanedTitle = title.trim();
+    if (!cleanedTitle) return;
+    await workbench.createWorkItem({
+      title: cleanedTitle,
+      description: description.trim(),
+      owner_agent_id: ownerAgentId.trim() || undefined,
+    });
+    setTitle("");
+    setDescription("");
+    setOwnerAgentId("dev-agent");
+    setOpen(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="xs" disabled={!workbench.activeGoalId}>
+          <Plus className="size-3.5" />
+          {t("newWorkItem")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("newWorkItem")}</DialogTitle>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={(event) => void submit(event)}>
+          <div className="space-y-2">
+            <Label htmlFor="control-plane-work-title">{t("workItemTitle")}</Label>
+            <Input
+              id="control-plane-work-title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="control-plane-work-description">
+              {t("description")}
+            </Label>
+            <Textarea
+              id="control-plane-work-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              rows={3}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="control-plane-work-owner">{t("ownerAgent")}</Label>
+            <Input
+              id="control-plane-work-owner"
+              value={ownerAgentId}
+              onChange={(event) => setOwnerAgentId(event.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={isCreating || !title.trim()}>
+              {isCreating ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Plus className="size-4" />
+              )}
+              {isCreating ? t("creating") : t("create")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -930,11 +1105,19 @@ export function ControlPlaneWorkbenchPage() {
         <EvolutionProposalPanel workbench={workbench} />
 
         <div className="grid gap-4 xl:grid-cols-[minmax(260px,0.85fr)_minmax(300px,1.05fr)_minmax(420px,1.55fr)]">
-          <ColumnShell title={t("goals")} icon={CheckCircle2}>
+          <ColumnShell
+            title={t("goals")}
+            icon={CheckCircle2}
+            action={<CreateGoalDialog workbench={workbench} />}
+          >
             <GoalList workbench={workbench} />
           </ColumnShell>
 
-          <ColumnShell title={t("workQueue")} icon={GitBranch}>
+          <ColumnShell
+            title={t("workQueue")}
+            icon={GitBranch}
+            action={<CreateWorkItemDialog workbench={workbench} />}
+          >
             <WorkQueue workbench={workbench} />
           </ColumnShell>
 

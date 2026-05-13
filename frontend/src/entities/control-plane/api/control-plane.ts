@@ -28,6 +28,21 @@ export interface ControlPlaneGoalFilters {
   limit?: number;
 }
 
+export interface ControlPlaneGoalCreateRequest {
+  company_id?: string;
+  title: string;
+  description?: string;
+  status?: string;
+  owner_agent_id?: string;
+  owner_user_id?: string;
+  success_metric?: string;
+  target_value?: number;
+  current_value?: number;
+  tags?: string[];
+  created_by?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface ControlPlaneWorkItemFilters {
   status?: string;
   priority?: string;
@@ -36,6 +51,23 @@ export interface ControlPlaneWorkItemFilters {
   owner_user_id?: string;
   search?: string;
   limit?: number;
+}
+
+export interface ControlPlaneWorkItemCreateRequest {
+  company_id?: string;
+  title: string;
+  description?: string;
+  status?: string;
+  priority?: string;
+  goal_id?: string;
+  owner_agent_id?: string;
+  owner_user_id?: string;
+  source?: string;
+  external_ref?: string;
+  dependencies?: string[];
+  approval_required?: boolean;
+  created_by?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ControlPlaneRunFilters {
@@ -116,12 +148,30 @@ export function listControlPlaneGoals(
   );
 }
 
+export function createControlPlaneGoal(
+  payload: ControlPlaneGoalCreateRequest,
+): Promise<ControlPlaneGoalListResponse["goals"][number]> {
+  return apiClient.post<ControlPlaneGoalListResponse["goals"][number]>(
+    "/control-plane/goals",
+    payload,
+  );
+}
+
 export function listControlPlaneWorkItems(
   filters?: ControlPlaneWorkItemFilters,
 ): Promise<ControlPlaneWorkItemListResponse> {
   return apiClient.get<ControlPlaneWorkItemListResponse>(
     "/control-plane/work-items",
     filters,
+  );
+}
+
+export function createControlPlaneWorkItem(
+  payload: ControlPlaneWorkItemCreateRequest,
+): Promise<ControlPlaneWorkItemListResponse["work_items"][number]> {
+  return apiClient.post<ControlPlaneWorkItemListResponse["work_items"][number]>(
+    "/control-plane/work-items",
+    payload,
   );
 }
 
