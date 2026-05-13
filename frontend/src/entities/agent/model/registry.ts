@@ -24,6 +24,127 @@ const AGENT_DOMAINS: AgentDomain[] = [
   "data-ai",
 ];
 
+export const AGENT_ROLE_OPTIONS = [
+  {
+    id: "ceo",
+    title: "Chief Executive Officer",
+    domain: "business",
+  },
+  {
+    id: "cto",
+    title: "Chief Technology Officer",
+    domain: "engineering",
+  },
+  {
+    id: "cpo",
+    title: "Chief Product Officer",
+    domain: "product",
+  },
+  {
+    id: "coo",
+    title: "Chief Operating Officer",
+    domain: "operations",
+  },
+  {
+    id: "cfo",
+    title: "Chief Financial Officer",
+    domain: "business",
+  },
+  {
+    id: "cmo",
+    title: "Chief Marketing Officer",
+    domain: "market-sales",
+  },
+  {
+    id: "manager",
+    title: "Manager",
+    domain: "operations",
+  },
+  {
+    id: "engineer",
+    title: "Engineer",
+    domain: "engineering",
+  },
+  {
+    id: "researcher",
+    title: "Researcher",
+    domain: "data-ai",
+  },
+  {
+    id: "operator",
+    title: "Operator",
+    domain: "operations",
+  },
+  {
+    id: "qa",
+    title: "QA",
+    domain: "quality",
+  },
+  {
+    id: "worker",
+    title: "Worker",
+    domain: "operations",
+  },
+  {
+    id: "requirement-agent",
+    title: "Requirement Manager Agent",
+    domain: "product",
+  },
+  {
+    id: "project-management-agent",
+    title: "Project Management Agent",
+    domain: "product",
+  },
+  {
+    id: "quality-agent",
+    title: "QA Agent",
+    domain: "quality",
+  },
+  {
+    id: "development-agent",
+    title: "Development Agent",
+    domain: "engineering",
+  },
+  {
+    id: "reception",
+    title: "User Interaction Gateway",
+    domain: "operations",
+  },
+  {
+    id: "orchestrator",
+    title: "Coordination Engine",
+    domain: "operations",
+  },
+  {
+    id: "sync-capability",
+    title: "Context Sync Capability",
+    domain: "operations",
+  },
+  {
+    id: "analysis-capability",
+    title: "Analysis Capability",
+    domain: "data-ai",
+  },
+  {
+    id: "evolution-capability",
+    title: "Evolution Capability",
+    domain: "data-ai",
+  },
+  {
+    id: "channel-gateway",
+    title: "Channel Integration Gateway",
+    domain: "operations",
+  },
+] as const satisfies readonly {
+  id: string;
+  title: string;
+  domain: AgentDomain;
+}[];
+
+export function getAgentRoleOption(role: string) {
+  return AGENT_ROLE_OPTIONS.find((option) => option.id === role);
+}
+
 export const ORGANIZATION_ROLE_TEMPLATES: OrganizationRoleTemplate[] = [
   {
     agentId: "ceo",
@@ -171,12 +292,7 @@ export const AGENT_REGISTRY: Record<string, AgentMeta> = {
     businessAgent: false,
     contextSources: ["openproject", "feishu", "control_plane"],
     subscribedEvents: ["sync.trigger"],
-    publishedEvents: [
-      "sync.started",
-      "sync.completed",
-      "sync.failed",
-      "sync.task-needs-decompose",
-    ],
+    publishedEvents: ["sync.started", "sync.completed", "sync.failed", "sync.task-needs-decompose"],
     upstream: ["chat-agent"],
     downstream: ["pjm-agent", "analysis-module"],
   },
@@ -367,9 +483,7 @@ export function agentDefinitionToMeta(
   agent: ControlPlaneAgentDefinition,
   downstream: string[] = [],
 ): AgentMeta {
-  const capabilities = agent.capabilities.length
-    ? agent.capabilities
-    : agent.responsibilities;
+  const capabilities = agent.capabilities.length ? agent.capabilities : agent.responsibilities;
   const shortName = agent.display_name
     .split(/\s+/)
     .filter(Boolean)
@@ -398,16 +512,13 @@ export function agentDefinitionToMeta(
     source: "control-plane",
     implemented: true,
     businessAgent:
-      agent.agent_kind === "organization_role" ||
-      agent.agent_kind === "business_runtime_agent",
+      agent.agent_kind === "organization_role" || agent.agent_kind === "business_runtime_agent",
     upstream: agent.reports_to_agent_id ? [agent.reports_to_agent_id] : [],
     downstream,
   };
 }
 
-export function agentDefinitionsToMetas(
-  agents: ControlPlaneAgentDefinition[],
-): AgentMeta[] {
+export function agentDefinitionsToMetas(agents: ControlPlaneAgentDefinition[]): AgentMeta[] {
   const downstreamByAgent = new Map<string, string[]>();
   for (const agent of agents) {
     if (!agent.reports_to_agent_id) continue;

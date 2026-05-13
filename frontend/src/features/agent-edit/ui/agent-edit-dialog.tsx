@@ -6,7 +6,9 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
+  AGENT_ROLE_OPTIONS,
   DOMAIN_LIST,
+  getAgentRoleOption,
   updateControlPlaneAgent,
   type AgentDomain,
   type AgentInteractionMode,
@@ -46,6 +48,8 @@ const AGENT_KIND_OPTIONS = [
 
 const INTERACTION_MODE_OPTIONS = ["direct", "routed", "internal", "none"] as const;
 const ADAPTER_TYPES = ["builtin", "codex_local", "claude_local", "process", "http"] as const;
+const CUSTOM_ROLE_VALUE = "__custom_role__";
+const ROLE_OPTION_IDS: ReadonlySet<string> = new Set(AGENT_ROLE_OPTIONS.map((option) => option.id));
 
 function FormSection({
   title,
@@ -80,6 +84,15 @@ function parseLines(value: string): string[] {
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+function roleSelectValue(role: string): string {
+  return ROLE_OPTION_IDS.has(role) ? role : CUSTOM_ROLE_VALUE;
+}
+
+function shouldUseSuggestedTitle(currentTitle: string, currentRole: string) {
+  const currentRoleOption = getAgentRoleOption(currentRole);
+  return !currentTitle.trim() || currentTitle === currentRoleOption?.title;
 }
 
 function configString(
@@ -139,7 +152,8 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
         .sort((a, b) => a.name.localeCompare(b.name)),
     [agent.agent_id, availableAgents],
   );
-  const canSubmit = Boolean(form.displayName.trim());
+  const selectedRoleValue = roleSelectValue(form.role);
+  const canSubmit = Boolean(form.displayName.trim() && form.role.trim());
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -216,15 +230,52 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-agent-role">{t("role")}</Label>
-              <Input
-                id="edit-agent-role"
-                value={form.role}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, role: event.target.value }))
-                }
-                required
-              />
+              <Label>{t("role")}</Label>
+              <Select
+                value={selectedRoleValue}
+                onValueChange={(role) => {
+                  if (role === CUSTOM_ROLE_VALUE) {
+                    setForm((current) => ({ ...current, role: "" }));
+                    return;
+                  }
+                  const roleOption = getAgentRoleOption(role);
+                  setForm((current) => ({
+                    ...current,
+                    role,
+                    title:
+                      roleOption && shouldUseSuggestedTitle(current.title, current.role)
+                        ? roleOption.title
+                        : current.title,
+                    domain: roleOption?.domain ?? current.domain,
+                  }));
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {AGENT_ROLE_OPTIONS.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>
+                      {t(`agentRoles.${role.id}`)}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={CUSTOM_ROLE_VALUE}>{t("customRole")}</SelectItem>
+                </SelectContent>
+              </Select>
+              {selectedRoleValue === CUSTOM_ROLE_VALUE && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-agent-role">{t("customRoleValue")}</Label>
+                  <Input
+                    id="edit-agent-role"
+                    value={form.role}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, role: event.target.value }))
+                    }
+                    placeholder={t("customRoleValuePlaceholder")}
+                    required
+                  />
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-agent-title">{t("titleField")}</Label>
