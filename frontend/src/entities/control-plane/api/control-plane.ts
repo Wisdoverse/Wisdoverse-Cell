@@ -3,6 +3,8 @@ import { apiClient } from "@/lib/api/client";
 import type {
   ControlPlaneApprovalListResponse,
   ControlPlaneArtifactListResponse,
+  ControlPlaneBudgetPolicy,
+  ControlPlaneBudgetPolicyListResponse,
   ControlPlaneBudgetUsageListResponse,
   ControlPlaneDecisionListResponse,
   ControlPlaneEvolutionProposalListResponse,
@@ -10,6 +12,9 @@ import type {
   ControlPlaneRunListResponse,
   ControlPlaneTimelineResponse,
   ControlPlaneWorkItemListResponse,
+  BudgetPeriod,
+  BudgetPolicyStatus,
+  BudgetScope,
   EvolutionApprovalState,
   EvolutionRolloutState,
   EvolutionTier,
@@ -66,6 +71,36 @@ export interface ControlPlaneEvolutionProposalFilters {
   rollout_state?: EvolutionRolloutState;
   scope?: string;
   limit?: number;
+}
+
+export interface ControlPlaneBudgetPolicyFilters {
+  scope?: BudgetScope;
+  scope_id?: string;
+  period?: BudgetPeriod;
+  status?: BudgetPolicyStatus;
+  limit?: number;
+}
+
+export interface ControlPlaneBudgetPolicyCreateRequest {
+  company_id?: string;
+  scope: BudgetScope;
+  period: BudgetPeriod;
+  limit_usd: number;
+  scope_id?: string;
+  warning_threshold?: number;
+  status?: BudgetPolicyStatus;
+  model_allowlist?: string[];
+  created_by?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ControlPlaneBudgetPolicyUpdateRequest {
+  limit_usd?: number;
+  warning_threshold?: number;
+  status?: BudgetPolicyStatus;
+  model_allowlist?: string[];
+  actor_id?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ControlPlaneApprovalActionRequest {
@@ -154,6 +189,34 @@ export function rejectControlPlaneApproval(
 ): Promise<Record<string, unknown>> {
   return apiClient.post<Record<string, unknown>>(
     `/control-plane/approvals/${approvalId}/reject`,
+    payload,
+  );
+}
+
+export function listControlPlaneBudgetPolicies(
+  filters?: ControlPlaneBudgetPolicyFilters,
+): Promise<ControlPlaneBudgetPolicyListResponse> {
+  return apiClient.get<ControlPlaneBudgetPolicyListResponse>(
+    "/control-plane/budgets/policies",
+    filters,
+  );
+}
+
+export function createControlPlaneBudgetPolicy(
+  payload: ControlPlaneBudgetPolicyCreateRequest,
+): Promise<ControlPlaneBudgetPolicy> {
+  return apiClient.post<ControlPlaneBudgetPolicy>(
+    "/control-plane/budgets/policies",
+    payload,
+  );
+}
+
+export function updateControlPlaneBudgetPolicy(
+  budgetId: string,
+  payload: ControlPlaneBudgetPolicyUpdateRequest,
+): Promise<ControlPlaneBudgetPolicy> {
+  return apiClient.patch<ControlPlaneBudgetPolicy>(
+    `/control-plane/budgets/policies/${budgetId}`,
     payload,
   );
 }

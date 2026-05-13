@@ -36,6 +36,9 @@ from .models import (
     Artifact,
     ArtifactType,
     AuditEvent,
+    BudgetPeriod,
+    BudgetPolicy,
+    BudgetScope,
     CompanyContext,
     Decision,
     DecisionStatus,
@@ -52,6 +55,7 @@ from .repository import ControlPlaneRepository
 from .scheduler import ControlPlaneHeartbeatScheduler
 
 SessionProvider = Callable[[], AbstractAsyncContextManager[AsyncSession]]
+BUDGET_POLICY_STATUSES = {"active", "paused", "archived"}
 
 
 class ApprovalActionRequest(BaseModel):
@@ -268,6 +272,105 @@ class ArtifactCreateRequest(BaseModel):
             return None
         cleaned = str(value).strip()
         return cleaned or None
+
+
+class BudgetPolicyCreateRequest(BaseModel):
+    company_id: str | None = Field(default=None, min_length=1, max_length=48)
+    scope: BudgetScope
+    period: BudgetPeriod
+    limit_usd: float = Field(gt=0)
+    scope_id: str | None = Field(default=None, max_length=64)
+    warning_threshold: float = Field(default=0.8, gt=0, le=1)
+    status: str = Field(default="active", min_length=1, max_length=32)
+    model_allowlist: list[str] = Field(default_factory=list, max_length=100)
+    created_by: str = Field(default="api", min_length=1, max_length=128)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("scope_id", mode="before")
+    @classmethod
+    def _clean_optional_string(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        cleaned = str(value).strip()
+        return cleaned or None
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _clean_status(cls, value: Any) -> str:
+        return str(value or "").strip().lower()
+
+    @field_validator("created_by", mode="before")
+    @classmethod
+    def _clean_created_by(cls, value: Any) -> str:
+        return str(value or "api").strip() or "api"
+
+    @field_validator("status")
+    @classmethod
+    def _validate_status(cls, value: str) -> str:
+        if value not in BUDGET_POLICY_STATUSES:
+            raise ValueError("budget policy status must be active, paused, or archived")
+        return value
+
+    @field_validator("model_allowlist", mode="before")
+    @classmethod
+    def _clean_model_allowlist(cls, value: Any) -> list[str]:
+        return _clean_string_list(value)
+
+    @model_validator(mode="after")
+    def _validate_scope_id(self) -> "BudgetPolicyCreateRequest":
+        if self.scope == BudgetScope.COMPANY:
+            if self.scope_id is not None:
+                raise ValueError("company budget policies must not set scope_id")
+        elif not self.scope_id:
+            raise ValueError("goal, agent, and work_item budget policies require scope_id")
+        return self
+
+
+class BudgetPolicyUpdateRequest(BaseModel):
+    limit_usd: float | None = Field(default=None, gt=0)
+    warning_threshold: float | None = Field(default=None, gt=0, le=1)
+    status: str | None = Field(default=None, min_length=1, max_length=32)
+    model_allowlist: list[str] | None = Field(default=None, max_length=100)
+    actor_id: str = Field(default="api", min_length=1, max_length=128)
+    metadata: dict[str, Any] | None = None
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _clean_optional_status(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        return str(value or "").strip().lower()
+
+    @field_validator("status")
+    @classmethod
+    def _validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in BUDGET_POLICY_STATUSES:
+            raise ValueError("budget policy status must be active, paused, or archived")
+        return value
+
+    @field_validator("actor_id", mode="before")
+    @classmethod
+    def _clean_actor_id(cls, value: Any) -> str:
+        return str(value or "api").strip() or "api"
+
+    @field_validator("model_allowlist", mode="before")
+    @classmethod
+    def _clean_optional_model_allowlist(cls, value: Any) -> list[str] | None:
+        if value is None:
+            return None
+        return _clean_string_list(value)
+
+    @model_validator(mode="after")
+    def _require_change(self) -> "BudgetPolicyUpdateRequest":
+        if (
+            self.limit_usd is None
+            and self.warning_threshold is None
+            and self.status is None
+            and self.model_allowlist is None
+            and self.metadata is None
+        ):
+            raise ValueError("at least one budget policy field must be provided")
+        return self
 
 
 class EvolutionProposalCreateRequest(BaseModel):
@@ -545,6 +648,24 @@ def create_control_plane_router(
             if goal is None or goal.company_id != company_id:
                 raise HTTPException(status_code=400, detail="goal_not_found")
         return resolved_goal_id, resolved_work_item_id
+
+    async def ensure_no_active_budget_policy_conflict(
+        repo: ControlPlaneRepository,
+        *,
+        company_id: str,
+        scope: BudgetScope | str,
+        period: BudgetPeriod | str,
+        scope_id: str | None,
+        current_budget_id: str | None = None,
+    ) -> None:
+        existing = await repo.get_active_budget_policy(
+            company_id=company_id,
+            scope=scope,
+            scope_id=scope_id,
+            period=period,
+        )
+        if existing is not None and existing.budget_id != current_budget_id:
+            raise HTTPException(status_code=409, detail="active_budget_policy_exists")
 
     @router.get("/companies")
     async def list_companies(
@@ -1716,6 +1837,152 @@ def create_control_plane_router(
                 )
             )
         return decision.__dict__
+
+    @router.get("/budgets/policies")
+    async def list_budget_policies(
+        company_id: str | None = None,
+        scope: BudgetScope | None = None,
+        scope_id: str | None = None,
+        period: BudgetPeriod | None = None,
+        status: str | None = None,
+        limit: int = Query(default=100, ge=1, le=500),
+        session: AsyncSession = Depends(get_session),
+    ):
+        status = status.strip().lower() if status is not None else None
+        if status is not None and status not in BUDGET_POLICY_STATUSES:
+            raise HTTPException(status_code=400, detail="invalid_budget_policy_status")
+        repo = ControlPlaneRepository(session)
+        rows = await repo.list_budget_policies(
+            company_id=resolve_company(company_id),
+            scope=scope,
+            scope_id=scope_id,
+            period=period,
+            status=status,
+            limit=limit,
+        )
+        return {
+            "budget_policies": [_row_to_dict(row) for row in rows],
+            "total": len(rows),
+        }
+
+    @router.post(
+        "/budgets/policies",
+        status_code=http_status.HTTP_201_CREATED,
+    )
+    async def create_budget_policy(
+        body: BudgetPolicyCreateRequest,
+        session: AsyncSession = Depends(get_session),
+    ):
+        repo = ControlPlaneRepository(session)
+        company_id = resolve_company(body.company_id)
+        await ensure_company(repo, company_id)
+        if body.status == "active":
+            await ensure_no_active_budget_policy_conflict(
+                repo,
+                company_id=company_id,
+                scope=body.scope,
+                scope_id=body.scope_id,
+                period=body.period,
+            )
+        row = await repo.create_budget_policy(
+            BudgetPolicy(
+                company_id=company_id,
+                scope=body.scope,
+                scope_id=body.scope_id,
+                period=body.period,
+                limit_usd=body.limit_usd,
+                warning_threshold=body.warning_threshold,
+                status=body.status,
+                model_allowlist=body.model_allowlist,
+                metadata=body.metadata,
+            )
+        )
+        await repo.append_audit_event(
+            AuditEvent(
+                company_id=company_id,
+                action=EventTypes.BUDGET_POLICY_CREATED,
+                target_type="budget_policy",
+                target_id=row.budget_id,
+                actor_type="user",
+                actor_id=body.created_by,
+                detail={
+                    "budget_id": row.budget_id,
+                    "scope": row.scope,
+                    "scope_id": row.scope_id,
+                    "period": row.period,
+                    "limit_usd": row.limit_usd,
+                    "warning_threshold": row.warning_threshold,
+                    "status": row.status,
+                    "model_allowlist": row.model_allowlist,
+                },
+            )
+        )
+        return _row_to_dict(row)
+
+    @router.get("/budgets/policies/{budget_id}")
+    async def get_budget_policy(
+        budget_id: str,
+        company_id: str | None = None,
+        session: AsyncSession = Depends(get_session),
+    ):
+        row = await ControlPlaneRepository(session).get_budget_policy(budget_id)
+        if row is None or row.company_id != resolve_company(company_id):
+            raise HTTPException(status_code=404, detail="budget_policy_not_found")
+        return _row_to_dict(row)
+
+    @router.patch("/budgets/policies/{budget_id}")
+    async def update_budget_policy(
+        budget_id: str,
+        body: BudgetPolicyUpdateRequest,
+        company_id: str | None = None,
+        session: AsyncSession = Depends(get_session),
+    ):
+        repo = ControlPlaneRepository(session)
+        resolved_company_id = resolve_company(company_id)
+        existing = await repo.get_budget_policy(budget_id)
+        if existing is None or existing.company_id != resolved_company_id:
+            raise HTTPException(status_code=404, detail="budget_policy_not_found")
+        if body.status == "active":
+            await ensure_no_active_budget_policy_conflict(
+                repo,
+                company_id=resolved_company_id,
+                scope=existing.scope,
+                scope_id=existing.scope_id,
+                period=existing.period,
+                current_budget_id=budget_id,
+            )
+
+        update_values = body.model_dump(exclude_unset=True)
+        update_values.pop("actor_id", None)
+        row = await repo.update_budget_policy(
+            budget_id,
+            limit_usd=body.limit_usd,
+            warning_threshold=body.warning_threshold,
+            status=body.status,
+            model_allowlist=body.model_allowlist,
+            metadata=body.metadata,
+        )
+        if row is None:
+            raise HTTPException(status_code=404, detail="budget_policy_not_found")
+        await repo.append_audit_event(
+            AuditEvent(
+                company_id=resolved_company_id,
+                action=EventTypes.BUDGET_POLICY_UPDATED,
+                target_type="budget_policy",
+                target_id=row.budget_id,
+                actor_type="user",
+                actor_id=body.actor_id,
+                detail={
+                    "budget_id": row.budget_id,
+                    "scope": row.scope,
+                    "scope_id": row.scope_id,
+                    "period": row.period,
+                    "status": row.status,
+                    "changed_fields": sorted(update_values),
+                },
+            )
+        )
+        return _row_to_dict(row)
 
     @router.get("/budgets/usage")
     async def list_budget_usage(

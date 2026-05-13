@@ -26,6 +26,7 @@ from shared.schemas.event_payloads import (
     ApprovalEventPayload,
     ArtifactEventPayload,
     AuditEventRecordedPayload,
+    BudgetPolicyEventPayload,
     BudgetUsageRecordedPayload,
     CompanyEventPayload,
     CoordinatorCommand,
@@ -124,6 +125,8 @@ class TestEventTypes:
         assert EventTypes.EVOLUTION_PROPOSAL_CREATED == "evolution_proposal.created"
         assert EventTypes.EVOLUTION_PROPOSAL_UPDATED == "evolution_proposal.updated"
         assert EventTypes.DLQ_FAILED == "dlq.failed"
+        assert EventTypes.BUDGET_POLICY_CREATED == "budget_policy.created"
+        assert EventTypes.BUDGET_POLICY_UPDATED == "budget_policy.updated"
         assert EventTypes.BUDGET_USAGE_RECORDED == "budget.usage-recorded"
         assert EventTypes.AUDIT_EVENT_RECORDED == "audit.event-recorded"
 
@@ -644,6 +647,21 @@ class TestEventPayloadModelsRegistration:
             )
 
     def test_validate_control_plane_budget_payload(self):
+        policy = validate_event_payload(
+            "budget_policy.created",
+            {
+                "company_id": "cmp_test",
+                "budget_id": "bud_001",
+                "scope": "agent",
+                "scope_id": "dev-agent",
+                "period": "daily",
+                "limit_usd": 25.0,
+                "warning_threshold": 0.75,
+                "status": "active",
+                "model_allowlist": ["gpt-5.2"],
+                "actor_id": "human:finance",
+            },
+        )
         result = validate_event_payload(
             "budget.usage-recorded",
             {
@@ -659,6 +677,7 @@ class TestEventPayloadModelsRegistration:
                 "trace_id": "trace_budget",
             },
         )
+        assert isinstance(policy, BudgetPolicyEventPayload)
         assert isinstance(result, BudgetUsageRecordedPayload)
 
     def test_validate_control_plane_audit_payload(self):

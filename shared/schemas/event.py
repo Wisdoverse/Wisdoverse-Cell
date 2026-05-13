@@ -244,6 +244,8 @@ class EventTypes:
     AGENT_RUN_STARTED = "agent_run.started"
     AGENT_RUN_SUCCEEDED = "agent_run.succeeded"
     AGENT_RUN_FAILED = "agent_run.failed"
+    BUDGET_POLICY_CREATED = "budget_policy.created"
+    BUDGET_POLICY_UPDATED = "budget_policy.updated"
     BUDGET_USAGE_RECORDED = "budget.usage-recorded"
     ARTIFACT_CREATED = "artifact.created"
     AUDIT_EVENT_RECORDED = "audit.event-recorded"
