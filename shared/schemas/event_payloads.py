@@ -440,6 +440,20 @@ class BudgetUsageRecordedPayload(ControlPlaneReferencePayload):
     output_tokens: int = Field(default=0, ge=0)
 
 
+class BudgetPolicyEventPayload(ControlPlaneReferencePayload):
+    """budget_policy.created / updated event payload."""
+
+    budget_id: str
+    scope: Literal["company", "goal", "agent", "work_item"]
+    scope_id: str | None = None
+    period: Literal["daily", "monthly", "quarterly", "total"]
+    limit_usd: float = Field(..., gt=0)
+    warning_threshold: float = Field(default=0.8, gt=0, le=1)
+    status: Literal["active", "paused", "archived"]
+    model_allowlist: list[str] = Field(default_factory=list)
+    actor_id: str | None = None
+
+
 class AuditEventRecordedPayload(ControlPlaneReferencePayload):
     """audit.event-recorded event payload."""
 
@@ -983,6 +997,8 @@ EVENT_PAYLOAD_MODELS = {
     "approval.requested": ApprovalEventPayload,
     "approval.granted": ApprovalEventPayload,
     "approval.rejected": ApprovalEventPayload,
+    "budget_policy.created": BudgetPolicyEventPayload,
+    "budget_policy.updated": BudgetPolicyEventPayload,
     "budget.usage-recorded": BudgetUsageRecordedPayload,
     "audit.event-recorded": AuditEventRecordedPayload,
     "evolution_proposal.created": EvolutionProposalEventPayload,

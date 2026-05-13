@@ -393,6 +393,106 @@ async def test_control_plane_api_rejects_work_item_with_missing_goal(
 
 
 @pytest.mark.asyncio
+async def test_control_plane_api_manages_budget_policies(
+    db_session: AsyncSession,
+):
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        created = await client.post(
+            "/api/v1/control-plane/budgets/policies",
+            json={
+                "company_id": "cmp_budget_api",
+                "scope": "agent",
+                "scope_id": "dev-agent",
+                "period": "daily",
+                "limit_usd": 12.5,
+                "warning_threshold": 0.75,
+                "model_allowlist": ["gpt-5.2", "claude-sonnet-4-20250514"],
+                "created_by": "human:finance",
+                "metadata": {"source": "operator"},
+            },
+        )
+        budget_id = created.json()["budget_id"]
+        duplicate_active = await client.post(
+            "/api/v1/control-plane/budgets/policies",
+            json={
+                "company_id": "cmp_budget_api",
+                "scope": "agent",
+                "scope_id": "dev-agent",
+                "period": "daily",
+                "limit_usd": 15,
+            },
+        )
+        listed = await client.get(
+            "/api/v1/control-plane/budgets/policies",
+            params={
+                "company_id": "cmp_budget_api",
+                "scope": "agent",
+                "scope_id": "dev-agent",
+                "period": "daily",
+                "status": "active",
+            },
+        )
+        fetched = await client.get(
+            f"/api/v1/control-plane/budgets/policies/{budget_id}",
+            params={"company_id": "cmp_budget_api"},
+        )
+        updated = await client.patch(
+            f"/api/v1/control-plane/budgets/policies/{budget_id}",
+            params={"company_id": "cmp_budget_api"},
+            json={
+                "limit_usd": 20,
+                "warning_threshold": 0.6,
+                "status": "paused",
+                "model_allowlist": ["gpt-5.2"],
+                "actor_id": "human:finance",
+            },
+        )
+        audits = await client.get(
+            "/api/v1/control-plane/audit-events",
+            params={"company_id": "cmp_budget_api", "target_type": "budget_policy"},
+        )
+        invalid_scope = await client.post(
+            "/api/v1/control-plane/budgets/policies",
+            json={
+                "company_id": "cmp_budget_api",
+                "scope": "agent",
+                "period": "daily",
+                "limit_usd": 5,
+            },
+        )
+
+    assert created.status_code == 201
+    assert created.json()["scope"] == "agent"
+    assert created.json()["scope_id"] == "dev-agent"
+    assert created.json()["period"] == "daily"
+    assert created.json()["limit_usd"] == 12.5
+    assert duplicate_active.status_code == 409
+    assert duplicate_active.json()["detail"] == "active_budget_policy_exists"
+    assert listed.status_code == 200
+    assert listed.json()["total"] == 1
+    assert listed.json()["budget_policies"][0]["budget_id"] == budget_id
+    assert fetched.status_code == 200
+    assert fetched.json()["metadata"] == {"source": "operator"}
+    assert updated.status_code == 200
+    assert updated.json()["limit_usd"] == 20
+    assert updated.json()["warning_threshold"] == 0.6
+    assert updated.json()["status"] == "paused"
+    assert updated.json()["model_allowlist"] == ["gpt-5.2"]
+    assert audits.status_code == 200
+    assert {item["action"] for item in audits.json()["audit_events"]} == {
+        EventTypes.BUDGET_POLICY_CREATED,
+        EventTypes.BUDGET_POLICY_UPDATED,
+    }
+    assert invalid_scope.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_control_plane_api_manages_decisions_artifacts_and_timeline(
     db_session: AsyncSession,
 ):

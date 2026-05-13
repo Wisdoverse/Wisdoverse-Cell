@@ -307,6 +307,18 @@ async def test_budget_usage_total(db_session: AsyncSession):
             limit_usd=25,
         )
     )
+    listed = await repo.list_budget_policies(
+        company_id=company.company_id,
+        scope=BudgetScope.COMPANY,
+        period=BudgetPeriod.DAILY,
+        status="active",
+    )
+    updated = await repo.update_budget_policy(
+        budget.budget_id,
+        limit_usd=30,
+        warning_threshold=0.7,
+        model_allowlist=["claude-sonnet-4-20250514"],
+    )
 
     await repo.record_budget_usage(
         BudgetUsage(
@@ -329,4 +341,9 @@ async def test_budget_usage_total(db_session: AsyncSession):
         )
     )
 
+    assert listed[0].budget_id == budget.budget_id
+    assert updated is not None
+    assert updated.limit_usd == 30
+    assert updated.warning_threshold == pytest.approx(0.7)
+    assert updated.model_allowlist == ["claude-sonnet-4-20250514"]
     assert await repo.get_budget_usage_total(budget.budget_id) == pytest.approx(2.0)

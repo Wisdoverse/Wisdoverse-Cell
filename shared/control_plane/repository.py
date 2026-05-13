@@ -644,6 +644,65 @@ class ControlPlaneRepository:
         await self.session.flush()
         return row
 
+    async def get_budget_policy(self, budget_id: str) -> BudgetPolicyTable | None:
+        result = await self.session.execute(
+            select(BudgetPolicyTable).where(BudgetPolicyTable.budget_id == budget_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def list_budget_policies(
+        self,
+        *,
+        company_id: str,
+        scope: BudgetScope | str | None = None,
+        scope_id: str | None = None,
+        period: BudgetPeriod | str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[BudgetPolicyTable]:
+        query = select(BudgetPolicyTable).where(BudgetPolicyTable.company_id == company_id)
+        if scope:
+            scope_value = scope.value if isinstance(scope, Enum) else scope
+            query = query.where(BudgetPolicyTable.scope == scope_value)
+        if scope_id:
+            query = query.where(BudgetPolicyTable.scope_id == scope_id)
+        if period:
+            period_value = period.value if isinstance(period, Enum) else period
+            query = query.where(BudgetPolicyTable.period == period_value)
+        if status:
+            query = query.where(BudgetPolicyTable.status == status)
+        result = await self.session.execute(
+            query.order_by(BudgetPolicyTable.created_at.desc()).limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def update_budget_policy(
+        self,
+        budget_id: str,
+        *,
+        limit_usd: float | None = None,
+        warning_threshold: float | None = None,
+        status: str | None = None,
+        model_allowlist: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> BudgetPolicyTable | None:
+        row = await self.get_budget_policy(budget_id)
+        if row is None:
+            return None
+        if limit_usd is not None:
+            row.limit_usd = limit_usd
+        if warning_threshold is not None:
+            row.warning_threshold = warning_threshold
+        if status is not None:
+            row.status = status
+        if model_allowlist is not None:
+            row.model_allowlist = _to_db_value(model_allowlist)
+        if metadata is not None:
+            row.metadata_json = _to_db_value(metadata)
+        row.updated_at = _now()
+        await self.session.flush()
+        return row
+
     async def get_active_budget_policy(
         self,
         *,

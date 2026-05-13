@@ -49,6 +49,12 @@ export type ArtifactType =
   | "run_walkthrough"
   | "other";
 
+export type BudgetScope = "company" | "goal" | "agent" | "work_item";
+
+export type BudgetPeriod = "daily" | "monthly" | "quarterly" | "total";
+
+export type BudgetPolicyStatus = "active" | "paused" | "archived";
+
 export type ControlPlaneTimelineType =
   | "audit_event"
   | "agent_run"
@@ -221,6 +227,26 @@ export interface ControlPlaneApproval {
 
 export interface ControlPlaneApprovalListResponse {
   approvals: ControlPlaneApproval[];
+}
+
+export interface ControlPlaneBudgetPolicy {
+  budget_id: string;
+  company_id: string;
+  scope: BudgetScope;
+  scope_id: string | null;
+  period: BudgetPeriod;
+  limit_usd: number;
+  warning_threshold: number;
+  status: BudgetPolicyStatus;
+  model_allowlist: string[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ControlPlaneBudgetPolicyListResponse {
+  budget_policies: ControlPlaneBudgetPolicy[];
+  total: number;
 }
 
 export interface ControlPlaneBudgetUsage {
