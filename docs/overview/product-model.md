@@ -44,7 +44,7 @@ Cell applies that model to its own stack and company-operating thesis.
 | Work Item | Durable unit of work | Control-plane work-item ledger, OpenProject work package, Feishu task/card, PRD item |
 | Agent Run | One execution attempt with state, tools, logs, and cost | `ControlPlanePlugin`, `AgentRun`, wakeup runner, EventBus traces, QA checks |
 | Approval | Human decision gate | Control-plane approval API, approval gates in high-risk flows, Feishu callbacks |
-| Budget Policy | Spend and model/tool routing constraint | `BudgetGuard`, LLM gateway usage records, tool registry cost estimates |
+| Budget Policy | Spend and model/tool routing constraint | `BudgetGuard`, `/api/v1/control-plane/budgets/policies`, LLM gateway usage records, tool registry cost estimates |
 | Activity Event | Immutable operational record | Control-plane audit events, `Event`, Redis Streams, trace IDs |
 | Artifact | Output produced by an agent | Control-plane artifacts, PRD, report, QA result, issue, code change |
 | Company Template | Portable operating model | Planned export/import with secret scrubbing |
@@ -92,6 +92,7 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 | Agent creation | Operators can create `AgentRole` records with kind, interaction mode, context sources, reporting line, adapter type/config, capabilities, responsibilities, subscribed/published events, permissions, and status | [API Reference](../guides/api-reference.md#post-apiv1control-planeagents) |
 | Agent execution | Manual wakeup and heartbeat ticks create normal `AgentRun` records through the adapter registry | [Operations](../guides/operations.md#10-control-plane-operations) |
 | Governance | Approval and budget gates append durable evidence before or during sensitive execution | [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
+| Cost controls | Operators can manage scoped budget policies and inspect usage evidence | [API Reference](../guides/api-reference.md#control-plane-api), [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
 | Evolution proposals | L1/L2/L3 self-evolution proposals are durable records with approval and rollout state; approval gates synchronize linked proposal state | [API Reference](../guides/api-reference.md#control-plane-api) |
 | Audit | Timeline combines run, budget, approval, artifact, and audit events by trace or run | [API Reference](../guides/api-reference.md#control-plane-api) |
 
