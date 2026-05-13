@@ -1587,6 +1587,7 @@ def create_control_plane_router(
         return {
             "run": _row_to_dict(run) if run is not None else {"run_id": result.run_id},
             "output": result.output,
+            "evidence_artifact_id": result.evidence_artifact_id,
         }
 
     @router.post(

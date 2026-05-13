@@ -19,6 +19,7 @@ from shared.control_plane.models import (
     CompanyContext,
 )
 from shared.control_plane.repository import ControlPlaneRepository
+from shared.control_plane.run_evidence import create_run_evidence_artifact
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
@@ -161,6 +162,24 @@ class ControlPlaneRecorder:
                         },
                     )
                 )
+                await create_run_evidence_artifact(
+                    repo,
+                    company_id=run.company_id,
+                    agent_id=agent_id,
+                    run_id=run_id,
+                    actor_type="agent",
+                    actor_id=agent_id,
+                    trigger=event.event_type,
+                    trace_id=event.metadata.trace_id,
+                    goal_id=run.goal_id,
+                    work_item_id=run.work_item_id,
+                    adapter_type="agent_runtime",
+                    status="succeeded",
+                    input_event=_event_to_dict(event),
+                    output_events=_events_to_dict(output_events),
+                    output_summary=f"{len(output_events)} output event(s)",
+                    generated_by="control_plane_runtime_plugin",
+                )
         except Exception as exc:
             logger.error(
                 "control_plane_run_complete_failed",
@@ -183,12 +202,26 @@ class ControlPlaneRecorder:
         try:
             async with self._session_provider() as session:
                 repo = ControlPlaneRepository(session)
+                failure_event = Event.create(
+                    event_type=EventTypes.AGENT_RUN_FAILED,
+                    source_agent=agent_id,
+                    payload={
+                        "company_id": self._company_id_from_payload(event.payload),
+                        "run_id": run_id,
+                        "status": "failed",
+                        "error_category": type(error).__name__,
+                        "error_message": str(error),
+                    },
+                    trace_id=event.metadata.trace_id,
+                )
+                output_events = [_event_to_dict(failure_event)]
                 run = await repo.update_agent_run_status(
                     run_id,
                     AgentRunStatus.FAILED,
                     error_category=type(error).__name__,
                     error_message=str(error),
                     last_successful_step="handler_started",
+                    output_events=output_events,
                 )
                 if run is None:
                     logger.warning("control_plane_run_missing_on_fail", run_id=run_id)
@@ -211,6 +244,26 @@ class ControlPlaneRecorder:
                             "error": str(error),
                         },
                     )
+                )
+                await create_run_evidence_artifact(
+                    repo,
+                    company_id=run.company_id,
+                    agent_id=agent_id,
+                    run_id=run_id,
+                    actor_type="agent",
+                    actor_id=agent_id,
+                    trigger=event.event_type,
+                    trace_id=event.metadata.trace_id,
+                    goal_id=run.goal_id,
+                    work_item_id=run.work_item_id,
+                    adapter_type="agent_runtime",
+                    status="failed",
+                    input_event=_event_to_dict(event),
+                    output_events=output_events,
+                    output_summary=None,
+                    error_category=type(error).__name__,
+                    error_message=str(error),
+                    generated_by="control_plane_runtime_plugin",
                 )
         except Exception as exc:
             logger.error(
