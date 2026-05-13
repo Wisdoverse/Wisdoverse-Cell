@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Loader2, Pencil, Save } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Loader2, Pencil, Save, Settings2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -15,6 +15,7 @@ import {
   type ControlPlaneAgentDefinition,
 } from "@/entities/agent";
 import { Button } from "@/shared/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +46,30 @@ const AGENT_KIND_OPTIONS = [
 
 const INTERACTION_MODE_OPTIONS = ["direct", "routed", "internal", "none"] as const;
 const ADAPTER_TYPES = ["builtin", "codex_local", "claude_local", "process", "http"] as const;
+
+function FormSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border border-zinc-200/80 p-4 dark:border-white/10">
+      <div className="space-y-1">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        {description && <p className="text-muted-foreground text-xs leading-5">{description}</p>}
+      </div>
+      <div className="mt-4 grid gap-4 md:grid-cols-2">{children}</div>
+    </section>
+  );
+}
+
+function FieldNote({ children }: { children: ReactNode }) {
+  return <p className="text-muted-foreground text-xs leading-5">{children}</p>;
+}
 
 function lines(values: string[]): string {
   return values.join("\n");
@@ -97,11 +122,13 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
   const tc = useTranslations("common");
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [form, setForm] = useState(() => formFromAgent(agent));
 
   useEffect(() => {
     if (!open) {
       setForm(formFromAgent(agent));
+      setAdvancedOpen(false);
     }
   }, [agent, open]);
 
@@ -112,6 +139,7 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
         .sort((a, b) => a.name.localeCompare(b.name)),
     [agent.agent_id, availableAgents],
   );
+  const canSubmit = Boolean(form.displayName.trim());
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -172,7 +200,7 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
         </DialogHeader>
 
         <form className="space-y-5" onSubmit={onSubmit}>
-          <div className="grid gap-4 md:grid-cols-2">
+          <FormSection title={t("operatorBasics")} description={t("operatorBasicsDescription")}>
             <div className="space-y-2">
               <Label htmlFor="edit-agent-name">{t("agentName")}</Label>
               <Input
@@ -186,59 +214,6 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
                 }
                 required
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-agent-id">{t("agentId")}</Label>
-              <Input id="edit-agent-id" value={agent.agent_id} disabled />
-            </div>
-            <div className="space-y-2">
-              <Label>{t("agentKind")}</Label>
-              <Select
-                value={form.agentKind}
-                onValueChange={(agentKind) =>
-                  setForm((current) => ({
-                    ...current,
-                    agentKind: agentKind as AgentKind,
-                  }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {AGENT_KIND_OPTIONS.map((agentKind) => (
-                    <SelectItem key={agentKind} value={agentKind}>
-                      {t(`agentKinds.${agentKind}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>{t("interactionMode")}</Label>
-              <Select
-                value={form.interactionMode}
-                onValueChange={(interactionMode) =>
-                  setForm((current) => ({
-                    ...current,
-                    interactionMode: interactionMode as AgentInteractionMode,
-                  }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {INTERACTION_MODE_OPTIONS.map((interactionMode) => (
-                    <SelectItem key={interactionMode} value={interactionMode}>
-                      {t(`interactionModes.${interactionMode}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-muted-foreground text-xs">
-                {t(`interactionModeDescriptions.${form.interactionMode}`)}
-              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-agent-role">{t("role")}</Label>
@@ -287,7 +262,7 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <Label>{t("reportsTo")}</Label>
               <Select
                 value={form.reportsTo}
@@ -307,100 +282,6 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>{t("adapterType")}</Label>
-              <Select
-                value={form.adapterType}
-                onValueChange={(adapterType) => setForm((current) => ({ ...current, adapterType }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ADAPTER_TYPES.map((adapterType) => (
-                    <SelectItem key={adapterType} value={adapterType}>
-                      {adapterType}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-agent-model">{t("model")}</Label>
-              <Input
-                id="edit-agent-model"
-                value={form.model}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    model: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-agent-base-url">{t("baseUrl")}</Label>
-              <Input
-                id="edit-agent-base-url"
-                value={form.baseUrl}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    baseUrl: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-agent-path">{t("requestPath")}</Label>
-              <Input
-                id="edit-agent-path"
-                value={form.path}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    path: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="edit-agent-cwd">{t("workingDirectory")}</Label>
-              <Input
-                id="edit-agent-cwd"
-                value={form.cwd}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, cwd: event.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="edit-agent-command">{t("command")}</Label>
-              <Input
-                id="edit-agent-command"
-                value={form.command}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    command: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="edit-agent-context">{t("contextSources")}</Label>
-              <Textarea
-                id="edit-agent-context"
-                value={form.contextSources}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    contextSources: event.target.value,
-                  }))
-                }
-                className="min-h-20 font-mono text-sm"
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="edit-agent-capabilities">{t("capabilities")}</Label>
               <Textarea
                 id="edit-agent-capabilities"
@@ -412,9 +293,11 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
                   }))
                 }
                 className="min-h-24"
+                placeholder={t("capabilitiesPlaceholder")}
               />
+              <FieldNote>{t("onePerLine")}</FieldNote>
             </div>
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2">
               <Label htmlFor="edit-agent-responsibilities">{t("responsibilities")}</Label>
               <Textarea
                 id="edit-agent-responsibilities"
@@ -426,40 +309,235 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
                   }))
                 }
                 className="min-h-24"
+                placeholder={t("responsibilitiesPlaceholder")}
               />
+              <FieldNote>{t("onePerLine")}</FieldNote>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-agent-subscribed">{t("subscribedEvents")}</Label>
-              <Textarea
-                id="edit-agent-subscribed"
-                value={form.subscribedEvents}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    subscribedEvents: event.target.value,
-                  }))
-                }
-                className="min-h-24 font-mono text-sm"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-agent-published">{t("publishedEvents")}</Label>
-              <Textarea
-                id="edit-agent-published"
-                value={form.publishedEvents}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    publishedEvents: event.target.value,
-                  }))
-                }
-                className="min-h-24 font-mono text-sm"
-              />
-            </div>
-          </div>
+          </FormSection>
+
+          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <section className="rounded-lg border border-zinc-200/80 p-4 dark:border-white/10">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold">{t("advancedSettings")}</h3>
+                  <p className="text-muted-foreground text-xs leading-5">
+                    {t("advancedSettingsDescription")}
+                  </p>
+                </div>
+                <CollapsibleTrigger asChild>
+                  <Button type="button" variant="outline" size="sm">
+                    <Settings2 className="size-4" />
+                    {advancedOpen ? t("hideAdvanced") : t("showAdvanced")}
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-agent-id">{t("agentId")}</Label>
+                    <Input id="edit-agent-id" value={agent.agent_id} disabled />
+                    <FieldNote>{t("agentIdHelp")}</FieldNote>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("agentKind")}</Label>
+                    <Select
+                      value={form.agentKind}
+                      onValueChange={(agentKind) =>
+                        setForm((current) => ({
+                          ...current,
+                          agentKind: agentKind as AgentKind,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AGENT_KIND_OPTIONS.map((agentKind) => (
+                          <SelectItem key={agentKind} value={agentKind}>
+                            {t(`agentKinds.${agentKind}`)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("interactionMode")}</Label>
+                    <Select
+                      value={form.interactionMode}
+                      onValueChange={(interactionMode) =>
+                        setForm((current) => ({
+                          ...current,
+                          interactionMode: interactionMode as AgentInteractionMode,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INTERACTION_MODE_OPTIONS.map((interactionMode) => (
+                          <SelectItem key={interactionMode} value={interactionMode}>
+                            {t(`interactionModes.${interactionMode}`)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FieldNote>
+                      {t(`interactionModeDescriptions.${form.interactionMode}`)}
+                    </FieldNote>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("adapterType")}</Label>
+                    <Select
+                      value={form.adapterType}
+                      onValueChange={(adapterType) =>
+                        setForm((current) => ({ ...current, adapterType }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ADAPTER_TYPES.map((adapterType) => (
+                          <SelectItem key={adapterType} value={adapterType}>
+                            {adapterType}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-agent-model">{t("model")}</Label>
+                    <Input
+                      id="edit-agent-model"
+                      value={form.model}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          model: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-agent-base-url">{t("baseUrl")}</Label>
+                    <Input
+                      id="edit-agent-base-url"
+                      value={form.baseUrl}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          baseUrl: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-agent-path">{t("requestPath")}</Label>
+                    <Input
+                      id="edit-agent-path"
+                      value={form.path}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          path: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-agent-cwd">{t("workingDirectory")}</Label>
+                    <Input
+                      id="edit-agent-cwd"
+                      value={form.cwd}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          cwd: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="edit-agent-command">{t("command")}</Label>
+                    <Input
+                      id="edit-agent-command"
+                      value={form.command}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          command: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-agent-context">{t("contextSources")}</Label>
+                    <Textarea
+                      id="edit-agent-context"
+                      value={form.contextSources}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          contextSources: event.target.value,
+                        }))
+                      }
+                      className="min-h-24 font-mono text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-agent-subscribed">{t("subscribedEvents")}</Label>
+                    <Textarea
+                      id="edit-agent-subscribed"
+                      value={form.subscribedEvents}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          subscribedEvents: event.target.value,
+                        }))
+                      }
+                      className="min-h-24 font-mono text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-agent-published">{t("publishedEvents")}</Label>
+                    <Textarea
+                      id="edit-agent-published"
+                      value={form.publishedEvents}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          publishedEvents: event.target.value,
+                        }))
+                      }
+                      className="min-h-24 font-mono text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-agent-prompt-template">{t("promptTemplate")}</Label>
+                    <Textarea
+                      id="edit-agent-prompt-template"
+                      value={form.promptTemplate}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          promptTemplate: event.target.value,
+                        }))
+                      }
+                      className="min-h-24 font-mono text-sm"
+                    />
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </section>
+          </Collapsible>
 
           <DialogFooter>
-            <Button type="submit" disabled={submitting}>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              {tc("cancel")}
+            </Button>
+            <Button type="submit" disabled={submitting || !canSubmit}>
               {submitting ? <Loader2 className="animate-spin" /> : <Save />}
               {submitting ? td("agentUpdating") : td("saveAgent")}
             </Button>
