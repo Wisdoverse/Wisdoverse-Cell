@@ -13,6 +13,7 @@ from shared.schemas.agent import BaseAgent
 from shared.utils.logger import get_logger
 
 from ..api.pm import router as pm_router
+from ..db.database import db_manager
 from ..service.agent import agent as _raw_agent
 
 # Backward-compatible alias: test_api.py patches `agents.pjm_agent.app.main.agent`
@@ -36,7 +37,7 @@ app = create_agent_app(
     routers=[
         (pm_router, [Depends(verify_internal_key)]),
     ],
-    plugins=[InfraHealthPlugin()],
+    plugins=[InfraHealthPlugin(db_manager=db_manager)],
     control_plane_enabled=settings.control_plane_enabled,
     control_plane_company_id=settings.control_plane_company_id,
     on_startup=lambda rt: _start_scheduler(rt),

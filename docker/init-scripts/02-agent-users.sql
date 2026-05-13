@@ -53,8 +53,16 @@ $$;
 -- ---------------------------------------------------------------------------
 -- 2. Grant connect & schema usage
 -- ---------------------------------------------------------------------------
-GRANT CONNECT ON DATABASE wisdoverse-cell TO chat_agent, pjm_agent, sync_agent, analysis_agent, qa_agent, dev_agent, evolution_agent;
-GRANT USAGE ON SCHEMA public TO chat_agent, pjm_agent, sync_agent, analysis_agent, qa_agent, dev_agent, evolution_agent;
+DO $$
+BEGIN
+    EXECUTE format(
+        'GRANT CONNECT ON DATABASE %I TO chat_agent, pjm_agent, sync_agent, analysis_agent, qa_agent, dev_agent, evolution_agent',
+        current_database()
+    );
+END
+$$;
+
+GRANT USAGE, CREATE ON SCHEMA public TO chat_agent, pjm_agent, sync_agent, analysis_agent, qa_agent, dev_agent, evolution_agent;
 
 -- ---------------------------------------------------------------------------
 -- 3. Table-level grants (tables created by Alembic / SQLAlchemy on first run)

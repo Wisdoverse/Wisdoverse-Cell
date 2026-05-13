@@ -85,10 +85,19 @@ def test_unified_agents_image_dispatches_every_role() -> None:
     # Single platform image: one runtime stage, no per-role builder/runtime stages.
     assert "AS runtime" in dockerfile
     assert "AS builder" in dockerfile
+    assert 'pip install -i "$PIP_INDEX_URL"' not in dockerfile
+    assert 'if [ -n "$PIP_INDEX_URL" ]' in dockerfile
     assert "FROM builder-base AS evolution-builder" not in dockerfile
     assert "FROM runtime-base AS evolution-module" not in dockerfile
 
     # Every role appears in the dispatcher and points at the right ASGI app.
+    assert "cell-supervisor.py" in dockerfile
+    assert "cell)" in entrypoint
+    assert "wisdoverse-cell-supervisor" in entrypoint
+    supervisor = Path("docker/cell-supervisor.py").read_text(encoding="utf-8")
+    assert "bootstrap_control_plane_tables()" in supervisor
+    assert "CELL_BOOTSTRAP_CONTROL_PLANE" in supervisor
+    assert '"--no-control-socket"' in supervisor
     for role, app_path in PYTHON_RUNTIME_ROLES.items():
         assert role in entrypoint, f"entrypoint missing dispatch case for {role}"
         assert app_path in entrypoint, (
@@ -96,23 +105,72 @@ def test_unified_agents_image_dispatches_every_role() -> None:
         )
 
 
+def test_default_compose_exposes_cell_runtime_instead_of_split_agents() -> None:
+    """The default root Compose file must present Cell as the Docker runtime boundary."""
+    compose = Path("docker-compose.yml").read_text(encoding="utf-8")
+
+    cell = _compose_service_block(compose, "cell")
+    assert "wisdoverse/cell-agents:" in cell
+    assert 'command: ["cell"]' in cell
+    assert "ports:" not in cell
+    for internal_port in ("8000", "50051", "8010", "8011", "8012", "8013", "8014", "8015", "8016"):
+        assert f'- "{internal_port}"' in cell
+
+    gateway = _compose_service_block(compose, "gateway")
+    assert "ports:" not in gateway
+    assert 'expose:\n      - "8080"' in gateway
+    assert "GATEWAY_GRPC_AI_SERVICE_ADDR: cell:50051" in gateway
+    assert "GATEWAY_FEISHU_CHAT_AGENT_ADDR: cell:8013" in gateway
+    assert "GATEWAY_FEISHU_PM_AGENT_ADDR: cell:8012" in gateway
+    assert "cell:" in gateway
+
+    for role in PYTHON_RUNTIME_ROLES:
+        block = _compose_service_block(compose, role)
+        assert 'profiles: ["split-agents"]' in block, (
+            f"{role} must not start in the default Cell compose topology"
+        )
+        assert "ports:" not in block, f"{role} must not publish host ports"
+
+
+def test_development_override_only_publishes_infrastructure_ports() -> None:
+    """Local Docker can expose infra for tools without exposing agent/module ports."""
+    override = Path("docker-compose.override.yml").read_text(encoding="utf-8")
+
+    for service in ("postgres", "redis", "milvus"):
+        block = _compose_service_block(override, service)
+        assert "ports:" in block, f"{service} should be reachable from local tools"
+
+    assert "${POSTGRES_HOST_PORT:-15432}:5432" in override
+    assert "${REDIS_HOST_PORT:-16379}:6379" in override
+
+    for service in ("cell", "gateway"):
+        block = _compose_service_block(override, service)
+        assert "ports:" not in block, f"{service} should stay behind Traefik"
+
+    assert "backend:\n    internal: false" in override
+
+    root_compose = Path("docker-compose.yml").read_text(encoding="utf-8")
+    root_backend = root_compose.split("  backend:", 1)[1].split("  frontend:", 1)[0]
+    assert "driver: bridge" in root_backend
+    assert "internal: true" in root_backend
+    milvus = _compose_service_block(root_compose, "milvus")
+    assert "DEPLOY_MODE: STANDALONE" in milvus
+    assert 'ETCD_USE_EMBED: "true"' in milvus
+
+
 def test_compose_topologies_share_unified_agents_image() -> None:
     """Every Python service in every Compose topology must share the platform image and dispatch its role."""
-    compose_files = [
-        Path("docker-compose.yml"),
-        Path("docker/compose/docker-compose.app.yml"),
-    ]
-    for compose_path in compose_files:
-        compose = compose_path.read_text(encoding="utf-8")
-        for role in PYTHON_RUNTIME_ROLES:
-            assert f"  {role}:" in compose, f"{compose_path} is missing {role}"
-            block = _compose_service_block(compose, role)
-            assert (
-                "wisdoverse/cell-agents:" in block
-            ), f"{compose_path} does not point {role} at the unified platform image"
-            assert (
-                f'- {role}' in block or f'"{role}"' in block
-            ), f"{compose_path} does not dispatch {role} via command"
+    compose_path = Path("docker/compose/docker-compose.app.yml")
+    compose = compose_path.read_text(encoding="utf-8")
+    for role in PYTHON_RUNTIME_ROLES:
+        assert f"  {role}:" in compose, f"{compose_path} is missing {role}"
+        block = _compose_service_block(compose, role)
+        assert (
+            "wisdoverse/cell-agents:" in block
+        ), f"{compose_path} does not point {role} at the unified platform image"
+        assert (
+            f'- {role}' in block or f'"{role}"' in block
+        ), f"{compose_path} does not dispatch {role} via command"
 
 
 def test_rust_gateway_is_default_and_only_gateway_runtime() -> None:
@@ -239,30 +297,62 @@ def test_rust_gateway_is_default_and_only_gateway_runtime() -> None:
 
 def test_production_overrides_share_unified_agents_image() -> None:
     """Production Compose overlays must point every Python service at the unified image and disable local builds."""
-    prod_files = [
-        Path("docker-compose.prod.yml"),
-        Path("docker/compose/docker-compose.prod.yml"),
-    ]
-    for compose_path in prod_files:
-        compose = compose_path.read_text(encoding="utf-8")
-        for role in PYTHON_RUNTIME_ROLES:
-            assert f"  {role}:" in compose, f"{compose_path} is missing {role}"
-            assert (
-                "image: ${REGISTRY}wisdoverse/cell-agents:${VERSION}" in compose
-            ), f"{compose_path} does not pin the unified agents image"
-            block = _compose_service_block(compose, role)
-            assert "build: !reset null" in block, (
-                f"{compose_path} must disable local build for {role} in production"
-            )
+    root_prod = Path("docker-compose.prod.yml").read_text(encoding="utf-8")
+    root_cell = _compose_service_block(root_prod, "cell")
+    assert "image: ${REGISTRY}wisdoverse/cell-agents:${VERSION}" in root_cell
+    assert 'command: ["cell"]' in root_cell
+    assert "build: !reset null" in root_cell
+
+    compose_path = Path("docker/compose/docker-compose.prod.yml")
+    compose = compose_path.read_text(encoding="utf-8")
+    for role in PYTHON_RUNTIME_ROLES:
+        assert f"  {role}:" in compose, f"{compose_path} is missing {role}"
+        assert (
+            "image: ${REGISTRY}wisdoverse/cell-agents:${VERSION}" in compose
+        ), f"{compose_path} does not pin the unified agents image"
+        block = _compose_service_block(compose, role)
+        assert "build: !reset null" in block, (
+            f"{compose_path} must disable local build for {role} in production"
+        )
 
 
 def test_docker_init_script_creates_compose_runtime_db_users() -> None:
     """Clean Docker databases must contain every per-runtime DB user used by Compose."""
     init_sh = Path("docker/init-scripts/02-agent-users.sh").read_text(encoding="utf-8")
     init_sql = Path("docker/init-scripts/02-agent-users.sql").read_text(encoding="utf-8")
+    makefile = Path("Makefile").read_text(encoding="utf-8")
+
+    assert "--host \"${POSTGRES_HOST}\"" in init_sh
+    assert "current_database()" in init_sql
+    assert "GRANT CONNECT ON DATABASE wisdoverse-cell" not in init_sql
+    assert "GRANT USAGE, CREATE ON SCHEMA public" in init_sql
+    assert "up: db-bootstrap" in makefile
+    assert "up -d --wait postgres" in makefile
+    assert "/docker-entrypoint-initdb.d/02-agent-users.sh" in makefile
+    assert "/docker-entrypoint-initdb.d/02-agent-users.sql" in makefile
+
     for db_user in RUNTIME_DB_USERS:
         assert f'create_or_update_role "{db_user}"' in init_sh
         assert f"TO {db_user}" in init_sql
+
+
+def test_runtime_apps_wire_db_manager_into_infra_health() -> None:
+    """Runtime health checks must validate Postgres through the service DB manager."""
+    app_paths = [
+        Path("agents/pjm_agent/app/main.py"),
+        Path("agents/qa_agent/app/main.py"),
+        Path("shared/capabilities/sync/app/main.py"),
+        Path("shared/capabilities/analysis/app/main.py"),
+        Path("services/gateways/user_interaction/app/main.py"),
+    ]
+    for app_path in app_paths:
+        source = app_path.read_text(encoding="utf-8")
+        assert "from ..db.database import db_manager" in source
+        assert "InfraHealthPlugin(db_manager=db_manager" in source or (
+            "InfraHealthPlugin(\n"
+            in source
+            and "db_manager=db_manager" in source
+        )
 
 
 def test_production_compose_requires_runtime_db_passwords() -> None:

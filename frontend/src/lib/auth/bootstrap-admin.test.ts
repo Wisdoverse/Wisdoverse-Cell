@@ -82,4 +82,45 @@ describe("bootstrap admin store", () => {
 
     await expect(isBootstrapSetupRequiredForLogin()).resolves.toBe(false);
   });
+
+  it("seeds a configured bootstrap admin only when the store is empty", async () => {
+    vi.stubEnv("WEBUI_BOOTSTRAP_ADMIN_ENABLED", "true");
+    vi.stubEnv("WEBUI_BOOTSTRAP_ADMIN_USERNAME", "seed@example.com");
+    vi.stubEnv("WEBUI_BOOTSTRAP_ADMIN_PASSWORD", "seed-password");
+    vi.stubEnv("WEBUI_BOOTSTRAP_ADMIN_DISPLAY_NAME", "Seed Admin");
+
+    await expect(isBootstrapSetupRequiredForLogin()).resolves.toBe(false);
+    await expect(verifyBootstrapAdminCredentials("seed@example.com", "seed-password")).resolves
+      .toMatchObject({
+        username: "seed@example.com",
+        displayName: "Seed Admin",
+        role: "admin",
+      });
+  });
+
+  it("does not overwrite an existing admin with configured bootstrap credentials", async () => {
+    await createBootstrapAdmin({
+      username: "admin@example.com",
+      password: "first-pass",
+    });
+
+    vi.stubEnv("WEBUI_BOOTSTRAP_ADMIN_ENABLED", "true");
+    vi.stubEnv("WEBUI_BOOTSTRAP_ADMIN_USERNAME", "seed@example.com");
+    vi.stubEnv("WEBUI_BOOTSTRAP_ADMIN_PASSWORD", "seed-password");
+
+    await expect(isBootstrapSetupRequiredForLogin()).resolves.toBe(false);
+    await expect(verifyBootstrapAdminCredentials("admin@example.com", "first-pass")).resolves
+      .not.toBeNull();
+    await expect(verifyBootstrapAdminCredentials("seed@example.com", "seed-password")).resolves
+      .toBeNull();
+  });
+
+  it("fails fast when configured bootstrap credentials are incomplete", async () => {
+    vi.stubEnv("WEBUI_BOOTSTRAP_ADMIN_ENABLED", "true");
+    vi.stubEnv("WEBUI_BOOTSTRAP_ADMIN_USERNAME", "seed@example.com");
+
+    await expect(isBootstrapSetupRequiredForLogin()).rejects.toThrow(
+      "WEBUI_BOOTSTRAP_ADMIN_USERNAME and WEBUI_BOOTSTRAP_ADMIN_PASSWORD are required",
+    );
+  });
 });

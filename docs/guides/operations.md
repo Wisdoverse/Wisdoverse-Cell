@@ -8,7 +8,13 @@ English is the primary language for operational documentation.
 
 ## 1. Deployment Modes
 
-Wisdoverse Cell uses layered Docker Compose files under `docker/compose/`:
+The default local Docker entrypoint is the root `docker-compose.yml` plus
+`docker-compose.override.yml`. It presents Wisdoverse Cell as a product-level
+stack: `cell`, `gateway`, `web`, `traefik`, and infrastructure. The individual
+Python agents and support modules run inside `cell` by default.
+
+Advanced deployment engineering workflows can still use the layered Compose
+files under `docker/compose/`:
 
 | Layer | File | Responsibility |
 |-------|------|----------------|
@@ -24,7 +30,8 @@ Common modes:
 
 | Mode | Command | Use case |
 |------|---------|----------|
-| Development stack | `make up-dev` | Local Compose stack with infrastructure, web, gateway, real runtime agents, support capabilities, and Traefik ingress |
+| Development stack | `make up` | Local Cell stack with infrastructure, web, gateway, and Traefik ingress |
+| Development alias | `make up-dev` | Alias for `make up` |
 | Infrastructure only | `make up-infra` | Run Python/Rust/Node processes locally against shared infra |
 | Production-style stack | `make up-prod` | Production-like Compose topology |
 | Evidence-gated Rust gateway deploy | `make up-prod-rust-gateway` | Production-like stack using the default prebuilt Rust gateway image after evidence validation |
@@ -160,15 +167,15 @@ The repository publishes three release images on tagged `v*` pushes via
 
 | Image | Source | Roles |
 |-------|--------|-------|
-| `ghcr.io/wisdoverse/cell-agents` | `docker/Dockerfile.agents` | Every Python agent and capability bundled into a single image. The first command argument selects the role at runtime. |
+| `ghcr.io/wisdoverse/cell-agents` | `docker/Dockerfile.agents` | Every Python agent and capability bundled into a single image. `cell` starts the full local runtime; individual role commands are reserved for split-agent deployments and debugging. |
 | `ghcr.io/wisdoverse/cell-rust-gateway` | `rust/gateway/Dockerfile` | Rust + Axum API gateway. |
 | `ghcr.io/wisdoverse/cell-web` | `frontend/Dockerfile` | Next.js operator console. |
 
 The unified `cell-agents` image is the canonical Python runtime artifact. It
-ships every agent and module so a single tagged release backs every Python
-container in the compose topology. Compose services pick their role through
-the entrypoint dispatcher in `docker/agents-entrypoint.sh`, either via the
-first command argument or the `WISDOVERSE_AGENT` environment variable.
+ships every agent and module so a single tagged release can run the default
+`cell` container or advanced split-agent containers. The entrypoint dispatcher
+in `docker/agents-entrypoint.sh` accepts `cell` for the full runtime and also
+accepts individual role commands for specialized operations.
 
 | Role | Package | Default port |
 |------|---------|--------------|
@@ -186,7 +193,7 @@ Build the image locally with:
 ```bash
 docker build -t wisdoverse/cell-agents:dev -f docker/Dockerfile.agents .
 docker run --rm wisdoverse/cell-agents:dev help
-docker run --rm -p 8010:8010 wisdoverse/cell-agents:dev sync-module
+docker run --rm -p 8000:8000 wisdoverse/cell-agents:dev cell
 ```
 
 Pull the prebuilt release image instead of building locally:
@@ -641,6 +648,8 @@ second dev server.
 ```bash
 make up-dev
 make down-dev
+make up
+make down
 make up-prod
 make down-prod
 make up-infra

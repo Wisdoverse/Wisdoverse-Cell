@@ -275,18 +275,25 @@ into `_raw_agent`.
 
 ## 9. Deployment Topology
 
-All services are orchestrated through Docker Compose. Traefik v3 handles routing and TLS termination. Each agent runs as an independent container or standalone `create_agent_app()` service with its own port. Infrastructure (PostgreSQL, Redis, NATS, Milvus) can be started independently with `make up-infra`.
+All services are orchestrated through Docker Compose. Traefik v3 handles
+routing and TLS termination. The default local Docker boundary is the
+product-level `cell` container: it runs the Python agents and support
+capabilities internally while preserving their HTTP ports. Advanced
+split-agent deployments may still run each `create_agent_app()` service as an
+independent container. Infrastructure (PostgreSQL, Redis, NATS, Milvus) can be
+started independently with `make up-infra`.
 
 ```
 Traefik :443/:80
-  ├── /api/*        -> gateway :8080
-  ├── /agent/rm/*   -> requirement manager agent :8000
-  ├── /agent/sync/* -> sync capability :8010
-  ├── /agent/analysis/* -> analysis capability :8011
-  ├── /agent/pm/*   -> PJM agent :8012
-  ├── /agent/chat/* -> user interaction gateway :8013
-  ├── /agent/qa/*   -> QA agent :8014
-  ├── /agent/dev/*  -> Dev agent :8015
-  ├── /agent/evolution/* -> evolution capability :8016
+  ├── /api/*        -> cell ai-core :8000
+  ├── /webhook/*    -> gateway :8080
+  ├── /agent/rm/*   -> cell requirement manager agent :8000
+  ├── /agent/sync/* -> cell sync capability :8010
+  ├── /agent/analysis/* -> cell analysis capability :8011
+  ├── /agent/pm/*   -> cell PJM agent :8012
+  ├── /agent/chat/* -> cell user interaction gateway :8013
+  ├── /agent/qa/*   -> cell QA agent :8014
+  ├── /agent/dev/*  -> cell Dev agent :8015
+  ├── /agent/evolution/* -> cell evolution capability :8016
   └── ...           -> other deployed agents
 ```
