@@ -18,6 +18,7 @@ import type {
   EvolutionApprovalState,
   EvolutionRolloutState,
   EvolutionTier,
+  WorkItemStatus,
 } from "../model/types";
 
 export interface ControlPlaneGoalFilters {
@@ -68,6 +69,13 @@ export interface ControlPlaneWorkItemCreateRequest {
   approval_required?: boolean;
   created_by?: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface ControlPlaneWorkItemStatusUpdateRequest {
+  status: WorkItemStatus;
+  owner_agent_id?: string;
+  owner_user_id?: string;
+  actor_id?: string;
 }
 
 export interface ControlPlaneRunFilters {
@@ -171,6 +179,16 @@ export function createControlPlaneWorkItem(
 ): Promise<ControlPlaneWorkItemListResponse["work_items"][number]> {
   return apiClient.post<ControlPlaneWorkItemListResponse["work_items"][number]>(
     "/control-plane/work-items",
+    payload,
+  );
+}
+
+export function updateControlPlaneWorkItemStatus(
+  workItemId: string,
+  payload: ControlPlaneWorkItemStatusUpdateRequest,
+): Promise<ControlPlaneWorkItemListResponse["work_items"][number]> {
+  return apiClient.patch<ControlPlaneWorkItemListResponse["work_items"][number]>(
+    `/control-plane/work-items/${workItemId}/status`,
     payload,
   );
 }

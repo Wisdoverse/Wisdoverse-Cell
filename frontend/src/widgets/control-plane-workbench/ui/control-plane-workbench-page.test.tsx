@@ -163,6 +163,7 @@ function buildWorkbenchState(): ControlPlaneWorkbenchState {
     rejectApproval: vi.fn().mockResolvedValue(undefined),
     createGoal: vi.fn().mockResolvedValue(undefined),
     createWorkItem: vi.fn().mockResolvedValue(undefined),
+    updateWorkItemStatus: vi.fn().mockResolvedValue(undefined),
     createBudgetPolicy: vi.fn().mockResolvedValue(undefined),
     updateBudgetPolicy: vi.fn().mockResolvedValue(undefined),
     refresh: vi.fn(),
@@ -240,6 +241,25 @@ describe("ControlPlaneWorkbenchPage", () => {
       title: "Work Beta",
       description: "",
       owner_agent_id: "dev-agent",
+    });
+  });
+
+  it("lets operators update work item status and ownership", async () => {
+    const user = userEvent.setup();
+    const state = buildWorkbenchState();
+    useControlPlaneWorkbenchMock.mockReturnValue(state);
+
+    render(<ControlPlaneWorkbenchPage />);
+
+    await user.click(screen.getByRole("button", { name: "editWorkItem" }));
+    await user.clear(screen.getByLabelText("ownerAgent"));
+    await user.type(screen.getByLabelText("ownerAgent"), "qa-agent");
+    await user.click(screen.getByRole("button", { name: "save" }));
+
+    expect(state.updateWorkItemStatus).toHaveBeenCalledWith("work_alpha", {
+      status: "running",
+      owner_agent_id: "qa-agent",
+      owner_user_id: undefined,
     });
   });
 

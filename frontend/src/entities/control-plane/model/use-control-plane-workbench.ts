@@ -20,12 +20,14 @@ import {
   listControlPlaneWorkItems,
   rejectControlPlaneApproval,
   updateControlPlaneBudgetPolicy,
+  updateControlPlaneWorkItemStatus,
   type ControlPlaneBudgetPolicyCreateRequest,
   type ControlPlaneBudgetPolicyUpdateRequest,
   type ControlPlaneGoalCreateRequest,
   type ControlPlaneGoalFilters,
   type ControlPlaneWorkItemCreateRequest,
   type ControlPlaneRunFilters,
+  type ControlPlaneWorkItemStatusUpdateRequest,
   type ControlPlaneWorkItemFilters,
 } from "../api/control-plane";
 import type {
@@ -324,6 +326,27 @@ export function useControlPlaneWorkbench() {
     [activeGoalId, refreshAll],
   );
 
+  const updateWorkItemStatus = useCallback(
+    async (
+      workItemId: string,
+      payload: ControlPlaneWorkItemStatusUpdateRequest,
+    ) => {
+      setWorkItemActionId(workItemId);
+      try {
+        const workItem = await updateControlPlaneWorkItemStatus(workItemId, {
+          actor_id: "human:operator",
+          ...payload,
+        });
+        setSelectedWorkItemId(workItem.work_item_id);
+        setSelectedRunId(undefined);
+        await refreshAll();
+      } finally {
+        setWorkItemActionId(undefined);
+      }
+    },
+    [refreshAll],
+  );
+
   const createBudgetPolicy = useCallback(
     async (payload: ControlPlaneBudgetPolicyCreateRequest) => {
       setBudgetPolicyActionId("create");
@@ -394,6 +417,7 @@ export function useControlPlaneWorkbench() {
     rejectApproval,
     createGoal,
     createWorkItem,
+    updateWorkItemStatus,
     createBudgetPolicy,
     updateBudgetPolicy,
     refresh,

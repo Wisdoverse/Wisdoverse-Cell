@@ -34,10 +34,12 @@ import {
   type ControlPlaneGoal,
   type ControlPlaneTimelineItem,
   type ControlPlaneWorkbenchState,
+  type ControlPlaneWorkItem,
   type BudgetPeriod,
   type BudgetPolicyStatus,
   type BudgetScope,
   type WorkItemPriority,
+  type WorkItemStatus,
 } from "@/entities/control-plane";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Badge } from "@/shared/ui/badge";
@@ -134,6 +136,16 @@ const timelineAccentClass: Record<string, string> = {
 const budgetScopes: BudgetScope[] = ["company", "goal", "agent", "work_item"];
 const budgetPeriods: BudgetPeriod[] = ["daily", "monthly", "quarterly", "total"];
 const budgetStatuses: BudgetPolicyStatus[] = ["active", "paused", "archived"];
+const workItemStatuses: WorkItemStatus[] = [
+  "queued",
+  "ready",
+  "running",
+  "blocked",
+  "awaiting_approval",
+  "completed",
+  "failed",
+  "cancelled",
+];
 
 function getString(
   data: Record<string, unknown>,
@@ -432,6 +444,90 @@ function CreateWorkItemDialog({ workbench }: { workbench: Workbench }) {
                 <Plus className="size-4" />
               )}
               {isCreating ? t("creating") : t("create")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function UpdateWorkItemDialog({ workbench }: { workbench: Workbench }) {
+  const t = useTranslations("controlPlane");
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<WorkItemStatus>(
+    workbench.selectedWorkItem?.status ?? "ready",
+  );
+  const [ownerAgentId, setOwnerAgentId] = useState(
+    workbench.selectedWorkItem?.owner_agent_id ?? "",
+  );
+  const selectedWorkItem = workbench.selectedWorkItem;
+  const isSaving =
+    selectedWorkItem != null &&
+    workbench.workItemActionId === selectedWorkItem.work_item_id;
+
+  function resetForm(workItem: ControlPlaneWorkItem | undefined) {
+    setStatus(workItem?.status ?? "ready");
+    setOwnerAgentId(workItem?.owner_agent_id ?? "");
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedWorkItem) return;
+    await workbench.updateWorkItemStatus(selectedWorkItem.work_item_id, {
+      status,
+      owner_agent_id: ownerAgentId.trim() || undefined,
+      owner_user_id: selectedWorkItem.owner_user_id ?? undefined,
+    });
+    setOpen(false);
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) resetForm(selectedWorkItem);
+        setOpen(nextOpen);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="outline" size="xs" disabled={!selectedWorkItem}>
+          <Pencil className="size-3.5" />
+          {t("editWorkItem")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("editWorkItem")}</DialogTitle>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={(event) => void submit(event)}>
+          <div className="space-y-2">
+            <Label htmlFor="control-plane-work-status">{t("workStatus")}</Label>
+            <PolicySelect
+              id="control-plane-work-status"
+              value={status}
+              values={workItemStatuses}
+              onChange={setStatus}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="control-plane-work-update-owner">
+              {t("ownerAgent")}
+            </Label>
+            <Input
+              id="control-plane-work-update-owner"
+              value={ownerAgentId}
+              onChange={(event) => setOwnerAgentId(event.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={isSaving || !selectedWorkItem}>
+              {isSaving ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Check className="size-4" />
+              )}
+              {isSaving ? t("saving") : t("save")}
             </Button>
           </DialogFooter>
         </form>
@@ -1606,7 +1702,12 @@ export function ControlPlaneWorkbenchPage() {
           <ColumnShell
             title={t("workQueue")}
             icon={GitBranch}
-            action={<CreateWorkItemDialog workbench={workbench} />}
+            action={
+              <div className="flex items-center gap-2">
+                <UpdateWorkItemDialog workbench={workbench} />
+                <CreateWorkItemDialog workbench={workbench} />
+              </div>
+            }
           >
             <WorkQueue workbench={workbench} />
           </ColumnShell>

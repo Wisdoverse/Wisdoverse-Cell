@@ -14,6 +14,7 @@ import {
   listControlPlaneRuns,
   listControlPlaneWorkItems,
   updateControlPlaneBudgetPolicy,
+  updateControlPlaneWorkItemStatus,
 } from "./control-plane";
 
 vi.mock("@/lib/api/client", () => ({
@@ -52,6 +53,11 @@ describe("control-plane API client", () => {
       priority: "high",
       created_by: "human:operator",
     });
+    await updateControlPlaneWorkItemStatus("work_1", {
+      status: "running",
+      owner_agent_id: "dev-agent",
+      actor_id: "human:operator",
+    });
     await listControlPlaneRuns({ work_item_id: "work_1", limit: 10 });
 
     expect(getMock).toHaveBeenNthCalledWith(1, "/control-plane/goals", {
@@ -73,6 +79,14 @@ describe("control-plane API client", () => {
       priority: "high",
       created_by: "human:operator",
     });
+    expect(patchMock).toHaveBeenCalledWith(
+      "/control-plane/work-items/work_1/status",
+      {
+        status: "running",
+        owner_agent_id: "dev-agent",
+        actor_id: "human:operator",
+      },
+    );
     expect(getMock).toHaveBeenNthCalledWith(3, "/control-plane/runs", {
       work_item_id: "work_1",
       limit: 10,
