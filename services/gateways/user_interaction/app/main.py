@@ -17,6 +17,7 @@ from ..api.bitable import router as bitable_router
 from ..api.daily_progress import router as daily_progress_router
 from ..api.webhook import router as webhook_router
 from ..core.card_ports import configure_tool_card_renderer
+from ..db.database import db_manager
 from ..service.agent import agent as _raw_agent
 
 logger = get_logger("chat_agent.app")
@@ -33,7 +34,7 @@ app = create_agent_app(
         (bitable_router, [Depends(verify_internal_key)]),
         (daily_progress_router, [Depends(verify_internal_key)]),
     ],
-    plugins=[InfraHealthPlugin()],
+    plugins=[InfraHealthPlugin(db_manager=db_manager)],
     control_plane_enabled=settings.control_plane_enabled,
     control_plane_company_id=settings.control_plane_company_id,
     on_startup=lambda rt: _start_scheduler(rt),

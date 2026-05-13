@@ -168,8 +168,10 @@ yarn-error.log*
 # Local verification reports
 .artifacts/
 
-# Docker (root-level override only; docker/compose/ overrides are tracked)
-/docker-compose.override.yml
+# Docker local-only overrides. The root docker-compose.override.yml is tracked
+# as the default development override.
+/docker-compose.local.yml
+/docker-compose.override.local.yml
 
 # Database files
 *.db

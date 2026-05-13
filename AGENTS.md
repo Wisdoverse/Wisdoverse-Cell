@@ -169,7 +169,8 @@ make test                                          # Python tests
 make dev                                           # uvicorn --reload (requirement manager agent)
 make rust-gateway-run                              # Rust gateway
 make frontend-dev                                  # Next.js dev
-make up-dev                                        # Docker Compose all services
+make up                                            # Docker Compose Cell stack
+make up-dev                                        # Alias for make up
 make up-infra                                      # Infrastructure only (PG/Redis/NATS/Milvus)
 make proto                                         # Generate all protobuf code
 make grpc-server                                   # Run gRPC server

@@ -8,7 +8,7 @@ services:
   # Expose infrastructure ports for local development tools
   postgres:
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_HOST_PORT:-15432}:5432"
 
   pgbouncer:
     ports:
@@ -16,7 +16,7 @@ services:
 
   redis-master:
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_HOST_PORT:-16379}:6379"
 
   milvus:
     ports:

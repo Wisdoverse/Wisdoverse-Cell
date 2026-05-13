@@ -56,6 +56,7 @@ x-app-security-env: &app-security-env
   CONTROL_PLANE_TOOL_BUDGET_ENFORCED: ${CONTROL_PLANE_TOOL_BUDGET_ENFORCED:-false}
   CONTROL_PLANE_LOCAL_ADAPTER_ENABLED: ${CONTROL_PLANE_LOCAL_ADAPTER_ENABLED:-false}
   CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST: ${CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST:-}
+  CELL_BOOTSTRAP_CONTROL_PLANE: ${CELL_BOOTSTRAP_CONTROL_PLANE:-true}
 
 x-healthcheck-defaults: &healthcheck-defaults
   interval: 30s
@@ -96,8 +97,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/init-scripts:/docker-entrypoint-initdb.d:ro
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+    expose:
+      - "5432"
     networks:
       - backend
     healthcheck:
@@ -135,8 +136,8 @@ services:
         exec redis-server $$REDIS_ARGS
     volumes:
       - redis_data:/data
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
+    expose:
+      - "6379"
     networks:
       - backend
     healthcheck:
@@ -162,13 +163,15 @@ services:
     hostname: milvus
     command: ["milvus", "run", "standalone"]
     environment:
+      DEPLOY_MODE: STANDALONE
       ETCD_USE_EMBED: "true"
       ETCD_DATA_DIR: /var/lib/milvus/etcd
       COMMON_STORAGETYPE: local
     volumes:
       - milvus_data:/var/lib/milvus
-    ports:
-      - "${MILVUS_PORT:-19530}:19530"
+    expose:
+      - "19530"
+      - "9091"
     networks:
       - backend
     healthcheck:
@@ -193,7 +196,179 @@ services:
   # Application Layer
   # ===========================================================================
 
+  traefik:
+    image: traefik:v3.6
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-traefik
+    hostname: traefik
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${GRPC_PORT:-50051}:50051"
+      - "${TRAEFIK_DASHBOARD_PORT:-8081}:8081"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./docker/traefik/dynamic:/etc/traefik/dynamic:ro
+    networks:
+      - frontend
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      start_period: 10s
+    deploy:
+      <<: *deploy-defaults
+      resources:
+        limits:
+          cpus: "1"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 64M
+    logging: *default-logging
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=false"
+      - "com.wisdoverse-cell.service=traefik"
+      - "com.wisdoverse-cell.tier=edge"
+
+  # Default user-facing backend runtime. Internal agents and support modules run
+  # inside this container; split-agent containers are kept behind the
+  # `split-agents` profile for advanced deployments and debugging.
+  cell:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agents
+      args:
+        <<: *python-mirror-args
+        VERSION: ${VERSION:-dev}
+        BUILD_DATE: ${BUILD_DATE:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["cell"]
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-cell
+    hostname: cell
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-wisdoverse-cell}
+      POSTGRES_USER: ${POSTGRES_USER:-wisdoverse-cell}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      CHAT_AGENT_DB_USER: ${CHAT_AGENT_DB_USER:-chat_agent}
+      CHAT_AGENT_DB_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:-chat_agent_dev}
+      PM_AGENT_DB_USER: ${PM_AGENT_DB_USER:-pjm_agent}
+      PM_AGENT_DB_PASSWORD: ${PM_AGENT_DB_PASSWORD:-pjm_agent_dev}
+      SYNC_MODULE_DB_USER: ${SYNC_MODULE_DB_USER:-sync_agent}
+      SYNC_MODULE_DB_PASSWORD: ${SYNC_MODULE_DB_PASSWORD:-sync_agent_dev}
+      ANALYSIS_MODULE_DB_USER: ${ANALYSIS_MODULE_DB_USER:-analysis_agent}
+      ANALYSIS_MODULE_DB_PASSWORD: ${ANALYSIS_MODULE_DB_PASSWORD:-analysis_agent_dev}
+      QA_AGENT_DB_USER: ${QA_AGENT_DB_USER:-qa_agent}
+      QA_AGENT_DB_PASSWORD: ${QA_AGENT_DB_PASSWORD:-qa_agent_dev}
+      DEV_AGENT_DB_USER: ${DEV_AGENT_DB_USER:-dev_agent}
+      DEV_AGENT_DB_PASSWORD: ${DEV_AGENT_DB_PASSWORD:-dev_agent_dev}
+      EVOLUTION_MODULE_DB_USER: ${EVOLUTION_MODULE_DB_USER:-evolution_agent}
+      EVOLUTION_MODULE_DB_PASSWORD: ${EVOLUTION_MODULE_DB_PASSWORD:-evolution_agent_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_URL: redis://redis:6379/0
+      MILVUS_URI: http://milvus:19530
+      GRPC_PORT: "50051"
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+      PM_AGENT_URL: http://127.0.0.1:8012
+      QA_AGENT_URL: http://127.0.0.1:8014
+      SYNC_MODULE_HOST: 127.0.0.1
+      SYNC_AGENT_HOST: 127.0.0.1
+      FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      FEISHU_VERIFY_SIGNATURE: "false"
+      FEISHU_BITABLE_APP_TOKEN: ${FEISHU_BITABLE_APP_TOKEN:-}
+      FEISHU_BITABLE_TABLE_ID: ${FEISHU_BITABLE_TABLE_ID:-}
+      FEISHU_BITABLE_MEMBER_TABLE_ID: ${FEISHU_BITABLE_MEMBER_TABLE_ID:-}
+      FEISHU_BITABLE_CATEGORY_TABLE_ID: ${FEISHU_BITABLE_CATEGORY_TABLE_ID:-}
+      FEISHU_BITABLE_REPORT_TABLE_ID: ${FEISHU_BITABLE_REPORT_TABLE_ID:-}
+      FEISHU_PM_APP_TOKEN: ${FEISHU_PM_APP_TOKEN:-}
+      FEISHU_PM_MEMBER_TABLE_ID: ${FEISHU_PM_MEMBER_TABLE_ID:-}
+      FEISHU_PM_PROJECT_TABLE_ID: ${FEISHU_PM_PROJECT_TABLE_ID:-}
+      FEISHU_PM_TASK_TABLE_ID: ${FEISHU_PM_TASK_TABLE_ID:-}
+      FEISHU_PM_WORKLOAD_TABLE_ID: ${FEISHU_PM_WORKLOAD_TABLE_ID:-}
+      FEISHU_PM_RULES_TABLE_ID: ${FEISHU_PM_RULES_TABLE_ID:-}
+      FEISHU_REPORT_CHAT_ID: ${FEISHU_REPORT_CHAT_ID:-}
+      OPENPROJECT_URL: ${OPENPROJECT_URL:-}
+      OPENPROJECT_API_KEY: ${OPENPROJECT_API_KEY:-}
+      GITLAB_API_URL: ${GITLAB_API_URL:-}
+      GITLAB_PROJECT_ID: ${GITLAB_PROJECT_ID:-}
+      GITLAB_QA_TOKEN: ${GITLAB_QA_TOKEN:-}
+      GITLAB_DEV_TOKEN: ${GITLAB_DEV_TOKEN:-}
+      QA_FEISHU_WEBHOOK_URL: ${QA_FEISHU_WEBHOOK_URL:-}
+      QA_HIGH_SEVERITY_CHECKS: ${QA_HIGH_SEVERITY_CHECKS:-}
+      DEV_GITLAB_API_URL: ${GITLAB_API_URL:-}
+      DEV_GITLAB_PROJECT_ID: ${GITLAB_PROJECT_ID:-0}
+      DEV_GITLAB_TOKEN: ${GITLAB_DEV_TOKEN:-}
+      AGENTFORGE_API_URL: ${AGENTFORGE_API_URL:-http://localhost:4010}
+      AGENTFORGE_TOKEN: ${AGENTFORGE_TOKEN:-}
+      EVOLUTION_ENABLED: ${EVOLUTION_ENABLED:-true}
+      EVOLUTION_COLLABORATION_ENABLED: ${EVOLUTION_COLLABORATION_ENABLED:-false}
+      <<: [*llm-env, *app-security-env]
+      APP_ENV: ${APP_ENV:-development}
+      DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-}
+    expose:
+      - "8000"
+      - "50051"
+      - "8010"
+      - "8011"
+      - "8012"
+      - "8013"
+      - "8014"
+      - "8015"
+      - "8016"
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+    deploy:
+      <<: *deploy-defaults
+      resources:
+        limits:
+          cpus: "4"
+          memory: 4G
+        reservations:
+          cpus: "1"
+          memory: 1G
+    logging: *default-logging
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_frontend"
+      - "traefik.http.routers.cell-api.rule=PathPrefix(`/api`) || PathPrefix(`/health`) || PathPrefix(`/docs`) || PathPrefix(`/openapi.json`) || PathPrefix(`/metrics`)"
+      - "traefik.http.routers.cell-api.entrypoints=web"
+      - "traefik.http.routers.cell-api.priority=200"
+      - "traefik.http.routers.cell-api.service=cell-api"
+      - "traefik.http.services.cell-api.loadbalancer.server.port=8000"
+      - "traefik.http.services.cell-api.loadbalancer.healthCheck.path=/health"
+      - "traefik.http.services.cell-api.loadbalancer.healthCheck.interval=10s"
+      - "traefik.http.routers.cell-grpc.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.cell-grpc.entrypoints=grpc"
+      - "traefik.http.routers.cell-grpc.service=cell-grpc"
+      - "traefik.http.services.cell-grpc.loadbalancer.server.port=50051"
+      - "traefik.http.services.cell-grpc.loadbalancer.server.scheme=h2c"
+      - "com.wisdoverse-cell.service=cell"
+      - "com.wisdoverse-cell.tier=application"
+      - "com.wisdoverse-cell.version=${VERSION:-dev}"
+
   ai-core:
+    profiles: ["split-agents"]
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
@@ -237,9 +412,9 @@ services:
       EVENT_BUS_CONSUMER_NAME: requirement-manager
       # Inter-service communication
       PM_AGENT_URL: http://pjm-agent:8012
-    ports:
-      - "${AI_CORE_HTTP_PORT:-8000}:8000"
-      - "${AI_CORE_GRPC_PORT:-50051}:50051"
+    expose:
+      - "8000"
+      - "50051"
     networks:
       - frontend
       - backend
@@ -284,7 +459,7 @@ services:
       GATEWAY_SERVER_READ_TIMEOUT: 30s
       GATEWAY_SERVER_WRITE_TIMEOUT: 30s
       # gRPC
-      GATEWAY_GRPC_AI_SERVICE_ADDR: ai-core:50051
+      GATEWAY_GRPC_AI_SERVICE_ADDR: cell:50051
       GATEWAY_GRPC_TIMEOUT: 30s
       GATEWAY_GRPC_MAX_RETRIES: 3
       # Redis
@@ -300,8 +475,8 @@ services:
       GATEWAY_FEISHU_ENCRYPT_KEY: ${FEISHU_ENCRYPT_KEY:-}
       GATEWAY_FEISHU_OPEN_API_BASE_URL: ${FEISHU_OPEN_API_BASE_URL:-https://open.feishu.cn/open-apis}
       GATEWAY_FEISHU_VERIFY_SIGNATURE: "true"
-      GATEWAY_FEISHU_CHAT_AGENT_ADDR: chat-agent:8013
-      GATEWAY_FEISHU_PM_AGENT_ADDR: pjm-agent:8012
+      GATEWAY_FEISHU_CHAT_AGENT_ADDR: cell:8013
+      GATEWAY_FEISHU_PM_AGENT_ADDR: cell:8012
       GATEWAY_FEISHU_INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
       # WeCom
       GATEWAY_WECOM_CORP_ID: ${WECOM_CORP_ID:-}
@@ -313,13 +488,13 @@ services:
       # Logging
       GATEWAY_LOG_LEVEL: ${LOG_LEVEL:-info}
       GATEWAY_LOG_FORMAT: ${LOG_FORMAT:-json}
-    ports:
-      - "${GATEWAY_PORT:-8080}:8080"
+    expose:
+      - "8080"
     networks:
       - frontend
       - backend
     depends_on:
-      ai-core:
+      cell:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -343,11 +518,78 @@ services:
       - "com.wisdoverse-cell.tier=application"
       - "com.wisdoverse-cell.version=${VERSION:-dev}"
 
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+        ALPINE_MIRROR: ${ALPINE_MIRROR:-}
+    image: ${REGISTRY:-}wisdoverse/cell-web:${VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-web
+    hostname: web
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NEXT_PUBLIC_API_BASE_URL: /api/v1
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      WEBUI_ADMIN_STORE_PATH: ${WEBUI_ADMIN_STORE_PATH:-/app/data/webui-admin.json}
+      WEBUI_BOOTSTRAP_ADMIN_ENABLED: ${WEBUI_BOOTSTRAP_ADMIN_ENABLED:-false}
+      WEBUI_BOOTSTRAP_ADMIN_USERNAME: ${WEBUI_BOOTSTRAP_ADMIN_USERNAME:-}
+      WEBUI_BOOTSTRAP_ADMIN_PASSWORD: ${WEBUI_BOOTSTRAP_ADMIN_PASSWORD:-}
+      WEBUI_BOOTSTRAP_ADMIN_DISPLAY_NAME: ${WEBUI_BOOTSTRAP_ADMIN_DISPLAY_NAME:-}
+      ENABLE_DEV_AUTH: ${ENABLE_DEV_AUTH:-false}
+      DEV_AUTH_USERNAME: ${DEV_AUTH_USERNAME:-}
+      DEV_AUTH_PASSWORD: ${DEV_AUTH_PASSWORD:-}
+      DEV_AUTH_DISPLAY_NAME: ${DEV_AUTH_DISPLAY_NAME:-Dev}
+      DEV_AUTH_ROLE: ${DEV_AUTH_ROLE:-admin}
+    volumes:
+      - web_auth_data:/app/data
+    networks:
+      - frontend
+    depends_on:
+      cell:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/zh/login').then(r=>{if(!r.ok)throw r.status}).catch(()=>process.exit(1))"]
+      interval: 15s
+      start_period: 20s
+    deploy:
+      <<: *deploy-defaults
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    logging: *default-logging
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_frontend"
+      - "traefik.http.routers.web-auth.rule=PathPrefix(`/api/auth`)"
+      - "traefik.http.routers.web-auth.entrypoints=web"
+      - "traefik.http.routers.web-auth.priority=300"
+      - "traefik.http.routers.web-auth.service=web"
+      - "traefik.http.routers.web.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.web.entrypoints=web"
+      - "traefik.http.routers.web.priority=1"
+      - "traefik.http.routers.web.service=web"
+      - "traefik.http.routers.web.middlewares=compress@file,security-headers@file"
+      - "traefik.http.services.web.loadbalancer.server.port=3000"
+      - "traefik.http.services.web.loadbalancer.healthCheck.path=/api/auth/session"
+      - "traefik.http.services.web.loadbalancer.healthCheck.interval=10s"
+      - "com.wisdoverse-cell.service=web"
+      - "com.wisdoverse-cell.tier=frontend"
+
   # ===========================================================================
   # Business runtime agents and support capability modules
   # ===========================================================================
 
   sync-module:
+    profiles: ["split-agents"]
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
@@ -378,8 +620,8 @@ services:
       <<: *app-security-env
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
-    ports:
-      - "${SYNC_MODULE_PORT:-8010}:8010"
+    expose:
+      - "8010"
     networks:
       - frontend
       - backend
@@ -405,6 +647,7 @@ services:
       - "com.wisdoverse-cell.tier=application"
 
   analysis-module:
+    profiles: ["split-agents"]
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
@@ -434,8 +677,8 @@ services:
       <<: *app-security-env
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
-    ports:
-      - "${ANALYSIS_MODULE_PORT:-8011}:8011"
+    expose:
+      - "8011"
     networks:
       - backend
     depends_on:
@@ -460,6 +703,7 @@ services:
       - "com.wisdoverse-cell.tier=application"
 
   evolution-module:
+    profiles: ["split-agents"]
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
@@ -488,8 +732,8 @@ services:
       DEBUG: ${DEBUG:-false}
       OTEL_SERVICE_NAME: evolution-module
       EVENT_BUS_CONSUMER_NAME: evolution-module
-    ports:
-      - "${EVOLUTION_MODULE_PORT:-8016}:8016"
+    expose:
+      - "8016"
     networks:
       - backend
     depends_on:
@@ -514,6 +758,7 @@ services:
       - "com.wisdoverse-cell.tier=application"
 
   pjm-agent:
+    profiles: ["split-agents"]
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
@@ -553,8 +798,8 @@ services:
       DEBUG: ${DEBUG:-false}
       OTEL_SERVICE_NAME: pjm-agent
       EVENT_BUS_CONSUMER_NAME: pjm-agent
-    ports:
-      - "${PM_AGENT_PORT:-8012}:8012"
+    expose:
+      - "8012"
     networks:
       - frontend
       - backend
@@ -580,6 +825,7 @@ services:
       - "com.wisdoverse-cell.tier=application"
 
   qa-agent:
+    profiles: ["split-agents"]
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
@@ -614,8 +860,8 @@ services:
       DEBUG: ${DEBUG:-false}
       OTEL_SERVICE_NAME: qa-agent
       EVENT_BUS_CONSUMER_NAME: qa-agent
-    ports:
-      - "${QA_AGENT_PORT:-8014}:8014"
+    expose:
+      - "8014"
     networks:
       - frontend
       - backend
@@ -641,6 +887,7 @@ services:
       - "com.wisdoverse-cell.tier=application"
 
   dev-agent:
+    profiles: ["split-agents"]
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
@@ -672,8 +919,8 @@ services:
       DEBUG: ${DEBUG:-false}
       OTEL_SERVICE_NAME: dev-agent
       EVENT_BUS_CONSUMER_NAME: dev-agent
-    ports:
-      - "${DEV_AGENT_PORT:-8015}:8015"
+    expose:
+      - "8015"
     networks:
       - frontend
       - backend
@@ -699,6 +946,7 @@ services:
       - "com.wisdoverse-cell.tier=application"
 
   chat-agent:
+    profiles: ["split-agents"]
     build:
       context: .
       dockerfile: docker/Dockerfile.agents
@@ -733,8 +981,8 @@ services:
       FEISHU_BITABLE_REPORT_TABLE_ID: ${FEISHU_BITABLE_REPORT_TABLE_ID:-}
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
-    ports:
-      - "${CHAT_AGENT_PORT:-8013}:8013"
+    expose:
+      - "8013"
     networks:
       - frontend
       - backend
@@ -760,6 +1008,7 @@ services:
       - "com.wisdoverse-cell.tier=application"
 
   pg-backup:
+    profiles: ["backup"]
     image: postgres:18-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-pg-backup
     environment:
@@ -905,6 +1154,11 @@ volumes:
     labels:
       - "com.wisdoverse-cell.volume=pg-backups"
       - "com.wisdoverse-cell.backup=required"
+
+  web_auth_data:
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_web_auth_data
+    labels:
+      - "com.wisdoverse-cell.volume=web-auth"
 
 # =============================================================================
 # Networks

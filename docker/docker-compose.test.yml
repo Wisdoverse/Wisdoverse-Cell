@@ -29,6 +29,7 @@ services:
     ports:
       - "19531:19530"
     environment:
+      DEPLOY_MODE: STANDALONE
       ETCD_USE_EMBED: "true"
       ETCD_DATA_DIR: /var/lib/milvus/etcd
       COMMON_STORAGETYPE: local

@@ -50,6 +50,7 @@ export function getBootstrapAdminStorePath(): string {
 }
 
 export async function hasBootstrapAdmin(): Promise<boolean> {
+  await ensureConfiguredBootstrapAdmin();
   return (await readBootstrapAdminRecord()) !== null;
 }
 
@@ -60,7 +61,7 @@ export async function isBootstrapSetupRequiredForLogin(): Promise<boolean> {
 export async function createBootstrapAdmin(
   input: CreateBootstrapAdminInput,
 ): Promise<{ created: true; admin: BootstrapAdminPublic } | { created: false; reason: "exists" }> {
-  if (await hasBootstrapAdmin()) {
+  if ((await readBootstrapAdminRecord()) !== null) {
     return { created: false, reason: "exists" };
   }
 
@@ -105,6 +106,7 @@ export async function verifyBootstrapAdminCredentials(
   username: string,
   password: string,
 ): Promise<BootstrapAdminPublic | null> {
+  await ensureConfiguredBootstrapAdmin();
   const record = await readBootstrapAdminRecord();
   if (!record) return null;
   const normalizedUsername = tryNormalizeUsername(username);
@@ -118,6 +120,34 @@ export async function verifyBootstrapAdminCredentials(
   }
 
   return toPublicAdmin(record);
+}
+
+async function ensureConfiguredBootstrapAdmin(): Promise<void> {
+  if (getEnvValue("WEBUI_BOOTSTRAP_ADMIN_ENABLED") !== "true") {
+    return;
+  }
+
+  await seedConfiguredBootstrapAdmin();
+}
+
+async function seedConfiguredBootstrapAdmin(): Promise<void> {
+  if ((await readBootstrapAdminRecord()) !== null) {
+    return;
+  }
+
+  const username = getEnvValue("WEBUI_BOOTSTRAP_ADMIN_USERNAME");
+  const password = getEnvValue("WEBUI_BOOTSTRAP_ADMIN_PASSWORD");
+  if (!username || !password) {
+    throw new Error(
+      "WEBUI_BOOTSTRAP_ADMIN_USERNAME and WEBUI_BOOTSTRAP_ADMIN_PASSWORD are required when WEBUI_BOOTSTRAP_ADMIN_ENABLED=true",
+    );
+  }
+
+  await createBootstrapAdmin({
+    username,
+    password,
+    displayName: getEnvValue("WEBUI_BOOTSTRAP_ADMIN_DISPLAY_NAME"),
+  });
 }
 
 async function readBootstrapAdminRecord(): Promise<BootstrapAdminRecord | null> {

@@ -55,6 +55,7 @@ services:
       - milvus_data:/var/lib/milvus
     environment:
       <<: *common-env
+      DEPLOY_MODE: STANDALONE
       ETCD_USE_EMBED: "true"
       ETCD_DATA_DIR: /var/lib/milvus/etcd
       COMMON_STORAGETYPE: local

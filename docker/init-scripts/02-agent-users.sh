@@ -9,6 +9,17 @@ set -eu
 APP_ENV="${APP_ENV:-development}"
 
 psql_cmd() {
+    if [ -n "${POSTGRES_HOST:-}" ]; then
+        PGPASSWORD="${POSTGRES_PASSWORD:-}" psql \
+            -v ON_ERROR_STOP=1 \
+            --host "${POSTGRES_HOST}" \
+            --port "${POSTGRES_PORT:-5432}" \
+            --username "${POSTGRES_USER:-wisdoverse-cell}" \
+            --dbname "${POSTGRES_DB:-wisdoverse-cell}" \
+            "$@"
+        return
+    fi
+
     PGPASSWORD="${POSTGRES_PASSWORD:-}" psql \
         -v ON_ERROR_STOP=1 \
         --username "${POSTGRES_USER:-wisdoverse-cell}" \

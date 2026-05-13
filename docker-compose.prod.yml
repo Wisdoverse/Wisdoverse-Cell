@@ -16,6 +16,42 @@
 # =============================================================================
 
 services:
+  cell:
+    image: ${REGISTRY}wisdoverse/cell-agents:${VERSION}
+    command: ["cell"]
+    build: !reset null
+    container_name: !reset null
+    environment:
+      DEBUG: "false"
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+      APP_ENV: production
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      CHAT_AGENT_DB_PASSWORD: ${CHAT_AGENT_DB_PASSWORD:?CHAT_AGENT_DB_PASSWORD is required}
+      PM_AGENT_DB_PASSWORD: ${PM_AGENT_DB_PASSWORD:?PM_AGENT_DB_PASSWORD is required}
+      SYNC_MODULE_DB_PASSWORD: ${SYNC_MODULE_DB_PASSWORD:?SYNC_MODULE_DB_PASSWORD is required}
+      ANALYSIS_MODULE_DB_PASSWORD: ${ANALYSIS_MODULE_DB_PASSWORD:?ANALYSIS_MODULE_DB_PASSWORD is required}
+      QA_AGENT_DB_PASSWORD: ${QA_AGENT_DB_PASSWORD:?QA_AGENT_DB_PASSWORD is required}
+      DEV_AGENT_DB_PASSWORD: ${DEV_AGENT_DB_PASSWORD:?DEV_AGENT_DB_PASSWORD is required}
+      EVOLUTION_MODULE_DB_PASSWORD: ${EVOLUTION_MODULE_DB_PASSWORD:?EVOLUTION_MODULE_DB_PASSWORD is required}
+    deploy:
+      replicas: ${CELL_REPLICAS:-1}
+      resources:
+        limits:
+          cpus: "4"
+          memory: 4G
+        reservations:
+          cpus: "1"
+          memory: 1G
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
   ai-core:
     image: ${REGISTRY}wisdoverse/cell-agents:${VERSION}
     command: ["ai-core"]

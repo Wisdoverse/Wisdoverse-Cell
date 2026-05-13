@@ -183,10 +183,12 @@ COMPOSE_RUST_GATEWAY = -f docker/compose/docker-compose.rust-gateway.yml
 COMPOSE_RUST_GATEWAY_SHADOW = -f docker/compose/docker-compose.rust-gateway-shadow.yml
 COMPOSE_RUST_GATEWAY_PROD = -f docker/compose/docker-compose.rust-gateway-prod.yml
 COMPOSE_RUST_GATEWAY_PROD_SHADOW = -f docker/compose/docker-compose.rust-gateway-prod-shadow.yml
+COMPOSE_ROOT = --env-file .env
+COMPOSE_INFRA_DEV = --env-file .env
 
-# Development (single replica + debug ports)
-up-dev:
-	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_DEV) up -d
+# Development: one user-facing Cell stack. Advanced split-agent compose files
+# remain available below for deployment engineering workflows.
+up-dev: up
 
 up-dev-rust-gateway:
 	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_DEV) up -d gateway
@@ -194,8 +196,7 @@ up-dev-rust-gateway:
 up-dev-rust-gateway-shadow:
 	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_RUST_GATEWAY_SHADOW) up -d gateway rust-gateway-shadow
 
-down-dev:
-	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_DEV) down
+down-dev: down
 
 # Production (multi-replica + observability + no debug)
 up-prod:
@@ -212,34 +213,39 @@ down-prod:
 
 # Infrastructure only (for local code development)
 up-infra:
-	docker compose $(COMPOSE_BASE) $(COMPOSE_DEV) up -d
+	docker compose $(COMPOSE_INFRA_DEV) up -d postgres redis milvus
 
 down-infra:
-	docker compose $(COMPOSE_BASE) $(COMPOSE_DEV) down
+	docker compose $(COMPOSE_INFRA_DEV) stop postgres redis milvus
 
-# Legacy mode (original single docker-compose.yml)
-up:
-	docker compose up -d
+# Default Cell mode
+db-bootstrap:
+	docker compose $(COMPOSE_ROOT) up -d --wait postgres
+	docker compose $(COMPOSE_ROOT) exec -T postgres sh /docker-entrypoint-initdb.d/02-agent-users.sh
+	docker compose $(COMPOSE_ROOT) exec -T postgres sh -c 'PGPASSWORD="$${POSTGRES_PASSWORD:-}" psql -v ON_ERROR_STOP=1 --username "$${POSTGRES_USER:-wisdoverse-cell}" --dbname "$${POSTGRES_DB:-wisdoverse-cell}" -f /docker-entrypoint-initdb.d/02-agent-users.sql'
+
+up: db-bootstrap
+	docker compose $(COMPOSE_ROOT) up -d
 
 down:
-	docker compose down
+	docker compose $(COMPOSE_ROOT) down
 
 # Logs & Status
 logs:
-	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) logs -f
+	docker compose $(COMPOSE_ROOT) logs -f traefik web cell gateway
 
 logs-app:
-	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) logs -f
+	docker compose $(COMPOSE_ROOT) logs -f cell gateway web
 
 ps:
-	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) ps
+	docker compose $(COMPOSE_ROOT) ps
 
 # Build
 build:
-	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) build
+	docker compose $(COMPOSE_ROOT) build cell gateway web
 
 build-no-cache:
-	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) build --no-cache
+	docker compose $(COMPOSE_ROOT) build --no-cache cell gateway web
 
 # Scaling
 scale-gateway: ## Scale Gateway replicas (usage: make scale-gateway N=5)
@@ -285,8 +291,8 @@ restart:
 
 # Cleanup
 clean:
+	docker compose $(COMPOSE_ROOT) down -v --remove-orphans 2>/dev/null || true
 	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) $(COMPOSE_OBS) down -v --remove-orphans 2>/dev/null || true
-	docker compose down -v --remove-orphans 2>/dev/null || true
 	docker system prune -f
 
 # === Help ===
@@ -318,25 +324,22 @@ help:
 	@echo "  make rust-python-migration-audit - Audit Rust + Python migration artifacts"
 	@echo ""
 	@echo "Docker (Cloud-Native):"
-	@echo "  make up-dev          - Start dev environment with Rust gateway"
+	@echo "  make up              - Start Wisdoverse Cell locally"
+	@echo "  make down            - Stop Wisdoverse Cell locally"
+	@echo "  make up-dev          - Alias for make up"
 	@echo "  make up-dev-rust-gateway - Start canonical Rust gateway"
 	@echo "  make up-dev-rust-gateway-shadow - Start canonical Rust gateway plus Rust shadow gateway"
 	@echo "  make up-prod         - Start prod environment with Rust gateway"
 	@echo "  make up-prod-rust-gateway-shadow - Start production Rust gateway plus production Rust shadow gateway"
 	@echo "  make up-prod-rust-gateway - Start prod environment with Rust gateway after evidence gate"
 	@echo "  make up-infra        - Start infrastructure only"
-	@echo "  make down-dev        - Stop dev environment"
+	@echo "  make down-dev        - Alias for make down"
 	@echo "  make down-prod       - Stop prod environment"
 	@echo "  make logs            - Follow all logs"
 	@echo "  make ps              - Show running containers"
 	@echo "  make build           - Build Docker images"
 	@echo "  make scale-gateway N=5  - Scale Gateway replicas"
 	@echo "  make scale-ai-core N=5  - Scale requirement manager agent replicas (ai-core runtime id)"
-	@echo ""
-	@echo "Docker (Legacy):"
-	@echo "  make up              - Start with root docker-compose.yml"
-	@echo "  make down            - Stop root docker-compose.yml"
-	@echo ""
 	@echo "Monitoring:"
 	@echo "  make monitoring-up   - Start observability stack (with infra)"
 	@echo "  make monitoring-down - Stop observability stack"

@@ -44,8 +44,13 @@ PostgreSQL/Redis/NATS/Milvus infrastructure.
 git clone https://github.com/Wisdoverse/Wisdoverse-Cell.git
 cd Wisdoverse-Cell
 cp .env.example .env
-make up-dev
+make up
 ```
+
+The default Docker path exposes Wisdoverse Cell as one local product stack:
+`cell`, `gateway`, `web`, `traefik`, and infrastructure. Individual agents and
+capability modules are internal to `cell` by default; split-agent containers are
+reserved for advanced deployment/debugging workflows.
 
 For local Python development against shared infra:
 

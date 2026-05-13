@@ -53,11 +53,15 @@ case "${agent}" in
     : "${WISDOVERSE_BIND_PORT:=8013}"
     : "${WISDOVERSE_APP_PATH:=services.gateways.user_interaction.app.main:app}"
     ;;
+  cell)
+    exec python /usr/local/bin/wisdoverse-cell-supervisor "$@"
+    ;;
   ""|"-h"|"--help"|"help")
     cat <<'USAGE'
 Usage: wisdoverse-agent <service> [extra gunicorn args]
 
 Services (also accepted via WISDOVERSE_AGENT env):
+  cell                            full local Cell runtime
   ai-core | requirement-manager   port 8000
   sync-module                     port 8010
   analysis-module                 port 8011

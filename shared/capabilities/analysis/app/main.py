@@ -8,6 +8,7 @@ from shared.config import settings
 from shared.middleware.internal_auth import verify_internal_key
 
 from ..api.analysis import router as analysis_router
+from ..db.database import db_manager
 from ..service.agent import agent as _raw_agent
 
 app = create_agent_app(
@@ -15,7 +16,7 @@ app = create_agent_app(
     title="Analysis Module",
     description="Analysis capability for daily reports, weekly reports, milestones, and quality review.",
     routers=[(analysis_router, [Depends(verify_internal_key)])],
-    plugins=[InfraHealthPlugin()],
+    plugins=[InfraHealthPlugin(db_manager=db_manager)],
     control_plane_enabled=settings.control_plane_enabled,
     control_plane_company_id=settings.control_plane_company_id,
 )

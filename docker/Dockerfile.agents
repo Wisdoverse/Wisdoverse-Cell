@@ -53,10 +53,17 @@ COPY agents/qa_agent/requirements.txt /build/requirements-qa.txt
 COPY agents/dev_agent/requirements.txt /build/requirements-dev.txt
 COPY services/gateways/user_interaction/requirements.txt /build/requirements-chat.txt
 
-# hadolint ignore=DL3042
+# hadolint ignore=DL3042,SC2086
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -i "$PIP_INDEX_URL" -r /build/requirements-base.txt && \
-    pip install -i "$PIP_INDEX_URL" \
+    PIP_INDEX_ARGS="" && \
+    if [ -n "$PIP_INDEX_URL" ]; then \
+      PIP_INDEX_ARGS="$PIP_INDEX_ARGS -i $PIP_INDEX_URL"; \
+    fi && \
+    if [ -n "$PIP_TRUSTED_HOST" ]; then \
+      PIP_INDEX_ARGS="$PIP_INDEX_ARGS --trusted-host $PIP_TRUSTED_HOST"; \
+    fi && \
+    pip install $PIP_INDEX_ARGS -r /build/requirements-base.txt && \
+    pip install $PIP_INDEX_ARGS \
       -r /build/requirements-ai-core.txt \
       -r /build/requirements-sync.txt \
       -r /build/requirements-analysis.txt \
@@ -66,7 +73,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       -r /build/requirements-dev.txt \
       -r /build/requirements-chat.txt && \
     if [ "$INSTALL_VECTOR_DEPS" = "true" ]; then \
-      pip install -i "$PIP_INDEX_URL" -r /build/requirements-ai-core-vector.txt; \
+      pip install $PIP_INDEX_ARGS -r /build/requirements-ai-core-vector.txt; \
     fi
 
 
@@ -121,6 +128,7 @@ COPY --chown=appuser:appgroup alembic.ini    /app/alembic.ini
 COPY --chown=appuser:appgroup migrations/    /app/migrations/
 COPY --chown=appuser:appgroup .acceptance/   /app/.acceptance/
 COPY --chown=appuser:appgroup docker/agents-entrypoint.sh /usr/local/bin/wisdoverse-agent
+COPY --chown=appuser:appgroup docker/cell-supervisor.py /usr/local/bin/wisdoverse-cell-supervisor
 
 RUN chmod +x /usr/local/bin/wisdoverse-agent && \
     mkdir -p /app/data && chown appuser:appgroup /app/data
