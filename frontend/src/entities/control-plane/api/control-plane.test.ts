@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api/client";
 import {
+  createControlPlaneGoal,
   createControlPlaneBudgetPolicy,
+  createControlPlaneWorkItem,
   getControlPlaneTimeline,
   listControlPlaneArtifacts,
   listControlPlaneBudgetPolicies,
@@ -38,16 +40,38 @@ describe("control-plane API client", () => {
 
   it("uses the shared control-plane goal/work/run paths", async () => {
     await listControlPlaneGoals({ status: "active", limit: 20 });
+    await createControlPlaneGoal({
+      title: "Reduce handoffs",
+      status: "active",
+      created_by: "human:operator",
+    });
     await listControlPlaneWorkItems({ goal_id: "goal_1", limit: 50 });
+    await createControlPlaneWorkItem({
+      goal_id: "goal_1",
+      title: "Draft acceptance plan",
+      priority: "high",
+      created_by: "human:operator",
+    });
     await listControlPlaneRuns({ work_item_id: "work_1", limit: 10 });
 
     expect(getMock).toHaveBeenNthCalledWith(1, "/control-plane/goals", {
       status: "active",
       limit: 20,
     });
+    expect(postMock).toHaveBeenNthCalledWith(1, "/control-plane/goals", {
+      title: "Reduce handoffs",
+      status: "active",
+      created_by: "human:operator",
+    });
     expect(getMock).toHaveBeenNthCalledWith(2, "/control-plane/work-items", {
       goal_id: "goal_1",
       limit: 50,
+    });
+    expect(postMock).toHaveBeenNthCalledWith(2, "/control-plane/work-items", {
+      goal_id: "goal_1",
+      title: "Draft acceptance plan",
+      priority: "high",
+      created_by: "human:operator",
     });
     expect(getMock).toHaveBeenNthCalledWith(3, "/control-plane/runs", {
       work_item_id: "work_1",

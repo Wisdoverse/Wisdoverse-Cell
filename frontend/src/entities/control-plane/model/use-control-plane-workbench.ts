@@ -5,6 +5,8 @@ import useSWR from "swr";
 
 import {
   approveControlPlaneApproval,
+  createControlPlaneGoal,
+  createControlPlaneWorkItem,
   getControlPlaneTimeline,
   listControlPlaneApprovals,
   listControlPlaneArtifacts,
@@ -15,7 +17,9 @@ import {
   listControlPlaneRuns,
   listControlPlaneWorkItems,
   rejectControlPlaneApproval,
+  type ControlPlaneGoalCreateRequest,
   type ControlPlaneGoalFilters,
+  type ControlPlaneWorkItemCreateRequest,
   type ControlPlaneRunFilters,
   type ControlPlaneWorkItemFilters,
 } from "../api/control-plane";
@@ -108,6 +112,8 @@ export function useControlPlaneWorkbench() {
   const [selectedWorkItemId, setSelectedWorkItemId] = useState<string>();
   const [selectedRunId, setSelectedRunId] = useState<string>();
   const [approvalActionId, setApprovalActionId] = useState<string>();
+  const [goalActionId, setGoalActionId] = useState<string>();
+  const [workItemActionId, setWorkItemActionId] = useState<string>();
 
   const goalsQuery = useControlPlaneGoals({ limit: 100 });
   const goals = useMemo(() => goalsQuery.data?.goals ?? [], [goalsQuery.data]);
@@ -262,6 +268,48 @@ export function useControlPlaneWorkbench() {
     [refreshAll],
   );
 
+  const createGoal = useCallback(
+    async (payload: ControlPlaneGoalCreateRequest) => {
+      setGoalActionId("create");
+      try {
+        const goal = await createControlPlaneGoal({
+          status: "active",
+          created_by: "human:operator",
+          ...payload,
+        });
+        setSelectedGoalId(goal.goal_id);
+        setSelectedWorkItemId(undefined);
+        setSelectedRunId(undefined);
+        await refreshAll();
+      } finally {
+        setGoalActionId(undefined);
+      }
+    },
+    [refreshAll],
+  );
+
+  const createWorkItem = useCallback(
+    async (payload: ControlPlaneWorkItemCreateRequest) => {
+      setWorkItemActionId("create");
+      try {
+        const workItem = await createControlPlaneWorkItem({
+          status: "ready",
+          priority: "medium",
+          source: "manual",
+          created_by: "human:operator",
+          ...payload,
+          goal_id: payload.goal_id ?? activeGoalId,
+        });
+        setSelectedWorkItemId(workItem.work_item_id);
+        setSelectedRunId(undefined);
+        await refreshAll();
+      } finally {
+        setWorkItemActionId(undefined);
+      }
+    },
+    [activeGoalId, refreshAll],
+  );
+
   const summary = summarizeControlPlaneWorkbench({
     goals: goalsQuery.data,
     workItems: workItemsQuery.data,
@@ -292,9 +340,13 @@ export function useControlPlaneWorkbench() {
     selectRun: setSelectedRunId,
     approveApproval,
     rejectApproval,
+    createGoal,
+    createWorkItem,
     refresh,
     summary,
     approvalActionId,
+    goalActionId,
+    workItemActionId,
     isLoading: goalsQuery.isLoading || workItemsQuery.isLoading,
     isEvidenceLoading:
       runsQuery.isLoading ||

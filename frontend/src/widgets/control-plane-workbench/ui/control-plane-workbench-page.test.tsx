@@ -146,6 +146,8 @@ function buildWorkbenchState(): ControlPlaneWorkbenchState {
     selectRun: vi.fn(),
     approveApproval: vi.fn().mockResolvedValue(undefined),
     rejectApproval: vi.fn().mockResolvedValue(undefined),
+    createGoal: vi.fn().mockResolvedValue(undefined),
+    createWorkItem: vi.fn().mockResolvedValue(undefined),
     refresh: vi.fn(),
     summary: {
       goalCount: 1,
@@ -158,6 +160,8 @@ function buildWorkbenchState(): ControlPlaneWorkbenchState {
     isEvolutionLoading: false,
     error: undefined,
     approvalActionId: undefined,
+    goalActionId: undefined,
+    workItemActionId: undefined,
   };
 }
 
@@ -190,5 +194,33 @@ describe("ControlPlaneWorkbenchPage", () => {
     await user.click(screen.getByRole("button", { name: "approve" }));
 
     expect(state.approveApproval).toHaveBeenCalledWith("approval_alpha");
+  });
+
+  it("lets operators create goals and work items from the workbench", async () => {
+    const user = userEvent.setup();
+    const state = buildWorkbenchState();
+    useControlPlaneWorkbenchMock.mockReturnValue(state);
+
+    render(<ControlPlaneWorkbenchPage />);
+
+    await user.click(screen.getByRole("button", { name: "newGoal" }));
+    await user.type(screen.getByLabelText("goalTitle"), "Goal Beta");
+    await user.click(screen.getByRole("button", { name: "create" }));
+
+    expect(state.createGoal).toHaveBeenCalledWith({
+      title: "Goal Beta",
+      description: "",
+      owner_agent_id: "pjm-agent",
+    });
+
+    await user.click(screen.getByRole("button", { name: "newWorkItem" }));
+    await user.type(screen.getByLabelText("workItemTitle"), "Work Beta");
+    await user.click(screen.getByRole("button", { name: "create" }));
+
+    expect(state.createWorkItem).toHaveBeenCalledWith({
+      title: "Work Beta",
+      description: "",
+      owner_agent_id: "dev-agent",
+    });
   });
 });
