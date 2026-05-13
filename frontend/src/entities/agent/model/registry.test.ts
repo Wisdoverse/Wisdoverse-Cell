@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   AGENT_REGISTRY,
+  AGENT_ROLE_OPTIONS,
   ORGANIZATION_ROLE_TEMPLATES,
   agentDefinitionToMeta,
   agentDefinitionsToMetas,
   getAllAgents,
+  getAgentRoleOption,
 } from "./registry";
 import type { ControlPlaneAgentDefinition } from "./types";
 
@@ -67,9 +69,7 @@ describe("agent registry architecture boundary", () => {
     );
 
     expect(
-      Object.values(AGENT_REGISTRY).filter(
-        (agent) => agent.agentKind === "organization_role",
-      ),
+      Object.values(AGENT_REGISTRY).filter((agent) => agent.agentKind === "organization_role"),
     ).toHaveLength(0);
   });
 
@@ -79,12 +79,7 @@ describe("agent registry architecture boundary", () => {
       .map((agent) => agent.id)
       .sort();
 
-    expect(businessAgentIds).toEqual([
-      "dev-agent",
-      "pjm-agent",
-      "qa-agent",
-      "requirement-manager",
-    ]);
+    expect(businessAgentIds).toEqual(["dev-agent", "pjm-agent", "qa-agent", "requirement-manager"]);
     expect(AGENT_REGISTRY["channel-gateway"]).toMatchObject({
       runtimeBoundary: "gateway",
       implemented: true,
@@ -155,6 +150,29 @@ describe("agent registry architecture boundary", () => {
         }),
       ]),
     );
+  });
+
+  it("exposes operator-friendly role options for built-in runtime agents", () => {
+    expect(AGENT_ROLE_OPTIONS).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "project-management-agent",
+          title: "Project Management Agent",
+          domain: "product",
+        }),
+        expect.objectContaining({
+          id: "development-agent",
+          title: "Development Agent",
+          domain: "engineering",
+        }),
+        expect.objectContaining({
+          id: "quality-agent",
+          title: "QA Agent",
+          domain: "quality",
+        }),
+      ]),
+    );
+    expect(getAgentRoleOption("project-management-agent")?.title).toBe("Project Management Agent");
   });
 
   it("derives reporting links between control-plane role agents", () => {

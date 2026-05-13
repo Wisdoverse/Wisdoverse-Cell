@@ -6,8 +6,10 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
+  AGENT_ROLE_OPTIONS,
   createControlPlaneAgent,
   DOMAIN_LIST,
+  getAgentRoleOption,
   ORGANIZATION_ROLE_TEMPLATES,
   type AgentDomain,
   type AgentInteractionMode,
@@ -36,21 +38,6 @@ interface AgentCreateDialogProps {
 }
 
 const ADAPTER_TYPES = ["builtin", "codex_local", "claude_local", "process", "http"] as const;
-
-const ROLE_OPTIONS = [
-  "ceo",
-  "cto",
-  "cpo",
-  "coo",
-  "cfo",
-  "cmo",
-  "manager",
-  "engineer",
-  "researcher",
-  "operator",
-  "qa",
-  "worker",
-] as const;
 
 const AGENT_KIND_OPTIONS = [
   "organization_role",
@@ -118,6 +105,11 @@ function parseLines(value: string): string[] {
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+function shouldUseSuggestedTitle(currentTitle: string, currentRole: string) {
+  const currentRoleOption = getAgentRoleOption(currentRole);
+  return !currentTitle.trim() || currentTitle === currentRoleOption?.title;
 }
 
 export function AgentCreateDialog({ availableAgents, onCreated }: AgentCreateDialogProps) {
@@ -325,15 +317,26 @@ export function AgentCreateDialog({ availableAgents, onCreated }: AgentCreateDia
               <Label>{t("role")}</Label>
               <Select
                 value={form.role}
-                onValueChange={(role) => setForm((current) => ({ ...current, role }))}
+                onValueChange={(role) => {
+                  const roleOption = getAgentRoleOption(role);
+                  setForm((current) => ({
+                    ...current,
+                    role,
+                    title:
+                      roleOption && shouldUseSuggestedTitle(current.title, current.role)
+                        ? roleOption.title
+                        : current.title,
+                    domain: roleOption?.domain ?? current.domain,
+                  }));
+                }}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROLE_OPTIONS.map((role) => (
-                    <SelectItem key={role} value={role}>
-                      {role}
+                  {AGENT_ROLE_OPTIONS.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>
+                      {t(`agentRoles.${role.id}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>

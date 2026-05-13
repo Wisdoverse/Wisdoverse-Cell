@@ -68,11 +68,46 @@ describe("AgentEditDialog", () => {
     await user.click(screen.getByRole("button", { name: "editAgent" }));
     expect(screen.getByText("operatorBasics")).toBeInTheDocument();
     expect(screen.getByLabelText("capabilities")).toHaveValue("architecture");
+    expect(screen.getAllByRole("combobox")[0]).toHaveTextContent("agentRoles.cto");
+    expect(screen.queryByLabelText("customRoleValue")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "showAdvanced" }));
 
     expect(screen.getByLabelText("agentName")).toHaveValue("CTO");
     expect(screen.getByLabelText("agentId")).toHaveValue("cto");
     expect(screen.getByLabelText("titleField")).toHaveValue("Chief Technology Officer");
     expect(screen.getByLabelText("baseUrl")).toHaveValue("https://agents.internal");
+  });
+
+  it("shows built-in runtime agent roles as selectable labels", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AgentEditDialog
+        agent={{
+          ...agent,
+          role_id: "role_pjm",
+          agent_id: "pjm-agent",
+          display_name: "PJM Agent",
+          agent_kind: "business_runtime_agent",
+          interaction_mode: "internal",
+          role: "project-management-agent",
+          title: "Project Management Agent",
+          domain: "product",
+        }}
+        availableAgents={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "editAgent" }));
+
+    const roleSelect = screen.getAllByRole("combobox")[0];
+    expect(roleSelect).toHaveTextContent("agentRoles.project-management-agent");
+
+    await user.click(roleSelect);
+    expect(
+      await screen.findByRole("option", {
+        name: "agentRoles.project-management-agent",
+      }),
+    ).toBeInTheDocument();
   });
 });
