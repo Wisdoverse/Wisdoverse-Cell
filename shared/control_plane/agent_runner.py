@@ -13,8 +13,13 @@ import httpx
 
 from shared.config import settings
 from shared.control_plane.adapter_registry import DEFAULT_ADAPTER_REGISTRY
-from shared.control_plane.models import AgentRun, AgentRunStatus, AuditEvent
+from shared.control_plane.models import (
+    AgentRun,
+    AgentRunStatus,
+    AuditEvent,
+)
 from shared.control_plane.repository import ControlPlaneRepository
+from shared.control_plane.run_evidence import create_run_evidence_artifact
 from shared.core.ids import IDPrefix, generate_id
 from shared.schemas.event import EventTypes
 from shared.utils.logger import get_logger
@@ -46,6 +51,7 @@ class AgentWakeupError(Exception):
 class AgentWakeupResult:
     run_id: str
     output: dict[str, Any]
+    evidence_artifact_id: str | None = None
 
 
 def _truncate(value: str) -> str:
@@ -145,9 +151,7 @@ class ControlPlaneAgentRunner:
             "metadata": {"trace_id": trace_id},
         }
         run_model.input_event = input_event
-        run = await self._repo.create_agent_run(
-            run_model
-        )
+        run = await self._repo.create_agent_run(run_model)
         await self._append_run_audit(
             action=EventTypes.AGENT_RUN_STARTED,
             run_id=run.run_id,
@@ -178,33 +182,25 @@ class ControlPlaneAgentRunner:
                 else type(exc).__name__
             )
             detail = exc.detail if isinstance(exc, AgentWakeupError) else str(exc)
+            completion_event = self._completion_event(
+                agent=agent,
+                run_id=run.run_id,
+                trace_id=trace_id,
+                goal_id=goal_id,
+                work_item_id=work_item_id,
+                status="failed",
+                output={},
+                error_category=category,
+                error_message=detail,
+            )
             await self._repo.update_agent_run_status(
                 run.run_id,
                 AgentRunStatus.FAILED,
                 error_category=category,
                 error_message=detail,
                 last_successful_step="agent_definition_loaded",
-                output_events=[
-                    {
-                        "event_type": EventTypes.AGENT_WAKEUP_COMPLETED,
-                        "source_agent": agent.agent_id,
-                        "payload": {
-                            "company_id": agent.company_id,
-                            "agent_id": agent.agent_id,
-                            "run_id": run.run_id,
-                            "trace_id": trace_id,
-                            "goal_id": goal_id,
-                            "work_item_id": work_item_id,
-                            "status": "failed",
-                            "output": {},
-                        "error_category": category,
-                        "error_message": detail,
-                    },
-                    "metadata": {"trace_id": trace_id},
-                    "event_id": generate_id(IDPrefix.EVENT),
-                }
-            ],
-        )
+                output_events=[completion_event],
+            )
             await self._append_run_audit(
                 action=EventTypes.AGENT_RUN_FAILED,
                 run_id=run.run_id,
@@ -220,6 +216,26 @@ class ControlPlaneAgentRunner:
                     "error": detail,
                 },
             )
+            await create_run_evidence_artifact(
+                self._repo,
+                company_id=agent.company_id,
+                agent_id=agent.agent_id,
+                run_id=run.run_id,
+                actor_type="user",
+                actor_id=actor_id,
+                trigger=trigger,
+                trace_id=trace_id,
+                goal_id=goal_id,
+                work_item_id=work_item_id,
+                adapter_type=str(agent.adapter_type or "builtin"),
+                status="failed",
+                input_event=input_event,
+                output_events=[completion_event],
+                output_summary=None,
+                error_category=category,
+                error_message=detail,
+                generated_by="control_plane_agent_runner",
+            )
             if isinstance(exc, AgentWakeupError):
                 raise
             raise AgentWakeupError(
@@ -228,27 +244,19 @@ class ControlPlaneAgentRunner:
                 error_category=category,
             ) from exc
 
+        completion_event = self._completion_event(
+            agent=agent,
+            run_id=run.run_id,
+            trace_id=trace_id,
+            goal_id=goal_id,
+            work_item_id=work_item_id,
+            status="succeeded",
+            output=output,
+        )
         await self._repo.update_agent_run_status(
             run.run_id,
             AgentRunStatus.SUCCEEDED,
-            output_events=[
-                {
-                    "event_type": EventTypes.AGENT_WAKEUP_COMPLETED,
-                    "source_agent": agent.agent_id,
-                    "payload": {
-                        "company_id": agent.company_id,
-                        "agent_id": agent.agent_id,
-                        "run_id": run.run_id,
-                        "trace_id": trace_id,
-                        "goal_id": goal_id,
-                        "work_item_id": work_item_id,
-                        "status": "succeeded",
-                        "output": output,
-                    },
-                    "metadata": {"trace_id": trace_id},
-                    "event_id": generate_id(IDPrefix.EVENT),
-                }
-            ],
+            output_events=[completion_event],
         )
         await self._append_run_audit(
             action=EventTypes.AGENT_RUN_SUCCEEDED,
@@ -264,7 +272,64 @@ class ControlPlaneAgentRunner:
                 "output_summary": output.get("summary") or output.get("status"),
             },
         )
-        return AgentWakeupResult(run_id=run.run_id, output=output)
+        artifact = await create_run_evidence_artifact(
+            self._repo,
+            company_id=agent.company_id,
+            agent_id=agent.agent_id,
+            run_id=run.run_id,
+            actor_type="user",
+            actor_id=actor_id,
+            trigger=trigger,
+            trace_id=trace_id,
+            goal_id=goal_id,
+            work_item_id=work_item_id,
+            adapter_type=str(agent.adapter_type or "builtin"),
+            status="succeeded",
+            input_event=input_event,
+            output_events=[completion_event],
+            output_summary=output.get("summary") or output.get("status"),
+            generated_by="control_plane_agent_runner",
+        )
+        return AgentWakeupResult(
+            run_id=run.run_id,
+            output=output,
+            evidence_artifact_id=artifact.artifact_id,
+        )
+
+    def _completion_event(
+        self,
+        *,
+        agent: Any,
+        run_id: str,
+        trace_id: str | None,
+        goal_id: str | None,
+        work_item_id: str | None,
+        status: str,
+        output: dict[str, Any],
+        error_category: str | None = None,
+        error_message: str | None = None,
+    ) -> dict[str, Any]:
+        payload = {
+            "company_id": agent.company_id,
+            "agent_id": agent.agent_id,
+            "run_id": run_id,
+            "trace_id": trace_id,
+            "goal_id": goal_id,
+            "work_item_id": work_item_id,
+            "status": status,
+            "output": output,
+        }
+        if error_category:
+            payload["error_category"] = error_category
+        if error_message:
+            payload["error_message"] = error_message
+        return {
+            "event_type": EventTypes.AGENT_WAKEUP_COMPLETED,
+            "source_agent": agent.agent_id,
+            "payload": payload,
+            "metadata": {"trace_id": trace_id},
+            "event_id": generate_id(IDPrefix.EVENT),
+        }
 
     async def _execute_adapter(
         self,
