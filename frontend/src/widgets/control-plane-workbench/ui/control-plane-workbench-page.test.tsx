@@ -73,6 +73,20 @@ function buildWorkbenchState(): ControlPlaneWorkbenchState {
     output_tokens: 50,
     metadata: {},
   };
+  const budgetPolicy = {
+    budget_id: "budget_alpha",
+    company_id: "company_1",
+    scope: "agent" as const,
+    scope_id: "dev-agent",
+    period: "daily" as const,
+    limit_usd: 12,
+    warning_threshold: 0.8,
+    status: "active" as const,
+    model_allowlist: ["gpt-5.2"],
+    metadata: {},
+    created_at: "2026-05-01T10:02:00Z",
+    updated_at: "2026-05-01T10:02:00Z",
+  };
 
   return {
     goals: [goal],
@@ -80,6 +94,7 @@ function buildWorkbenchState(): ControlPlaneWorkbenchState {
     runs: [run],
     decisions: [],
     artifacts: [],
+    budgetPolicies: [budgetPolicy],
     approvals: [
       {
         approval_id: "approval_alpha",
@@ -148,6 +163,8 @@ function buildWorkbenchState(): ControlPlaneWorkbenchState {
     rejectApproval: vi.fn().mockResolvedValue(undefined),
     createGoal: vi.fn().mockResolvedValue(undefined),
     createWorkItem: vi.fn().mockResolvedValue(undefined),
+    createBudgetPolicy: vi.fn().mockResolvedValue(undefined),
+    updateBudgetPolicy: vi.fn().mockResolvedValue(undefined),
     refresh: vi.fn(),
     summary: {
       goalCount: 1,
@@ -162,6 +179,8 @@ function buildWorkbenchState(): ControlPlaneWorkbenchState {
     approvalActionId: undefined,
     goalActionId: undefined,
     workItemActionId: undefined,
+    budgetPolicyActionId: undefined,
+    isBudgetPolicyLoading: false,
   };
 }
 
@@ -221,6 +240,51 @@ describe("ControlPlaneWorkbenchPage", () => {
       title: "Work Beta",
       description: "",
       owner_agent_id: "dev-agent",
+    });
+  });
+
+  it("lets operators manage budget policies from the workbench", async () => {
+    const user = userEvent.setup();
+    const state = buildWorkbenchState();
+    useControlPlaneWorkbenchMock.mockReturnValue(state);
+
+    render(<ControlPlaneWorkbenchPage />);
+
+    expect(screen.getByText("budgetPolicies")).toBeInTheDocument();
+    expect(screen.getAllByText("dev-agent").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "newBudgetPolicy" }));
+    await user.clear(screen.getByLabelText("budgetLimit"));
+    await user.type(screen.getByLabelText("budgetLimit"), "25");
+    await user.type(screen.getByLabelText("modelAllowlist"), "gpt-5.2, gpt-5.4");
+    await user.click(screen.getByRole("button", { name: "create" }));
+
+    expect(state.createBudgetPolicy).toHaveBeenCalledWith({
+      scope: "agent",
+      scope_id: "dev-agent",
+      period: "daily",
+      status: "active",
+      limit_usd: 25,
+      warning_threshold: 0.8,
+      model_allowlist: ["gpt-5.2", "gpt-5.4"],
+    });
+
+    await user.click(screen.getByRole("button", { name: "pause" }));
+
+    expect(state.updateBudgetPolicy).toHaveBeenCalledWith("budget_alpha", {
+      status: "paused",
+    });
+
+    await user.click(screen.getByRole("button", { name: "edit" }));
+    await user.clear(screen.getByLabelText("budgetLimit"));
+    await user.type(screen.getByLabelText("budgetLimit"), "18");
+    await user.click(screen.getByRole("button", { name: "save" }));
+
+    expect(state.updateBudgetPolicy).toHaveBeenCalledWith("budget_alpha", {
+      status: "active",
+      limit_usd: 18,
+      warning_threshold: 0.8,
+      model_allowlist: ["gpt-5.2"],
     });
   });
 });

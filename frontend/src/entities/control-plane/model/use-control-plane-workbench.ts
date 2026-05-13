@@ -5,11 +5,13 @@ import useSWR from "swr";
 
 import {
   approveControlPlaneApproval,
+  createControlPlaneBudgetPolicy,
   createControlPlaneGoal,
   createControlPlaneWorkItem,
   getControlPlaneTimeline,
   listControlPlaneApprovals,
   listControlPlaneArtifacts,
+  listControlPlaneBudgetPolicies,
   listControlPlaneBudgetUsage,
   listControlPlaneDecisions,
   listControlPlaneEvolutionProposals,
@@ -17,6 +19,9 @@ import {
   listControlPlaneRuns,
   listControlPlaneWorkItems,
   rejectControlPlaneApproval,
+  updateControlPlaneBudgetPolicy,
+  type ControlPlaneBudgetPolicyCreateRequest,
+  type ControlPlaneBudgetPolicyUpdateRequest,
   type ControlPlaneGoalCreateRequest,
   type ControlPlaneGoalFilters,
   type ControlPlaneWorkItemCreateRequest,
@@ -27,6 +32,7 @@ import type {
   ControlPlaneAgentRun,
   ControlPlaneApprovalListResponse,
   ControlPlaneArtifactListResponse,
+  ControlPlaneBudgetPolicyListResponse,
   ControlPlaneBudgetUsageListResponse,
   ControlPlaneDecisionListResponse,
   ControlPlaneEvolutionProposalListResponse,
@@ -114,6 +120,7 @@ export function useControlPlaneWorkbench() {
   const [approvalActionId, setApprovalActionId] = useState<string>();
   const [goalActionId, setGoalActionId] = useState<string>();
   const [workItemActionId, setWorkItemActionId] = useState<string>();
+  const [budgetPolicyActionId, setBudgetPolicyActionId] = useState<string>();
 
   const goalsQuery = useControlPlaneGoals({ limit: 100 });
   const goals = useMemo(() => goalsQuery.data?.goals ?? [], [goalsQuery.data]);
@@ -199,6 +206,11 @@ export function useControlPlaneWorkbench() {
       () => listControlPlaneEvolutionProposals({ limit: 25 }),
     );
 
+  const budgetPoliciesQuery = useSWR<ControlPlaneBudgetPolicyListResponse>(
+    ["control-plane-budget-policies", { limit: 25 }],
+    () => listControlPlaneBudgetPolicies({ limit: 25 }),
+  );
+
   const selectGoal = useCallback((goalId: string) => {
     setSelectedGoalId(goalId);
     setSelectedWorkItemId(undefined);
@@ -221,10 +233,12 @@ export function useControlPlaneWorkbench() {
       budgetUsageQuery.mutate(),
       timelineQuery.mutate(),
       evolutionProposalsQuery.mutate(),
+      budgetPoliciesQuery.mutate(),
     ]);
   }, [
     approvalsQuery,
     artifactsQuery,
+    budgetPoliciesQuery,
     budgetUsageQuery,
     decisionsQuery,
     evolutionProposalsQuery,
@@ -310,6 +324,43 @@ export function useControlPlaneWorkbench() {
     [activeGoalId, refreshAll],
   );
 
+  const createBudgetPolicy = useCallback(
+    async (payload: ControlPlaneBudgetPolicyCreateRequest) => {
+      setBudgetPolicyActionId("create");
+      try {
+        await createControlPlaneBudgetPolicy({
+          status: "active",
+          warning_threshold: 0.8,
+          created_by: "human:operator",
+          ...payload,
+        });
+        await refreshAll();
+      } finally {
+        setBudgetPolicyActionId(undefined);
+      }
+    },
+    [refreshAll],
+  );
+
+  const updateBudgetPolicy = useCallback(
+    async (
+      budgetId: string,
+      payload: ControlPlaneBudgetPolicyUpdateRequest,
+    ) => {
+      setBudgetPolicyActionId(budgetId);
+      try {
+        await updateControlPlaneBudgetPolicy(budgetId, {
+          actor_id: "human:operator",
+          ...payload,
+        });
+        await refreshAll();
+      } finally {
+        setBudgetPolicyActionId(undefined);
+      }
+    },
+    [refreshAll],
+  );
+
   const summary = summarizeControlPlaneWorkbench({
     goals: goalsQuery.data,
     workItems: workItemsQuery.data,
@@ -323,6 +374,7 @@ export function useControlPlaneWorkbench() {
     runs,
     decisions: decisionsQuery.data?.decisions ?? [],
     artifacts: artifactsQuery.data?.artifacts ?? [],
+    budgetPolicies: budgetPoliciesQuery.data?.budget_policies ?? [],
     evolutionProposals:
       evolutionProposalsQuery.data?.evolution_proposals ?? [],
     approvals: approvalsQuery.data?.approvals ?? [],
@@ -342,11 +394,14 @@ export function useControlPlaneWorkbench() {
     rejectApproval,
     createGoal,
     createWorkItem,
+    createBudgetPolicy,
+    updateBudgetPolicy,
     refresh,
     summary,
     approvalActionId,
     goalActionId,
     workItemActionId,
+    budgetPolicyActionId,
     isLoading: goalsQuery.isLoading || workItemsQuery.isLoading,
     isEvidenceLoading:
       runsQuery.isLoading ||
@@ -355,6 +410,7 @@ export function useControlPlaneWorkbench() {
       approvalsQuery.isLoading ||
       budgetUsageQuery.isLoading ||
       timelineQuery.isLoading,
+    isBudgetPolicyLoading: budgetPoliciesQuery.isLoading,
     isEvolutionLoading: evolutionProposalsQuery.isLoading,
     error:
       goalsQuery.error ||
@@ -363,6 +419,7 @@ export function useControlPlaneWorkbench() {
       decisionsQuery.error ||
       artifactsQuery.error ||
       approvalsQuery.error ||
+      budgetPoliciesQuery.error ||
       budgetUsageQuery.error ||
       timelineQuery.error ||
       evolutionProposalsQuery.error,

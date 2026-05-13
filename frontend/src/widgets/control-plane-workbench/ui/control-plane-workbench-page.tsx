@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   AlertCircle,
+  Archive,
   Check,
   CheckCircle2,
   CircleDollarSign,
@@ -11,6 +12,9 @@ import {
   GitBranch,
   Loader2,
   PanelRightOpen,
+  Pause,
+  Pencil,
+  Play,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -24,11 +28,15 @@ import {
   type ControlPlaneAgentRun,
   type ControlPlaneApproval,
   type ControlPlaneArtifact,
+  type ControlPlaneBudgetPolicy,
   type ControlPlaneDecision,
   type ControlPlaneEvolutionProposal,
   type ControlPlaneGoal,
   type ControlPlaneTimelineItem,
   type ControlPlaneWorkbenchState,
+  type BudgetPeriod,
+  type BudgetPolicyStatus,
+  type BudgetScope,
   type WorkItemPriority,
 } from "@/entities/control-plane";
 import { EmptyState } from "@/shared/ui/empty-state";
@@ -45,6 +53,13 @@ import {
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Skeleton } from "@/shared/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/select";
 import {
   Tabs,
   TabsContent,
@@ -116,6 +131,10 @@ const timelineAccentClass: Record<string, string> = {
   audit_event: "bg-zinc-400",
 };
 
+const budgetScopes: BudgetScope[] = ["company", "goal", "agent", "work_item"];
+const budgetPeriods: BudgetPeriod[] = ["daily", "monthly", "quarterly", "total"];
+const budgetStatuses: BudgetPolicyStatus[] = ["active", "paused", "archived"];
+
 function getString(
   data: Record<string, unknown>,
   keys: string[],
@@ -133,6 +152,17 @@ function formatCost(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 4,
   });
+}
+
+function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
+function parseModelAllowlist(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function formatDate(value: string | null | undefined, locale: string): string {
@@ -407,6 +437,464 @@ function CreateWorkItemDialog({ workbench }: { workbench: Workbench }) {
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PolicySelect<T extends string>({
+  id,
+  value,
+  values,
+  onChange,
+}: {
+  id: string;
+  value: T;
+  values: T[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={(next) => onChange(next as T)}>
+      <SelectTrigger id={id} className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {values.map((item) => (
+          <SelectItem key={item} value={item}>
+            {item.replaceAll("_", " ")}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function CreateBudgetPolicyDialog({ workbench }: { workbench: Workbench }) {
+  const t = useTranslations("controlPlane");
+  const [open, setOpen] = useState(false);
+  const [scope, setScope] = useState<BudgetScope>("agent");
+  const [scopeId, setScopeId] = useState("dev-agent");
+  const [period, setPeriod] = useState<BudgetPeriod>("daily");
+  const [status, setStatus] = useState<BudgetPolicyStatus>("active");
+  const [limitUsd, setLimitUsd] = useState("10");
+  const [warningThreshold, setWarningThreshold] = useState("0.8");
+  const [modelAllowlist, setModelAllowlist] = useState("");
+  const isCreating = workbench.budgetPolicyActionId === "create";
+  const scopeNeedsId = scope !== "company";
+  const parsedLimit = Number(limitUsd);
+  const parsedThreshold = Number(warningThreshold);
+  const isInvalid =
+    !Number.isFinite(parsedLimit) ||
+    parsedLimit <= 0 ||
+    !Number.isFinite(parsedThreshold) ||
+    parsedThreshold <= 0 ||
+    parsedThreshold > 1 ||
+    (scopeNeedsId && !scopeId.trim());
+
+  function resetForm() {
+    setScope("agent");
+    setScopeId("dev-agent");
+    setPeriod("daily");
+    setStatus("active");
+    setLimitUsd("10");
+    setWarningThreshold("0.8");
+    setModelAllowlist("");
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isInvalid) return;
+    await workbench.createBudgetPolicy({
+      scope,
+      scope_id: scopeNeedsId ? scopeId.trim() : undefined,
+      period,
+      status,
+      limit_usd: parsedLimit,
+      warning_threshold: parsedThreshold,
+      model_allowlist: parseModelAllowlist(modelAllowlist),
+    });
+    resetForm();
+    setOpen(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="xs">
+          <Plus className="size-3.5" />
+          {t("newBudgetPolicy")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{t("newBudgetPolicy")}</DialogTitle>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={(event) => void submit(event)}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="control-plane-budget-scope">{t("scope")}</Label>
+              <PolicySelect
+                id="control-plane-budget-scope"
+                value={scope}
+                values={budgetScopes}
+                onChange={(value) => {
+                  setScope(value);
+                  setScopeId(value === "company" ? "" : scopeId || "dev-agent");
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="control-plane-budget-period">{t("period")}</Label>
+              <PolicySelect
+                id="control-plane-budget-period"
+                value={period}
+                values={budgetPeriods}
+                onChange={setPeriod}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="control-plane-budget-status">{t("status")}</Label>
+              <PolicySelect
+                id="control-plane-budget-status"
+                value={status}
+                values={budgetStatuses}
+                onChange={setStatus}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="control-plane-budget-scope-id">
+                {t("scopeId")}
+              </Label>
+              <Input
+                id="control-plane-budget-scope-id"
+                value={scopeId}
+                onChange={(event) => setScopeId(event.target.value)}
+                disabled={!scopeNeedsId}
+                required={scopeNeedsId}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="control-plane-budget-limit">
+                {t("budgetLimit")}
+              </Label>
+              <Input
+                id="control-plane-budget-limit"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={limitUsd}
+                onChange={(event) => setLimitUsd(event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="control-plane-budget-threshold">
+                {t("warningThreshold")}
+              </Label>
+              <Input
+                id="control-plane-budget-threshold"
+                type="number"
+                min="0.01"
+                max="1"
+                step="0.01"
+                value={warningThreshold}
+                onChange={(event) => setWarningThreshold(event.target.value)}
+                required
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="control-plane-budget-models">
+              {t("modelAllowlist")}
+            </Label>
+            <Input
+              id="control-plane-budget-models"
+              value={modelAllowlist}
+              onChange={(event) => setModelAllowlist(event.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={isCreating || isInvalid}>
+              {isCreating ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Plus className="size-4" />
+              )}
+              {isCreating ? t("creating") : t("create")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditBudgetPolicyDialog({
+  policy,
+  workbench,
+}: {
+  policy: ControlPlaneBudgetPolicy;
+  workbench: Workbench;
+}) {
+  const t = useTranslations("controlPlane");
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<BudgetPolicyStatus>(policy.status);
+  const [limitUsd, setLimitUsd] = useState(String(policy.limit_usd));
+  const [warningThreshold, setWarningThreshold] = useState(
+    String(policy.warning_threshold),
+  );
+  const [modelAllowlist, setModelAllowlist] = useState(
+    policy.model_allowlist.join(", "),
+  );
+  const isSaving = workbench.budgetPolicyActionId === policy.budget_id;
+  const parsedLimit = Number(limitUsd);
+  const parsedThreshold = Number(warningThreshold);
+  const isInvalid =
+    !Number.isFinite(parsedLimit) ||
+    parsedLimit <= 0 ||
+    !Number.isFinite(parsedThreshold) ||
+    parsedThreshold <= 0 ||
+    parsedThreshold > 1;
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isInvalid) return;
+    await workbench.updateBudgetPolicy(policy.budget_id, {
+      status,
+      limit_usd: parsedLimit,
+      warning_threshold: parsedThreshold,
+      model_allowlist: parseModelAllowlist(modelAllowlist),
+    });
+    setOpen(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="xs">
+          <Pencil className="size-3" />
+          {t("edit")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{t("editBudgetPolicy")}</DialogTitle>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={(event) => void submit(event)}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor={`control-plane-budget-edit-status-${policy.budget_id}`}>
+                {t("status")}
+              </Label>
+              <PolicySelect
+                id={`control-plane-budget-edit-status-${policy.budget_id}`}
+                value={status}
+                values={budgetStatuses}
+                onChange={setStatus}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`control-plane-budget-edit-limit-${policy.budget_id}`}>
+                {t("budgetLimit")}
+              </Label>
+              <Input
+                id={`control-plane-budget-edit-limit-${policy.budget_id}`}
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={limitUsd}
+                onChange={(event) => setLimitUsd(event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label
+                htmlFor={`control-plane-budget-edit-threshold-${policy.budget_id}`}
+              >
+                {t("warningThreshold")}
+              </Label>
+              <Input
+                id={`control-plane-budget-edit-threshold-${policy.budget_id}`}
+                type="number"
+                min="0.01"
+                max="1"
+                step="0.01"
+                value={warningThreshold}
+                onChange={(event) => setWarningThreshold(event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`control-plane-budget-edit-models-${policy.budget_id}`}>
+                {t("modelAllowlist")}
+              </Label>
+              <Input
+                id={`control-plane-budget-edit-models-${policy.budget_id}`}
+                value={modelAllowlist}
+                onChange={(event) => setModelAllowlist(event.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={isSaving || isInvalid}>
+              {isSaving ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Check className="size-4" />
+              )}
+              {isSaving ? t("saving") : t("save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BudgetPolicyPanel({ workbench }: { workbench: Workbench }) {
+  const t = useTranslations("controlPlane");
+  const locale = useLocale();
+
+  return (
+    <section className="rounded-lg border border-white/70 bg-white/80 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/50 dark:shadow-none">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex size-7 items-center justify-center rounded-md bg-zinc-950 text-white dark:bg-white dark:text-zinc-950">
+            <CircleDollarSign className="size-3.5" />
+          </div>
+          <h2 className="truncate text-sm font-semibold">
+            {t("budgetPolicies")}
+          </h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="h-6 rounded-md px-2 text-[11px]">
+            {workbench.budgetPolicies.length}
+          </Badge>
+          <CreateBudgetPolicyDialog workbench={workbench} />
+        </div>
+      </div>
+
+      {workbench.isBudgetPolicyLoading ? (
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Skeleton
+              key={index}
+              className="h-32 rounded-lg bg-white/60 dark:bg-white/10"
+            />
+          ))}
+        </div>
+      ) : workbench.budgetPolicies.length === 0 ? (
+        <EmptyState message={t("noBudgetPolicies")} />
+      ) : (
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          {workbench.budgetPolicies.map((policy) => (
+            <BudgetPolicyItem
+              key={policy.budget_id}
+              policy={policy}
+              locale={locale}
+              workbench={workbench}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function BudgetPolicyItem({
+  policy,
+  locale,
+  workbench,
+}: {
+  policy: ControlPlaneBudgetPolicy;
+  locale: string;
+  workbench: Workbench;
+}) {
+  const t = useTranslations("controlPlane");
+  const isMutating = workbench.budgetPolicyActionId === policy.budget_id;
+  const nextStatus: BudgetPolicyStatus =
+    policy.status === "active" ? "paused" : "active";
+  const canToggle = policy.status !== "archived";
+
+  return (
+    <div className="rounded-lg border border-zinc-200/80 bg-white/75 px-3 py-3 shadow-[0_1px_1px_rgba(15,23,42,0.03)] dark:border-white/10 dark:bg-white/[0.035]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-semibold leading-5">
+            {policy.scope.replaceAll("_", " ")} / {policy.period}
+          </div>
+          <div className="mt-1 truncate text-xs text-muted-foreground">
+            {policy.scope_id ?? policy.company_id}
+          </div>
+        </div>
+        <StatusBadge value={policy.status} />
+      </div>
+
+      <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+        <div>
+          {t("budgetLimit")}:{" "}
+          <span className="font-medium text-foreground">
+            ${formatCost(policy.limit_usd)}
+          </span>
+        </div>
+        <div className="sm:text-right">
+          {t("warning")}:{" "}
+          <span className="font-medium text-foreground">
+            {formatPercent(policy.warning_threshold)}
+          </span>
+        </div>
+        <div className="min-w-0 truncate sm:col-span-2">
+          {policy.model_allowlist.length > 0
+            ? policy.model_allowlist.join(", ")
+            : t("allModels")}
+        </div>
+        <div className="sm:col-span-2">
+          {t("updated")}: {formatDate(policy.updated_at, locale)}
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
+        {canToggle && (
+          <Button
+            variant="outline"
+            size="xs"
+            disabled={isMutating}
+            onClick={() =>
+              void workbench.updateBudgetPolicy(policy.budget_id, {
+                status: nextStatus,
+              })
+            }
+          >
+            {isMutating ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : policy.status === "active" ? (
+              <Pause className="size-3" />
+            ) : (
+              <Play className="size-3" />
+            )}
+            {policy.status === "active" ? t("pause") : t("activate")}
+          </Button>
+        )}
+        <EditBudgetPolicyDialog policy={policy} workbench={workbench} />
+        {policy.status !== "archived" && (
+          <Button
+            variant="outline"
+            size="xs"
+            disabled={isMutating}
+            onClick={() =>
+              void workbench.updateBudgetPolicy(policy.budget_id, {
+                status: "archived",
+              })
+            }
+          >
+            {isMutating ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <Archive className="size-3" />
+            )}
+            {t("archive")}
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1101,6 +1589,8 @@ export function ControlPlaneWorkbenchPage() {
         </div>
 
         {workbench.error && <WorkbenchError onRetry={workbench.refresh} />}
+
+        <BudgetPolicyPanel workbench={workbench} />
 
         <EvolutionProposalPanel workbench={workbench} />
 
