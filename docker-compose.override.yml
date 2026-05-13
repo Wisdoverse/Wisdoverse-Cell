@@ -1,0 +1,48 @@
+# =============================================================================
+# Docker Compose Override - Development Settings
+# =============================================================================
+#
+# This file is automatically loaded with docker-compose.yml
+# For production, use: docker compose -f docker-compose.yml -f docker-compose.prod.yml
+#
+# =============================================================================
+
+services:
+  cell:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agents
+    environment:
+      DEBUG: "true"
+      LOG_LEVEL: DEBUG
+      APP_ENV: development
+    volumes:
+      # Mount source code for hot-reload (development only)
+      - ./agents:/app/agents:ro
+      - ./skills:/app/skills:ro
+      - ./shared:/app/shared:ro
+
+  gateway:
+    build:
+      context: .
+      dockerfile: rust/gateway/Dockerfile
+    environment:
+      GATEWAY_SERVER_MODE: debug
+      GATEWAY_LOG_LEVEL: debug
+
+  postgres:
+    ports:
+      - "${POSTGRES_HOST_PORT:-15432}:5432"  # Expose for local development tools
+
+  redis:
+    ports:
+      - "${REDIS_HOST_PORT:-16379}:6379"  # Expose for local development tools
+
+  milvus:
+    ports:
+      - "${MILVUS_PORT:-19530}:19530"
+      - "${MILVUS_HEALTH_PORT:-9091}:9091"
+
+networks:
+  backend:
+    internal: false
