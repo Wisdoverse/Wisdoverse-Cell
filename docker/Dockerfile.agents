@@ -20,7 +20,7 @@
 # ╔═══════════════════════════════════════════════════════════════════════════╗
 # ║  BUILDER — install every agent's runtime dependencies once               ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
-FROM python:3.13-slim AS builder
+FROM python:3.14-slim AS builder
 
 ARG PIP_DISABLE_PIP_VERSION_CHECK=1
 ARG PIP_INDEX_URL=https://pypi.org/simple
@@ -80,7 +80,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # ╔═══════════════════════════════════════════════════════════════════════════╗
 # ║  RUNTIME — single final image with every agent + module bundled         ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
-FROM python:3.13-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 ARG VERSION=dev
 ARG BUILD_DATE
