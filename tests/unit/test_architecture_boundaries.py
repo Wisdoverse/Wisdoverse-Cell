@@ -2565,7 +2565,9 @@ def test_control_plane_agent_operations_delegate_to_use_cases_and_ports() -> Non
         "shared/control_plane/agent_operation_use_cases.py"
     ).read_text()
     runner_source = Path("shared/control_plane/agent_runner.py").read_text()
-    lifecycle_source = Path("shared/control_plane/agent_run_lifecycle.py").read_text()
+    lifecycle_source = Path(
+        "shared/control_plane/domain/lifecycle/agent_run_lifecycle.py"
+    ).read_text()
     scheduler_source = Path("shared/control_plane/scheduler.py").read_text()
     evidence_source = Path("shared/control_plane/run_evidence.py").read_text()
 
