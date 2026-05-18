@@ -15,6 +15,10 @@ from ..models.schemas import (
     AcceptanceSummary,
     QARunRequest,
 )
+from .domain.acceptance_verdicts import (
+    is_blocking_finding,
+    is_warning_finding,
+)
 from .report_store import QAReportStore
 from .run_store import QAAcceptanceRunRecord, QAAcceptanceRunStore
 
@@ -215,7 +219,10 @@ class QAAcceptanceExecutionUseCase:
                     file=f.get("file"),
                     line=f.get("line"),
                     severity=derive_severity(f),
-                    is_blocking=f.get("level") == "L0" and f.get("status") == "FAIL",
+                    is_blocking=is_blocking_finding(
+                        level=f.get("level", "L0"),
+                        status=f.get("status", "SKIP"),
+                    ),
                 )
                 for f in findings_data
             ],
@@ -380,7 +387,10 @@ def build_acceptance_events(
         blocking = [
             finding
             for finding in findings
-            if finding.get("level") == "L0" and finding.get("status") == "FAIL"
+            if is_blocking_finding(
+                level=finding.get("level", ""),
+                status=finding.get("status", ""),
+            )
         ]
         events.append(
             Event.create(
@@ -453,9 +463,9 @@ def derive_severity(finding: dict[str, Any]) -> str:
     """Map level + status to severity for notification filtering."""
     level = finding.get("level", "")
     status = finding.get("status", "")
-    if level == "L0" and status == "FAIL":
+    if is_blocking_finding(level=level, status=status):
         return "critical"
-    if level == "L1" and status == "WARN":
+    if is_warning_finding(level=level, status=status):
         return "medium"
     if level == "L2":
         return "info"
