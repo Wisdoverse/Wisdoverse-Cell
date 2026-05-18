@@ -22,7 +22,7 @@ pymilvus>=2.5.0
 sentence-transformers>=5.4.1
 
 # LLM
-litellm==1.83.14
+litellm==1.85.0
 langchain>=0.3.0
 langchain-community>=0.3.0
 tenacity>=9.0.0
