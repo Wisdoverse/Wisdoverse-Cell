@@ -5,7 +5,7 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import pool
+from sqlalchemy import pool, text
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # Import all models so metadata is populated for Alembic autogenerate checks.
@@ -87,6 +87,28 @@ target_metadata = [
     evolution_metadata,
 ]
 
+# Alembic 1.18 hardcodes `alembic_version.version_num` as `String(32)`
+# at table-creation time. Wisdoverse Cell revision IDs are
+# date-prefixed and can exceed 32 chars (e.g.
+# `20260511_user_interaction_event_outbox` is 38). Widen the column
+# unconditionally before the migration chain runs, so a fresh
+# database accepts every revision id.
+_ALEMBIC_VERSION_PREP_STATEMENTS: tuple[str, ...] = (
+    # Create the version table with the wider column on fresh databases
+    # so the very first revision_id can be inserted without overflowing
+    # the default varchar(32).
+    """
+    CREATE TABLE IF NOT EXISTS alembic_version (
+        version_num VARCHAR(64) NOT NULL,
+        CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+    );
+    """,
+    # On databases that already have alembic_version from an earlier
+    # Alembic run (varchar(32)), widen the column so future revision
+    # ids fit.
+    "ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(64);",
+)
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode — emit SQL to stdout."""
@@ -107,6 +129,12 @@ def do_run_migrations(connection):
         context.run_migrations()
 
 
+def _ensure_version_table_width(connection) -> None:
+    """Ensure alembic_version.version_num accepts our long revision ids."""
+    for statement in _ALEMBIC_VERSION_PREP_STATEMENTS:
+        connection.execute(text(statement))
+
+
 async def run_async_migrations() -> None:
     """Run migrations in 'online' mode with an async engine."""
     configuration = config.get_section(config.config_ini_section, {})
@@ -117,6 +145,8 @@ async def run_async_migrations() -> None:
         poolclass=pool.NullPool,
     )
     async with connectable.connect() as connection:
+        await connection.run_sync(_ensure_version_table_width)
+        await connection.commit()
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()
 
