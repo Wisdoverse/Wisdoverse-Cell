@@ -1,6 +1,6 @@
 # Wisdoverse Cell - Makefile
 
-.PHONY: all proto proto-python setup test test-public test-unit test-unit-full test-integration test-e2e test-python-full install dev openapi-snapshots migration-test typecheck
+.PHONY: all proto proto-python setup test test-public test-unit test-unit-full test-integration test-e2e test-python-full install dev openapi-snapshots migration-test typecheck split-deploy-dev split-deploy-qa split-deploy-pjm split-deploy-requirement
 
 PYTEST ?= python -m pytest
 RUST_GATEWAY_LOCAL_EVIDENCE_REPORT ?= .artifacts/rust-gateway-local-shadow-check.json
@@ -309,6 +309,23 @@ migration-test:
 # Requires: pip install -r requirements-dev.txt
 typecheck:
 	python -m mypy
+
+# Split-deployment smoke — Stage 4 pre-condition #4 per
+# docs/architecture/migration-plan.md. Brings up infra + one runtime
+# under the `split-agents` Compose profile, polls /ready, runs a
+# /agent/request smoke. Use to satisfy "non-prod deployment proves
+# the split" locally, without booking a separate staging environment.
+split-deploy-dev:
+	RUNTIME=dev-agent bash scripts/split_deploy_smoke.sh
+
+split-deploy-qa:
+	RUNTIME=qa-agent bash scripts/split_deploy_smoke.sh
+
+split-deploy-pjm:
+	RUNTIME=pjm-agent bash scripts/split_deploy_smoke.sh
+
+split-deploy-requirement:
+	RUNTIME=requirement-manager bash scripts/split_deploy_smoke.sh
 
 # Cleanup
 clean:
