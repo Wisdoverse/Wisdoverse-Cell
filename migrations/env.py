@@ -5,8 +5,14 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import pool
+from sqlalchemy import String, pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
+
+# Wisdoverse Cell revision IDs are date-prefixed and can exceed the
+# Alembic default of varchar(32) (e.g.
+# `20260511_user_interaction_event_outbox` is 38 chars). Widen the
+# version table column so the chain survives on a fresh database.
+_VERSION_TABLE_COLUMN = String(length=64)
 
 # Import all models so metadata is populated for Alembic autogenerate checks.
 from agents.dev_agent.models.base import Base as DevAgentBase
@@ -96,13 +102,20 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        version_table_pk=True,
+        version_table_type=_VERSION_TABLE_COLUMN,
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection):
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        version_table_pk=True,
+        version_table_type=_VERSION_TABLE_COLUMN,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
