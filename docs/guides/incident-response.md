@@ -511,6 +511,165 @@ docker compose -f docker/compose/docker-compose.app.yml logs --tail=50 ai-core |
 
 ---
 
+### 3.9 Outbox Dispatcher Stuck or Lagging
+
+**Severity**: SEV-2 if any runtime's oldest-unsent age > 5 min for 5 min; SEV-3 below.
+
+**Symptoms**:
+- Prometheus alert: outbox lag warning or critical
+  (`wisdoverse-cell_outbox_dispatch_duration_seconds` flatlines or
+  spikes; total/published counters stop advancing).
+- Downstream consumers stop seeing events from one runtime.
+- `/status` for the runtime reports `dispatcher` health degraded with
+  the last error type.
+- Operator dashboard shows `event_outbox` pending rows growing.
+
+**Diagnosis**:
+
+```bash
+# Step 1: Which runtime is lagging?
+curl -s -H "X-Internal-Key: $PM_API_KEY" http://localhost:9090/api/v1/query \
+  --data-urlencode 'query=wisdoverse-cell_outbox_dispatch_duration_seconds' | jq
+
+# Step 2: Look at the agent's /status for last error / last result.
+docker compose exec cell curl -s http://requirement-manager:8000/status | jq .plugins
+
+# Step 3: Inspect pending rows directly in PostgreSQL
+docker compose exec postgres psql -U wisdoverse_cell -d wisdoverse_cell -c \
+  "SELECT event_type, status, retry_count, last_error, created_at
+   FROM requirement_event_outbox
+   WHERE status != 'published'
+   ORDER BY created_at ASC
+   LIMIT 20;"
+
+# Step 4: Check the dispatcher loop is alive (not dead-tasked)
+docker compose logs --tail=200 cell | grep "outbox_dispatch"
+```
+
+**Fix**:
+
+```bash
+# Path A: Transient downstream error (network, Redis hiccup, EventBus saturation)
+# The dispatcher retries every 30s by default. Watch one or two cycles.
+
+# Path B: Dispatcher loop crashed (Task exited)
+docker compose restart cell  # or just the affected runtime container
+
+# Path C: Persistent payload validation failure (bad schema_version, etc.)
+# The row stays pending and retry_count climbs. Diagnose the payload, then:
+docker compose exec postgres psql -U wisdoverse_cell -d wisdoverse_cell -c \
+  "UPDATE <runtime>_event_outbox SET status='failed', last_error='<reason>'
+   WHERE event_id = '<bad_id>';"
+# Then publish a corrective event manually if business correctness requires.
+
+# Path D: Redis Streams stream is wedged
+# See playbook 3.2 (Redis / EventBus Backlog).
+```
+
+**Prevention**:
+- Alertmanager rules per `docs/architecture/observability-guidelines.md` §6 wired.
+- One dispatcher per runtime: requirement-manager, pjm-agent, qa-agent,
+  dev-agent, sync-module, analysis-module, evolution-module,
+  coordinator, channel-gateway, user-interaction-gateway.
+- Every cycle observes `wisdoverse-cell_outbox_dispatch_duration_seconds`
+  even on failure (try/finally) — flatline = dispatcher loop dead.
+- Add a regression test if a specific event type fails repeatedly.
+
+---
+
+### 3.10 DLQ Growth on `dlq.failed`
+
+**Severity**: SEV-2.
+
+**Symptoms**:
+- Prometheus counter `eventbus_dlq_failed_total` advancing.
+- Consumer group lag does not catch up.
+- Some agents stop reacting to upstream events.
+
+**Diagnosis**:
+
+```bash
+# Step 1: How many entries on the DLQ?
+docker compose exec redis redis-cli XLEN dlq.failed
+
+# Step 2: Inspect the latest DLQ entries
+docker compose exec redis redis-cli XRANGE dlq.failed - + COUNT 20
+
+# Step 3: Which consumer group failed?
+docker compose logs --tail=500 cell | grep -i "dlq\|consumer.*failed"
+```
+
+**Fix**:
+
+```bash
+# Path A: One consumer is mis-behaving (e.g. raising on every payload of one type)
+# Patch the consumer, deploy, then replay the relevant DLQ entries:
+docker compose exec cell python -m shared.infra.event_bus.replay \
+  --stream dlq.failed --target <event_type> --limit 100
+
+# Path B: Genuinely poisoned messages
+# Triage manually, then drop:
+docker compose exec redis redis-cli XDEL dlq.failed <message-id>
+```
+
+**Prevention**:
+- DLQ rate alert wired in Alertmanager.
+- Every consumer must be idempotent (architecture-principle §4.4).
+- Bounded retry counts so handler bugs end up on DLQ instead of looping.
+
+---
+
+### 3.11 LLM Budget Exhaustion
+
+**Severity**: SEV-3 at warning (90%); SEV-2 at critical (100%).
+
+**Symptoms**:
+- Prometheus alert: LLM budget breach / hard breach.
+- Agents start returning fallback responses or rejecting requests at
+  the `LLMGateway` boundary.
+- `wisdoverse-cell_llm_daily_cost_dollars` matches or exceeds the
+  active budget policy ceiling.
+
+**Diagnosis**:
+
+```bash
+# Step 1: Which budget policy is active?
+curl -s -H "X-Internal-Key: $PM_API_KEY" \
+  http://localhost:8000/api/v1/control-plane/budgets/policies?status=active | jq
+
+# Step 2: Today's usage broken down by model + agent
+curl -s -H "X-Internal-Key: $PM_API_KEY" \
+  "http://localhost:8000/api/v1/control-plane/budgets/usage" | jq
+
+# Step 3: Top offenders from metrics
+curl -s http://localhost:9090/api/v1/query \
+  --data-urlencode 'query=topk(5, sum by (agent_id) (wisdoverse-cell_llm_cost_dollars_total))' | jq
+```
+
+**Fix**:
+
+```bash
+# Path A: Legitimate traffic — extend the budget temporarily (Finance approval required)
+# Update the active policy via control plane API.
+
+# Path B: A specific agent or model is over-consuming
+# Pause that agent (control plane /agents/{id}/status -> paused) or
+# switch its tiered model to the cheaper option in agent_prompt_config.
+
+# Path C: Runaway loop in one agent
+# Trip the agent-level loop breaker; investigate the prompt or task
+# decomposition that caused unbounded fan-out.
+```
+
+**Prevention**:
+- Budget policy enforcement at `LLMGateway` (architecture-principles
+  §4.5).
+- Hard ceiling alert at 100% of period.
+- Tiered model strategy (ADR-0003) keeps default-tier traffic cheap.
+- Per-agent loop breaker prevents runaway prompts.
+
+---
+
 ## 4. Communication Templates
 
 ### 4.1 Status Update Template (Feishu Group)
