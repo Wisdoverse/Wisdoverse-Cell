@@ -1,11 +1,19 @@
 """UserInteractionOutboxDispatcherPlugin — background gateway outbox retry loop."""
 
 import asyncio
+import time
 
 from shared.app.runtime import HealthCheckResult, RuntimePlugin
+from shared.infra.metrics import (
+    OUTBOX_DISPATCH_DURATION_SECONDS,
+    OUTBOX_DISPATCH_ERRORS,
+    OUTBOX_DISPATCH_EVENTS,
+)
 from shared.utils.logger import get_logger
 
 logger = get_logger("plugin.user-interaction-outbox-dispatcher")
+
+_RUNTIME_LABEL = "user-interaction-gateway"
 
 
 class UserInteractionOutboxDispatcherPlugin(RuntimePlugin):
@@ -42,10 +50,15 @@ class UserInteractionOutboxDispatcherPlugin(RuntimePlugin):
             except asyncio.CancelledError:
                 break
             except Exception as exc:
-                self._last_error = type(exc).__name__
+                error_type = type(exc).__name__
+                self._last_error = error_type
+                OUTBOX_DISPATCH_ERRORS.labels(
+                    runtime=_RUNTIME_LABEL,
+                    error_type=error_type,
+                ).inc()
                 logger.error(
                     "user_interaction_outbox_dispatch_error",
-                    error=type(exc).__name__,
+                    error=error_type,
                 )
             await asyncio.sleep(self._interval)
 
@@ -56,9 +69,35 @@ class UserInteractionOutboxDispatcherPlugin(RuntimePlugin):
             logger.warning("user_interaction_outbox_dispatcher_missing")
             return
 
-        result = await dispatcher(limit=self._batch_size)
+        started_at = time.monotonic()
+        try:
+            result = await dispatcher(limit=self._batch_size)
+        finally:
+            OUTBOX_DISPATCH_DURATION_SECONDS.labels(
+                runtime=_RUNTIME_LABEL,
+            ).observe(time.monotonic() - started_at)
+
         self._last_result = result
         self._last_error = None
+
+        total = int(result.get("total", 0))
+        published = int(result.get("published", 0))
+        failed = int(result.get("failed", 0))
+        if total:
+            OUTBOX_DISPATCH_EVENTS.labels(
+                runtime=_RUNTIME_LABEL,
+                outcome="total",
+            ).inc(total)
+        if published:
+            OUTBOX_DISPATCH_EVENTS.labels(
+                runtime=_RUNTIME_LABEL,
+                outcome="published",
+            ).inc(published)
+        if failed:
+            OUTBOX_DISPATCH_EVENTS.labels(
+                runtime=_RUNTIME_LABEL,
+                outcome="failed",
+            ).inc(failed)
 
     async def health_check(self) -> dict[str, HealthCheckResult]:
         if self._task is None:
