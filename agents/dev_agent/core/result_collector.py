@@ -8,6 +8,16 @@ from shared.utils.logger import get_logger
 
 from ..app.metrics import RETRY_COUNT, TASK_DURATION, TASKS_COMPLETED, TASKS_FAILED
 from .config import DevCoreConfig
+from .domain.lifecycle.task_lifecycle import (
+    COMPLETED,
+    FAILED,
+    MR_CREATED,
+    MR_CREATING,
+    PLANNING,
+    QA_TRIGGERED,
+    REVIEWING,
+    SECURITY_SCANNING,
+)
 from .notifier import DevNotifier
 from .repositories import DevTaskRecord, DevTaskRepositoryPort
 from .security_scanner import SecurityScanner
@@ -52,13 +62,13 @@ class ResultCollector:
         task_id = task.id
         wp_id = task.wp_id
 
-        await self._repo.update_status(task_id, "security_scanning")
+        await self._repo.update_status(task_id, SECURITY_SCANNING)
         workspace_path = self._resolve_workspace_path(workflow_status)
         scan_report = await self._scanner.scan(workspace_path)
         if not scan_report.passed:
             await self._repo.update_status(
                 task_id,
-                "failed",
+                FAILED,
                 error_message=f"Security scan failed: {'; '.join(scan_report.issues)}",
                 failed_step="security_scanning",
             )
@@ -68,7 +78,7 @@ class ResultCollector:
             )
             return events
 
-        await self._repo.update_status(task_id, "mr_creating")
+        await self._repo.update_status(task_id, MR_CREATING)
         source_branch = f"dev/wp-{wp_id}"
         try:
             existing = await self._gitlab.check_existing_mr(source_branch)
@@ -94,12 +104,12 @@ class ResultCollector:
                 mr_url = mr_data["web_url"]
 
             await self._repo.update_status(
-                task_id, "mr_created", mr_iid=mr_iid, mr_url=mr_url
+                task_id, MR_CREATED, mr_iid=mr_iid, mr_url=mr_url
             )
         except Exception as e:
             await self._repo.update_status(
                 task_id,
-                "failed",
+                FAILED,
                 error_message=str(e),
                 failed_step="mr_creating",
             )
@@ -107,7 +117,7 @@ class ResultCollector:
             await self._notifier.notify_task_failed(wp_id, f"MR creation failed: {e}")
             return events
 
-        await self._repo.update_status(task_id, "qa_triggered")
+        await self._repo.update_status(task_id, QA_TRIGGERED)
         qa_event = Event.create(
             event_type=EventTypes.QA_RUN_REQUESTED,
             source_agent="dev-agent",
@@ -120,7 +130,7 @@ class ResultCollector:
             },
         )
         events.append(qa_event)
-        await self._repo.update_status(task_id, "reviewing")
+        await self._repo.update_status(task_id, REVIEWING)
 
         mr_event = Event.create(
             event_type=EventTypes.DEV_MR_CREATED,
@@ -150,7 +160,7 @@ class ResultCollector:
         l0_pass = summary.get("l0_gate") == "PASS"
 
         if l0_pass:
-            await self._repo.update_status(task.id, "completed")
+            await self._repo.update_status(task.id, COMPLETED)
             TASKS_COMPLETED.inc()
             # Record task duration metric
             duration_s = 0
@@ -174,13 +184,13 @@ class ResultCollector:
             RETRY_COUNT.inc()
             await self._repo.update_status(
                 task.id,
-                "failed",
+                FAILED,
                 error_message="QA L0 failed",
                 failed_step="qa",
             )
             # Retry: failed -> planning (allowed by VALID_TRANSITIONS)
             await self._repo.update_status(
-                task.id, "planning", retry_count=task.retry_count + 1
+                task.id, PLANNING, retry_count=task.retry_count + 1
             )
             logger.info(
                 "qa_retry_triggered", wp_id=task.wp_id, retry=task.retry_count + 1
@@ -188,7 +198,7 @@ class ResultCollector:
         else:
             await self._repo.update_status(
                 task.id,
-                "failed",
+                FAILED,
                 error_message="QA failed after retry",
                 failed_step="qa",
             )

@@ -9,6 +9,7 @@ from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
 from ..models.schemas import RiskLevel, SanitizedTask, WorkflowNode, WorkflowPlan
+from .domain.lifecycle.task_lifecycle import AWAITING_APPROVAL, FAILED, PLANNING
 from .repositories import DevTaskRecord, DevTaskRepositoryPort, DevWorkflowLogRepositoryPort
 from .workflow_planner import inject_project_id
 
@@ -196,12 +197,12 @@ class DevWorkflowExecutionUseCase:
         """Plan a workflow and execute it, or queue it for approval."""
         events: list[Event] = []
 
-        await repo.update_status(task_record.id, "planning")
+        await repo.update_status(task_record.id, PLANNING)
         plan = await self._planner.plan(sanitized)
         if plan is None:
             await repo.update_status(
                 task_record.id,
-                "failed",
+                FAILED,
                 error_message="Workflow planning failed",
             )
             self._record_task_failure("planning")
@@ -212,7 +213,7 @@ class DevWorkflowExecutionUseCase:
         if not validation.is_valid:
             await repo.update_status(
                 task_record.id,
-                "failed",
+                FAILED,
                 error_message=f"Validation: {'; '.join(validation.violations)}",
             )
             self._record_task_failure("validation")
@@ -238,7 +239,7 @@ class DevWorkflowExecutionUseCase:
         )
 
         if risk == RiskLevel.HIGH:
-            await repo.update_status(task_record.id, "awaiting_approval")
+            await repo.update_status(task_record.id, AWAITING_APPROVAL)
             logger.info("task_awaiting_approval", wp_id=sanitized.wp_id)
             return events
 
@@ -340,7 +341,7 @@ class DevWorkflowExecutionUseCase:
             )
             await repo.update_status(
                 task_record.id,
-                "failed",
+                FAILED,
                 error_message=str(exc),
             )
             self._record_task_failure("forge_error")
