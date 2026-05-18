@@ -60,8 +60,19 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.12"
 files = [
-    "shared/core/request_result.py",
+    "shared/core/__init__.py",
+    "shared/core/channels/__init__.py",
+    "shared/core/channels/base.py",
+    "shared/core/channels/registry.py",
+    "shared/core/channels/types.py",
+    "shared/core/event_publisher.py",
+    "shared/core/identity_ports.py",
     "shared/core/ids.py",
+    "shared/core/integration_ports.py",
+    "shared/core/messaging/__init__.py",
+    "shared/core/messaging/models.py",
+    "shared/core/messaging/platform_adapter.py",
+    "shared/core/request_result.py",
 ]
 # Pure ports / protocols / value-object helpers. No SQLAlchemy, no
 # FastAPI, no async LiteLLM clients in scope yet. `follow_imports =
