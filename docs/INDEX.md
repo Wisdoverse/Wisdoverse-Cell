@@ -93,6 +93,7 @@ Architecture Review Checklist before merge.
 | [Module Boundaries](./architecture/module-boundaries.md) | Bounded context catalog with responsibility, data, dependencies, and split fitness |
 | [Service Boundaries](./architecture/service-boundaries.md) | Decision matrix for runtime extraction; default modular-monolith posture |
 | [Data Ownership](./architecture/data-ownership.md) | Per-table write owner rules, cross-boundary read patterns, migration rules |
+| [Identity Boundary](./architecture/identity-boundary.md) | Single write-owner contract for the `users` table and the identity/user boundary |
 | [API Guidelines](./architecture/api-guidelines.md) | HTTP/REST/RPC contract: versioning, DTOs, error envelope, OpenAPI, idempotency |
 | [Event Guidelines](./architecture/event-guidelines.md) | Domain vs integration events, envelope, producer/consumer contract, schema evolution |
 | [Testing Strategy](./architecture/testing-strategy.md) | Test pyramid, test types per layer, CI gates, mocking and data strategy |
