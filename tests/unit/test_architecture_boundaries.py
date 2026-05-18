@@ -214,6 +214,68 @@ def test_services_and_shared_code_do_not_import_agent_internals() -> None:
                     raise AssertionError(f"{path} imports agent module {module}")
 
 
+def test_only_control_plane_imports_control_plane_orm() -> None:
+    """ORM tables and the legacy monolith repository are private to the
+    persistence layer. Code outside `shared.control_plane.*` must consume the
+    control plane through ports/stores, not by importing ORM rows or the
+    902-LOC `repository.ControlPlaneRepository` god-class directly.
+
+    Migration Plan §Stage 3 item 5 / Phase 1 audit P1-3 closure.
+    """
+    forbidden_prefixes = (
+        "shared.control_plane.tables",
+        "shared.control_plane.repository",
+    )
+    roots = [
+        Path("agents"),
+        Path("services"),
+        Path("shared/capabilities"),
+        Path("shared/messaging"),
+        Path("shared/evolution"),
+        Path("shared/infra"),
+        Path("shared/integrations"),
+    ]
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in _python_files(root):
+            for module in _imported_modules(path):
+                for prefix in forbidden_prefixes:
+                    if module == prefix or module.startswith(prefix + "."):
+                        raise AssertionError(
+                            f"{path} imports control-plane ORM module {module}; "
+                            f"use a port/store under shared.control_plane.*_store instead"
+                        )
+
+
+def test_capabilities_do_not_cross_import_each_other() -> None:
+    """Each capability under `shared/capabilities/` is its own bounded context.
+    Capability A must not import capability B's internals.
+
+    Migration Plan §Stage 3 item 5.
+    """
+    capabilities_root = Path("shared/capabilities")
+    if not capabilities_root.exists():
+        return
+    capability_names = {
+        entry.name
+        for entry in capabilities_root.iterdir()
+        if entry.is_dir() and (entry / "__init__.py").exists()
+    }
+    for capability in capability_names:
+        capability_root = capabilities_root / capability
+        for path in _python_files(capability_root):
+            for module in _imported_modules(path):
+                if not module.startswith("shared.capabilities."):
+                    continue
+                parts = module.split(".")
+                if len(parts) < 3 or parts[2] == capability:
+                    continue
+                raise AssertionError(
+                    f"{path} imports cross-capability module {module}"
+                )
+
+
 def test_runtime_code_does_not_import_llm_provider_sdks_directly() -> None:
     roots = [Path("agents"), Path("services"), Path("shared")]
     provider_modules = (
