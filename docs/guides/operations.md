@@ -540,6 +540,27 @@ Development services may call `create_tables()` for local bootstrap when
 `schema_managed_by_alembic` and fail visibly if a required table is missing.
 Do not rely on service startup to create or mutate production schemas.
 
+### 9.0.1 Static type checking
+
+Optional but recommended. Run before merging changes to modules in
+the type-check scope:
+
+```bash
+pip install -r requirements-dev.txt
+make typecheck
+```
+
+The active scope is the `files` list in `pyproject.toml`
+`[tool.mypy]`. Today it covers `shared/core/request_result.py` and
+`shared/core/ids.py`; expanding the list one module at a time is
+Stage 5 item 3 per
+[`docs/architecture/migration-plan.md`](../architecture/migration-plan.md).
+Each new module added to the list MUST pass `make typecheck` locally
+before merge.
+
+`requirements-dev.txt` is contributor-only tooling and is not shipped
+in production images.
+
 ### 9.1 Migration round-trip verification
 
 Run before tagging a release that touches `migrations/versions/`:

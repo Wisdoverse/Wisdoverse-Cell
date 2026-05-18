@@ -1,0 +1,13 @@
+# Developer / contributor tooling. NOT shipped in production images.
+#
+# Install with: pip install -r requirements-dev.txt
+# Or: pip install -r requirements.txt -r requirements-dev.txt
+#
+# Stage 5 (engineering quality) tools per
+# docs/architecture/migration-plan.md.
+
+# Static type checking. Scope is intentionally narrow (one module at
+# a time) per docs/architecture/migration-plan.md §Stage 5 item 3.
+# See pyproject.toml [tool.mypy] for the active include list and
+# `make typecheck` for the local entry point.
+mypy>=1.11.0
