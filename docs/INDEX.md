@@ -101,6 +101,7 @@ Architecture Review Checklist before merge.
 | [Architecture Review Checklist](./architecture/architecture-review-checklist.md) | Per-PR checklist used by author and reviewer |
 | [Release Checklist](./architecture/release-checklist.md) | Pre-release sign-off across CI, contracts, data, observability, security, and operations |
 | [Rollback Checklist](./architecture/rollback-checklist.md) | Per-failure-class rollback playbook: code, configuration, data, events, frontend |
+| [Per-Runtime Migrations](./architecture/per-runtime-migrations.md) | Stage 4 pre-condition: cutover plan for splitting the Alembic surface per runtime |
 | [Migration Plan](./architecture/migration-plan.md) | Six-stage phased roadmap (Stage 0 docs → Stage 5 quality) |
 | [Backend Target Architecture](./architecture/backend-target-architecture.md) | Phase 2 target architecture and first-step proposal |
 | [Backend Architecture Analysis](./architecture/backend-architecture-analysis.md) | Phase 1 read-only audit (current state) |
