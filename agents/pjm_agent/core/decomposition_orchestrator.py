@@ -267,7 +267,7 @@ class DecompositionOrchestrator:
                         ),
                         assignee_id=assignee_id,
                     )
-                    await decomposition.update_status(wp_id, "failed")
+                    await decomposition.update_status(wp_id, FAILED)
             except Exception:
                 logger.error("decompose_failed_save_error", wp_id=wp_id)
             # Notify user about decomposition failure via Feishu
@@ -383,7 +383,7 @@ class DecompositionOrchestrator:
                         ),
                         assignee_id=assignee_id,
                     )
-                    await decomposition.update_status(wp_id, "failed")
+                    await decomposition.update_status(wp_id, FAILED)
             except Exception:
                 pass
             return []
@@ -500,7 +500,7 @@ class DecompositionOrchestrator:
     async def approve_decomposition(self, wp_id: int, approved_by: str) -> dict | None:
         async with self._require_decomposition_store().transaction() as decomposition:
             record = await decomposition.get_by_wp_id(wp_id)
-            if not record or record.status != "pending":
+            if not record or record.status != PENDING:
                 return None
             approval_id = (record.decompose_result or {}).get("control_plane_approval_id")
             if approval_id and not approved_by:
@@ -528,7 +528,7 @@ class DecompositionOrchestrator:
                     wp_id=wp_id,
                 )
             # Transition to "writing" before attempting OP write
-            await decomposition.update_status(wp_id, "writing", approved_by=approved_by)
+            await decomposition.update_status(wp_id, WRITING, approved_by=approved_by)
             # Extract data while session is still active
             wbs_result = record.decompose_result
             project_id = record.project_id
@@ -565,7 +565,7 @@ class DecompositionOrchestrator:
                 task_count=task_count,
                 result_keys=sorted(op_result.keys()),
             )
-            final_status = "approved" if task_count > 0 or story_count > 0 else "write_failed"
+            final_status = APPROVED if task_count > 0 or story_count > 0 else WRITE_FAILED
             completion_event = self._create_event(
                 EventTypes.PM_DECOMPOSE_COMPLETED,
                 {
@@ -576,7 +576,7 @@ class DecompositionOrchestrator:
                 },
             )
             dev_event = None
-            if final_status == "approved":
+            if final_status == APPROVED:
                 dev_tasks = self._build_dev_tasks(wp_id, wbs_result)
                 if dev_tasks:
                     dev_event = Event.create(
@@ -592,7 +592,7 @@ class DecompositionOrchestrator:
 
             # Write succeeded — transition to "approved" and stage outgoing events.
             async with self._require_decomposition_store().transaction() as decomposition:
-                await decomposition.update_status(wp_id, "approved")
+                await decomposition.update_status(wp_id, APPROVED)
                 await self._stage_pjm_event(decomposition, completion_event)
                 staged_events.append(completion_event)
                 if dev_event is not None:
@@ -612,7 +612,7 @@ class DecompositionOrchestrator:
             # Write failed — transition to "write_failed"
             try:
                 async with self._require_decomposition_store().transaction() as decomposition:
-                    await decomposition.update_status(wp_id, "write_failed")
+                    await decomposition.update_status(wp_id, WRITE_FAILED)
                     await self._stage_pjm_event(decomposition, completion_event)
                     staged_events.append(completion_event)
             except Exception as inner_e:
@@ -785,7 +785,7 @@ class DecompositionOrchestrator:
         event: Event | None = None
         async with self._require_decomposition_store().transaction() as decomposition:
             record = await decomposition.get_by_wp_id(wp_id)
-            if not record or record.status != "pending":
+            if not record or record.status != PENDING:
                 return None
             subject = (record.decompose_result or {}).get("summary", "")
             approval_id = (record.decompose_result or {}).get("control_plane_approval_id")
@@ -813,7 +813,7 @@ class DecompositionOrchestrator:
                     "control_plane_rejection_required",
                     wp_id=wp_id,
                 )
-            await decomposition.update_status(wp_id, "rejected", approved_by=rejected_by)
+            await decomposition.update_status(wp_id, REJECTED, approved_by=rejected_by)
             event = self._create_event(
                 EventTypes.PM_DECOMPOSE_COMPLETED,
                 {
