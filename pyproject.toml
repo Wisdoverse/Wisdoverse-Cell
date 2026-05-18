@@ -60,6 +60,7 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.12"
 files = [
+    # Pure ports + value-object helpers (shared/core)
     "shared/core/__init__.py",
     "shared/core/channels/__init__.py",
     "shared/core/channels/base.py",
@@ -73,6 +74,28 @@ files = [
     "shared/core/messaging/models.py",
     "shared/core/messaging/platform_adapter.py",
     "shared/core/request_result.py",
+    # Per-runtime domain layers — lifecycle FSMs, aggregates, and
+    # verdict value objects. All pure Python with no I/O.
+    "agents/dev_agent/core/domain/__init__.py",
+    "agents/dev_agent/core/domain/lifecycle/__init__.py",
+    "agents/dev_agent/core/domain/lifecycle/task_lifecycle.py",
+    "agents/dev_agent/core/domain/task.py",
+    "agents/pjm_agent/core/domain/__init__.py",
+    "agents/pjm_agent/core/domain/decomposition.py",
+    "agents/pjm_agent/core/domain/lifecycle/__init__.py",
+    "agents/pjm_agent/core/domain/lifecycle/decomposition_lifecycle.py",
+    "agents/qa_agent/core/domain/__init__.py",
+    "agents/qa_agent/core/domain/acceptance_verdict.py",
+    "agents/qa_agent/core/domain/acceptance_verdicts.py",
+    "agents/requirement_manager/core/domain/__init__.py",
+    "agents/requirement_manager/core/domain/lifecycle/__init__.py",
+    "agents/requirement_manager/core/domain/lifecycle/requirement_lifecycle.py",
+    "agents/requirement_manager/core/domain/lifecycle/requirement_states.py",
+    "agents/requirement_manager/core/domain/requirement.py",
+    "shared/control_plane/domain/__init__.py",
+    "shared/control_plane/domain/agent_run_lifecycle.py",
+    "shared/control_plane/domain/lifecycle/__init__.py",
+    "shared/control_plane/domain/lifecycle/agent_run_lifecycle.py",
 ]
 # Pure ports / protocols / value-object helpers. No SQLAlchemy, no
 # FastAPI, no async LiteLLM clients in scope yet. `follow_imports =

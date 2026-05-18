@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from shared.core.ids import IDPrefix, generate_id
 from shared.schemas.event import EventTypes
@@ -138,7 +138,7 @@ async def complete_agent_wakeup_run(
         output_summary=output.get("summary") or output.get("status"),
         generated_by="control_plane_agent_runner",
     )
-    return artifact.artifact_id
+    return cast(str, artifact.artifact_id)
 
 
 async def fail_agent_wakeup_run(
