@@ -5,14 +5,8 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import String, pool
+from sqlalchemy import pool, text
 from sqlalchemy.ext.asyncio import async_engine_from_config
-
-# Wisdoverse Cell revision IDs are date-prefixed and can exceed the
-# Alembic default of varchar(32) (e.g.
-# `20260511_user_interaction_event_outbox` is 38 chars). Widen the
-# version table column so the chain survives on a fresh database.
-_VERSION_TABLE_COLUMN = String(length=64)
 
 # Import all models so metadata is populated for Alembic autogenerate checks.
 from agents.dev_agent.models.base import Base as DevAgentBase
@@ -93,6 +87,28 @@ target_metadata = [
     evolution_metadata,
 ]
 
+# Alembic 1.18 hardcodes `alembic_version.version_num` as `String(32)`
+# at table-creation time. Wisdoverse Cell revision IDs are
+# date-prefixed and can exceed 32 chars (e.g.
+# `20260511_user_interaction_event_outbox` is 38). Widen the column
+# unconditionally before the migration chain runs, so a fresh
+# database accepts every revision id.
+_ALEMBIC_VERSION_PREP_STATEMENTS: tuple[str, ...] = (
+    # Create the version table with the wider column on fresh databases
+    # so the very first revision_id can be inserted without overflowing
+    # the default varchar(32).
+    """
+    CREATE TABLE IF NOT EXISTS alembic_version (
+        version_num VARCHAR(64) NOT NULL,
+        CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+    );
+    """,
+    # On databases that already have alembic_version from an earlier
+    # Alembic run (varchar(32)), widen the column so future revision
+    # ids fit.
+    "ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(64);",
+)
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode — emit SQL to stdout."""
@@ -102,22 +118,21 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        version_table_pk=True,
-        version_table_type=_VERSION_TABLE_COLUMN,
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection):
-    context.configure(
-        connection=connection,
-        target_metadata=target_metadata,
-        version_table_pk=True,
-        version_table_type=_VERSION_TABLE_COLUMN,
-    )
+    context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()
+
+
+def _ensure_version_table_width(connection) -> None:
+    """Ensure alembic_version.version_num accepts our long revision ids."""
+    for statement in _ALEMBIC_VERSION_PREP_STATEMENTS:
+        connection.execute(text(statement))
 
 
 async def run_async_migrations() -> None:
@@ -130,6 +145,8 @@ async def run_async_migrations() -> None:
         poolclass=pool.NullPool,
     )
     async with connectable.connect() as connection:
+        await connection.run_sync(_ensure_version_table_width)
+        await connection.commit()
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()
 
