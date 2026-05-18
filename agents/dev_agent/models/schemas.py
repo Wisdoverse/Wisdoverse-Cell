@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from agents.dev_agent.core.task_lifecycle import VALID_TRANSITIONS as VALID_TRANSITIONS
+
 
 class RiskLevel(str, Enum):
     LOW = "LOW"
@@ -56,19 +58,3 @@ class SanitizedTask(TaskInput):
     """Task after passing InputSanitizer."""
 
     risk_level: RiskLevel = RiskLevel.MEDIUM
-
-
-VALID_TRANSITIONS: dict[str, set[str]] = {
-    "pending": {"planning", "expired", "failed"},
-    "planning": {"awaiting_approval", "executing", "failed"},
-    "awaiting_approval": {"executing", "failed"},
-    "executing": {"security_scanning", "failed"},
-    "security_scanning": {"mr_creating", "failed"},
-    "mr_creating": {"mr_created", "failed"},
-    "mr_created": {"qa_triggered", "failed"},
-    "qa_triggered": {"reviewing", "failed"},
-    "reviewing": {"completed", "failed"},
-    "completed": set(),
-    "failed": {"planning"},
-    "expired": set(),
-}

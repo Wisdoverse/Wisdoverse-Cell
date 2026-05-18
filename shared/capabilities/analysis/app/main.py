@@ -10,13 +10,17 @@ from shared.middleware.internal_auth import verify_internal_key
 from ..api.analysis import router as analysis_router
 from ..db.database import db_manager
 from ..service.agent import agent as _raw_agent
+from .plugins import AnalysisOutboxDispatcherPlugin
 
 app = create_agent_app(
     _raw_agent,
     title="Analysis Module",
     description="Analysis capability for daily reports, weekly reports, milestones, and quality review.",
     routers=[(analysis_router, [Depends(verify_internal_key)])],
-    plugins=[InfraHealthPlugin(db_manager=db_manager)],
+    plugins=[
+        InfraHealthPlugin(db_manager=db_manager),
+        AnalysisOutboxDispatcherPlugin(),
+    ],
     control_plane_enabled=settings.control_plane_enabled,
     control_plane_company_id=settings.control_plane_company_id,
 )

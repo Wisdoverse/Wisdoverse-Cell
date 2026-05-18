@@ -2,8 +2,9 @@
 
 import hmac
 
-from fastapi import HTTPException, Request
+from fastapi import Request
 
+from shared.api import raise_internal_auth_not_configured, raise_internal_auth_unauthorized
 from shared.config import settings
 
 
@@ -17,10 +18,7 @@ async def verify_internal_key(request: Request):
     expected = settings.internal_service_key.strip()
     if not expected:
         if _is_production():
-            raise HTTPException(
-                status_code=503,
-                detail="Internal service authentication is not configured",
-            )
+            raise_internal_auth_not_configured()
         return  # Skip auth if no key configured (dev mode)
     if not hmac.compare_digest(key, expected):
-        raise HTTPException(status_code=401, detail="Unauthorized")
+        raise_internal_auth_unauthorized()

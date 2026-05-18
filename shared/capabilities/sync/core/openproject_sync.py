@@ -2,15 +2,13 @@
 
 from typing import Any, Callable
 
-from shared.core import BitableTablePort, OpenProjectWorkPackagePort
-from shared.infra.event_bus import EventBus
+from shared.core import BitableTablePort, EventPublisher, OpenProjectWorkPackagePort
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
-from ..db.database import DatabaseManager
-from ..db.repository import SyncLogRepository, SyncMappingRepository
 from .locking import acquire_sync_lock
 from .mapper import data_mapper
+from .sync_ports import OpenProjectSyncOperation, OpenProjectSyncStore, SyncLockStore
 
 logger = get_logger("sync_capability.openproject")
 
@@ -20,18 +18,20 @@ class OpenProjectSyncEngine:
 
     def __init__(
         self,
-        db_manager: DatabaseManager,
+        sync_store: OpenProjectSyncStore,
+        lock_store: SyncLockStore,
         op_client: OpenProjectWorkPackagePort,
         bitable: BitableTablePort,
-        event_bus: EventBus | None = None,
+        event_publisher: EventPublisher | None = None,
         decompose_filter: Callable[[int], bool] | None = None,
         member_table_app_token: str | None = None,
         member_table_id: str | None = None,
     ):
-        self._db = db_manager
+        self._sync_store = sync_store
+        self._lock_store = lock_store
         self._op = op_client
         self._bitable = bitable
-        self._event_bus = event_bus
+        self._event_publisher = event_publisher
         self._decompose_filter = decompose_filter
         self._member_table_app_token = member_table_app_token
         self._member_table_id = member_table_id
@@ -53,28 +53,36 @@ class OpenProjectSyncEngine:
 
     async def _sync_single_work_package(
         self,
+        store: OpenProjectSyncOperation,
         wp: dict,
         wp_data: Any,
-        mapping_repo: SyncMappingRepository,
         member_map: dict[str, str],
         parent_ids: set[int],
+        staged_events: list[Event],
         trace_id: str | None,
     ) -> None:
-        mapping = await mapping_repo.get_by_op_id(wp_data.op_id)
+        mapping = await store.get_mapping_by_op_id(wp_data.op_id)
         fields = data_mapper.work_package_to_feishu_fields(wp_data, member_map)
 
         if mapping and mapping.feishu_record_id:
             await self._bitable.update_record(mapping.feishu_record_id, fields)
         else:
             record_id = await self._bitable.create_record(fields)
-            await mapping_repo.upsert(
+            await store.upsert_mapping(
                 op_id=wp_data.op_id,
                 record_id=record_id,
                 project_id=wp_data.project_id,
                 title=wp_data.title,
             )
 
-        await self._maybe_publish_decompose(wp, wp_data, parent_ids, trace_id)
+        await self._maybe_stage_decompose(
+            store,
+            wp,
+            wp_data,
+            parent_ids,
+            staged_events,
+            trace_id,
+        )
 
     async def sync_to_bitable(
         self,
@@ -83,7 +91,7 @@ class OpenProjectSyncEngine:
         trace_id: str | None = None,
     ) -> dict[str, Any]:
         """Mirror OpenProject work packages to the Feishu Bitable projection."""
-        async with acquire_sync_lock(self._db, "sync_op_to_feishu") as acquired:
+        async with acquire_sync_lock(self._lock_store, "sync_op_to_feishu") as acquired:
             if not acquired:
                 return {"status": "skipped", "reason": "lock_held"}
             return await self._do_sync_to_bitable(project_id, trace_id)
@@ -93,11 +101,9 @@ class OpenProjectSyncEngine:
         project_id: int | None,
         trace_id: str | None,
     ) -> dict[str, Any]:
-        async with self._db.session() as session:
-            log_repo = SyncLogRepository(session)
-            mapping_repo = SyncMappingRepository(session)
-
-            log = await log_repo.create("op_to_feishu", "started")
+        staged_events: list[Event] = []
+        async with self._sync_store.transaction() as store:
+            log = await store.create_log("op_to_feishu", "started")
             processed = 0
             errors = []
 
@@ -120,11 +126,12 @@ class OpenProjectSyncEngine:
                     try:
                         wp_data = data_mapper.op_to_work_package_data(wp)
                         await self._sync_single_work_package(
+                            store,
                             wp,
                             wp_data,
-                            mapping_repo,
                             member_map,
                             parent_ids,
+                            staged_events,
                             trace_id,
                         )
                         processed += 1
@@ -132,23 +139,29 @@ class OpenProjectSyncEngine:
                         logger.error("sync_wp_error", wp_id=wp.get("id"), error=str(e))
                         errors.append(str(e))
 
-                await log_repo.complete(log.id, processed)
-                return {"status": "success", "processed": processed, "errors": errors}
+                await store.complete_log(log.id, processed)
+                result = {"status": "success", "processed": processed, "errors": errors}
 
             except Exception as e:
                 logger.error("sync_op_to_feishu_failed", error=str(e))
-                await log_repo.complete(log.id, processed, str(e))
-                return {"status": "failed", "processed": processed, "error": str(e)}
+                await store.complete_log(log.id, processed, str(e))
+                result = {"status": "failed", "processed": processed, "error": str(e)}
 
-    async def _maybe_publish_decompose(
+        for event in staged_events:
+            await self._publish_staged_sync_event(event)
+        return result
+
+    async def _maybe_stage_decompose(
         self,
+        store: OpenProjectSyncOperation,
         wp: dict,
         wp_data: Any,
         parent_ids: set[int],
+        staged_events: list[Event],
         trace_id: str | None,
     ) -> None:
-        """Publish a decompose event if a work package needs refinement."""
-        if not self._event_bus or not self._decompose_filter:
+        """Stage a decompose event if a work package needs refinement."""
+        if not self._event_publisher or not self._decompose_filter:
             return
 
         wp_type = wp.get("_links", {}).get("type", {}).get("title", "")
@@ -180,10 +193,54 @@ class OpenProjectSyncEngine:
             },
             trace_id=trace_id,
         )
-        await self._event_bus.publish(decompose_event)
+        await store.stage_event(decompose_event)
+        staged_events.append(decompose_event)
         log_event = (
-            "decompose_event_published"
+            "decompose_event_staged"
             if needs_decompose
-            else "task_check_event_published"
+            else "task_check_event_staged"
         )
         logger.info(log_event, wp_id=wp_data.op_id, wp_type=wp_type)
+
+    async def _publish_staged_sync_event(self, event: Event) -> None:
+        """Publish a Sync event already persisted in the outbox."""
+        if self._event_publisher is None:
+            return
+        try:
+            ok = await self._event_publisher.publish(event)
+            if not ok:
+                raise RuntimeError("sync_event_publish_rejected")
+            await self._mark_sync_event_published(event)
+        except Exception as exc:
+            await self._mark_sync_event_failed(event, exc)
+            logger.error(
+                "sync_event_publish_failed",
+                event_id=event.event_id,
+                event_type=event.event_type,
+                error=str(exc),
+            )
+
+    async def _mark_sync_event_published(self, event: Event) -> None:
+        """Best-effort mark for a successfully published outbox event."""
+        try:
+            await self._sync_store.mark_event_published(event.event_id)
+        except Exception as exc:
+            logger.warning(
+                "sync_outbox_mark_published_failed",
+                event_id=event.event_id,
+                event_type=event.event_type,
+                error=str(exc),
+            )
+
+    async def _mark_sync_event_failed(self, event: Event, error: Exception) -> None:
+        """Best-effort failure recording for an outbox event publish attempt."""
+        try:
+            await self._sync_store.mark_event_failed(event.event_id, str(error))
+        except Exception as exc:
+            logger.warning(
+                "sync_outbox_mark_failed_failed",
+                event_id=event.event_id,
+                event_type=event.event_type,
+                publish_error=str(error),
+                error=str(exc),
+            )

@@ -6,6 +6,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from shared.api import ApiErrorCode
 from shared.messaging.outbound.api.admin import router as admin_router
 from shared.messaging.outbound.api.health import router as health_router
 
@@ -36,6 +37,30 @@ async def test_channel_gateway_admin_requires_internal_key(app: FastAPI) -> None
     assert missing.status_code == 401
     assert allowed.status_code == 200
     assert "adapters" in allowed.json()
+
+
+@pytest.mark.asyncio
+async def test_channel_gateway_adapter_not_found_uses_error_contract(
+    app: FastAPI,
+) -> None:
+    with patch("shared.middleware.internal_auth.settings") as mock_settings:
+        mock_settings.internal_service_key = "secret-key"
+        mock_settings.app_env = "test"
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            missing = await client.get(
+                "/api/admin/adapters/not-registered",
+                headers={"X-Internal-Key": "secret-key"},
+            )
+
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "Adapter not found"
+    assert (
+        missing.headers["x-error-code"]
+        == ApiErrorCode.OUTBOUND_ADAPTER_NOT_FOUND.value
+    )
 
 
 @pytest.mark.asyncio

@@ -5,11 +5,10 @@ from typing import Any
 from shared.core import BitableTablePort, OpenProjectWorkPackagePort
 from shared.utils.logger import get_logger
 
-from ..db.database import DatabaseManager
-from ..db.repository import SubtaskMappingRepository, SyncLogRepository
 from .locking import acquire_sync_lock
 from .mapper import data_mapper
 from .progress import calculate_progress_from_subtasks
+from .sync_ports import FeishuBitableSyncStore, SyncLockStore
 
 logger = get_logger("sync_capability.feishu_bitable")
 
@@ -19,27 +18,26 @@ class FeishuBitableSyncEngine:
 
     def __init__(
         self,
-        db_manager: DatabaseManager,
+        sync_store: FeishuBitableSyncStore,
+        lock_store: SyncLockStore,
         op_client: OpenProjectWorkPackagePort,
         bitable: BitableTablePort,
     ):
-        self._db = db_manager
+        self._sync_store = sync_store
+        self._lock_store = lock_store
         self._op = op_client
         self._bitable = bitable
 
     async def sync_progress_to_openproject(self) -> dict[str, Any]:
         """Read Feishu Bitable subtasks and update OpenProject parent progress."""
-        async with acquire_sync_lock(self._db, "sync_feishu_to_op") as acquired:
+        async with acquire_sync_lock(self._lock_store, "sync_feishu_to_op") as acquired:
             if not acquired:
                 return {"status": "skipped", "reason": "lock_held"}
             return await self._do_sync_progress_to_openproject()
 
     async def _do_sync_progress_to_openproject(self) -> dict[str, Any]:
-        async with self._db.session() as session:
-            log_repo = SyncLogRepository(session)
-            subtask_repo = SubtaskMappingRepository(session)
-
-            log = await log_repo.create("feishu_to_op", "started")
+        async with self._sync_store.transaction() as store:
+            log = await store.create_log("feishu_to_op", "started")
             processed = 0
             errors = []
 
@@ -59,7 +57,7 @@ class FeishuBitableSyncEngine:
                                 "subtask_name": record_data.subtask_name,
                             }
                         )
-                        await subtask_repo.upsert(
+                        await store.upsert_subtask(
                             parent_op_id=record_data.parent_op_id,
                             record_id=record_data.record_id,
                             name=record_data.subtask_name,
@@ -78,12 +76,12 @@ class FeishuBitableSyncEngine:
                         )
                         errors.append(str(e))
 
-                await log_repo.complete(log.id, processed)
+                await store.complete_log(log.id, processed)
                 return {"status": "success", "processed": processed, "errors": errors}
 
             except Exception as e:
                 logger.error("sync_feishu_to_op_failed", error=str(e))
-                await log_repo.complete(log.id, processed, str(e))
+                await store.complete_log(log.id, processed, str(e))
                 return {"status": "failed", "processed": processed, "error": str(e)}
 
     async def _update_parent_progress(

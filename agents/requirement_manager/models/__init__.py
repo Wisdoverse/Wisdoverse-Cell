@@ -8,6 +8,7 @@ from .requirement import (
     OpenQuestion,
     Requirement,
     RequirementCategory,
+    RequirementEventOutbox,
     RequirementPriority,
     RequirementStatus,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "Meeting",
     "Requirement",
     "OpenQuestion",
+    "RequirementEventOutbox",
     "RequirementStatus",
     "RequirementPriority",
     "RequirementCategory",

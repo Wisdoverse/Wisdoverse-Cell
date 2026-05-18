@@ -628,6 +628,7 @@ class SyncFailedPayload(BaseModel):
     model_config = ConfigDict(strict=True)
 
     error: str
+    error_code: str = "sync_failed"
     scope: str = "unknown"
 
 

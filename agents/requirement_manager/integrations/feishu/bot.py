@@ -199,8 +199,11 @@ class BotHandler:
     async def _send_export(self, chat_id: str, message_id: str) -> None:
         """Export PRD"""
         try:
-            # Import generator here to avoid circular import
-            from agents.requirement_manager.core.generator import generator
+            from agents.requirement_manager.core.generator import DocumentGenerator
+            from shared.control_plane.agent_prompt_config import (
+                resolve_agent_system_prompt,
+            )
+            from shared.infra.llm_gateway import llm_gateway
 
             # Get confirmed requirements
             requirements = await self.agent.get_confirmed_requirements()
@@ -213,6 +216,10 @@ class BotHandler:
                 return
 
             # Generate PRD
+            generator = DocumentGenerator(
+                llm=llm_gateway,
+                system_prompt_resolver=resolve_agent_system_prompt,
+            )
             result = await generator.generate_prd(requirements)
 
             # Build and send preview card

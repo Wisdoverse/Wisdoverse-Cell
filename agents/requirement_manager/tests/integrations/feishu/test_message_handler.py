@@ -258,7 +258,7 @@ class TestWhitelist:
 
 
 class TestDeduplication:
-    """_exists delegates to MessageRepository.get_by_feishu_message_id."""
+    """_exists delegates to the message store."""
 
     @pytest.fixture
     def recorder(self, mock_db_session):
@@ -268,7 +268,7 @@ class TestDeduplication:
     async def test_exists__new_message__returns_false(self, recorder, mock_message_repo):
         mock_message_repo.get_by_feishu_message_id = AsyncMock(return_value=None)
         with patch.object(
-            _msg_handler_mod, "MessageRepository",
+            _msg_handler_mod, "SqlAlchemyRequirementMessageStore",
             return_value=mock_message_repo,
         ):
             result = await recorder._exists("msg_new_001")
@@ -279,7 +279,7 @@ class TestDeduplication:
     async def test_exists__duplicate_message__returns_true(self, recorder, mock_message_repo):
         mock_message_repo.get_by_feishu_message_id = AsyncMock(return_value=MagicMock())
         with patch.object(
-            _msg_handler_mod, "MessageRepository",
+            _msg_handler_mod, "SqlAlchemyRequirementMessageStore",
             return_value=mock_message_repo,
         ):
             result = await recorder._exists("msg_dup_001")
@@ -412,7 +412,7 @@ class TestRecordFullFlow:
                 _msg_handler_mod, "settings"
             ) as mock_settings,
             patch.object(
-                _msg_handler_mod, "MessageRepository",
+                _msg_handler_mod, "SqlAlchemyRequirementMessageStore",
                 return_value=mock_message_repo,
             ),
             patch.object(
@@ -490,7 +490,7 @@ class TestRecordFullFlow:
         with (
             patch.object(_msg_handler_mod, "settings") as mock_settings,
             patch.object(
-                _msg_handler_mod, "MessageRepository",
+                _msg_handler_mod, "SqlAlchemyRequirementMessageStore",
                 return_value=mock_message_repo,
             ),
         ):
@@ -531,7 +531,7 @@ class TestRecordWithoutSessionManager:
         with (
             patch.object(_msg_handler_mod, "settings") as mock_settings,
             patch.object(
-                _msg_handler_mod, "MessageRepository",
+                _msg_handler_mod, "SqlAlchemyRequirementMessageStore",
                 return_value=mock_message_repo,
             ),
             patch.object(

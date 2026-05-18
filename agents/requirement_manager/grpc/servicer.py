@@ -6,10 +6,12 @@ Implements the RequirementService interface for the requirement manager agent.
 from typing import Optional
 
 import grpc
-from sqlalchemy import text
 
+from agents.requirement_manager.core.grpc_ports import RequirementGrpcStore
+from agents.requirement_manager.core.health_ports import RequirementHealthStore
 from agents.requirement_manager.db.database import db_manager
-from agents.requirement_manager.db.repository import RequirementRepository
+from agents.requirement_manager.db.grpc_store import SqlAlchemyRequirementGrpcStore
+from agents.requirement_manager.db.health_store import SqlAlchemyRequirementHealthStore
 from agents.requirement_manager.grpc import requirement_pb2 as pb2
 from agents.requirement_manager.grpc import requirement_pb2_grpc as pb2_grpc
 from agents.requirement_manager.models.requirement import Requirement, RequirementStatus
@@ -45,7 +47,12 @@ class RequirementServicer(pb2_grpc.RequirementServiceServicer):
     Handles requests from the Rust gateway and delegates to the requirement manager agent.
     """
 
-    def __init__(self, agent: Optional[RequirementManagerAgent] = None):
+    def __init__(
+        self,
+        agent: Optional[RequirementManagerAgent] = None,
+        requirement_store: RequirementGrpcStore | None = None,
+        health_store: RequirementHealthStore | None = None,
+    ):
         """
         Initialize the servicer.
 
@@ -54,6 +61,12 @@ class RequirementServicer(pb2_grpc.RequirementServiceServicer):
                    the servicer will work in stateless mode using only the repository.
         """
         self.agent = agent
+        self._requirements = requirement_store or SqlAlchemyRequirementGrpcStore(
+            db_manager
+        )
+        self._health_store = health_store or SqlAlchemyRequirementHealthStore(
+            db_manager
+        )
         logger.info("grpc_servicer_initialized", has_agent=agent is not None)
 
     async def ExtractRequirements(self, request: pb2.ExtractRequest, context) -> pb2.ExtractResponse:
@@ -87,13 +100,12 @@ class RequirementServicer(pb2_grpc.RequirementServiceServicer):
                 )
 
             # Convert requirements to protobuf
-            proto_requirements = []
-            async with db_manager.session() as session:
-                repo = RequirementRepository(session)
-                for req_id in result.requirements:
-                    req = await repo.get_by_id(req_id)
-                    if req:
-                        proto_requirements.append(_requirement_to_proto(req))
+            proto_requirements = [
+                _requirement_to_proto(req)
+                for req in await self._requirements.get_many(
+                    list(result.requirements)
+                )
+            ]
 
             return pb2.ExtractResponse(
                 success=True,
@@ -120,37 +132,26 @@ class RequirementServicer(pb2_grpc.RequirementServiceServicer):
         )
 
         try:
-            async with db_manager.session() as session:
-                repo = RequirementRepository(session)
+            status_filter = None
+            if request.status:
+                status_upper = request.status.upper()
+                if status_upper in [s.name for s in RequirementStatus]:
+                    status_filter = RequirementStatus[status_upper].value
 
-                # Parse status filter
-                status_filter = None
-                if request.status:
-                    status_upper = request.status.upper()
-                    if status_upper in [s.name for s in RequirementStatus]:
-                        status_filter = RequirementStatus[status_upper]
+            page = request.page if request.page > 0 else 1
+            page_size = request.page_size if request.page_size > 0 else 20
+            requirements, total = await self._requirements.list_requirements(
+                status=status_filter,
+                page=page,
+                page_size=page_size,
+            )
+            total_pages = (total + page_size - 1) // page_size
 
-                # Get requirements
-                page = request.page if request.page > 0 else 1
-                page_size = request.page_size if request.page_size > 0 else 20
-
-                if status_filter:
-                    requirements = await repo.list_by_status(status_filter.value)
-                else:
-                    requirements = await repo.list_all()
-
-                # Apply pagination
-                total = len(requirements)
-                total_pages = (total + page_size - 1) // page_size
-                start = (page - 1) * page_size
-                end = start + page_size
-                paginated = requirements[start:end]
-
-                return pb2.ListResponse(
-                    requirements=[_requirement_to_proto(r) for r in paginated],
-                    total=total,
-                    total_pages=total_pages,
-                )
+            return pb2.ListResponse(
+                requirements=[_requirement_to_proto(r) for r in requirements],
+                total=total,
+                total_pages=total_pages,
+            )
 
         except Exception as e:
             logger.error("grpc_list_requirements_error", error=str(e))
@@ -165,16 +166,14 @@ class RequirementServicer(pb2_grpc.RequirementServiceServicer):
         logger.info("grpc_get_requirement", id=request.id)
 
         try:
-            async with db_manager.session() as session:
-                repo = RequirementRepository(session)
-                req = await repo.get_by_id(request.id)
+            req = await self._requirements.get_by_id(request.id)
 
-                if not req:
-                    context.set_code(grpc.StatusCode.NOT_FOUND)
-                    context.set_details(f"Requirement {request.id} not found")
-                    return pb2.Requirement()
+            if not req:
+                context.set_code(grpc.StatusCode.NOT_FOUND)
+                context.set_details(f"Requirement {request.id} not found")
+                return pb2.Requirement()
 
-                return _requirement_to_proto(req)
+            return _requirement_to_proto(req)
 
         except Exception as e:
             logger.error("grpc_get_requirement_error", error=str(e))
@@ -211,24 +210,20 @@ class RequirementServicer(pb2_grpc.RequirementServiceServicer):
                         error="Failed to confirm requirement",
                     )
             else:
-                # Direct repository access
-                async with db_manager.session() as session:
-                    repo = RequirementRepository(session)
-                    req = await repo.confirm(
-                        request.id,
-                        confirmed_by=request.confirmed_by or "grpc_user",
-                    )
+                req = await self._requirements.confirm(
+                    request.id,
+                    confirmed_by=request.confirmed_by or "grpc_user",
+                )
 
-                    if req:
-                        return pb2.OperationResponse(
-                            success=True,
-                            requirement=_requirement_to_proto(req),
-                        )
-                    else:
-                        return pb2.OperationResponse(
-                            success=False,
-                            error="Requirement not found or already processed",
-                        )
+                if req:
+                    return pb2.OperationResponse(
+                        success=True,
+                        requirement=_requirement_to_proto(req),
+                    )
+                return pb2.OperationResponse(
+                    success=False,
+                    error="Requirement not found or already processed",
+                )
 
         except Exception as e:
             logger.error("grpc_confirm_requirement_error", error=str(e))
@@ -267,24 +262,21 @@ class RequirementServicer(pb2_grpc.RequirementServiceServicer):
                         error="Failed to reject requirement",
                     )
             else:
-                # Direct repository access
-                async with db_manager.session() as session:
-                    repo = RequirementRepository(session)
-                    req = await repo.reject(
-                        request.id,
-                        reason=request.reason or "Rejected via gateway",
-                    )
+                req = await self._requirements.reject(
+                    request.id,
+                    reason=request.reason or "Rejected via gateway",
+                    rejected_by=request.rejected_by or "grpc_user",
+                )
 
-                    if req:
-                        return pb2.OperationResponse(
-                            success=True,
-                            requirement=_requirement_to_proto(req),
-                        )
-                    else:
-                        return pb2.OperationResponse(
-                            success=False,
-                            error="Requirement not found or already processed",
-                        )
+                if req:
+                    return pb2.OperationResponse(
+                        success=True,
+                        requirement=_requirement_to_proto(req),
+                    )
+                return pb2.OperationResponse(
+                    success=False,
+                    error="Requirement not found or already processed",
+                )
 
         except Exception as e:
             logger.error("grpc_reject_requirement_error", error=str(e))
@@ -304,24 +296,18 @@ class RequirementServicer(pb2_grpc.RequirementServiceServicer):
         )
 
         try:
-            async with db_manager.session() as session:
-                repo = RequirementRepository(session)
+            page = request.page if request.page > 0 else 1
+            page_size = request.page_size if request.page_size > 0 else 20
+            requirements, total = await self._requirements.search_requirements(
+                keyword=request.keyword,
+                page=page,
+                page_size=page_size,
+            )
 
-                # Search by keyword in title and description
-                requirements = await repo.search(request.keyword)
-
-                # Apply pagination
-                page = request.page if request.page > 0 else 1
-                page_size = request.page_size if request.page_size > 0 else 20
-                total = len(requirements)
-                start = (page - 1) * page_size
-                end = start + page_size
-                paginated = requirements[start:end]
-
-                return pb2.SearchResponse(
-                    requirements=[_requirement_to_proto(r) for r in paginated],
-                    total=total,
-                )
+            return pb2.SearchResponse(
+                requirements=[_requirement_to_proto(r) for r in requirements],
+                total=total,
+            )
 
         except Exception as e:
             logger.error("grpc_search_requirements_error", error=str(e))
@@ -336,13 +322,9 @@ class RequirementServicer(pb2_grpc.RequirementServiceServicer):
         services = {}
         healthy = True
 
-        # Check database
-        try:
-            async with db_manager.session() as session:
-                await session.execute(text("SELECT 1"))
-            services["db"] = True
-        except Exception:
-            services["db"] = False
+        db_ready = await self._health_store.is_database_ready()
+        services["db"] = db_ready
+        if not db_ready:
             healthy = False
 
         # Check agent if available

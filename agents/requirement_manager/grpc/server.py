@@ -10,6 +10,8 @@ from typing import Optional
 
 from grpc import aio
 
+from agents.requirement_manager.core.grpc_ports import RequirementGrpcStore
+from agents.requirement_manager.core.health_ports import RequirementHealthStore
 from agents.requirement_manager.grpc import requirement_pb2 as pb2
 from agents.requirement_manager.grpc import requirement_pb2_grpc as pb2_grpc
 from agents.requirement_manager.grpc.servicer import RequirementServicer
@@ -25,6 +27,8 @@ DEFAULT_GRPC_PORT = 50051
 async def create_server(
     agent: Optional[RequirementManagerAgent] = None,
     port: int = None,
+    requirement_store: RequirementGrpcStore | None = None,
+    health_store: RequirementHealthStore | None = None,
 ) -> aio.Server:
     """
     Create a gRPC server instance.
@@ -51,7 +55,11 @@ async def create_server(
     )
 
     # Add servicer
-    servicer = RequirementServicer(agent=agent)
+    servicer = RequirementServicer(
+        agent=agent,
+        requirement_store=requirement_store,
+        health_store=health_store,
+    )
     pb2_grpc.add_RequirementServiceServicer_to_server(servicer, server)
 
     # Add reflection for debugging (optional)

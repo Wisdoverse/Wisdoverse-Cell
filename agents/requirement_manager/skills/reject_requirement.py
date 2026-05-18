@@ -5,7 +5,7 @@ Triggered by /reject command or card button callback.
 """
 from datetime import UTC, datetime
 
-from agents.requirement_manager.db.repository import RequirementRepository
+from agents.requirement_manager.db.skill_store import build_requirement_skill_store
 from agents.requirement_manager.models import RequirementStatus
 from shared.infra.skill import BaseSkill, Permission, SkillContext, SkillError, SkillResult
 from shared.messaging.inbound import AgentResponse, UnifiedCard
@@ -31,17 +31,17 @@ class RejectSkill(BaseSkill):
         if context.db is None:
             raise SkillError("数据库不可用")
 
-        repo = RequirementRepository(context.db)
+        store = build_requirement_skill_store(context.db)
 
-        requirement = await repo.get_by_id(requirement_id)
+        requirement = await store.get_by_id(requirement_id)
         if not requirement:
             raise SkillError(f"找不到需求 {requirement_id}")
 
         if requirement.status != RequirementStatus.PENDING.value:
             raise SkillError(f"该需求已被处理（当前状态: {requirement.status}）")
 
-        await repo.reject(requirement_id, reason, context.user.id)
-        await context.db.commit()
+        await store.reject(requirement_id, reason, context.user.id)
+        await store.commit()
 
         content = f"**{requirement.title}**\n\n"
         if reason:

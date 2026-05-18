@@ -5,11 +5,10 @@ Generates exported documents such as PRDs and open-question lists.
 """
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Protocol
 
 from pydantic import BaseModel
 
-from shared.control_plane.agent_prompt_config import resolve_agent_system_prompt
-from shared.infra.llm_gateway import llm_gateway
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.utils.logger import get_logger
 
@@ -36,6 +35,25 @@ class QuestionExportResult(BaseModel):
     format: str = "markdown"
     generated_at: datetime
     questions_count: int
+
+
+class DocumentGenerationLLM(Protocol):
+    async def complete(
+        self,
+        *,
+        prompt: str,
+        agent_id: str,
+        task_type: str,
+        temperature: float = 0,
+        max_tokens: int | None = None,
+        system_prompt: str | None = None,
+    ) -> str:
+        """Complete a document-generation prompt."""
+
+
+class SystemPromptResolver(Protocol):
+    async def __call__(self, agent_id: str, default_prompt: str) -> str:
+        """Resolve the deployed system prompt for an agent."""
 
 
 def build_prd_generation_prompt(
@@ -73,10 +91,21 @@ class DocumentGenerator:
     2. Direct template-based open-question list generation without the LLM.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        llm: DocumentGenerationLLM,
+        system_prompt_resolver: SystemPromptResolver,
+        prd_prompt_template: str | None = None,
+    ):
+        self._llm = llm
+        self._system_prompt_resolver = system_prompt_resolver
+
         # Load the PRD generation prompt.
-        prompt_path = Path(__file__).parent.parent / "prompts" / "generate_prd.md"
-        self.prd_prompt_template = prompt_path.read_text(encoding="utf-8")
+        if prd_prompt_template is None:
+            prompt_path = Path(__file__).parent.parent / "prompts" / "generate_prd.md"
+            prd_prompt_template = prompt_path.read_text(encoding="utf-8")
+        self.prd_prompt_template = prd_prompt_template
 
     async def generate_prd(
         self,
@@ -122,13 +151,13 @@ class DocumentGenerator:
 
         try:
             # Call the LLM for generation.
-            content = await llm_gateway.complete(
+            content = await self._llm.complete(
                 prompt=prompt,
                 agent_id="requirement-manager",
                 task_type="document_generation",
                 temperature=0.3,  # Slightly increase creativity.
                 max_tokens=8192,  # PRDs may be long.
-                system_prompt=await resolve_agent_system_prompt(
+                system_prompt=await self._system_prompt_resolver(
                     "requirement-manager",
                     _DEFAULT_SYSTEM_PROMPT,
                 ),
@@ -362,7 +391,3 @@ class DocumentGenerator:
         ])
 
         return "\n".join(lines)
-
-
-# Global generator instance.
-generator = DocumentGenerator()

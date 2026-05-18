@@ -4,15 +4,14 @@ Feedback API.
 Handles requirement confirmation, rejection, and question answers by
 delegating business logic to the agent.
 """
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends
 
+from shared.api import raise_question_not_found, raise_requirement_not_found
 from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
-from ..db.database import get_db
-from ..db.repository import QuestionRepository
-from ..service import get_agent
+from ..core.feedback_use_cases import RequirementFeedbackUseCase
+from .dependencies import get_requirement_feedback_use_case
 from .schemas import (
     AnswerQuestionRequest,
     BatchConfirmRequest,
@@ -33,17 +32,16 @@ logger = get_logger("api.feedback")
 async def confirm_requirement(
     requirement_id: str,
     request: ConfirmRequest,
-    session: AsyncSession = Depends(get_db)
+    feedback: RequirementFeedbackUseCase = Depends(get_requirement_feedback_use_case),
 ):
     """Confirm a requirement."""
-    requirement = await get_agent().confirm_requirement(
+    requirement = await feedback.confirm_requirement(
         requirement_id=requirement_id,
         confirmed_by=request.confirmed_by,
-        session=session
     )
 
     if not requirement:
-        raise HTTPException(status_code=404, detail="Requirement not found")
+        raise_requirement_not_found()
 
     return RequirementOut.model_validate(requirement)
 
@@ -52,18 +50,17 @@ async def confirm_requirement(
 async def reject_requirement(
     requirement_id: str,
     request: RejectRequest,
-    session: AsyncSession = Depends(get_db)
+    feedback: RequirementFeedbackUseCase = Depends(get_requirement_feedback_use_case),
 ):
     """Reject a requirement."""
-    requirement = await get_agent().reject_requirement(
+    requirement = await feedback.reject_requirement(
         requirement_id=requirement_id,
         reason=request.reason,
         rejected_by=request.rejected_by,
-        session=session
     )
 
     if not requirement:
-        raise HTTPException(status_code=404, detail="Requirement not found")
+        raise_requirement_not_found()
 
     return RequirementOut.model_validate(requirement)
 
@@ -72,102 +69,88 @@ async def reject_requirement(
 async def answer_question(
     question_id: str,
     request: AnswerQuestionRequest,
-    session: AsyncSession = Depends(get_db)
+    feedback: RequirementFeedbackUseCase = Depends(get_requirement_feedback_use_case),
 ):
     """Answer an open clarification question."""
-    repo = QuestionRepository(session)
-
-    question = await repo.answer(
+    question = await feedback.answer_question(
         question_id,
         answer=request.answer,
-        answered_by=request.answered_by
+        answered_by=request.answered_by,
     )
     if not question:
-        raise HTTPException(status_code=404, detail="Question not found")
-
-    logger.info(
-        "question_answered",
-        question_id=question_id,
-        answered_by=request.answered_by
-    )
+        raise_question_not_found()
 
     return OpenQuestionOut.model_validate(question)
 
 
 @router.get("/questions/open", response_model=list[OpenQuestionOut])
 async def list_open_questions(
-    session: AsyncSession = Depends(get_db)
+    feedback: RequirementFeedbackUseCase = Depends(get_requirement_feedback_use_case),
 ):
     """List all unanswered questions."""
-    repo = QuestionRepository(session)
-
-    questions = await repo.list_open()
+    questions = await feedback.list_open_questions()
     return [OpenQuestionOut.model_validate(q) for q in questions]
 
 
 @router.post("/requirements/batch/confirm", response_model=BatchOperationResponse)
 async def batch_confirm_requirements(
     request: BatchConfirmRequest,
+    feedback: RequirementFeedbackUseCase = Depends(get_requirement_feedback_use_case),
 ):
     """
     Batch-confirm requirements.
 
     Confirms multiple requirements in one request for batch workflows.
     """
-    results = await get_agent().batch_confirm_requirements(
+    result = await feedback.batch_confirm_requirements(
         requirement_ids=request.requirement_ids,
         confirmed_by=request.confirmed_by
     )
 
-    succeeded = sum(1 for r in results if r["success"])
-    failed = len(results) - succeeded
-
     logger.info(
         "batch_confirm_completed",
         total=len(request.requirement_ids),
-        succeeded=succeeded,
-        failed=failed,
+        succeeded=result.succeeded,
+        failed=result.failed,
         confirmed_by=request.confirmed_by
     )
 
     return BatchOperationResponse(
-        total=len(results),
-        succeeded=succeeded,
-        failed=failed,
-        results=[BatchOperationResult(**r) for r in results]
+        total=result.total,
+        succeeded=result.succeeded,
+        failed=result.failed,
+        results=[BatchOperationResult(**item) for item in result.results]
     )
 
 
 @router.post("/requirements/batch/reject", response_model=BatchOperationResponse)
 async def batch_reject_requirements(
     request: BatchRejectRequest,
+    feedback: RequirementFeedbackUseCase = Depends(get_requirement_feedback_use_case),
 ):
     """
     Batch-reject requirements.
 
     Rejects multiple requirements with the same rejection reason.
     """
-    results = await get_agent().batch_reject_requirements(
+    result = await feedback.batch_reject_requirements(
         requirement_ids=request.requirement_ids,
         reason=request.reason,
         rejected_by=request.rejected_by
     )
 
-    succeeded = sum(1 for r in results if r["success"])
-    failed = len(results) - succeeded
-
     logger.info(
         "batch_reject_completed",
         total=len(request.requirement_ids),
-        succeeded=succeeded,
-        failed=failed,
+        succeeded=result.succeeded,
+        failed=result.failed,
         reason_length=len(request.reason or ""),
         rejected_by_hash=hash_identifier(request.rejected_by),
     )
 
     return BatchOperationResponse(
-        total=len(results),
-        succeeded=succeeded,
-        failed=failed,
-        results=[BatchOperationResult(**r) for r in results]
+        total=result.total,
+        succeeded=result.succeeded,
+        failed=result.failed,
+        results=[BatchOperationResult(**item) for item in result.results]
     )

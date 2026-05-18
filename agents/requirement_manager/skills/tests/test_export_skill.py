@@ -74,7 +74,7 @@ class TestExportSkillExecute:
 
         skill = ExportSkill()
         with patch(
-            "agents.requirement_manager.skills.export.RequirementRepository",
+            "agents.requirement_manager.skills.export.build_requirement_skill_store",
             mock_repo_class,
         ):
             result = await skill.execute(context)
@@ -106,7 +106,7 @@ class TestExportSkillExecute:
 
         skill = ExportSkill()
         with patch(
-            "agents.requirement_manager.skills.export.RequirementRepository",
+            "agents.requirement_manager.skills.export.build_requirement_skill_store",
             mock_repo_class,
         ):
             result = await skill.execute(context)
@@ -135,7 +135,7 @@ class TestExportSkillExecute:
 
         skill = ExportSkill()
         with patch(
-            "agents.requirement_manager.skills.export.RequirementRepository",
+            "agents.requirement_manager.skills.export.build_requirement_skill_store",
             mock_repo_class,
         ):
             result = await skill.execute(context)

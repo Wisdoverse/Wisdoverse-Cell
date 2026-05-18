@@ -2,12 +2,11 @@
 
 from typing import Any, Callable
 
-from shared.core import BitableTablePort, OpenProjectWorkPackagePort
-from shared.infra.event_bus import EventBus
+from shared.core import BitableTablePort, EventPublisher, OpenProjectWorkPackagePort
 
-from ..db.database import DatabaseManager
 from .feishu_bitable_sync import FeishuBitableSyncEngine
 from .openproject_sync import OpenProjectSyncEngine
+from .sync_ports import FeishuBitableSyncStore, OpenProjectSyncStore, SyncLockStore
 
 
 class SyncEngine:
@@ -21,28 +20,31 @@ class SyncEngine:
 
     def __init__(
         self,
-        db_manager: DatabaseManager,
+        openproject_store: OpenProjectSyncStore,
+        lock_store: SyncLockStore,
+        feishu_bitable_store: FeishuBitableSyncStore,
         op_client: OpenProjectWorkPackagePort,
         bitable: BitableTablePort,
-        event_bus: EventBus | None = None,
+        event_publisher: EventPublisher | None = None,
         decompose_filter: Callable[[int], bool] | None = None,
         member_table_app_token: str | None = None,
         member_table_id: str | None = None,
     ):
-        self._db = db_manager
         self._op = op_client
         self._bitable = bitable
         self.openproject = OpenProjectSyncEngine(
-            db_manager=db_manager,
+            sync_store=openproject_store,
+            lock_store=lock_store,
             op_client=op_client,
             bitable=bitable,
-            event_bus=event_bus,
+            event_publisher=event_publisher,
             decompose_filter=decompose_filter,
             member_table_app_token=member_table_app_token,
             member_table_id=member_table_id,
         )
         self.feishu_bitable = FeishuBitableSyncEngine(
-            db_manager=db_manager,
+            sync_store=feishu_bitable_store,
+            lock_store=lock_store,
             op_client=op_client,
             bitable=bitable,
         )

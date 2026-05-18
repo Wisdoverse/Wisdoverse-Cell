@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from shared.control_plane.agent_operation_ports import ControlPlaneAgentOperationStore
 from shared.control_plane.agent_runner import AgentWakeupError, ControlPlaneAgentRunner
 from shared.control_plane.models import AgentRunStatus
-from shared.control_plane.repository import ControlPlaneRepository
 from shared.core.ids import generate_ulid
 
 _DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 300
@@ -54,7 +54,7 @@ class ControlPlaneHeartbeatScheduler:
 
     def __init__(
         self,
-        repo: ControlPlaneRepository,
+        repo: ControlPlaneAgentOperationStore,
         *,
         runner: ControlPlaneAgentRunner | None = None,
     ) -> None:

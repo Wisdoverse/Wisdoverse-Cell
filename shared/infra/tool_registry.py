@@ -216,19 +216,21 @@ async def _check_tool_budget(
 
     try:
         from shared.control_plane.budget_guard import BudgetGuard
+        from shared.control_plane.budget_guard_store import (
+            SqlAlchemyControlPlaneBudgetGuardStore,
+        )
         from shared.control_plane.database import control_plane_db_manager
         from shared.control_plane.models import BudgetPeriod, BudgetScope
-        from shared.control_plane.repository import ControlPlaneRepository
 
         session_provider = (
             context.control_plane_session_provider
             or control_plane_db_manager.session
         )
         async with session_provider() as session:
-            repo = ControlPlaneRepository(session)
+            store = SqlAlchemyControlPlaneBudgetGuardStore(session)
             budget_id: str | None = None
             if _tool_budget_enforced():
-                decision = await BudgetGuard(repo).ensure_allowed(
+                decision = await BudgetGuard(store).ensure_allowed(
                     company_id=company_id,
                     scope=BudgetScope(scope_value),
                     scope_id=scope_id,
@@ -270,18 +272,20 @@ async def _record_tool_budget_usage(
 
     try:
         from shared.control_plane.budget_guard import BudgetGuard
-        from shared.control_plane.repository import ControlPlaneRepository
+        from shared.control_plane.budget_guard_store import (
+            SqlAlchemyControlPlaneBudgetGuardStore,
+        )
 
         budget_event: dict[str, Any] | None = None
         async with reservation.session_provider() as session:
-            repo = ControlPlaneRepository(session)
+            store = SqlAlchemyControlPlaneBudgetGuardStore(session)
             if reservation.run_id:
-                await repo.add_agent_run_usage(
+                await store.add_agent_run_usage(
                     reservation.run_id,
                     cost_usd=reservation.cost_usd,
                 )
             if reservation.budget_id:
-                usage = await BudgetGuard(repo).record_usage(
+                usage = await BudgetGuard(store).record_usage(
                     company_id=reservation.company_id,
                     budget_id=reservation.budget_id,
                     cost_usd=reservation.cost_usd,

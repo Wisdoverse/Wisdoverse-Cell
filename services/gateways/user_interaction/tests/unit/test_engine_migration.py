@@ -11,12 +11,9 @@ import pytest
 
 @pytest.fixture
 def chat_svc():
-    with patch("services.gateways.user_interaction.core.chat_service.llm_gateway") as mock_gw:
-        from services.gateways.user_interaction.core.chat_service import ChatService
+    from services.gateways.user_interaction.core.chat_service import ChatService
 
-        svc = ChatService()
-        svc._llm = mock_gw
-        return svc
+    return ChatService(llm=AsyncMock())
 
 
 def _text_resp(text="done"):

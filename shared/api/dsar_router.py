@@ -9,8 +9,9 @@ import hashlib
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
+from shared.api import raise_dsar_approval_required
 from shared.control_plane import ApprovalGateService, ApprovalRequiredError
 from shared.middleware.internal_auth import verify_internal_key
 from shared.schemas.dsar import DSARRequest, DSARResult
@@ -99,7 +100,7 @@ def create_dsar_router(
                     approval_id=body.approval_id,
                     error=str(exc),
                 )
-                raise HTTPException(status_code=403, detail=str(exc)) from exc
+                raise_dsar_approval_required(str(exc))
 
         result = await dsar_service.delete_user_data(body.user_id, dry_run=dry_run)
 

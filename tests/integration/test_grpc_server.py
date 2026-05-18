@@ -7,7 +7,7 @@ as a deprecated compatibility entry point and must not expose capability
 runtime classes.
 """
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -57,18 +57,17 @@ class TestRequirementServicer:
     @pytest.mark.asyncio
     async def test_health_check_uses_requirements_boundary(self, mock_context):
         """HealthCheck should execute through the canonical servicer."""
-        servicer = RequirementServicer(agent=None)
+        health_store = AsyncMock()
+        health_store.is_database_ready = AsyncMock(return_value=True)
+        servicer = RequirementServicer(agent=None, health_store=health_store)
 
-        with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
-            mock_session = AsyncMock()
-            mock_db.session.return_value.__aenter__.return_value = mock_session
-
-            response = await servicer.HealthCheck(pb2.HealthRequest(), mock_context)
+        response = await servicer.HealthCheck(pb2.HealthRequest(), mock_context)
 
         assert response.healthy is True
         assert response.version == "1.0.0"
         assert response.services["db"] is True
         assert response.services["agent"] is False
+        health_store.is_database_ready.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_list_requirements_uses_requirements_repository(
@@ -76,27 +75,29 @@ class TestRequirementServicer:
         mock_context,
         mock_requirement,
     ):
-        """ListRequirements should use the requirement manager agent repository."""
-        servicer = RequirementServicer(agent=None)
+        """ListRequirements should use the requirement manager gRPC store."""
+        requirement_store = AsyncMock()
+        requirement_store.list_requirements = AsyncMock(
+            return_value=([mock_requirement], 1)
+        )
+        servicer = RequirementServicer(
+            agent=None,
+            requirement_store=requirement_store,
+        )
 
-        with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
-            mock_session = AsyncMock()
-            mock_db.session.return_value.__aenter__.return_value = mock_session
-
-            with patch("agents.requirement_manager.grpc.servicer.RequirementRepository") as repo_cls:
-                repo = AsyncMock()
-                repo.list_all.return_value = [mock_requirement]
-                repo_cls.return_value = repo
-
-                response = await servicer.ListRequirements(
-                    pb2.ListRequest(page=1, page_size=20),
-                    mock_context,
-                )
+        response = await servicer.ListRequirements(
+            pb2.ListRequest(page=1, page_size=20),
+            mock_context,
+        )
 
         assert response.total == 1
         assert response.total_pages == 1
         assert response.requirements[0].id == "req_001"
-        repo.list_all.assert_called_once()
+        requirement_store.list_requirements.assert_awaited_once_with(
+            status=None,
+            page=1,
+            page_size=20,
+        )
 
     @pytest.mark.asyncio
     async def test_confirm_requirement_uses_agent_boundary(self, mock_context, mock_requirement):
@@ -124,33 +125,29 @@ class TestRequirementServicer:
         mock_context,
         mock_requirement,
     ):
-        """ExtractRequirements should call the injected agent and canonical repository."""
+        """ExtractRequirements should call the injected agent and gRPC store."""
         agent = AsyncMock()
         result = MagicMock()
         result.meeting_id = "meeting_001"
         result.requirements = ["req_001"]
         result.open_questions = ["Clarify priority"]
         agent.ingest_meeting.return_value = result
-        servicer = RequirementServicer(agent=agent)
+        requirement_store = AsyncMock()
+        requirement_store.get_many = AsyncMock(return_value=[mock_requirement])
+        servicer = RequirementServicer(
+            agent=agent,
+            requirement_store=requirement_store,
+        )
 
-        with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
-            mock_session = AsyncMock()
-            mock_db.session.return_value.__aenter__.return_value = mock_session
-
-            with patch("agents.requirement_manager.grpc.servicer.RequirementRepository") as repo_cls:
-                repo = AsyncMock()
-                repo.get_by_id.return_value = mock_requirement
-                repo_cls.return_value = repo
-
-                response = await servicer.ExtractRequirements(
-                    pb2.ExtractRequest(
-                        content="We need offline mode.",
-                        source="chat",
-                        context="Product meeting",
-                        participants=["Alice", "Bob"],
-                    ),
-                    mock_context,
-                )
+        response = await servicer.ExtractRequirements(
+            pb2.ExtractRequest(
+                content="We need offline mode.",
+                source="chat",
+                context="Product meeting",
+                participants=["Alice", "Bob"],
+            ),
+            mock_context,
+        )
 
         assert response.success is True
         assert response.meeting_id == "meeting_001"

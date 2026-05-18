@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from shared.api import ApiErrorCode
+
 
 @pytest.fixture
 def mock_agent():
@@ -161,7 +163,34 @@ async def test_generate_daily_error(test_app, mock_agent):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post("/api/v1/analysis/daily")
     assert resp.status_code == 500
-    assert "Daily report generation failed" in resp.json()["detail"]
+    assert resp.json()["detail"] == "Daily report generation failed. Please retry later."
+    assert resp.headers["x-error-code"] == ApiErrorCode.ANALYSIS_DAILY_REPORT_FAILED.value
+
+
+@pytest.mark.asyncio
+async def test_generate_weekly_error(test_app, mock_agent):
+    """Weekly report generation failure should expose a stable error code."""
+    mock_agent.handle_request.side_effect = Exception("bitable error")
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/v1/analysis/weekly")
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == "Weekly report generation failed. Please retry later."
+    assert resp.headers["x-error-code"] == ApiErrorCode.ANALYSIS_WEEKLY_REPORT_FAILED.value
+
+
+@pytest.mark.asyncio
+async def test_check_risks_error(test_app, mock_agent):
+    """Risk check failure should expose a stable error code."""
+    mock_agent.handle_request.side_effect = Exception("bitable error")
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/v1/analysis/risks")
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == "Risk check failed. Please retry later."
+    assert resp.headers["x-error-code"] == ApiErrorCode.ANALYSIS_RISK_CHECK_FAILED.value
 
 
 @pytest.mark.asyncio

@@ -9,10 +9,17 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field
 
+from shared.api import (
+    raise_a2a_auth_invalid_token,
+    raise_a2a_auth_missing_or_invalid,
+    raise_a2a_auth_token_expired,
+    raise_a2a_missing_required_scope,
+    raise_a2a_rate_limit_exceeded,
+)
 from shared.config import settings
 
 
@@ -105,17 +112,9 @@ def decode_jwt_token(token: str) -> TokenPayload:
         )
         return TokenPayload.model_validate(payload)
     except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise_a2a_auth_token_expired()
     except jwt.InvalidTokenError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid token: {e}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise_a2a_auth_invalid_token(str(e))
 
 
 # API Key storage (in production, use Redis or database)
@@ -189,11 +188,7 @@ async def get_auth_context(
             )
 
     # No valid auth
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Missing or invalid authentication",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    raise_a2a_auth_missing_or_invalid()
 
 
 async def get_optional_auth_context(
@@ -249,10 +244,7 @@ def require_scope(required_scope: str):
         auth: A2AAuthContext = Depends(get_auth_context),
     ) -> A2AAuthContext:
         if required_scope not in auth.scopes:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Missing required scope: {required_scope}",
-            )
+            raise_a2a_missing_required_scope(required_scope)
         return auth
 
     return dependency
@@ -335,8 +327,4 @@ async def check_rate_limit(
 
     if not rate_limiter.is_allowed(key):
         retry_after = rate_limiter.get_retry_after(key)
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded",
-            headers={"Retry-After": str(retry_after)},
-        )
+        raise_a2a_rate_limit_exceeded(retry_after)

@@ -409,18 +409,13 @@ class AgentRuntime:
                         )
                         if not await self._publish_to_dlq(event, str(handler_err)):
                             raise  # No DLQ available (NATS) → re-raise for native redelivery
-                    # Publish events returned by handle_event
+                    # Publish events returned by handle_event.
+                    # Agents with durable outboxes can intercept this through
+                    # publish_event_via_outbox(); legacy agents keep the
+                    # direct EventBus path until their boundary is hardened.
                     if result_events:
                         for out_event in result_events:
-                            try:
-                                await bus.publish(out_event)
-                            except Exception as pub_err:
-                                logger.error(
-                                    "event_publish_failed",
-                                    agent_id=self.agent_id,
-                                    event_type=out_event.event_type,
-                                    error=str(pub_err),
-                                )
+                            await self._publish_result_event(bus, out_event)
                     backoff = 1
             except asyncio.CancelledError:
                 return
@@ -433,6 +428,38 @@ class AgentRuntime:
                 )
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, max_backoff)
+
+    async def _publish_result_event(self, bus, out_event) -> None:
+        """Publish one handler-produced event through the agent boundary.
+
+        Durable runtime owners expose publish_event_via_outbox(event) so the
+        generic runtime does not bypass their local outbox transaction.
+        """
+        outbox_publisher = getattr(self._agent, "publish_event_via_outbox", None)
+        if outbox_publisher is not None:
+            try:
+                published = await outbox_publisher(out_event)
+                if published is False:
+                    raise RuntimeError("event_outbox_publish_returned_false")
+                return
+            except Exception as pub_err:
+                logger.error(
+                    "event_outbox_publish_failed",
+                    agent_id=self.agent_id,
+                    event_type=out_event.event_type,
+                    error=str(pub_err),
+                )
+                return
+
+        try:
+            await bus.publish(out_event)
+        except Exception as pub_err:
+            logger.error(
+                "event_publish_failed",
+                agent_id=self.agent_id,
+                event_type=out_event.event_type,
+                error=str(pub_err),
+            )
 
     # ── Dead Letter Queue ───────────────────────────────────────────────────
 

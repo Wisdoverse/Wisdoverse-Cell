@@ -3,7 +3,7 @@ StatsSkill - Show requirement statistics.
 
 Displays a dashboard card with requirement statistics via chat.
 """
-from agents.requirement_manager.db.repository import MeetingRepository, RequirementRepository
+from agents.requirement_manager.db.skill_store import build_requirement_skill_store
 from shared.infra.skill import BaseSkill, Permission, SkillContext, SkillError, SkillResult
 from shared.messaging.inbound import AgentResponse, UnifiedCard
 
@@ -22,19 +22,17 @@ class StatsSkill(BaseSkill):
         if context.db is None:
             raise SkillError("数据库不可用")
 
-        req_repo = RequirementRepository(context.db)
-        meeting_repo = MeetingRepository(context.db)
+        store = build_requirement_skill_store(context.db)
 
         # Gather statistics
-        status_counts = await req_repo.count_by_status()
-        priority_counts = await req_repo.count_by_priority()
-        category_counts = await req_repo.count_by_category()
-        weekly_trend = await req_repo.get_daily_counts(days=7)
-        today_count = await req_repo.count_today()
+        status_counts = await store.count_by_status()
+        priority_counts = await store.count_by_priority()
+        category_counts = await store.count_by_category()
+        weekly_trend = await store.get_daily_counts(days=7)
+        today_count = await store.count_today()
 
         # Meeting stats
-        _, total_meetings = await meeting_repo.list_all(limit=1)
-        unprocessed = await meeting_repo.list_unprocessed(limit=1000)
+        total_meetings, unprocessed_meetings = await store.meeting_counts()
 
         card = self._build_card(
             status_counts=status_counts,
@@ -43,7 +41,7 @@ class StatsSkill(BaseSkill):
             weekly_trend=weekly_trend,
             today_count=today_count,
             total_meetings=total_meetings,
-            unprocessed_meetings=len(unprocessed),
+            unprocessed_meetings=unprocessed_meetings,
         )
 
         return SkillResult(success=True, response=AgentResponse(card=card))

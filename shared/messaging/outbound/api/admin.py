@@ -1,6 +1,7 @@
 """Admin endpoints for channel gateway."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
+from shared.api import raise_outbound_adapter_not_found
 from shared.messaging.outbound.core.registry import AdapterRegistry
 from shared.middleware.internal_auth import verify_internal_key
 
@@ -33,7 +34,7 @@ async def get_adapter(channel_id: str):
     """Get adapter details."""
     adapter = AdapterRegistry.default().get(channel_id)
     if not adapter:
-        raise HTTPException(status_code=404, detail="Adapter not found")
+        raise_outbound_adapter_not_found()
 
     return {
         "channel_id": adapter.channel_id,

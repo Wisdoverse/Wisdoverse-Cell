@@ -20,6 +20,7 @@ from pydantic import ValidationError
 from shared.schemas.event import EventTypes
 from shared.schemas.event_payloads import (
     EVENT_PAYLOAD_MODELS,
+    RequirementChangedPayload,
     RequirementConfirmedPayload,
     RequirementDeletedPayload,
     RequirementExtractedPayload,
@@ -201,18 +202,18 @@ class TestAgentEventContracts:
 
         # Mock repository
         mock_session = MagicMock()
+        mock_session.commit = AsyncMock()
         mock_repo = MagicMock(spec=RequirementRepository)
         mock_repo.confirm = AsyncMock(return_value=mock_requirement)
 
-        with patch(
-            "agents.requirement_manager.service.agent.RequirementRepository",
-            return_value=mock_repo
-        ):
+        with patch.object(test_agent, "_get_requirement_store", return_value=mock_repo):
             await test_agent.confirm_requirement(
                 requirement_id="req_123",
                 confirmed_by="测试用户",
                 session=mock_session
             )
+
+        mock_session.commit.assert_awaited_once()
 
         # Validate event.
         assert len(captured_events) == 1
@@ -243,19 +244,20 @@ class TestAgentEventContracts:
         mock_requirement.title = "被拒绝的需求"
 
         mock_session = MagicMock()
+        mock_session.commit = AsyncMock()
         mock_repo = MagicMock(spec=RequirementRepository)
+        mock_repo.get_by_id = AsyncMock(return_value=mock_requirement)
         mock_repo.reject = AsyncMock(return_value=mock_requirement)
 
-        with patch(
-            "agents.requirement_manager.service.agent.RequirementRepository",
-            return_value=mock_repo
-        ):
+        with patch.object(test_agent, "_get_requirement_store", return_value=mock_repo):
             await test_agent.reject_requirement(
                 requirement_id="req_456",
                 reason="不符合产品方向",
                 rejected_by="产品经理",
                 session=mock_session
             )
+
+        mock_session.commit.assert_awaited_once()
 
         # Validate event.
         assert len(captured_events) == 1
@@ -267,6 +269,68 @@ class TestAgentEventContracts:
         payload = RequirementRejectedPayload.model_validate(event.payload)
         assert payload.requirement_id == "req_456"
         assert payload.reason == "不符合产品方向"
+
+    @pytest.mark.asyncio
+    async def test_update_publishes_valid_event(
+        self,
+        test_agent,
+        mock_dependencies,
+        captured_events
+    ):
+        """Updating a requirement publishes a contract-compliant event."""
+        from agents.requirement_manager.db.repository import RequirementRepository
+        from agents.requirement_manager.models import Requirement
+
+        original_requirement = MagicMock(spec=Requirement)
+        original_requirement.id = "req_234"
+        original_requirement.title = "旧需求"
+        original_requirement.description = "旧描述"
+        original_requirement.priority = "MEDIUM"
+        original_requirement.category = "功能"
+
+        updated_requirement = MagicMock(spec=Requirement)
+        updated_requirement.id = "req_234"
+        updated_requirement.title = "新需求"
+        updated_requirement.description = "旧描述"
+        updated_requirement.priority = "HIGH"
+        updated_requirement.category = "功能"
+
+        mock_session = MagicMock()
+        mock_session.commit = AsyncMock()
+        mock_repo = MagicMock(spec=RequirementRepository)
+        mock_repo.get_by_id = AsyncMock(return_value=original_requirement)
+        mock_repo.update = AsyncMock(return_value=updated_requirement)
+        mock_feedback = MagicMock()
+        mock_feedback.record_correction = AsyncMock()
+
+        with patch.object(
+            test_agent,
+            "_get_requirement_store",
+            return_value=mock_repo,
+        ), patch(
+            "agents.requirement_manager.service.feedback_learning.FeedbackLearningService",
+            return_value=mock_feedback,
+        ):
+            await test_agent.update_requirement(
+                requirement_id="req_234",
+                changes={"title": "新需求", "priority": "HIGH", "comment": "产品经理"},
+                session=mock_session,
+            )
+
+        mock_session.commit.assert_awaited_once()
+        original_requirement.add_history.assert_called_once()
+        mock_feedback.record_correction.assert_awaited_once()
+
+        assert len(captured_events) == 1
+        event = captured_events[0]
+
+        assert event.event_type == EventTypes.REQUIREMENT_CHANGED
+
+        payload = RequirementChangedPayload.model_validate(event.payload)
+        assert payload.requirement_id == "req_234"
+        assert payload.title == "新需求"
+        assert payload.changed_fields == ["title", "priority"]
+        assert payload.changed_by == "产品经理"
 
     @pytest.mark.asyncio
     async def test_delete_publishes_valid_event(
@@ -285,18 +349,19 @@ class TestAgentEventContracts:
         mock_requirement.title = "被删除的需求"
 
         mock_session = MagicMock()
+        mock_session.commit = AsyncMock()
         mock_repo = MagicMock(spec=RequirementRepository)
         mock_repo.delete = AsyncMock(return_value=mock_requirement)
 
-        with patch(
-            "agents.requirement_manager.service.agent.RequirementRepository",
-            return_value=mock_repo
-        ):
+        with patch.object(test_agent, "_get_requirement_store", return_value=mock_repo):
             await test_agent.delete_requirement(
                 requirement_id="req_789",
                 deleted_by="管理员",
                 session=mock_session
             )
+
+        mock_session.commit.assert_awaited_once()
+        mock_dependencies["vectors"].delete_requirement.assert_called_once_with("req_789")
 
         # Validate event.
         assert len(captured_events) == 1
@@ -309,6 +374,88 @@ class TestAgentEventContracts:
         assert payload.requirement_id == "req_789"
         assert payload.deleted_by == "管理员"
         assert payload.title == "被删除的需求"
+
+    @pytest.mark.asyncio
+    async def test_mutation_commits_before_event_publish(
+        self,
+        test_agent,
+        mock_dependencies,
+    ):
+        """Requirement events are staged in outbox, then committed, then published."""
+        from agents.requirement_manager.db.repository import RequirementRepository
+        from agents.requirement_manager.models import Requirement
+
+        order: list[str] = []
+
+        mock_requirement = MagicMock(spec=Requirement)
+        mock_requirement.id = "req_commit_order"
+        mock_requirement.title = "提交顺序需求"
+        mock_requirement.priority = "HIGH"
+        mock_requirement.category = "功能"
+
+        async def commit():
+            order.append("commit")
+
+        async def publish(event):
+            order.append("publish")
+            return True
+
+        mock_session = MagicMock()
+        mock_session.add.side_effect = lambda _row: order.append("outbox")
+        mock_session.commit = AsyncMock(side_effect=commit)
+        mock_dependencies["bus"].publish = AsyncMock(side_effect=publish)
+
+        mock_repo = MagicMock(spec=RequirementRepository)
+        mock_repo.confirm = AsyncMock(return_value=mock_requirement)
+
+        with patch.object(test_agent, "_get_requirement_store", return_value=mock_repo):
+            await test_agent.confirm_requirement(
+                requirement_id="req_commit_order",
+                confirmed_by="测试用户",
+                session=mock_session,
+            )
+
+        assert order == ["outbox", "commit", "publish"]
+        outbox_row = mock_session.add.call_args.args[0]
+        assert outbox_row.event_type == EventTypes.REQUIREMENT_CONFIRMED
+        assert outbox_row.status == "pending"
+        assert outbox_row.payload["requirement_id"] == "req_commit_order"
+
+    @pytest.mark.asyncio
+    async def test_commit_failure_prevents_event_publish(
+        self,
+        test_agent,
+        mock_dependencies,
+    ):
+        """Requirement mutation events are not published when commit fails."""
+        from agents.requirement_manager.db.repository import RequirementRepository
+        from agents.requirement_manager.models import Requirement
+
+        mock_requirement = MagicMock(spec=Requirement)
+        mock_requirement.id = "req_commit_failed"
+        mock_requirement.title = "提交失败需求"
+        mock_requirement.priority = "HIGH"
+        mock_requirement.category = "功能"
+
+        mock_session = MagicMock()
+        mock_session.commit = AsyncMock(side_effect=RuntimeError("db commit failed"))
+
+        mock_repo = MagicMock(spec=RequirementRepository)
+        mock_repo.confirm = AsyncMock(return_value=mock_requirement)
+
+        with patch.object(
+            test_agent,
+            "_get_requirement_store",
+            return_value=mock_repo,
+        ), pytest.raises(RuntimeError, match="db commit failed"):
+            await test_agent.confirm_requirement(
+                requirement_id="req_commit_failed",
+                confirmed_by="测试用户",
+                session=mock_session,
+            )
+
+        mock_session.add.assert_called_once()
+        mock_dependencies["bus"].publish.assert_not_awaited()
 
 
 class TestEventPayloadCoverage:

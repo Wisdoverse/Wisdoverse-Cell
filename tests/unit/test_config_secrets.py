@@ -173,6 +173,34 @@ class TestNatsConfig:
             Settings(_env_file=None, nats_stream_replicas=0)
 
 
+class TestEnvFileContract:
+    """Repository-level .env files include non-Python operational keys."""
+
+    def test_settings_ignores_unowned_env_file_keys(self, monkeypatch, tmp_path):
+        from shared.config import Settings
+
+        monkeypatch.delenv("POSTGRES_PASSWORD", raising=False)
+
+        env_file = tmp_path / "cell.env"
+        env_file.write_text(
+            "\n".join(
+                [
+                    "COMPOSE_PROJECT_NAME=wisdoverse-cell",
+                    "NEXTAUTH_URL=http://localhost:3000",
+                    "WEBUI_BOOTSTRAP_ADMIN_ENABLED=false",
+                    "POSTGRES_REPLICATION_PASSWORD=replicator",
+                    "POSTGRES_PASSWORD=pg-secret",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        settings = Settings(_env_file=env_file)
+
+        assert settings.postgres_password.get_secret_value() == "pg-secret"
+        assert not hasattr(settings, "compose_project_name")
+
+
 class TestNonSecretFieldsUnchanged:
     """pm_api_key and internal_service_key stay as plain str."""
 

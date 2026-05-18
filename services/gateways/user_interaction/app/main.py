@@ -17,13 +17,18 @@ from ..api.bitable import router as bitable_router
 from ..api.daily_progress import router as daily_progress_router
 from ..api.webhook import router as webhook_router
 from ..core.card_ports import configure_tool_card_renderer
+from ..core.ops_logger import configure_operation_log_store
+from ..core.scheduler_use_cases import UserInteractionSchedulerUseCase
 from ..db.database import db_manager
+from ..db.operation_log_store import SqlAlchemyCardOperationLogStore
 from ..service.agent import agent as _raw_agent
+from .plugins import UserInteractionOutboxDispatcherPlugin
 
 logger = get_logger("chat_agent.app")
 
 scheduler = AsyncIOScheduler()
 configure_tool_card_renderer(FeishuToolCardRenderer())
+configure_operation_log_store(SqlAlchemyCardOperationLogStore(db_manager))
 
 app = create_agent_app(
     _raw_agent,
@@ -34,7 +39,10 @@ app = create_agent_app(
         (bitable_router, [Depends(verify_internal_key)]),
         (daily_progress_router, [Depends(verify_internal_key)]),
     ],
-    plugins=[InfraHealthPlugin(db_manager=db_manager)],
+    plugins=[
+        InfraHealthPlugin(db_manager=db_manager),
+        UserInteractionOutboxDispatcherPlugin(),
+    ],
     control_plane_enabled=settings.control_plane_enabled,
     control_plane_company_id=settings.control_plane_company_id,
     on_startup=lambda rt: _start_scheduler(rt),
@@ -52,11 +60,15 @@ def _get_agent() -> BaseAgent:
     return runtime.agent
 
 
+def get_scheduler_use_case() -> UserInteractionSchedulerUseCase:
+    return UserInteractionSchedulerUseCase(_get_agent())
+
+
 async def _run_scheduled_action(action: str) -> None:
     """Execute a scheduled agent action with logging and error handling."""
     logger.info("scheduled_action_triggered", action=action)
     try:
-        await _get_agent().handle_request({"action": action})
+        await get_scheduler_use_case().run_scheduled_action(action)
     except Exception as e:
         logger.error(
             "scheduled_action_failed",

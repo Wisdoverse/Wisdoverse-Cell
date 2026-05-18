@@ -9,6 +9,11 @@ import pytest
 
 from shared.capabilities.sync.core.engine import SyncEngine
 from shared.capabilities.sync.db.repository import SyncMappingRepository
+from shared.capabilities.sync.db.sync_stores import (
+    SqlAlchemyFeishuBitableSyncStore,
+    SqlAlchemyOpenProjectSyncStore,
+    SqlAlchemySyncLockStore,
+)
 
 
 @pytest.fixture
@@ -29,7 +34,9 @@ def mock_db_manager(db_session):
 @pytest.fixture
 def engine(mock_db_manager, mock_op_client, mock_bitable):
     return SyncEngine(
-        db_manager=mock_db_manager,
+        openproject_store=SqlAlchemyOpenProjectSyncStore(mock_db_manager),
+        lock_store=SqlAlchemySyncLockStore(mock_db_manager),
+        feishu_bitable_store=SqlAlchemyFeishuBitableSyncStore(mock_db_manager),
         op_client=mock_op_client,
         bitable=mock_bitable,
     )

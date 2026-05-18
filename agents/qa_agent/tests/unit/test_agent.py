@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from agents.qa_agent.db.repository import AcceptanceRunRepository
 from agents.qa_agent.service.agent import QAAgent
+from shared.app import UNKNOWN_ACTION_ERROR_CODE
 
 
 @pytest.fixture
@@ -112,6 +113,31 @@ class TestAgentInit:
     def test_published_events(self, agent):
         assert "qa.acceptance-completed" in agent.published_events
         assert "qa.gate-failed" in agent.published_events
+
+
+class TestHealthCheck:
+    @pytest.mark.asyncio
+    async def test_health_check_uses_injected_health_store(
+        self,
+        mock_db,
+        mock_bus,
+        mock_runner,
+        mock_notifier,
+    ):
+        health_store = AsyncMock()
+        health_store.is_database_ready = AsyncMock(return_value=True)
+        agent = QAAgent(
+            db=mock_db,
+            bus=mock_bus,
+            runner=mock_runner,
+            notifier=mock_notifier,
+            health_store=health_store,
+        )
+
+        result = await agent.health_check()
+
+        assert result == {"database": True}
+        health_store.is_database_ready.assert_awaited_once()
 
 
 class TestHandleEvent:
@@ -279,9 +305,18 @@ class TestHandleRequest:
         assert result["total_runs"] == 10
 
     @pytest.mark.asyncio
+    async def test_get_run_not_found_uses_error_code(self, agent):
+        with patch.object(agent, "get_run", new_callable=AsyncMock) as mock_get_run:
+            mock_get_run.return_value = None
+            result = await agent.handle_request({"action": "get_run", "run_id": "qa_404"})
+
+        assert result == {"error": "not found", "error_code": "qa_run_not_found"}
+
+    @pytest.mark.asyncio
     async def test_unknown_action(self, agent):
         result = await agent.handle_request({"action": "invalid"})
         assert "error" in result
+        assert result["error_code"] == UNKNOWN_ACTION_ERROR_CODE
 
 
 class TestDerriveSeverity:

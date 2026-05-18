@@ -5,12 +5,10 @@ Provides automatic categorization, priority recommendations, complexity
 estimation, and dependency analysis.
 """
 from datetime import UTC, datetime
-from typing import Optional
+from typing import Optional, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from shared.control_plane.agent_prompt_config import resolve_agent_system_prompt
-from shared.infra.llm_gateway import llm_gateway
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
@@ -54,6 +52,24 @@ class AnalysisResult(BaseModel):
 
     # Analysis timestamp.
     analyzed_at: datetime
+
+
+class RequirementAnalysisLLM(Protocol):
+    async def complete(
+        self,
+        *,
+        prompt: str,
+        agent_id: str,
+        task_type: str,
+        temperature: float = 0,
+        system_prompt: str | None = None,
+    ) -> str:
+        """Complete a requirement-analysis prompt."""
+
+
+class SystemPromptResolver(Protocol):
+    async def __call__(self, agent_id: str, default_prompt: str) -> str:
+        """Resolve the deployed system prompt for an agent."""
 
 
 def build_requirement_analysis_prompt(
@@ -139,6 +155,15 @@ class RequirementAnalyzer:
         "硬件": ["硬件", "设备", "hardware", "传感器"],
         "集成": ["集成", "对接", "API", "接口", "第三方"]
     }
+
+    def __init__(
+        self,
+        *,
+        llm: RequirementAnalysisLLM,
+        system_prompt_resolver: SystemPromptResolver,
+    ):
+        self._llm = llm
+        self._system_prompt_resolver = system_prompt_resolver
 
     async def analyze(
         self,
@@ -230,12 +255,12 @@ class RequirementAnalyzer:
         )
 
         try:
-            response = await llm_gateway.complete(
+            response = await self._llm.complete(
                 prompt=prompt,
                 agent_id="requirement-manager",
                 task_type="analysis",
                 temperature=0,
-                system_prompt=await resolve_agent_system_prompt(
+                system_prompt=await self._system_prompt_resolver(
                     "requirement-manager",
                     _DEFAULT_SYSTEM_PROMPT,
                 ),
@@ -451,7 +476,3 @@ class RequirementAnalyzer:
                 tags.append(tag)
 
         return tags[:5]  # At most five tags.
-
-
-# Global analyzer instance.
-analyzer = RequirementAnalyzer()

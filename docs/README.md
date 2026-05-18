@@ -150,6 +150,8 @@ control plane, not Python packages.
 See [docs/INDEX.md](INDEX.md) for the full documentation map.
 For repository file ownership, cleanup phases, and local-only paths, see
 [Project Layout](overview/project-layout.md).
+For backend bounded contexts, table ownership, and cross-boundary data rules,
+see [Backend Boundaries](guides/backend-boundaries.md).
 
 ---
 

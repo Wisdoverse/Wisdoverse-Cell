@@ -82,7 +82,7 @@ class TestListSkillExecute:
             mock_repo.list_all = AsyncMock(return_value=([mock_requirement], 1))
 
             mp.setattr(
-                "agents.requirement_manager.skills.list_requirements.RequirementRepository",
+                "agents.requirement_manager.skills.list_requirements.build_requirement_skill_store",
                 lambda db: mock_repo
             )
 
@@ -105,7 +105,7 @@ class TestListSkillExecute:
             mock_repo.list_all = AsyncMock(return_value=([], 0))
 
             mp.setattr(
-                "agents.requirement_manager.skills.list_requirements.RequirementRepository",
+                "agents.requirement_manager.skills.list_requirements.build_requirement_skill_store",
                 lambda db: mock_repo
             )
 
@@ -127,7 +127,7 @@ class TestListSkillExecute:
             mock_repo.list_all = AsyncMock(return_value=([mock_requirement], 10))
 
             mp.setattr(
-                "agents.requirement_manager.skills.list_requirements.RequirementRepository",
+                "agents.requirement_manager.skills.list_requirements.build_requirement_skill_store",
                 lambda db: mock_repo
             )
 

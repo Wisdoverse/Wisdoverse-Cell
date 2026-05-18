@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from shared.api import ApiErrorCode
+
 
 @pytest.fixture
 def mock_agent():
@@ -151,7 +153,34 @@ async def test_config_endpoint_error(test_app, mock_agent):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/api/v1/pm/config")
     assert resp.status_code == 500
-    assert "Failed to get PM configuration" in resp.json()["detail"]
+    assert resp.json()["detail"] == "Failed to get PM configuration. Please retry later."
+    assert resp.headers["x-error-code"] == ApiErrorCode.PM_CONFIG_FAILED.value
+
+
+@pytest.mark.asyncio
+async def test_config_refresh_error_sets_error_code(test_app, mock_agent):
+    """Configuration refresh failures expose a stable PM API error code."""
+    mock_agent.handle_request.side_effect = Exception("bitable error")
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/v1/pm/config/refresh")
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == "Failed to refresh PM configuration. Please retry later."
+    assert resp.headers["x-error-code"] == ApiErrorCode.PM_CONFIG_REFRESH_FAILED.value
+
+
+@pytest.mark.asyncio
+async def test_alerts_endpoint_error_sets_error_code(test_app, mock_agent):
+    """Alert list failures expose a stable PM API error code."""
+    mock_agent.handle_request.side_effect = Exception("bitable error")
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/v1/pm/alerts")
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == "Failed to get PM alerts. Please retry later."
+    assert resp.headers["x-error-code"] == ApiErrorCode.PM_ALERTS_FAILED.value
 
 
 @pytest.mark.asyncio
@@ -170,25 +199,28 @@ async def test_alerts_endpoint_empty(test_app, mock_agent):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("path", "expected_request", "expected_status", "expected_detail"),
+    ("path", "expected_request", "expected_status", "expected_detail", "expected_code"),
     [
         (
             "/api/v1/pm/report/daily",
             {"action": "daily_report"},
             500,
             "Failed to generate daily report. Please retry later.",
+            ApiErrorCode.PM_DAILY_REPORT_FAILED.value,
         ),
         (
             "/api/v1/pm/report/weekly",
             {"action": "weekly_report"},
             500,
             "Failed to generate weekly report. Please retry later.",
+            ApiErrorCode.PM_WEEKLY_REPORT_FAILED.value,
         ),
         (
             "/api/v1/pm/decompose/123/retry",
             {"action": "retry_decompose", "wp_id": 123},
             400,
             "Failed to retry decomposition. Please retry later.",
+            ApiErrorCode.PM_DECOMPOSITION_RETRY_FAILED.value,
         ),
     ],
 )
@@ -199,6 +231,7 @@ async def test_result_errors_do_not_expose_internal_details(
     expected_request,
     expected_status,
     expected_detail,
+    expected_code,
 ):
     """Agent result errors are logged server-side and sanitized for callers."""
     mock_agent.handle_request.return_value = {"error": "Traceback: database password is exposed"}
@@ -209,9 +242,27 @@ async def test_result_errors_do_not_expose_internal_details(
 
     assert resp.status_code == expected_status
     assert resp.json()["detail"] == expected_detail
+    assert resp.headers["x-error-code"] == expected_code
     assert "Traceback" not in resp.json()["detail"]
     assert "database password" not in resp.json()["detail"]
     mock_agent.handle_request.assert_awaited_once_with(expected_request)
+
+
+@pytest.mark.asyncio
+async def test_get_decomposition_not_found_sets_error_code(test_app, mock_agent):
+    """GET /api/v1/pm/decompose/{wp_id} exposes a stable not-found code."""
+    mock_agent.handle_request.return_value = {}
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/v1/pm/decompose/123")
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Record not found"
+    assert resp.headers["x-error-code"] == ApiErrorCode.PM_DECOMPOSITION_NOT_FOUND.value
+    mock_agent.handle_request.assert_awaited_once_with(
+        {"action": "get_decompose", "wp_id": 123}
+    )
 
 
 @pytest.mark.asyncio
@@ -239,6 +290,27 @@ async def test_approve_decomposition_forwards_operator(test_app, mock_agent):
 
 
 @pytest.mark.asyncio
+async def test_approve_decomposition_unavailable_sets_error_code(test_app, mock_agent):
+    """Unavailable approval records keep legacy status/detail plus stable code."""
+    mock_agent.approve_decomposition.return_value = None
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/pm/decompose/123/approve",
+            json={"operator": "alice"},
+        )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Record not found or status is not pending"
+    assert resp.headers["x-error-code"] == ApiErrorCode.PM_DECOMPOSITION_UNAVAILABLE.value
+    mock_agent.approve_decomposition.assert_awaited_once_with(
+        123,
+        approved_by="alice",
+    )
+
+
+@pytest.mark.asyncio
 async def test_approve_decomposition_surfaces_approval_error(test_app, mock_agent):
     """Approval errors must not be converted into success responses."""
     mock_agent.approve_decomposition.return_value = {
@@ -255,6 +327,7 @@ async def test_approve_decomposition_surfaces_approval_error(test_app, mock_agen
 
     assert resp.status_code == 403
     assert resp.json()["detail"] == "approved_by required for control-plane approval"
+    assert resp.headers["x-error-code"] == ApiErrorCode.PM_DECOMPOSITION_FORBIDDEN.value
     mock_agent.approve_decomposition.assert_awaited_once_with(
         123,
         approved_by="",
@@ -283,6 +356,28 @@ async def test_reject_decomposition_forwards_reason(test_app, mock_agent):
 
 
 @pytest.mark.asyncio
+async def test_reject_decomposition_unavailable_sets_error_code(test_app, mock_agent):
+    """Unavailable rejection records keep legacy status/detail plus stable code."""
+    mock_agent.reject_decomposition.return_value = None
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/pm/decompose/123/reject",
+            json={"operator": "alice", "reason": "not useful"},
+        )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Record not found or status is not pending"
+    assert resp.headers["x-error-code"] == ApiErrorCode.PM_DECOMPOSITION_UNAVAILABLE.value
+    mock_agent.reject_decomposition.assert_awaited_once_with(
+        123,
+        rejected_by="alice",
+        reason="not useful",
+    )
+
+
+@pytest.mark.asyncio
 async def test_reject_decomposition_surfaces_approval_error(test_app, mock_agent):
     """Rejection approval errors must not be converted into success responses."""
     mock_agent.reject_decomposition.return_value = {
@@ -299,6 +394,7 @@ async def test_reject_decomposition_surfaces_approval_error(test_app, mock_agent
 
     assert resp.status_code == 403
     assert resp.json()["detail"] == "rejected_by required for control-plane rejection"
+    assert resp.headers["x-error-code"] == ApiErrorCode.PM_DECOMPOSITION_FORBIDDEN.value
     mock_agent.reject_decomposition.assert_awaited_once_with(
         123,
         rejected_by="",

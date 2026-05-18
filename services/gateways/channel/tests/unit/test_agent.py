@@ -58,6 +58,25 @@ class FakeAdapter(BaseChannelAdapter):
         yield
 
 
+class AsyncSessionContext:
+    """Minimal async context manager for mocked db sessions."""
+
+    def __init__(self, session):
+        self.session = session
+
+    async def __aenter__(self):
+        return self.session
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+def _db_manager_with_session():
+    db_manager = MagicMock()
+    db_manager.session.return_value = AsyncSessionContext(MagicMock())
+    return db_manager
+
+
 class TestChannelGatewayAgentClass:
     def test_inherits_from_base_agent(self):
         agent = ChannelGatewayAgent()
@@ -146,6 +165,7 @@ class TestHandleRequest:
             "agent_id": "channel-gateway",
             "checks": {
                 "event_bus": True,
+                "database": False,
                 "adapter_registry": True,
                 "adapter_listeners": True,
             },
@@ -176,7 +196,10 @@ class TestEventCreation:
         agent = ChannelGatewayAgent(
             bus=mock_bus,
             adapter_registry=AdapterRegistry(),
+            db=_db_manager_with_session(),
         )
+        agent._mark_channel_event_published = AsyncMock()
+        agent._mark_channel_event_failed = AsyncMock()
         message = InboundMessage(
             channel_id="fake",
             platform_message_id="platform_msg_123",
@@ -202,7 +225,10 @@ class TestEventCreation:
         agent = ChannelGatewayAgent(
             bus=mock_bus,
             adapter_registry=AdapterRegistry(),
+            db=_db_manager_with_session(),
         )
+        agent._mark_channel_event_published = AsyncMock()
+        agent._mark_channel_event_failed = AsyncMock()
 
         await agent._publish_adapter_status("fake", "connected")
 

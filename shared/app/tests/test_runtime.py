@@ -579,6 +579,47 @@ class TestEventLoop:
         assert runtime._listener_task is None
 
     @pytest.mark.asyncio
+    async def test_result_event_uses_agent_outbox_hook(self):
+        class OutboxAgent(FakeAgent):
+            def __init__(self):
+                super().__init__()
+                self.outbox_calls = []
+
+            async def publish_event_via_outbox(self, event: Event) -> bool:
+                self.outbox_calls.append(event)
+                return True
+
+        agent = OutboxAgent()
+        runtime = AgentRuntime(agent)
+        bus = AsyncMock()
+        event = Event.create(
+            event_type="test.result",
+            source_agent="fake-agent",
+            payload={"ok": True},
+        )
+
+        await runtime._publish_result_event(bus, event)
+
+        assert agent.outbox_calls == [event]
+        bus.publish.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_result_event_falls_back_to_event_bus_without_outbox_hook(self):
+        agent = FakeAgent()
+        runtime = AgentRuntime(agent)
+        bus = AsyncMock()
+        bus.publish.return_value = True
+        event = Event.create(
+            event_type="test.result",
+            source_agent="fake-agent",
+            payload={"ok": True},
+        )
+
+        await runtime._publish_result_event(bus, event)
+
+        bus.publish.assert_awaited_once_with(event)
+
+    @pytest.mark.asyncio
     async def test_handler_timeout_publishes_to_dlq(self, monkeypatch):
         class SlowAgent(FakeAgent):
             async def handle_event(self, event: Event) -> list[Event]:

@@ -133,19 +133,19 @@ async def test_sync_status(test_app, mock_agent):
 @pytest.mark.asyncio
 async def test_list_mappings(test_app):
     """GET /api/v1/sync/mappings should return the mapping list."""
-    with patch("shared.capabilities.sync.api.sync.get_db") as mock_get_db, \
-        patch("shared.capabilities.sync.api.sync.SyncMappingRepository") as repo_cls:
-        async def _override():
-            yield MagicMock()
+    from shared.capabilities.sync.api.dependencies import get_sync_mapping_query_service
 
-        mock_get_db.return_value = _override()
-        repo = repo_cls.return_value
-        repo.list_all = AsyncMock(return_value=[])
-
+    query_service = MagicMock()
+    query_service.list_mappings = AsyncMock(return_value=[])
+    test_app.dependency_overrides[get_sync_mapping_query_service] = lambda: query_service
+    try:
         transport = ASGITransport(app=test_app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/api/v1/sync/mappings")
+    finally:
+        test_app.dependency_overrides.clear()
 
     assert resp.status_code == 200
     data = resp.json()
     assert data == {"total": 0, "items": []}
+    query_service.list_mappings.assert_awaited_once_with()

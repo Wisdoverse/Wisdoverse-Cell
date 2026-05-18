@@ -20,17 +20,22 @@ async def grpc_server():
     """Start a test gRPC server."""
     # Create server with mock agent
     mock_agent = AsyncMock()
+    requirement_store = AsyncMock()
+    requirement_store.list_requirements = AsyncMock(return_value=([], 0))
+    health_store = AsyncMock()
+    health_store.is_database_ready = AsyncMock(return_value=True)
 
-    with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
-        mock_session = AsyncMock()
-        mock_db.session.return_value.__aenter__.return_value = mock_session
+    server = await create_server(
+        agent=mock_agent,
+        port=50052,
+        requirement_store=requirement_store,
+        health_store=health_store,
+    )
+    await server.start()
 
-        server = await create_server(agent=mock_agent, port=50052)
-        await server.start()
+    yield server, mock_agent
 
-        yield server, mock_agent
-
-        await server.stop(grace=0)
+    await server.stop(grace=0)
 
 
 @pytest.fixture
@@ -55,38 +60,25 @@ class TestGRPCServer:
         """Should be able to call HealthCheck via gRPC."""
         server, _ = grpc_server
 
-        with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
-            mock_session = AsyncMock()
-            mock_db.session.return_value.__aenter__.return_value = mock_session
+        stub = pb2_grpc.RequirementServiceStub(grpc_channel)
 
-            stub = pb2_grpc.RequirementServiceStub(grpc_channel)
+        request = pb2.HealthRequest()
+        response = await stub.HealthCheck(request)
 
-            request = pb2.HealthRequest()
-            response = await stub.HealthCheck(request)
-
-            assert response.version == "1.0.0"
+        assert response.version == "1.0.0"
 
     @pytest.mark.asyncio
     async def test_list_requirements_via_grpc(self, grpc_server, grpc_channel):
         """Should be able to list requirements via gRPC."""
         server, _ = grpc_server
 
-        with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
-            mock_session = AsyncMock()
-            mock_db.session.return_value.__aenter__.return_value = mock_session
+        stub = pb2_grpc.RequirementServiceStub(grpc_channel)
 
-            with patch("agents.requirement_manager.grpc.servicer.RequirementRepository") as MockRepo:
-                mock_repo = AsyncMock()
-                mock_repo.list_all.return_value = []
-                MockRepo.return_value = mock_repo
+        request = pb2.ListRequest(page=1, page_size=20)
+        response = await stub.ListRequirements(request)
 
-                stub = pb2_grpc.RequirementServiceStub(grpc_channel)
-
-                request = pb2.ListRequest(page=1, page_size=20)
-                response = await stub.ListRequirements(request)
-
-                assert response.total == 0
-                assert len(response.requirements) == 0
+        assert response.total == 0
+        assert len(response.requirements) == 0
 
 
 if __name__ == "__main__":

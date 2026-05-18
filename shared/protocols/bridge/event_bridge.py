@@ -8,11 +8,16 @@ import asyncio
 from collections.abc import Callable
 from typing import Any
 
+from shared.core import EventPublisher
+from shared.infra.event_publisher import EventBusEventPublisher
 from shared.schemas.event import Event, EventMetadata, EventTypes
+from shared.utils.logger import get_logger
 
 from ..a2a.client.client import A2AClient
 from ..a2a.models import DataPart, FilePart, Message, Task, TaskStatus, TextPart
 from ..a2a.registry.registry import AgentRegistry
+
+logger = get_logger("protocols.event_bridge")
 
 _TASK_STATUS_EVENT_TYPES = {
     TaskStatus.SUBMITTED: EventTypes.A2A_TASK_SUBMITTED,
@@ -22,7 +27,6 @@ _TASK_STATUS_EVENT_TYPES = {
     TaskStatus.FAILED: EventTypes.A2A_TASK_FAILED,
     TaskStatus.CANCELED: EventTypes.A2A_TASK_CANCELED,
 }
-
 
 class EventA2AMapping:
     """Mapping configuration for Event <-> A2A conversion."""
@@ -64,6 +68,7 @@ class EventBusA2ABridge:
         registry: AgentRegistry,
         event_bus=None,
         source_agent_id: str = "a2a-bridge",
+        event_publisher: EventPublisher | None = None,
     ):
         """
         Initialize the bridge.
@@ -72,9 +77,13 @@ class EventBusA2ABridge:
             registry: A2A agent registry for discovering agents.
             event_bus: Optional EventBus for publishing response events.
             source_agent_id: Agent ID to use when creating response events.
+            event_publisher: Optional outbound event publisher port. Prefer this
+                over event_bus for new code.
         """
         self._registry = registry
-        self._event_bus = event_bus
+        self._event_publisher = event_publisher
+        if self._event_publisher is None and event_bus is not None:
+            self._event_publisher = EventBusEventPublisher(event_bus)
         self._source_agent_id = source_agent_id
         self._mappings: dict[str, EventA2AMapping] = {}
         self._active_clients: dict[str, A2AClient] = {}
@@ -161,6 +170,7 @@ class EventBusA2ABridge:
         event: Event,
         target_agent_id: str | None = None,
         wait_for_result: bool = True,
+        publish_result: bool = True,
     ) -> Task | None:
         """
         Route an Event to an A2A agent.
@@ -169,6 +179,9 @@ class EventBusA2ABridge:
             event: The event to route.
             target_agent_id: Optional target agent (uses mapping if not provided).
             wait_for_result: Whether to wait for task completion.
+            publish_result: Whether this method should publish terminal result
+                events itself. Runtime handle_event() disables this and returns
+                the event to the runtime publisher instead.
 
         Returns:
             The A2A Task result if waiting, None otherwise.
@@ -195,8 +208,8 @@ class EventBusA2ABridge:
             # Send and wait for result
             task = await client.send_message(message, context_id)
 
-            # Publish result event if event bus is configured
-            if self._event_bus and task.is_terminal():
+            # Publish result event if requested by direct callers
+            if publish_result and task.is_terminal():
                 await self._publish_result_event(event, task)
 
             return task
@@ -217,11 +230,10 @@ class EventBusA2ABridge:
         """Route event with streaming and publish updates."""
         try:
             async for task in client.send_message_streaming(message, context_id):
-                if task.is_terminal() and self._event_bus:
+                if task.is_terminal():
                     await self._publish_result_event(original_event, task)
         except Exception as e:
-            if self._event_bus:
-                await self._publish_error_event(original_event, e)
+            await self._publish_error_event(original_event, e)
 
     # ============ A2A -> Event ============
 
@@ -288,7 +300,7 @@ class EventBusA2ABridge:
     ) -> None:
         """Publish task result as event."""
         result_event = self.a2a_task_to_event(task, original_event)
-        await self._event_bus.publish(result_event)
+        await self._publish_event(result_event)
 
     async def _publish_error_event(
         self,
@@ -308,7 +320,39 @@ class EventBusA2ABridge:
                 correlation_id=original_event.event_id,
             ),
         )
-        await self._event_bus.publish(error_event)
+        await self._publish_event(error_event)
+
+    async def _publish_event(self, event: Event) -> bool:
+        """Publish through the configured outbound port."""
+        if self._event_publisher is None:
+            logger.warning(
+                "a2a_bridge_event_publish_skipped",
+                event_id=event.event_id,
+                event_type=event.event_type,
+                reason="event_publisher_not_configured",
+            )
+            return False
+
+        try:
+            published = await self._event_publisher.publish(event)
+        except Exception as exc:
+            logger.warning(
+                "a2a_bridge_event_publish_failed",
+                event_id=event.event_id,
+                event_type=event.event_type,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            return False
+
+        if not published:
+            logger.warning(
+                "a2a_bridge_event_publish_rejected",
+                event_id=event.event_id,
+                event_type=event.event_type,
+            )
+            return False
+        return True
 
     # ============ Client Management ============
 
@@ -345,7 +389,11 @@ class EventBusA2ABridge:
             return []
 
         try:
-            task = await self.route_event_to_a2a(event, wait_for_result=True)
+            task = await self.route_event_to_a2a(
+                event,
+                wait_for_result=True,
+                publish_result=False,
+            )
             if task:
                 return [self.a2a_task_to_event(task, event)]
         except Exception as e:
@@ -371,6 +419,7 @@ async def create_event_bridge(
     registry: AgentRegistry,
     event_bus=None,
     mappings: list[EventA2AMapping] | None = None,
+    event_publisher: EventPublisher | None = None,
 ) -> EventBusA2ABridge:
     """
     Factory function to create and configure an EventBus-A2A bridge.
@@ -379,11 +428,16 @@ async def create_event_bridge(
         registry: A2A agent registry.
         event_bus: Optional EventBus for publishing responses.
         mappings: Optional list of event mappings to configure.
+        event_publisher: Optional event publisher port for bridge responses.
 
     Returns:
         Configured EventBusA2ABridge.
     """
-    bridge = EventBusA2ABridge(registry, event_bus)
+    bridge = EventBusA2ABridge(
+        registry,
+        event_bus=event_bus,
+        event_publisher=event_publisher,
+    )
 
     if mappings:
         for mapping in mappings:

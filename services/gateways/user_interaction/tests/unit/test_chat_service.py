@@ -15,12 +15,9 @@ import pytest
 
 @pytest.fixture
 def chat_svc():
-    with patch("services.gateways.user_interaction.core.chat_service.llm_gateway") as mock_gw:
-        from services.gateways.user_interaction.core.chat_service import ChatService
+    from services.gateways.user_interaction.core.chat_service import ChatService
 
-        svc = ChatService()
-        svc._llm = mock_gw
-        return svc
+    return ChatService(llm=AsyncMock())
 
 
 # ---------------------------------------------------------------------------
@@ -308,24 +305,13 @@ async def test_chat_with_user_assistant_no_open_id_in_prompt(chat_svc):
         return "ok"
 
     chat_svc.chat = fake_chat
+    chat_svc._daily_progress_store.get_pending = AsyncMock(return_value=[])
 
-    with patch("services.gateways.user_interaction.core.chat_service.db_manager") as mock_db:
-        mock_session = AsyncMock()
-        mock_db.session.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_db.session.return_value.__aexit__ = AsyncMock(return_value=False)
-
-        with patch(
-            "services.gateways.user_interaction.core.chat_service.DailyProgressRepository",
-        ) as MockRepo:
-            mock_repo_inst = AsyncMock()
-            mock_repo_inst.get_pending = AsyncMock(return_value=[])
-            MockRepo.return_value = mock_repo_inst
-
-            await chat_svc.chat_with_user_assistant(
-                message="hi",
-                user_id="ou_abc123secret",
-                user_name="Alice",
-            )
+    await chat_svc.chat_with_user_assistant(
+        message="hi",
+        user_id="ou_abc123secret",
+        user_name="Alice",
+    )
 
     assert "ou_abc123secret" not in captured_kwargs["system_prompt"]
     assert "Alice" not in captured_kwargs["system_prompt"]

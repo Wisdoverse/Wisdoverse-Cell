@@ -10,10 +10,23 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # Import all models so metadata is populated for Alembic autogenerate checks.
 from agents.dev_agent.models.base import Base as DevAgentBase
-from agents.dev_agent.models.dev import DevAgentTask, DevAgentWorkflowLog  # noqa: F401
-from agents.pjm_agent.models import AlertLog, DecompositionRecord, PMConfigCache  # noqa: F401
+from agents.dev_agent.models.dev import (  # noqa: F401
+    DevAgentEventOutbox,
+    DevAgentTask,
+    DevAgentWorkflowLog,
+)
+from agents.pjm_agent.models import (  # noqa: F401
+    AlertLog,
+    DecompositionRecord,
+    PJMEventOutbox,
+    PMConfigCache,
+)
 from agents.pjm_agent.models.base import Base as PJMAgentBase
-from agents.qa_agent.models import QAAcceptanceResult, QAAcceptanceRun  # noqa: F401
+from agents.qa_agent.models import (  # noqa: F401
+    QAAcceptanceResult,
+    QAAcceptanceRun,
+    QAEventOutbox,
+)
 from agents.qa_agent.models.base import Base as QAAgentBase
 from agents.requirement_manager.models import (  # noqa: F401
     ChatMessage,
@@ -24,16 +37,27 @@ from agents.requirement_manager.models import (  # noqa: F401
     Requirement,
 )
 from agents.requirement_manager.models.base import Base as RequirementManagerBase
+from services.gateways.channel.models import ChannelGatewayEventOutbox  # noqa: F401
+from services.gateways.channel.models.base import Base as ChannelGatewayBase
 from services.gateways.user_interaction.models import (  # noqa: F401
     CardOperation,
     ConversationHistory,
     DailyProgress,
+    UserInteractionEventOutbox,
 )
 from services.gateways.user_interaction.models.base import Base as UserInteractionBase
-from shared.capabilities.analysis.models import ReportLog  # noqa: F401
+from services.orchestration.coordinator.db.base import Base as CoordinatorBase
+from services.orchestration.coordinator.db.event_outbox import (  # noqa: F401
+    CoordinatorEventOutbox,
+)
+from shared.capabilities.analysis.models import (  # noqa: F401
+    AnalysisEventOutbox,
+    ReportLog,
+)
 from shared.capabilities.analysis.models.base import Base as AnalysisBase
 from shared.capabilities.sync.models import (  # noqa: F401
     SubtaskMapping,
+    SyncEventOutbox,
     SyncLock,
     SyncLog,
     SyncMapping,
@@ -42,6 +66,7 @@ from shared.capabilities.sync.models.base import Base as SyncBase
 from shared.config import settings
 from shared.control_plane.tables import control_plane_metadata
 from shared.evolution.db.tables import evolution_metadata
+from shared.models.user import User  # noqa: F401
 
 config = context.config
 
@@ -55,6 +80,8 @@ target_metadata = [
     QAAgentBase.metadata,
     DevAgentBase.metadata,
     UserInteractionBase.metadata,
+    ChannelGatewayBase.metadata,
+    CoordinatorBase.metadata,
     SyncBase.metadata,
     AnalysisBase.metadata,
     evolution_metadata,

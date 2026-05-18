@@ -56,3 +56,26 @@ async def test_publish_budget_usage_recorded_returns_none_when_bus_rejects() -> 
     )
 
     assert event is None
+
+
+@pytest.mark.asyncio
+async def test_publish_budget_usage_recorded_uses_event_publisher_port() -> None:
+    event_publisher = AsyncMock()
+    event_publisher.publish = AsyncMock(return_value=True)
+    event_bus = AsyncMock()
+    event_bus.publish = AsyncMock(return_value=True)
+
+    event = await publish_budget_usage_recorded(
+        company_id="cmp_test",
+        usage_id="busg_002",
+        budget_id="bud_002",
+        cost_usd=0.12,
+        model="tool:budgeted",
+        source_agent_id="dev-agent",
+        event_bus=event_bus,
+        event_publisher=event_publisher,
+    )
+
+    assert event is not None
+    event_publisher.publish.assert_awaited_once_with(event)
+    event_bus.publish.assert_not_awaited()

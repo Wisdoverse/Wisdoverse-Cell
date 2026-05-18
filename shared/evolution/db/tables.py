@@ -29,6 +29,47 @@ class EvolutionBase(DeclarativeBase):
     metadata = evolution_metadata
 
 
+# ── evolution_event_outbox ───────────────────────────────────────────────────
+
+
+class EvolutionEventOutbox(EvolutionBase):
+    __tablename__ = "evolution_event_outbox"
+
+    event_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    source_agent: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    schema_version: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="1.0",
+    )
+    trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="pending",
+    )
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    __table_args__ = (
+        Index("ix_evolution_event_outbox_event_type", "event_type"),
+        Index("ix_evolution_event_outbox_status", "status"),
+    )
+
+
 # ── evolution_traces ───────────────────────────────────────────────────────
 
 

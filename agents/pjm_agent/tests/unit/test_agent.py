@@ -4,11 +4,26 @@ Unit Tests - PMAgent
 Tests PMAgent initialization, event handling, and request handling.
 """
 
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from shared.app import UNKNOWN_ACTION_ERROR_CODE
 from shared.schemas.event import Event, EventTypes
+
+
+class AsyncSessionContext:
+    """Minimal async context manager for mocked db sessions."""
+
+    def __init__(self, session):
+        self.session = session
+
+    async def __aenter__(self):
+        return self.session
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
 
 
 @pytest.fixture
@@ -72,6 +87,31 @@ class TestAgentInit:
         assert EventTypes.PM_TASKS_READY_FOR_DEV in agent.published_events
         assert EventTypes.SYNC_TASK_NEEDS_DECOMPOSE in agent.published_events
         assert len(agent.published_events) >= 2
+
+
+class TestHealthCheck:
+    @pytest.mark.asyncio
+    async def test_health_check_uses_injected_health_store(
+        self,
+        mock_db_manager,
+        mock_event_bus,
+    ):
+        from agents.pjm_agent.service.agent import PMAgent
+
+        health_store = AsyncMock()
+        health_store.is_database_ready = AsyncMock(return_value=True)
+        agent = PMAgent(
+            db=mock_db_manager,
+            bus=mock_event_bus,
+            health_store=health_store,
+        )
+        agent._config = MagicMock()
+        agent._config.members = ["pm"]
+
+        result = await agent.health_check()
+
+        assert result == {"database": True, "config_loaded": True}
+        health_store.is_database_ready.assert_awaited_once()
 
 
 class TestHandleEvent:
@@ -152,6 +192,26 @@ class TestHandleEvent:
         assert "response" in result_events[0].payload
 
     @pytest.mark.asyncio
+    async def test_handle_event_chat_query_failure_uses_error_code(self, agent):
+        """chat.pm-query failure responses include a stable error code."""
+        agent._alert.check_all = AsyncMock(side_effect=RuntimeError("db down"))
+
+        event = Event.create(
+            event_type=EventTypes.CHAT_PM_QUERY,
+            source_agent="chat-agent",
+            payload={"user_id": "user-001", "query": "项目状态"},
+            trace_id="trace-003",
+        )
+
+        result_events = await agent.handle_event(event)
+
+        response = result_events[0].payload["response"]
+        assert response == {
+            "error": "Failed to retrieve PM status: RuntimeError",
+            "error_code": "pm_chat_query_failed",
+        }
+
+    @pytest.mark.asyncio
     async def test_handle_event_unknown_type(self, agent):
         """Unknown event types return an empty list."""
         event = Event.create(
@@ -168,6 +228,7 @@ class TestHandleEvent:
         agent._decomposition_orchestrator.handle_decompose = AsyncMock(
             side_effect=RuntimeError("decompose unavailable")
         )
+        agent._decomposition_orchestrator.publish_event_via_outbox = AsyncMock()
 
         event = Event.create(
             event_type=EventTypes.SYNC_TASK_NEEDS_DECOMPOSE,
@@ -179,10 +240,31 @@ class TestHandleEvent:
         result = await agent.handle_event(event)
 
         assert result == []
-        published = agent._event_bus.publish.await_args.args[0]
+        published = agent._decomposition_orchestrator.publish_event_via_outbox.await_args.args[0]
         assert published.event_type == EventTypes.PM_DECOMPOSITION_FAILED
         assert published.metadata.trace_id == "trace-decompose"
         assert published.payload["requirement_title"] == "Login flow"
+        agent._event_bus.publish.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_approval_timeout_publishes_via_outbox(self, agent):
+        """Approval timeout notification is staged through the PJM outbox."""
+        agent._decomposition_orchestrator = AsyncMock()
+        agent._decomposition_orchestrator.publish_event_via_outbox = AsyncMock()
+        stale_record = MagicMock(
+            id="dec_001",
+            created_at=datetime.now(UTC) - timedelta(hours=25),
+        )
+        agent._decomposition_store = MagicMock()
+        agent._decomposition_store.list_stale_pending = AsyncMock(return_value=[stale_record])
+
+        await agent.check_approval_timeouts()
+
+        published = agent._decomposition_orchestrator.publish_event_via_outbox.await_args.args[0]
+        assert published.event_type == EventTypes.PM_APPROVAL_TIMEOUT
+        assert published.source_agent == "pjm-agent"
+        assert published.payload["record_id"] == "dec_001"
+        agent._event_bus.publish.assert_not_awaited()
 
 
 class TestHandleRequest:
@@ -227,12 +309,14 @@ class TestHandleRequest:
         result = await agent.handle_request({"action": "nonexistent"})
         assert "error" in result
         assert result["error"] == "unknown action"
+        assert result["error_code"] == UNKNOWN_ACTION_ERROR_CODE
 
     @pytest.mark.asyncio
     async def test_handle_request_no_action(self, agent):
         """Missing action returns an error."""
         result = await agent.handle_request({})
         assert "error" in result
+        assert result["error_code"] == UNKNOWN_ACTION_ERROR_CODE
 
     @pytest.mark.asyncio
     async def test_handle_request_report_errors_are_sanitized(self, agent):
@@ -244,4 +328,4 @@ class TestHandleRequest:
 
         result = await agent.handle_request({"action": "daily_report"})
 
-        assert result == {"error": "report_failed"}
+        assert result == {"error": "report_failed", "error_code": "report_failed"}

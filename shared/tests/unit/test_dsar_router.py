@@ -6,6 +6,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from shared.api import ApiErrorCode
 from shared.api.dsar_router import create_dsar_router
 from shared.control_plane import ApprovalRequiredError
 from shared.schemas.dsar import DSARResult
@@ -104,6 +105,7 @@ async def test_dsar_confirmed_delete_requires_control_plane_approval() -> None:
 
     assert denied.status_code == 403
     assert denied.json()["detail"] == "control_plane_approval_required"
+    assert denied.headers["x-error-code"] == ApiErrorCode.DSAR_APPROVAL_REQUIRED.value
     approval_gate.ensure_approved_for_sensitive_action.assert_awaited_once_with(None)
     service.delete_user_data.assert_not_awaited()
 

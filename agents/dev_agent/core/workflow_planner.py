@@ -102,6 +102,7 @@ class WorkflowPlanner:
     async def plan(self, task: SanitizedTask) -> WorkflowPlan | None:
         """Generate a workflow plan from a task via LLM."""
         user_prompt = build_workflow_planner_prompt(task)
+        system_prompt = await self._resolve_system_prompt()
 
         start = time.monotonic()
         try:
@@ -112,10 +113,7 @@ class WorkflowPlanner:
                 model=self._config.decompose_model,
                 max_tokens=4096,
                 temperature=0,
-                system_prompt=await resolve_agent_system_prompt(
-                    "dev-agent",
-                    WORKFLOW_PLANNER_SYSTEM,
-                ),
+                system_prompt=system_prompt,
             )
             elapsed = time.monotonic() - start
             LLM_CALL_DURATION.observe(elapsed)
@@ -138,3 +136,17 @@ class WorkflowPlanner:
                 exc_info=True,
             )
             return None
+
+    async def _resolve_system_prompt(self) -> str:
+        try:
+            return await resolve_agent_system_prompt(
+                "dev-agent",
+                WORKFLOW_PLANNER_SYSTEM,
+            )
+        except Exception as exc:
+            logger.warning(
+                "workflow_planner_prompt_config_fallback",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            return WORKFLOW_PLANNER_SYSTEM

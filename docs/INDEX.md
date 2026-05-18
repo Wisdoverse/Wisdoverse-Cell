@@ -29,6 +29,7 @@ surfaces that currently exist.
 | Product vocabulary | [Product Model](./overview/product-model.md) | Defines goals, work items, agent roles, runs, decisions, artifacts, budgets, approvals, and audit trails |
 | Repository layout | [Project Layout](./overview/project-layout.md) | Maps source roots, current structure drift, cleanup phases, and ignored local-only paths |
 | System architecture | [Architecture Overview](./overview/architecture.md) | Maps architecture boundary rules, frontend, gateway, independently deployed agents, shared runtime, control-plane ledger, and adapters |
+| Backend boundaries | [Backend Boundaries](./guides/backend-boundaries.md) | Defines bounded contexts, table ownership, API/event/data contracts, and current backend governance gaps |
 | Operator API | [API Reference](./guides/api-reference.md#control-plane-api) | Documents `/api/v1/control-plane/*`, `/agent/request`, wakeups, scheduler ticks, approvals, budgets, and timelines |
 | Event contract | [Event Catalog](./guides/event-catalog.md#30-control-plane-domain) | Documents control-plane events and producer/consumer expectations |
 | Operations | [Operations Guide](./guides/operations.md#10-control-plane-operations) | Documents migrations, runtime switches, local-adapter fail-closed policy, heartbeat execution, and run evidence |
@@ -71,6 +72,7 @@ For contributors, operators, and deployers.
 |----------|---------|
 | [Agent Development Guide](./guides/agent-development.md) | New-agent template, `create_agent_app`, plugins, tests, deployment |
 | [API Reference](./guides/api-reference.md) | REST endpoints, authentication, errors, control-plane API, agent wakeups |
+| [Backend Boundaries](./guides/backend-boundaries.md) | Bounded contexts, table ownership, cross-boundary access rules, and known backend governance gaps |
 | [Event Catalog](./guides/event-catalog.md) | Event types, payload schemas, producer/consumer matrix, control-plane lifecycle events |
 | [Operations Guide](./guides/operations.md) | Deployment, scaling, monitoring, control-plane runtime switches, troubleshooting, backups |
 | [Incident Response Guide](./guides/incident-response.md) | Severity model, response flow, playbooks, recovery |

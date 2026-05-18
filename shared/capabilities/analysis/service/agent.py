@@ -1,10 +1,10 @@
 """Analysis capability module for reports, milestone checks, and quality review."""
-from datetime import UTC, datetime
 from typing import Optional
-from zoneinfo import ZoneInfo
 
 from shared.config import settings as app_settings
+from shared.core import EventPublisher
 from shared.infra.event_bus import EventBus, event_bus
+from shared.infra.event_publisher import EventBusEventPublisher
 from shared.infra.llm_gateway import llm_gateway
 from shared.integrations.feishu.bitable import bitable_service
 from shared.integrations.feishu.client import get_feishu_client
@@ -15,10 +15,18 @@ from shared.utils.logger import get_logger
 
 from ..core.config import AnalysisCoreConfig
 from ..core.daily_report import DailyReportGenerator
+from ..core.event_use_cases import AnalysisEventUseCase
+from ..core.health_ports import AnalysisHealthStore
+from ..core.health_use_cases import AnalysisHealthUseCase
 from ..core.milestone_checker import MilestoneChecker
+from ..core.outbox_delivery_use_cases import AnalysisOutboxDeliveryUseCase
+from ..core.outbox_ports import AnalysisEventOutboxStore
 from ..core.quality_evaluator import QualityEvaluator
+from ..core.request_use_cases import AnalysisRequestUseCase
 from ..core.weekly_report import WeeklyReportGenerator
 from ..db.database import DatabaseManager, db_manager
+from ..db.health_store import SqlAlchemyAnalysisHealthStore
+from ..db.outbox_store import SqlAlchemyAnalysisEventOutboxStore
 
 try:
     from ..app.metrics import REPORTS_GENERATED, RISKS_DETECTED
@@ -28,7 +36,15 @@ except ImportError:
 
 logger = get_logger("analysis_module.service")
 
-_CHINA_TZ = ZoneInfo("Asia/Shanghai")
+
+class _AnalysisMetrics:
+    def record_report(self, report_type: str) -> None:
+        if _metrics_available:
+            REPORTS_GENERATED.labels(report_type=report_type).inc()
+
+    def record_risk(self, risk_level: str) -> None:
+        if _metrics_available:
+            RISKS_DETECTED.labels(risk_level=risk_level).inc()
 
 
 class AnalysisModule(BaseAgent):
@@ -36,6 +52,9 @@ class AnalysisModule(BaseAgent):
         self,
         db: Optional[DatabaseManager] = None,
         bus: Optional[EventBus] = None,
+        event_publisher: Optional[EventPublisher] = None,
+        outbox_store: Optional[AnalysisEventOutboxStore] = None,
+        health_store: AnalysisHealthStore | None = None,
     ):
         super().__init__(
             agent_id="analysis-module",
@@ -50,6 +69,13 @@ class AnalysisModule(BaseAgent):
         )
         self._db_manager = db or db_manager
         self._event_bus = bus or event_bus
+        self._event_publisher = event_publisher or EventBusEventPublisher(self._event_bus)
+        self._outbox_store = outbox_store or SqlAlchemyAnalysisEventOutboxStore(
+            self._db_manager
+        )
+        self._health_store = health_store or SqlAlchemyAnalysisHealthStore(
+            self._db_manager
+        )
         self._daily: DailyReportGenerator | None = None
         self._weekly: WeeklyReportGenerator | None = None
         self._milestone: MilestoneChecker | None = None
@@ -107,100 +133,74 @@ class AnalysisModule(BaseAgent):
         logger.info("agent_stopped", agent_id=self.agent_id)
 
     async def handle_event(self, event: Event) -> list[Event]:
-        if event.event_type == EventTypes.SYNC_COMPLETED:
-            return await self._on_sync_completed(event)
-        return []
+        return await self._event_use_case().handle(event)
+
+    def _event_use_case(self) -> AnalysisEventUseCase:
+        return AnalysisEventUseCase(
+            daily=self._daily,
+            weekly=self._weekly,
+            milestone=self._milestone,
+            quality=self._quality,
+            event_factory=self,
+            metrics=_AnalysisMetrics(),
+        )
 
     async def handle_request(self, request: dict) -> dict:
         standard_response = await self.handle_standard_request(request)
         if standard_response is not None:
             return standard_response
 
-        action = request.get("action")
-        if action == "daily_report":
-            return await self._daily.generate()
-        if action == "weekly_report":
-            return await self._weekly.generate()
-        if action == "check_milestones":
-            risks = await self._milestone.check()
-            return {"risks": risks}
-        return {"error": "unknown action"}
+        return await self._request_use_case().handle(request)
+
+    def _request_use_case(self) -> AnalysisRequestUseCase:
+        return AnalysisRequestUseCase(
+            daily=self._daily,
+            weekly=self._weekly,
+            milestone=self._milestone,
+        )
 
     async def health_check(self) -> dict[str, bool]:
         """Public health check for readiness probes."""
-        checks = {"database": False}
-        try:
-            if self._db_manager:
-                from sqlalchemy import text
-                async with self._db_manager.session() as session:
-                    await session.execute(text("SELECT 1"))
-                checks["database"] = True
-        except Exception as e:
-            logger.error("health_check_db_failed", error=str(e), error_type=type(e).__name__)
-        checks["event_bus"] = self._event_bus is not None
-        return checks
+        return await self._health_use_case().check()
 
-    async def _on_sync_completed(self, event: Event) -> list[Event]:
-        events = []
-        trace_id = event.metadata.trace_id
+    def _health_use_case(self) -> AnalysisHealthUseCase:
+        return AnalysisHealthUseCase(
+            health_store=self._health_store,
+            event_bus=self._event_bus,
+        )
 
-        # 1. Daily report.
-        try:
-            report = await self._daily.generate()
-            await self._daily.push_to_chat(report["content"])
-            if _metrics_available:
-                REPORTS_GENERATED.labels(report_type="daily").inc()
-            events.append(self.create_event(
-                EventTypes.REPORT_DAILY_GENERATED,
-                {"date": datetime.now(UTC).isoformat(), "summary": report["summary"]},
-                trace_id=trace_id,
-            ))
-        except Exception as e:
-            logger.error("daily_report_failed", error=str(e))
+    async def publish_pending_analysis_events(self, limit: int = 100) -> dict[str, int]:
+        """Retry pending Analysis outbox events."""
+        return await self._outbox_delivery_use_case().publish_pending_events(
+            limit=limit,
+        )
 
-        # 2. Milestone risks.
-        try:
-            risks = await self._milestone.check()
-            if risks:
-                await self._milestone.push_risks(risks)
-                if _metrics_available:
-                    for r in risks:
-                        RISKS_DETECTED.labels(risk_level=r.get("risk_level", "unknown")).inc()
-                events.append(self.create_event(
-                    EventTypes.ANALYSIS_RISK_DETECTED,
-                    {"risks": risks},
-                    trace_id=trace_id,
-                ))
-        except Exception as e:
-            logger.error("milestone_check_failed", error=str(e))
+    async def publish_event_via_outbox(self, event: Event) -> bool:
+        """Stage a runtime-produced Analysis event before EventBus delivery."""
+        return await self._outbox_delivery_use_case().publish_event_via_outbox(event)
 
-        # 3. Deliverable quality evaluation.
-        try:
-            results = await self._quality.evaluate_all()
-            if results:
-                events.append(self.create_event(
-                    EventTypes.ANALYSIS_QUALITY_EVALUATED,
-                    {"evaluations": results},
-                    trace_id=trace_id,
-                ))
-        except Exception as e:
-            logger.error("quality_eval_failed", error=str(e))
+    def _outbox_delivery_use_case(self) -> AnalysisOutboxDeliveryUseCase:
+        return AnalysisOutboxDeliveryUseCase(
+            outbox_store=self._outbox_store,
+            event_bus=self._event_bus,
+            event_publisher=self._event_publisher,
+        )
 
-        # 4. Generate a weekly report on Friday.
-        if datetime.now(_CHINA_TZ).weekday() == 4:
-            try:
-                report = await self._weekly.generate()
-                await self._weekly.push_to_chat(report["content"])
-                events.append(self.create_event(
-                    EventTypes.REPORT_WEEKLY_GENERATED,
-                    {"summary": report["summary"]},
-                    trace_id=trace_id,
-                ))
-            except Exception as e:
-                logger.error("weekly_report_failed", error=str(e))
+    def _event_from_outbox(self, row) -> Event:
+        """Rebuild an immutable Event from an Analysis outbox row."""
+        return self._outbox_delivery_use_case().event_from_outbox(row)
 
-        return events
+    async def _publish_staged_analysis_event(self, event: Event) -> bool:
+        """Publish one event already persisted in the Analysis outbox."""
+        return await self._outbox_delivery_use_case().publish_staged_event(event)
 
+    async def _mark_analysis_event_published(self, event: Event) -> None:
+        """Best-effort mark for a successfully published Analysis outbox event."""
+        await self._outbox_delivery_use_case().mark_event_published(event)
+
+    async def _mark_analysis_event_failed(self, event: Event, error: Exception) -> None:
+        """Best-effort failure recording for an Analysis outbox publish attempt."""
+        await self._outbox_delivery_use_case().mark_event_failed(event, error)
 
 agent = AnalysisModule()
 

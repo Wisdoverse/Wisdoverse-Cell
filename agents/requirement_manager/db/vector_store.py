@@ -16,7 +16,7 @@ from shared.infra.vector_store import BaseVectorStore
 from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
-from ..core.embedder import embedder
+from ..core.embedder import RequirementEmbedder
 
 if TYPE_CHECKING:
     from shared.app.plugins.vector_store import VectorStorePlugin
@@ -25,6 +25,7 @@ logger = get_logger("vector_store")
 
 # Collection-name constants.
 COLLECTION_REQUIREMENTS = "requirements"
+requirement_embedder = RequirementEmbedder()
 
 
 def _milvus_health_url(milvus_uri: str) -> str:
@@ -115,7 +116,7 @@ class VectorStore:
         if not self.available:
             return
 
-        text = embedder.format_requirement_for_embedding(
+        text = requirement_embedder.format_requirement_for_embedding(
             title=title,
             description=description,
             category=category,
@@ -169,7 +170,7 @@ class VectorStore:
         metadatas: list[dict[str, Any]] = []
 
         for req in requirements:
-            text = embedder.format_requirement_for_embedding(
+            text = requirement_embedder.format_requirement_for_embedding(
                 title=req["title"],
                 description=req["description"],
                 category=req.get("category"),

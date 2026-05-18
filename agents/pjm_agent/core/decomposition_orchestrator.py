@@ -5,18 +5,23 @@ from shared.control_plane import (
     ApprovalGateService,
     ApprovalRequiredError,
 )
-from shared.core import FeishuMessengerPort, OpenProjectWorkPackagePort
+from shared.core import (
+    EventPublisher,
+    FeishuMessengerPort,
+    OpenProjectWorkPackagePort,
+    request_error,
+)
 from shared.observability.privacy import hash_identifier
-from shared.schemas.event import Event, EventTypes
+from shared.schemas.event import Event, EventMetadata, EventTypes
 from shared.utils.logger import get_logger
 
-from ..db.database import DatabaseManager
-from ..db.repository import DecompositionRepository
 from ..models.schemas import DecomposePayload
 from .card_ports import PJMCardRendererPort
 from .config import PJMCoreConfig
 from .decompose import DecomposeError, DecomposeService
+from .decomposition_ports import PJMDecompositionStore, PJMDecompositionTransaction
 from .op_writer import OPWriterService
+from .outbox_ports import PJMEventOutboxStore
 from .push_service import PushService
 
 logger = get_logger("pjm_agent.decomposition_orchestrator")
@@ -27,29 +32,161 @@ class DecompositionOrchestrator:
 
     def __init__(
         self,
-        db_manager: DatabaseManager,
+        db_manager: object,
         op_writer: OPWriterService,
         decompose_service: DecomposeService,
         push_service: PushService,
         create_event_fn,
-        event_bus,
+        event_publisher: EventPublisher,
         op_client: OpenProjectWorkPackagePort | None = None,
         messenger: FeishuMessengerPort | None = None,
         card_renderer: PJMCardRendererPort | None = None,
         approval_gate: ApprovalGateService | None = None,
+        outbox_store: PJMEventOutboxStore | None = None,
+        decomposition_store: PJMDecompositionStore | None = None,
         config: PJMCoreConfig | None = None,
     ):
-        self._db_manager = db_manager
         self._op_writer = op_writer
         self._decompose = decompose_service
         self._push = push_service
         self._create_event = create_event_fn
-        self._event_bus = event_bus
+        self._event_publisher = event_publisher
         self._op = op_client
         self._messenger = messenger
         self._card_renderer = card_renderer
         self._approval_gate = approval_gate or ApprovalGateService(source_agent_id="pjm-agent")
+        self._outbox_store = outbox_store
+        self._decomposition_store = decomposition_store
         self._config = config or PJMCoreConfig()
+
+    def _require_outbox_store(self) -> PJMEventOutboxStore:
+        if self._outbox_store is None:
+            raise RuntimeError("pjm_outbox_store_not_configured")
+        return self._outbox_store
+
+    def _require_decomposition_store(self) -> PJMDecompositionStore:
+        if self._decomposition_store is None:
+            raise RuntimeError("pjm_decomposition_store_not_configured")
+        return self._decomposition_store
+
+    async def publish_pending_pjm_events(self, limit: int = 100) -> dict[str, int]:
+        """
+        Retry pending PJM outbox events.
+
+        This use case keeps retry dispatch reusable from a runtime plugin,
+        future admin endpoint, or standalone worker.
+        """
+        rows = await self._require_outbox_store().list_pending(limit=limit)
+
+        published = 0
+        failed = 0
+        for row in rows:
+            event = self._event_from_outbox(row)
+            try:
+                ok = await self._event_publisher.publish(event)
+                if not ok:
+                    raise RuntimeError("pjm_event_publish_rejected")
+                await self._mark_pjm_event_published(event)
+                published += 1
+            except Exception as exc:
+                await self._mark_pjm_event_failed(event, exc)
+                failed += 1
+
+        logger.info(
+            "pjm_outbox_dispatch_completed",
+            total=len(rows),
+            published=published,
+            failed=failed,
+        )
+        return {"total": len(rows), "published": published, "failed": failed}
+
+    async def _stage_pjm_event(
+        self,
+        transaction: PJMDecompositionTransaction,
+        event: Event,
+    ) -> Event:
+        """Persist an integration event in the local PJM outbox."""
+        await transaction.stage_event(event)
+        return event
+
+    async def publish_event_via_outbox(
+        self,
+        event: Event,
+        *,
+        wp_id: int | None = None,
+    ) -> None:
+        """Stage a PJM integration event, then publish after the local commit."""
+        await self._require_outbox_store().add(event)
+        await self._publish_staged_pjm_event(event, wp_id=wp_id)
+
+    def _event_from_outbox(self, row) -> Event:
+        """Rebuild an immutable Event from a PJM outbox row."""
+        return Event(
+            event_id=row.event_id,
+            event_type=row.event_type,
+            timestamp=row.created_at,
+            source_agent=row.source_agent,
+            payload=row.payload,
+            schema_version=row.schema_version,
+            metadata=EventMetadata(
+                trace_id=row.trace_id,
+                correlation_id=row.correlation_id,
+                retry_count=row.retry_count,
+            ),
+        )
+
+    async def _publish_staged_pjm_event(
+        self,
+        event: Event,
+        *,
+        wp_id: int | None = None,
+    ) -> None:
+        """Publish an event already persisted in the PJM outbox."""
+        try:
+            ok = await self._event_publisher.publish(event)
+            if not ok:
+                raise RuntimeError("pjm_event_publish_rejected")
+            await self._mark_pjm_event_published(event)
+            logger.info(
+                "pjm_event_published",
+                event_id=event.event_id,
+                event_type=event.event_type,
+                wp_id=wp_id,
+            )
+        except Exception as exc:
+            await self._mark_pjm_event_failed(event, exc)
+            logger.error(
+                "pjm_event_publish_failed",
+                event_id=event.event_id,
+                event_type=event.event_type,
+                wp_id=wp_id,
+                error=str(exc),
+            )
+
+    async def _mark_pjm_event_published(self, event: Event) -> None:
+        """Best-effort mark for a successfully published outbox event."""
+        try:
+            await self._require_outbox_store().mark_published(event.event_id)
+        except Exception as exc:
+            logger.warning(
+                "pjm_outbox_mark_published_failed",
+                event_id=event.event_id,
+                event_type=event.event_type,
+                error=str(exc),
+            )
+
+    async def _mark_pjm_event_failed(self, event: Event, error: Exception) -> None:
+        """Best-effort failure recording for an outbox event publish attempt."""
+        try:
+            await self._require_outbox_store().mark_failed(event.event_id, str(error))
+        except Exception as exc:
+            logger.warning(
+                "pjm_outbox_mark_failed_failed",
+                event_id=event.event_id,
+                event_type=event.event_type,
+                publish_error=str(error),
+                error=str(exc),
+            )
 
     async def handle_decompose(self, event: Event) -> list[Event]:
         """Handle a SYNC_TASK_NEEDS_DECOMPOSE event."""
@@ -69,15 +206,14 @@ class DecompositionOrchestrator:
         )
 
         # Dedup check
-        async with self._db_manager.session() as session:
-            repo = DecompositionRepository(session)
-            existing = await repo.get_by_wp_id(wp_id)
+        async with self._require_decomposition_store().transaction() as decomposition:
+            existing = await decomposition.get_by_wp_id(wp_id)
             if existing and existing.status in ("pending", "writing", "approved", "write_failed"):
                 logger.info("decompose_skip_duplicate", wp_id=wp_id, status=existing.status)
                 return []
             # Allow failed/rejected to retry — delete old record
             if existing:
-                await repo.delete_by_wp_id(wp_id)
+                await decomposition.delete_by_wp_id(wp_id)
 
         # Branch: Task detail check vs Feature/Epic decomposition
         if wp_type == "Task":
@@ -105,15 +241,17 @@ class DecompositionOrchestrator:
         except DecomposeError as e:
             logger.error("decompose_failed", wp_id=wp_id, error=str(e), trace_id=trace_id)
             try:
-                async with self._db_manager.session() as session:
-                    repo = DecompositionRepository(session)
-                    await repo.create(
+                async with self._require_decomposition_store().transaction() as decomposition:
+                    await decomposition.create(
                         wp_id=wp_id,
                         project_id=project_id,
-                        decompose_result={"error": str(e)},
+                        decompose_result=request_error(
+                            str(e),
+                            "pm.decomposition_failed",
+                        ),
                         assignee_id=assignee_id,
                     )
-                    await repo.update_status(wp_id, "failed")
+                    await decomposition.update_status(wp_id, "failed")
             except Exception:
                 logger.error("decompose_failed_save_error", wp_id=wp_id)
             # Notify user about decomposition failure via Feishu
@@ -145,9 +283,8 @@ class DecompositionOrchestrator:
         if approval_id:
             result_dict["control_plane_approval_id"] = approval_id
         try:
-            async with self._db_manager.session() as session:
-                repo = DecompositionRepository(session)
-                await repo.create(
+            async with self._require_decomposition_store().transaction() as decomposition:
+                await decomposition.create(
                     wp_id=wp_id,
                     project_id=project_id,
                     decompose_result=result_dict,
@@ -220,15 +357,17 @@ class DecompositionOrchestrator:
         except DecomposeError as e:
             logger.error("task_check_failed", wp_id=wp_id, error=str(e), trace_id=trace_id)
             try:
-                async with self._db_manager.session() as session:
-                    repo = DecompositionRepository(session)
-                    await repo.create(
+                async with self._require_decomposition_store().transaction() as decomposition:
+                    await decomposition.create(
                         wp_id=wp_id,
                         project_id=project_id,
-                        decompose_result={"error": str(e)},
+                        decompose_result=request_error(
+                            str(e),
+                            "pm.task_detail_check_failed",
+                        ),
                         assignee_id=assignee_id,
                     )
-                    await repo.update_status(wp_id, "failed")
+                    await decomposition.update_status(wp_id, "failed")
             except Exception:
                 pass
             return []
@@ -258,9 +397,8 @@ class DecompositionOrchestrator:
         if approval_id:
             result_dict["control_plane_approval_id"] = approval_id
         try:
-            async with self._db_manager.session() as session:
-                repo = DecompositionRepository(session)
-                await repo.create(
+            async with self._require_decomposition_store().transaction() as decomposition:
+                await decomposition.create(
                     wp_id=wp_id,
                     project_id=project_id,
                     decompose_result=result_dict,
@@ -310,19 +448,52 @@ class DecompositionOrchestrator:
             )
         ]
 
+    def _build_dev_tasks(self, wp_id: int, decompose_result: dict) -> list[dict]:
+        """Build the dev-agent handoff payload from an approved decomposition."""
+        is_refinement = decompose_result.get("type") == "task_refinement"
+        if is_refinement:
+            return [
+                {
+                    "id": wp_id * 10000 + idx + 1,
+                    "title": task.get("subject", ""),
+                    "description": "",
+                    "estimated_hours": task.get("estimated_hours", 8),
+                    "parent_story": "",
+                    "related_files": [],
+                }
+                for idx, task in enumerate(decompose_result.get("subtasks", []))
+            ]
+
+        dev_tasks = []
+        child_idx = 0
+        for story in decompose_result.get("subtasks", []):
+            for child in story.get("children", []):
+                child_idx += 1
+                dev_tasks.append(
+                    {
+                        "id": wp_id * 10000 + child_idx,
+                        "title": child.get("subject", ""),
+                        "description": "",
+                        "estimated_hours": child.get("estimated_hours", 8),
+                        "parent_story": story.get("subject", ""),
+                        "related_files": [],
+                    }
+                )
+        return dev_tasks
+
     async def approve_decomposition(self, wp_id: int, approved_by: str) -> dict | None:
-        async with self._db_manager.session() as session:
-            repo = DecompositionRepository(session)
-            record = await repo.get_by_wp_id(wp_id)
+        async with self._require_decomposition_store().transaction() as decomposition:
+            record = await decomposition.get_by_wp_id(wp_id)
             if not record or record.status != "pending":
                 return None
             approval_id = (record.decompose_result or {}).get("control_plane_approval_id")
             if approval_id and not approved_by:
-                return {
-                    "error": "approved_by required for control-plane approval",
-                    "wp_id": wp_id,
-                    "control_plane_approval_id": approval_id,
-                }
+                return request_error(
+                    "approved_by required for control-plane approval",
+                    "control_plane_approval_resolver_required",
+                    wp_id=wp_id,
+                    control_plane_approval_id=approval_id,
+                )
             try:
                 await self._approval_gate.approve_for_sensitive_action(
                     approval_id,
@@ -335,15 +506,21 @@ class DecompositionOrchestrator:
                     approval_id=approval_id,
                     error=str(exc),
                 )
-                return {"error": str(exc), "wp_id": wp_id}
+                return request_error(
+                    str(exc),
+                    "control_plane_approval_required",
+                    wp_id=wp_id,
+                )
             # Transition to "writing" before attempting OP write
-            await repo.update_status(wp_id, "writing", approved_by=approved_by)
+            await decomposition.update_status(wp_id, "writing", approved_by=approved_by)
             # Extract data while session is still active
             wbs_result = record.decompose_result
             project_id = record.project_id
             assignee_id = record.assignee_id
 
         is_task_refinement = wbs_result.get("type") == "task_refinement"
+
+        staged_events: list[Event] = []
 
         # Write to OpenProject
         try:
@@ -372,17 +549,56 @@ class DecompositionOrchestrator:
                 task_count=task_count,
                 result_keys=sorted(op_result.keys()),
             )
-            # Write succeeded — transition to "approved"
-            async with self._db_manager.session() as session:
-                repo = DecompositionRepository(session)
-                await repo.update_status(wp_id, "approved")
+            final_status = "approved" if task_count > 0 or story_count > 0 else "write_failed"
+            completion_event = self._create_event(
+                EventTypes.PM_DECOMPOSE_COMPLETED,
+                {
+                    "wp_id": wp_id,
+                    "status": final_status,
+                    "user_story_count": story_count,
+                    "task_count": task_count,
+                },
+            )
+            dev_event = None
+            if final_status == "approved":
+                dev_tasks = self._build_dev_tasks(wp_id, wbs_result)
+                if dev_tasks:
+                    dev_event = Event.create(
+                        event_type=EventTypes.PM_TASKS_READY_FOR_DEV,
+                        source_agent="pjm-agent",
+                        payload={
+                            "wp_id": wp_id,
+                            "tasks": dev_tasks,
+                        },
+                    )
+                else:
+                    logger.warning("no_dev_tasks_extracted", wp_id=wp_id)
+
+            # Write succeeded — transition to "approved" and stage outgoing events.
+            async with self._require_decomposition_store().transaction() as decomposition:
+                await decomposition.update_status(wp_id, "approved")
+                await self._stage_pjm_event(decomposition, completion_event)
+                staged_events.append(completion_event)
+                if dev_event is not None:
+                    await self._stage_pjm_event(decomposition, dev_event)
+                    staged_events.append(dev_event)
         except Exception as e:
             logger.error("decompose_op_write_failed", wp_id=wp_id, error=str(e))
+            completion_event = self._create_event(
+                EventTypes.PM_DECOMPOSE_COMPLETED,
+                {
+                    "wp_id": wp_id,
+                    "status": "write_failed",
+                    "user_story_count": 0,
+                    "task_count": 0,
+                },
+            )
             # Write failed — transition to "write_failed"
             try:
-                async with self._db_manager.session() as session:
-                    repo = DecompositionRepository(session)
-                    await repo.update_status(wp_id, "write_failed")
+                async with self._require_decomposition_store().transaction() as decomposition:
+                    await decomposition.update_status(wp_id, "write_failed")
+                    await self._stage_pjm_event(decomposition, completion_event)
+                    staged_events.append(completion_event)
             except Exception as inner_e:
                 logger.error(
                     "decompose_write_failed_status_update_error", wp_id=wp_id, error=str(inner_e)
@@ -399,83 +615,8 @@ class DecompositionOrchestrator:
             story_count = 0
             task_count = 0
 
-        # Publish event with final status
-        final_status = "approved" if task_count > 0 or story_count > 0 else "write_failed"
-        event = self._create_event(
-            EventTypes.PM_DECOMPOSE_COMPLETED,
-            {
-                "wp_id": wp_id,
-                "status": final_status,
-                "user_story_count": story_count,
-                "task_count": task_count,
-            },
-        )
-        try:
-            await self._event_bus.publish(event)
-        except Exception as e:
-            logger.error("decompose_event_publish_failed", wp_id=wp_id, error=str(e))
-
-        # Publish tasks-ready-for-dev event when OPWriter succeeded
-        if final_status == "approved":
-            decompose_result = wbs_result
-            is_refinement = decompose_result.get("type") == "task_refinement"
-
-            if is_refinement:
-                # Flat subtask list: each item is a WBSTask with subject/estimated_hours
-                # Generate unique IDs per child to avoid dev_agent_tasks.wp_id collision
-                dev_tasks = [
-                    {
-                        "id": wp_id * 10000 + idx + 1,
-                        "title": t.get("subject", ""),
-                        "description": "",
-                        "estimated_hours": t.get("estimated_hours", 8),
-                        "parent_story": "",
-                        "related_files": [],
-                    }
-                    for idx, t in enumerate(decompose_result.get("subtasks", []))
-                ]
-            else:
-                # Full WBS: subtasks are WBSSubtask with subject/children
-                # Generate unique IDs per child to avoid dev_agent_tasks.wp_id collision
-                dev_tasks = []
-                child_idx = 0
-                for story in decompose_result.get("subtasks", []):
-                    for child in story.get("children", []):
-                        child_idx += 1
-                        dev_tasks.append({
-                            "id": wp_id * 10000 + child_idx,
-                            "title": child.get("subject", ""),
-                            "description": "",
-                            "estimated_hours": child.get("estimated_hours", 8),
-                            "parent_story": story.get("subject", ""),
-                            "related_files": [],
-                        })
-
-            if dev_tasks:
-                dev_event = Event.create(
-                    event_type=EventTypes.PM_TASKS_READY_FOR_DEV,
-                    source_agent="pjm-agent",
-                    payload={
-                        "wp_id": wp_id,
-                        "tasks": dev_tasks,
-                    },
-                )
-                try:
-                    await self._event_bus.publish(dev_event)
-                    logger.info(
-                        "tasks_ready_for_dev_published",
-                        wp_id=wp_id,
-                        task_count=len(dev_tasks),
-                    )
-                except Exception as e:
-                    logger.error(
-                        "tasks_ready_for_dev_publish_failed",
-                        wp_id=wp_id,
-                        error=str(e),
-                        exc_info=True,
-                    )
-            else:
-                logger.warning("no_dev_tasks_extracted", wp_id=wp_id)
+        for staged_event in staged_events:
+            await self._publish_staged_pjm_event(staged_event, wp_id=wp_id)
 
         return {
             "subject": wbs_result.get("summary", ""),
@@ -530,27 +671,30 @@ class DecompositionOrchestrator:
     async def retry_decompose(self, wp_id: int) -> dict:
         """Retry a failed/rejected decomposition by re-fetching WP data from OP."""
         if not wp_id:
-            return {"error": "wp_id is required"}
-        async with self._db_manager.session() as session:
-            repo = DecompositionRepository(session)
-            record = await repo.get_by_wp_id(wp_id)
+            return request_error("wp_id is required", "wp_id_required")
+        async with self._require_decomposition_store().transaction() as decomposition:
+            record = await decomposition.get_by_wp_id(wp_id)
             if not record:
-                return {"error": "record not found"}
+                return request_error("record not found", "pm.decomposition_not_found")
             if record.status not in ("failed", "rejected", "write_failed"):
-                return {
-                    "error": (
+                return request_error(
+                    (
                         f"cannot retry status '{record.status}', "
                         "only failed/rejected/write_failed"
-                    )
-                }
+                    ),
+                    "pm.decomposition_retry_not_allowed",
+                    status=record.status,
+                )
             project_id = record.project_id
             assignee_id = record.assignee_id
-            await repo.delete_by_wp_id(wp_id)
 
         # Fetch latest WP data from OP and re-trigger
         try:
             if self._op is None:
-                return {"error": "openproject port not configured"}
+                return request_error(
+                    "openproject port not configured",
+                    "openproject_port_not_configured",
+                )
             wp = await self._op.get_work_package(wp_id)
             subject = wp.get("subject", "")
             description_raw = wp.get("description", {})
@@ -561,7 +705,11 @@ class DecompositionOrchestrator:
             project_name = wp.get("_links", {}).get("project", {}).get("title", "")
             assignee_name = wp.get("_links", {}).get("assignee", {}).get("title", "")
         except Exception as e:
-            return {"error": f"failed to fetch WP from OP: {e}"}
+            return request_error(
+                f"failed to fetch WP from OP: {e}",
+                "openproject_work_package_fetch_failed",
+                wp_id=wp_id,
+            )
 
         event = Event.create(
             event_type=EventTypes.SYNC_TASK_NEEDS_DECOMPOSE,
@@ -577,16 +725,31 @@ class DecompositionOrchestrator:
                 "assignee_id": assignee_id,
             },
         )
-        await self._event_bus.publish(event)
+        async with self._require_decomposition_store().transaction() as decomposition:
+            record = await decomposition.get_by_wp_id(wp_id)
+            if not record:
+                return request_error("record not found", "pm.decomposition_not_found")
+            if record.status not in ("failed", "rejected", "write_failed"):
+                return request_error(
+                    (
+                        f"cannot retry status '{record.status}', "
+                        "only failed/rejected/write_failed"
+                    ),
+                    "pm.decomposition_retry_not_allowed",
+                    status=record.status,
+                )
+            await decomposition.delete_by_wp_id(wp_id)
+            await self._stage_pjm_event(decomposition, event)
+
+        await self._publish_staged_pjm_event(event, wp_id=wp_id)
         return {"status": "retrying", "wp_id": wp_id}
 
     async def get_decompose(self, wp_id: int | None) -> dict:
         """Retrieve decomposition record for a given work package."""
         if not wp_id:
             return {}
-        async with self._db_manager.session() as session:
-            repo = DecompositionRepository(session)
-            record = await repo.get_by_wp_id(wp_id)
+        async with self._require_decomposition_store().transaction() as decomposition:
+            record = await decomposition.get_by_wp_id(wp_id)
             if not record:
                 return {}
             return {
@@ -603,19 +766,20 @@ class DecompositionOrchestrator:
     async def reject_decomposition(
         self, wp_id: int, rejected_by: str, reason: str = ""
     ) -> dict | None:
-        async with self._db_manager.session() as session:
-            repo = DecompositionRepository(session)
-            record = await repo.get_by_wp_id(wp_id)
+        event: Event | None = None
+        async with self._require_decomposition_store().transaction() as decomposition:
+            record = await decomposition.get_by_wp_id(wp_id)
             if not record or record.status != "pending":
                 return None
             subject = (record.decompose_result or {}).get("summary", "")
             approval_id = (record.decompose_result or {}).get("control_plane_approval_id")
             if approval_id and not rejected_by:
-                return {
-                    "error": "rejected_by required for control-plane rejection",
-                    "wp_id": wp_id,
-                    "control_plane_approval_id": approval_id,
-                }
+                return request_error(
+                    "rejected_by required for control-plane rejection",
+                    "control_plane_rejection_resolver_required",
+                    wp_id=wp_id,
+                    control_plane_approval_id=approval_id,
+                )
             try:
                 await self._approval_gate.reject_for_sensitive_action(
                     approval_id,
@@ -628,8 +792,23 @@ class DecompositionOrchestrator:
                     approval_id=approval_id,
                     error=str(exc),
                 )
-                return {"error": str(exc), "wp_id": wp_id}
-            await repo.update_status(wp_id, "rejected", approved_by=rejected_by)
+                return request_error(
+                    str(exc),
+                    "control_plane_rejection_required",
+                    wp_id=wp_id,
+                )
+            await decomposition.update_status(wp_id, "rejected", approved_by=rejected_by)
+            event = self._create_event(
+                EventTypes.PM_DECOMPOSE_COMPLETED,
+                {
+                    "wp_id": wp_id,
+                    "status": "rejected",
+                    "reason": reason,
+                    "user_story_count": 0,
+                    "task_count": 0,
+                },
+            )
+            await self._stage_pjm_event(decomposition, event)
 
         logger.info(
             "decompose_rejected",
@@ -638,18 +817,5 @@ class DecompositionOrchestrator:
             reason_hash=hash_identifier(reason),
             reason_length=len(reason),
         )
-        event = self._create_event(
-            EventTypes.PM_DECOMPOSE_COMPLETED,
-            {
-                "wp_id": wp_id,
-                "status": "rejected",
-                "reason": reason,
-                "user_story_count": 0,
-                "task_count": 0,
-            },
-        )
-        try:
-            await self._event_bus.publish(event)
-        except Exception as e:
-            logger.error("decompose_event_publish_failed", wp_id=wp_id, error=str(e))
+        await self._publish_staged_pjm_event(event, wp_id=wp_id)
         return {"subject": subject}

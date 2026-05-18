@@ -3,6 +3,7 @@ Repository data-access layer.
 """
 from __future__ import annotations
 
+import inspect
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Optional
 
@@ -14,9 +15,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from shared.observability.privacy import hash_identifier
+from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
-from ..models import LLMUsage, Meeting, OpenQuestion, Requirement, RequirementStatus
+from ..core.requirement_lifecycle import mark_confirmed, mark_rejected
+from ..models import LLMUsage, Meeting, OpenQuestion, Requirement, RequirementEventOutbox
 from ..models.chat_message import ChatMessage
 
 logger = get_logger("repository")
@@ -172,10 +175,7 @@ class RequirementRepository:
         """Confirm a requirement."""
         requirement = await self.get_by_id(requirement_id)
         if requirement:
-            requirement.status = RequirementStatus.CONFIRMED.value
-            requirement.confirmed_by = confirmed_by
-            requirement.confirmed_at = datetime.now(UTC)
-            requirement.add_history("confirmed", "需求已确认", confirmed_by)
+            mark_confirmed(requirement, confirmed_by)
             await self.session.flush()
         return requirement
 
@@ -188,9 +188,7 @@ class RequirementRepository:
         """Reject a requirement."""
         requirement = await self.get_by_id(requirement_id)
         if requirement:
-            requirement.status = RequirementStatus.REJECTED.value
-            requirement.rejection_reason = reason
-            requirement.add_history("rejected", f"需求已拒绝: {reason}", rejected_by)
+            mark_rejected(requirement, reason, rejected_by)
             await self.session.flush()
         return requirement
 
@@ -269,16 +267,7 @@ class RequirementRepository:
 
     async def delete(self, requirement_id: str) -> Optional[Requirement]:
         """
-        Delete a requirement and its vector-store record.
-
-        Transaction consistency policy:
-        1. Delete the vector-store record first; log a warning and continue on failure.
-        2. Delete the database record.
-        3. The vector store is an auxiliary index; the database is the source of truth.
-
-        If vector deletion fails but database deletion succeeds, an orphaned
-        vector record may remain. Those orphaned records are filtered on the
-        next query because their database record no longer exists.
+        Delete a requirement and its related database records.
 
         Args:
             requirement_id: Requirement ID.
@@ -286,37 +275,17 @@ class RequirementRepository:
         Returns:
             Deleted requirement object, or None if it does not exist.
         """
-        from ..db.vector_store import vector_store
-
         # 1. Load the requirement for return value and logging.
         requirement = await self.get_by_id(requirement_id)
         if not requirement:
             return None
 
-        # 2. Delete vector-store record before the database transaction commits.
-        # Vector deletion failure does not block the main flow, but must be logged for cleanup.
-        try:
-            await vector_store.delete_requirement(requirement_id)
-            logger.info(
-                "vector_store_record_deleted",
-                requirement_id=requirement_id
-            )
-        except Exception as e:
-            # Vector deletion failed; log a warning.
-            # Orphaned vector records are filtered during query.
-            logger.warning(
-                "vector_store_delete_failed",
-                requirement_id=requirement_id,
-                error=str(e),
-                note="Orphaned vector record may exist, will be filtered on query"
-            )
-
-        # 3. Delete related OpenQuestion records.
+        # 2. Delete related OpenQuestion records.
         await self.session.execute(
             delete(OpenQuestion).where(OpenQuestion.requirement_id == requirement_id)
         )
 
-        # 4. Delete the Requirement record.
+        # 3. Delete the Requirement record.
         await self.session.execute(
             delete(Requirement).where(Requirement.id == requirement_id)
         )
@@ -400,6 +369,69 @@ class QuestionRepository:
             question.answered_at = datetime.now(UTC)
             await self.session.flush()
         return question
+
+
+class RequirementEventOutboxRepository:
+    """Requirement integration-event outbox data access."""
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def add(self, event: Event) -> RequirementEventOutbox:
+        """Store an integration event in the local transaction outbox."""
+        payload = event.model_dump(mode="json")
+        row = RequirementEventOutbox(
+            event_id=event.event_id,
+            event_type=event.event_type,
+            source_agent=event.source_agent,
+            payload=payload["payload"],
+            schema_version=event.schema_version,
+            trace_id=payload["metadata"].get("trace_id"),
+            correlation_id=payload["metadata"].get("correlation_id"),
+            retry_count=payload["metadata"].get("retry_count", 0),
+            status="pending",
+            attempts=0,
+        )
+        self.session.add(row)
+        result = self.session.flush()
+        if inspect.isawaitable(result):
+            await result
+        return row
+
+    async def list_pending(self, limit: int = 100) -> list[RequirementEventOutbox]:
+        """List pending events for retry dispatch."""
+        result = await self.session.execute(
+            select(RequirementEventOutbox)
+            .where(RequirementEventOutbox.status == "pending")
+            .order_by(RequirementEventOutbox.created_at, RequirementEventOutbox.event_id)
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def mark_published(self, event_id: str) -> None:
+        """Mark an outbox row as published."""
+        await self.session.execute(
+            update(RequirementEventOutbox)
+            .where(RequirementEventOutbox.event_id == event_id)
+            .values(
+                status="published",
+                attempts=RequirementEventOutbox.attempts + 1,
+                published_at=datetime.now(UTC),
+                last_error=None,
+            )
+        )
+
+    async def mark_failed(self, event_id: str, error: str) -> None:
+        """Record a publish failure without removing the pending event."""
+        await self.session.execute(
+            update(RequirementEventOutbox)
+            .where(RequirementEventOutbox.event_id == event_id)
+            .values(
+                status="pending",
+                attempts=RequirementEventOutbox.attempts + 1,
+                last_error=error[:1000],
+            )
+        )
 
 
 class LLMUsageRepository:

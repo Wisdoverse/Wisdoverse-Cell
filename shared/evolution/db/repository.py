@@ -1,23 +1,26 @@
-"""
-Evolution Repository — data access layer for evolution tables.
-
-Accepts an ``AsyncSession`` (injected by DatabaseManager).
-Uses ``flush()`` instead of ``commit()`` — the session context manager handles commits.
-"""
-
+"""Evolution Repository — data access layer for evolution tables."""
+import inspect
 from datetime import UTC, datetime
 from typing import Any, Optional
 
 from sqlalchemy import delete, desc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.schemas.event import Event
+
 from .tables import (
+    EvolutionEventOutbox,
     EvolutionExperiment,
     EvolutionMemory,
     EvolutionReflection,
     EvolutionSkillConfig,
     EvolutionTrace,
 )
+
+
+async def _maybe_await(value) -> None:
+    if inspect.isawaitable(value):
+        await value
 
 
 class EvolutionRepository:
@@ -50,7 +53,7 @@ class EvolutionRepository:
             output_format=output_format,
             target_model=target_model,
         )
-        self.session.add(row)
+        await _maybe_await(self.session.add(row))
         await self.session.flush()
         await self.session.refresh(row)
         return row
@@ -146,7 +149,7 @@ class EvolutionRepository:
             human_correction=human_correction,
             auto_score=auto_score,
         )
-        self.session.add(row)
+        await _maybe_await(self.session.add(row))
         await self.session.flush()
         await self.session.refresh(row)
         return row
@@ -202,7 +205,7 @@ class EvolutionRepository:
             optimization_suggestions=optimization_suggestions or [],
             human_corrections_summary=human_corrections_summary,
         )
-        self.session.add(row)
+        await _maybe_await(self.session.add(row))
         await self.session.flush()
         await self.session.refresh(row)
         return row
@@ -253,7 +256,7 @@ class EvolutionRepository:
             control_results=[],
             candidate_results=[],
         )
-        self.session.add(row)
+        await _maybe_await(self.session.add(row))
         await self.session.flush()
         await self.session.refresh(row)
         return row
@@ -373,7 +376,7 @@ class EvolutionRepository:
             value=value,
             ttl_seconds=ttl_seconds,
         )
-        self.session.add(row)
+        await _maybe_await(self.session.add(row))
         await self.session.flush()
         await self.session.refresh(row)
         return row
@@ -409,3 +412,67 @@ class EvolutionRepository:
             .where(EvolutionMemory.key == key)
         )
         await self.session.flush()
+
+
+class EvolutionEventOutboxRepository:
+    """Evolution integration-event outbox data access."""
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def add(self, event: Event) -> EvolutionEventOutbox:
+        """Store an integration event in the local transaction outbox."""
+        payload = event.model_dump(mode="json")
+        row = EvolutionEventOutbox(
+            event_id=event.event_id,
+            event_type=event.event_type,
+            source_agent=event.source_agent,
+            payload=payload["payload"],
+            schema_version=event.schema_version,
+            trace_id=payload["metadata"].get("trace_id"),
+            correlation_id=payload["metadata"].get("correlation_id"),
+            retry_count=payload["metadata"].get("retry_count", 0),
+            status="pending",
+            attempts=0,
+        )
+        await _maybe_await(self.session.add(row))
+        await _maybe_await(self.session.flush())
+        return row
+
+    async def list_pending(self, limit: int = 100) -> list[EvolutionEventOutbox]:
+        """List pending events for retry dispatch."""
+        result = await self.session.execute(
+            select(EvolutionEventOutbox)
+            .where(EvolutionEventOutbox.status == "pending")
+            .order_by(
+                EvolutionEventOutbox.created_at,
+                EvolutionEventOutbox.event_id,
+            )
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def mark_published(self, event_id: str) -> None:
+        """Mark an outbox row as published."""
+        await self.session.execute(
+            update(EvolutionEventOutbox)
+            .where(EvolutionEventOutbox.event_id == event_id)
+            .values(
+                status="published",
+                attempts=EvolutionEventOutbox.attempts + 1,
+                published_at=datetime.now(UTC),
+                last_error=None,
+            )
+        )
+
+    async def mark_failed(self, event_id: str, error: str) -> None:
+        """Record a publish failure without removing the pending event."""
+        await self.session.execute(
+            update(EvolutionEventOutbox)
+            .where(EvolutionEventOutbox.event_id == event_id)
+            .values(
+                status="pending",
+                attempts=EvolutionEventOutbox.attempts + 1,
+                last_error=error[:1000],
+            )
+        )

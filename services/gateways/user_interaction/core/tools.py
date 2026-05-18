@@ -1,9 +1,10 @@
 """Tool definitions for Claude Tool Calling"""
 import json
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Protocol
 
 import redis.asyncio as aioredis
 
@@ -18,6 +19,7 @@ from shared.utils.logger import get_logger
 from .approval_ports import SensitiveActionApprovalPort
 from .card_ports import ToolCardRendererPort
 from .config import UserInteractionCoreConfig
+from .event_ports import GatewayEventPublisherPort
 from .ops_logger import record_op
 
 # Redis for storing pending operation fields (SEC-103)
@@ -52,6 +54,30 @@ async def get_pending_op(action_id: str) -> dict | None:
 logger = get_logger("chat_agent.tools")
 
 
+class CardOperationQueryStore(Protocol):
+    async def query(
+        self,
+        user_id: str = "",
+        action: str = "",
+        limit: int = 20,
+    ) -> Sequence[object]:
+        """Return card operation rows for tool-visible audit queries."""
+
+
+class DailyProgressMutationStore(Protocol):
+    async def update_progress(
+        self,
+        progress_id: int,
+        status: str,
+        raw_reply: str = "",
+        note: str = "",
+    ) -> object | None:
+        """Update a daily-progress row."""
+
+    async def get_pending(self, user_id: str, target_date) -> Sequence[object]:
+        """Return daily-progress rows for the user and date."""
+
+
 @dataclass(frozen=True)
 class ToolDependencies:
     """External platform ports used by tool handlers."""
@@ -61,6 +87,9 @@ class ToolDependencies:
     messenger: FeishuMessengerPort
     contact_lookup: FeishuContactLookupPort
     card_renderer: ToolCardRendererPort
+    event_publisher: GatewayEventPublisherPort
+    card_operation_store: CardOperationQueryStore
+    daily_progress_store: DailyProgressMutationStore
     approval_gate: SensitiveActionApprovalPort | None = None
     config: UserInteractionCoreConfig = field(default_factory=UserInteractionCoreConfig)
 
@@ -565,11 +594,11 @@ async def _handle_list_bitable_fields(table_id: str = "") -> str:
 
 @register_tool("list_card_operations")
 async def _handle_list_card_operations(user_id: str = "", action: str = "", limit: int = 20) -> str:
-    from ..db.database import db_manager
-    from ..db.repository import CardOperationRepository
-    async with db_manager.session() as session:
-        repo = CardOperationRepository(session)
-        ops = await repo.query(user_id=user_id, action=action, limit=limit)
+    ops = await _require_dependencies().card_operation_store.query(
+        user_id=user_id,
+        action=action,
+        limit=limit,
+    )
     records = []
     for op in ops:
         records.append({
@@ -586,21 +615,17 @@ async def _handle_list_card_operations(user_id: str = "", action: str = "", limi
 
 @register_tool("update_daily_progress")
 async def _handle_update_daily_progress(progress_id: int, status: str, note: str = "") -> str:
-    from ..db.database import db_manager
-    from ..db.repository import DailyProgressRepository
-    async with db_manager.session() as session:
-        repo = DailyProgressRepository(session)
-        dp = await repo.update_progress(progress_id, status, note=note)
-        if not dp:
-            return json.dumps({"error": "进展记录不存在"}, ensure_ascii=False)
-        if status == "completed" and dp.task_record_id:
-            try:
-                bitable = _require_dependencies().bitable
-                await bitable.update_record(dp.task_record_id, {"状态": "已完成"})
-            except Exception as e:
-                logger.warning("bitable_status_update_failed", error=str(e))
-        remaining = await repo.get_pending(dp.user_id, dp.date)
-        all_done = all(p.status != "pending" for p in remaining)
+    deps = _require_dependencies()
+    dp = await deps.daily_progress_store.update_progress(progress_id, status, note=note)
+    if not dp:
+        return json.dumps({"error": "进展记录不存在"}, ensure_ascii=False)
+    if status == "completed" and dp.task_record_id:
+        try:
+            await deps.bitable.update_record(dp.task_record_id, {"状态": "已完成"})
+        except Exception as e:
+            logger.warning("bitable_status_update_failed", error=str(e))
+    remaining = await deps.daily_progress_store.get_pending(dp.user_id, dp.date)
+    all_done = all(p.status != "pending" for p in remaining)
     result = {"success": True, "task": dp.task_title, "status": status}
     if all_done:
         result["all_tasks_updated"] = True
@@ -730,16 +755,8 @@ async def _publish_sync_trigger(
     success_message: str,
     failure_message: str,
 ) -> str:
-    from shared.infra.event_bus import event_bus
-    from shared.schemas.event import Event, EventTypes
-
-    await event_bus.connect()
-    event = Event.create(
-        event_type=EventTypes.SYNC_TRIGGER,
-        source_agent="chat-agent",
-        payload={"triggered_by": "chat_tool", "scope": scope},
-    )
-    ok = await event_bus.publish(event)
+    deps = _require_dependencies()
+    ok = await deps.event_publisher.publish_sync_trigger(scope=scope)
     if ok:
         return json.dumps({"success": True, "message": success_message}, ensure_ascii=False)
     return json.dumps({"error": failure_message}, ensure_ascii=False)

@@ -10,6 +10,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from shared.api import ApiErrorCode
 from shared.integrations.feishu.router import init_handlers, router
 
 _feishu_router_mod = _sys.modules["shared.integrations.feishu.router"]
@@ -175,6 +176,10 @@ class TestSignatureVerification:
 
         assert response.status_code == 401
         assert response.json()["detail"] == "Invalid signature"
+        assert (
+            response.headers["x-error-code"]
+            == ApiErrorCode.FEISHU_INVALID_SIGNATURE.value
+        )
 
     def test_post__sig_enabled_no_encrypt_key__returns_401_before_client_verify(
         self, client, mock_settings, mock_client
@@ -191,6 +196,10 @@ class TestSignatureVerification:
 
         assert response.status_code == 401
         assert response.json()["detail"] == "Signature verification key is not configured"
+        assert (
+            response.headers["x-error-code"]
+            == ApiErrorCode.FEISHU_SIGNATURE_KEY_NOT_CONFIGURED.value
+        )
         mock_client.verify_signature.assert_not_called()
 
     def test_post__sig_enabled_invalid__returns_401_before_json_parse(
@@ -209,6 +218,10 @@ class TestSignatureVerification:
 
         assert response.status_code == 401
         assert response.json()["detail"] == "Invalid signature"
+        assert (
+            response.headers["x-error-code"]
+            == ApiErrorCode.FEISHU_INVALID_SIGNATURE.value
+        )
         mock_client.verify_signature.assert_called_once()
 
     def test_post__sig_disabled_invalid_json__returns_400(
@@ -224,6 +237,7 @@ class TestSignatureVerification:
 
         assert response.status_code == 400
         assert response.json()["detail"] == "Invalid JSON"
+        assert response.headers["x-error-code"] == ApiErrorCode.FEISHU_INVALID_JSON.value
 
     def test_post__sig_disabled__skips_verification(
         self, client, mock_settings, mock_client

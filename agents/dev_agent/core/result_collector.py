@@ -9,6 +9,7 @@ from shared.utils.logger import get_logger
 from ..app.metrics import RETRY_COUNT, TASK_DURATION, TASKS_COMPLETED, TASKS_FAILED
 from .config import DevCoreConfig
 from .notifier import DevNotifier
+from .repositories import DevTaskRecord, DevTaskRepositoryPort
 from .security_scanner import SecurityScanner
 
 logger = get_logger("dev_agent.result_collector")
@@ -27,7 +28,7 @@ _WORKSPACE_PATH_KEYS = (
 class ResultCollector:
     def __init__(
         self,
-        repo,
+        repo: DevTaskRepositoryPort,
         log_repo,
         gitlab: GitLabMergeRequestPort,
         notifier: DevNotifier,
@@ -41,7 +42,11 @@ class ResultCollector:
         self._scanner = security_scanner or SecurityScanner()
         self._config = config or DevCoreConfig()
 
-    async def handle_completion(self, task, workflow_status: dict) -> list[Event]:
+    async def handle_completion(
+        self,
+        task: DevTaskRecord,
+        workflow_status: dict,
+    ) -> list[Event]:
         """Process workflow completion through the state machine pipeline."""
         events: list[Event] = []
         task_id = task.id
@@ -134,7 +139,11 @@ class ResultCollector:
 
         return events
 
-    async def handle_qa_result(self, task, qa_payload: dict) -> list[Event]:
+    async def handle_qa_result(
+        self,
+        task: DevTaskRecord,
+        qa_payload: dict,
+    ) -> list[Event]:
         """Process QA acceptance result."""
         events: list[Event] = []
         summary = qa_payload.get("summary", {})

@@ -8,8 +8,9 @@ email.
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Optional
 
+from shared.core.identity_ports import UserIdentityStore
 from shared.core.ids import IDPrefix, generate_id
-from shared.db.repository import UserRepository
+from shared.db.user_store import SqlAlchemyUserIdentityStore
 from shared.models.user import User
 from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
@@ -42,16 +43,19 @@ class UserService:
         db,
         redis: Optional["Redis"] = None,
         adapters: Optional[dict[Platform, "BasePlatformAdapter"]] = None,
+        user_store_factory=None,
     ):
         """
         Args:
             db: DatabaseManager instance.
             redis: Redis client used for caching.
             adapters: Platform adapter dictionary.
+            user_store_factory: Optional session-scoped user identity store factory.
         """
         self.db = db
         self.redis = redis
         self.adapters = adapters or {}
+        self._user_store_factory = user_store_factory
 
     def set_adapters(self, adapters: dict[Platform, "BasePlatformAdapter"]) -> None:
         """Set platform adapters and avoid circular imports."""
@@ -91,20 +95,20 @@ class UserService:
 
         # 2. Query database.
         async with self.db.session() as session:
-            repo = UserRepository(session)
+            store = self._new_user_store(session)
 
-            user = await repo.get_by_platform_id(platform, platform_user_id)
+            user = await store.get_by_platform_id(platform, platform_user_id)
 
             if not user:
                 # 3. Create or link user.
                 user = await self._create_or_link_user(
-                    repo, platform, platform_user_id
+                    store, platform, platform_user_id
                 )
 
             # Update active timestamp.
             user.last_active_at = datetime.now(UTC)
             user.last_active_platform = platform.value
-            await repo.update(user)
+            await store.update(user)
             await session.commit()
 
             # Refresh to load the full model.
@@ -123,8 +127,8 @@ class UserService:
     async def get_user_by_id(self, user_id: str) -> Optional[User]:
         """Get a user by unified user ID."""
         async with self.db.session() as session:
-            repo = UserRepository(session)
-            return await repo.get_by_id(user_id)
+            store = self._new_user_store(session)
+            return await store.get_by_id(user_id)
 
     async def invalidate_cache(
         self,
@@ -140,7 +144,7 @@ class UserService:
 
     async def _create_or_link_user(
         self,
-        repo: UserRepository,
+        store: UserIdentityStore,
         platform: Platform,
         platform_user_id: str,
     ) -> User:
@@ -153,7 +157,7 @@ class UserService:
         adapter = self.adapters.get(platform)
         if not adapter:
             logger.warning("adapter_not_found", platform=platform.value)
-            return await self._create_new_user(repo, platform, platform_user_id, None, "Unknown")
+            return await self._create_new_user(store, platform, platform_user_id, None, "Unknown")
 
         # Fetch user info.
         email = await adapter.get_user_email(platform_user_id)
@@ -161,7 +165,7 @@ class UserService:
 
         if email:
             # Try to find an existing user by email.
-            existing_user = await repo.get_by_email(email)
+            existing_user = await store.get_by_email(email)
             if existing_user:
                 # Link the platform account.
                 self._set_platform_id(existing_user, platform, platform_user_id)
@@ -174,11 +178,11 @@ class UserService:
                 return existing_user
 
         # Create a new user.
-        return await self._create_new_user(repo, platform, platform_user_id, email, name)
+        return await self._create_new_user(store, platform, platform_user_id, email, name)
 
     async def _create_new_user(
         self,
-        repo: UserRepository,
+        store: UserIdentityStore,
         platform: Platform,
         platform_user_id: str,
         email: Optional[str],
@@ -192,7 +196,7 @@ class UserService:
         )
         self._set_platform_id(user, platform, platform_user_id)
 
-        user = await repo.create(user)
+        user = await store.create(user)
 
         logger.info(
             "user_created",
@@ -203,6 +207,11 @@ class UserService:
         )
 
         return user
+
+    def _new_user_store(self, session) -> UserIdentityStore:
+        """Create a session-scoped identity store."""
+        factory = self._user_store_factory or SqlAlchemyUserIdentityStore
+        return factory(session)
 
     def _set_platform_id(
         self,

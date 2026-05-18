@@ -4,7 +4,7 @@ Tests for gRPC Servicer
 Tests the gRPC servicer implementation.
 """
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -67,15 +67,42 @@ class TestRequirementServicer:
     """Tests for RequirementServicer."""
 
     @pytest.fixture
-    def servicer(self):
-        """Create a servicer without agent."""
-        return RequirementServicer(agent=None)
+    def requirement_store(self):
+        """Create a mock gRPC requirement store."""
+        store = AsyncMock()
+        store.get_many = AsyncMock(return_value=[])
+        store.get_by_id = AsyncMock(return_value=None)
+        store.list_requirements = AsyncMock(return_value=([], 0))
+        store.search_requirements = AsyncMock(return_value=([], 0))
+        store.confirm = AsyncMock(return_value=None)
+        store.reject = AsyncMock(return_value=None)
+        return store
 
     @pytest.fixture
-    def servicer_with_agent(self):
+    def health_store(self):
+        """Create a mock gRPC health store."""
+        store = AsyncMock()
+        store.is_database_ready = AsyncMock(return_value=True)
+        return store
+
+    @pytest.fixture
+    def servicer(self, requirement_store, health_store):
+        """Create a servicer without agent."""
+        return RequirementServicer(
+            agent=None,
+            requirement_store=requirement_store,
+            health_store=health_store,
+        )
+
+    @pytest.fixture
+    def servicer_with_agent(self, requirement_store, health_store):
         """Create a servicer with mock agent."""
         mock_agent = AsyncMock()
-        return RequirementServicer(agent=mock_agent)
+        return RequirementServicer(
+            agent=mock_agent,
+            requirement_store=requirement_store,
+            health_store=health_store,
+        )
 
     @pytest.fixture
     def mock_context(self):
@@ -86,102 +113,85 @@ class TestRequirementServicer:
         return context
 
     @pytest.mark.asyncio
-    async def test_health_check_without_agent(self, servicer, mock_context):
+    async def test_health_check_without_agent(self, servicer, mock_context, health_store):
         """HealthCheck should work without agent."""
-        with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
-            mock_session = AsyncMock()
-            mock_db.session.return_value.__aenter__.return_value = mock_session
+        request = pb2.HealthRequest()
+        response = await servicer.HealthCheck(request, mock_context)
 
-            request = pb2.HealthRequest()
-            response = await servicer.HealthCheck(request, mock_context)
-
-            assert response.version == "1.0.0"
-            assert "db" in response.services
-            assert response.services["agent"] is False
+        assert response.version == "1.0.0"
+        assert response.services["db"] is True
+        assert response.services["agent"] is False
+        health_store.is_database_ready.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_health_check_with_agent(self, servicer_with_agent, mock_context):
         """HealthCheck should report agent available."""
-        with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
-            mock_session = AsyncMock()
-            mock_db.session.return_value.__aenter__.return_value = mock_session
+        request = pb2.HealthRequest()
+        response = await servicer_with_agent.HealthCheck(request, mock_context)
 
-            request = pb2.HealthRequest()
-            response = await servicer_with_agent.HealthCheck(request, mock_context)
-
-            assert response.services["agent"] is True
+        assert response.services["agent"] is True
 
     @pytest.mark.asyncio
-    async def test_list_requirements_empty(self, servicer, mock_context):
+    async def test_list_requirements_empty(self, servicer, mock_context, requirement_store):
         """ListRequirements should return empty list when no requirements."""
-        with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
-            mock_session = AsyncMock()
-            mock_db.session.return_value.__aenter__.return_value = mock_session
+        requirement_store.list_requirements.return_value = ([], 0)
 
-            with patch("agents.requirement_manager.grpc.servicer.RequirementRepository") as MockRepo:
-                mock_repo = AsyncMock()
-                mock_repo.list_all.return_value = []
-                MockRepo.return_value = mock_repo
+        request = pb2.ListRequest(page=1, page_size=20)
+        response = await servicer.ListRequirements(request, mock_context)
 
-                request = pb2.ListRequest(page=1, page_size=20)
-                response = await servicer.ListRequirements(request, mock_context)
-
-                assert response.total == 0
-                assert len(response.requirements) == 0
+        assert response.total == 0
+        assert len(response.requirements) == 0
+        requirement_store.list_requirements.assert_awaited_once_with(
+            status=None,
+            page=1,
+            page_size=20,
+        )
 
     @pytest.mark.asyncio
-    async def test_list_requirements_with_data(self, servicer, mock_context, mock_requirement):
+    async def test_list_requirements_with_data(
+        self,
+        servicer,
+        mock_context,
+        mock_requirement,
+        requirement_store,
+    ):
         """ListRequirements should return requirements."""
-        with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
-            mock_session = AsyncMock()
-            mock_db.session.return_value.__aenter__.return_value = mock_session
+        requirement_store.list_requirements.return_value = ([mock_requirement], 1)
 
-            with patch("agents.requirement_manager.grpc.servicer.RequirementRepository") as MockRepo:
-                mock_repo = AsyncMock()
-                mock_repo.list_all.return_value = [mock_requirement]
-                MockRepo.return_value = mock_repo
+        request = pb2.ListRequest(page=1, page_size=20)
+        response = await servicer.ListRequirements(request, mock_context)
 
-                request = pb2.ListRequest(page=1, page_size=20)
-                response = await servicer.ListRequirements(request, mock_context)
-
-                assert response.total == 1
-                assert len(response.requirements) == 1
-                assert response.requirements[0].id == "req_test123"
+        assert response.total == 1
+        assert len(response.requirements) == 1
+        assert response.requirements[0].id == "req_test123"
 
     @pytest.mark.asyncio
-    async def test_get_requirement_found(self, servicer, mock_context, mock_requirement):
+    async def test_get_requirement_found(
+        self,
+        servicer,
+        mock_context,
+        mock_requirement,
+        requirement_store,
+    ):
         """GetRequirement should return requirement when found."""
-        with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
-            mock_session = AsyncMock()
-            mock_db.session.return_value.__aenter__.return_value = mock_session
+        requirement_store.get_by_id.return_value = mock_requirement
 
-            with patch("agents.requirement_manager.grpc.servicer.RequirementRepository") as MockRepo:
-                mock_repo = AsyncMock()
-                mock_repo.get_by_id.return_value = mock_requirement
-                MockRepo.return_value = mock_repo
+        request = pb2.GetRequest(id="req_test123")
+        response = await servicer.GetRequirement(request, mock_context)
 
-                request = pb2.GetRequest(id="req_test123")
-                response = await servicer.GetRequirement(request, mock_context)
-
-                assert response.id == "req_test123"
-                assert response.title == "Test Requirement"
+        assert response.id == "req_test123"
+        assert response.title == "Test Requirement"
+        requirement_store.get_by_id.assert_awaited_once_with("req_test123")
 
     @pytest.mark.asyncio
-    async def test_get_requirement_not_found(self, servicer, mock_context):
+    async def test_get_requirement_not_found(self, servicer, mock_context, requirement_store):
         """GetRequirement should set NOT_FOUND when requirement doesn't exist."""
-        with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
-            mock_session = AsyncMock()
-            mock_db.session.return_value.__aenter__.return_value = mock_session
+        requirement_store.get_by_id.return_value = None
 
-            with patch("agents.requirement_manager.grpc.servicer.RequirementRepository") as MockRepo:
-                mock_repo = AsyncMock()
-                mock_repo.get_by_id.return_value = None
-                MockRepo.return_value = mock_repo
+        request = pb2.GetRequest(id="nonexistent")
+        await servicer.GetRequirement(request, mock_context)
 
-                request = pb2.GetRequest(id="nonexistent")
-                await servicer.GetRequirement(request, mock_context)
-
-                mock_context.set_code.assert_called()
+        mock_context.set_code.assert_called()
 
     @pytest.mark.asyncio
     async def test_confirm_requirement_with_agent(self, servicer_with_agent, mock_context, mock_requirement):
@@ -217,19 +227,22 @@ class TestRequirementServicer:
         assert "not initialized" in response.error.lower()
 
     @pytest.mark.asyncio
-    async def test_search_requirements(self, servicer, mock_context, mock_requirement):
+    async def test_search_requirements(
+        self,
+        servicer,
+        mock_context,
+        mock_requirement,
+        requirement_store,
+    ):
         """SearchRequirements should search by keyword."""
-        with patch("agents.requirement_manager.grpc.servicer.db_manager") as mock_db:
-            mock_session = AsyncMock()
-            mock_db.session.return_value.__aenter__.return_value = mock_session
+        requirement_store.search_requirements.return_value = ([mock_requirement], 1)
 
-            with patch("agents.requirement_manager.grpc.servicer.RequirementRepository") as MockRepo:
-                mock_repo = AsyncMock()
-                mock_repo.search.return_value = [mock_requirement]
-                MockRepo.return_value = mock_repo
+        request = pb2.SearchRequest(keyword="test", page=1, page_size=20)
+        response = await servicer.SearchRequirements(request, mock_context)
 
-                request = pb2.SearchRequest(keyword="test", page=1, page_size=20)
-                response = await servicer.SearchRequirements(request, mock_context)
-
-                assert response.total == 1
-                mock_repo.search.assert_called_once_with("test")
+        assert response.total == 1
+        requirement_store.search_requirements.assert_awaited_once_with(
+            keyword="test",
+            page=1,
+            page_size=20,
+        )

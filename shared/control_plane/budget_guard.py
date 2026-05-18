@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass
 
+from .budget_guard_ports import ControlPlaneBudgetGuardStore
 from .models import BudgetPeriod, BudgetScope, BudgetUsage
-from .repository import ControlPlaneRepository
 
 
 class BudgetExceededError(PermissionError):
@@ -24,7 +24,7 @@ class BudgetDecision:
 class BudgetGuard:
     """Checks and records budget usage against active budget policies."""
 
-    def __init__(self, repo: ControlPlaneRepository):
+    def __init__(self, repo: ControlPlaneBudgetGuardStore):
         self._repo = repo
 
     async def check(

@@ -14,6 +14,7 @@ from agents.qa_agent.models.schemas import (
     QACheckAggregate,
     QARunStats,
 )
+from shared.api import ApiErrorCode
 from shared.config import settings
 
 
@@ -70,6 +71,44 @@ async def test_trigger_run_success(auth_headers):
 
 
 @pytest.mark.asyncio
+async def test_trigger_run_timeout_uses_shared_error_contract(auth_headers):
+    """Timeouts keep the old detail string and expose a stable error code."""
+    mock_agent = AsyncMock()
+    mock_agent.run_acceptance.side_effect = TimeoutError()
+
+    with patch("agents.qa_agent.api.qa.get_agent", return_value=mock_agent):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.post(
+                "/api/v1/qa/run",
+                json={"agent_name": "pjm_agent", "requested_by": "tester"},
+                headers=auth_headers,
+            )
+
+    assert response.status_code == 504
+    assert response.json()["detail"] == "QA acceptance run timed out"
+    assert response.headers["x-error-code"] == ApiErrorCode.QA_RUN_TIMEOUT.value
+
+
+@pytest.mark.asyncio
+async def test_trigger_run_failure_uses_shared_error_contract(auth_headers):
+    """Run failures keep the old detail shape and expose a stable error code."""
+    mock_agent = AsyncMock()
+    mock_agent.run_acceptance.side_effect = RuntimeError("runner crashed")
+
+    with patch("agents.qa_agent.api.qa.get_agent", return_value=mock_agent):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.post(
+                "/api/v1/qa/run",
+                json={"agent_name": "pjm_agent", "requested_by": "tester"},
+                headers=auth_headers,
+            )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "QA acceptance run failed: runner crashed"
+    assert response.headers["x-error-code"] == ApiErrorCode.QA_RUN_FAILED.value
+
+
+@pytest.mark.asyncio
 async def test_list_runs(auth_headers):
     """Test listing runs."""
     mock_runs = [
@@ -99,6 +138,21 @@ async def test_list_runs(auth_headers):
 
 
 @pytest.mark.asyncio
+async def test_list_runs_failure_uses_shared_error_contract(auth_headers):
+    """List failures expose a stable QA API error code."""
+    mock_agent = AsyncMock()
+    mock_agent.list_runs.side_effect = RuntimeError("db down")
+
+    with patch("agents.qa_agent.api.qa.get_agent", return_value=mock_agent):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.get("/api/v1/qa/runs", headers=auth_headers)
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Failed to list QA acceptance runs"
+    assert response.headers["x-error-code"] == ApiErrorCode.QA_RUN_LIST_FAILED.value
+
+
+@pytest.mark.asyncio
 async def test_get_run_detail_not_found(auth_headers):
     """Test querying a missing run."""
     mock_agent = AsyncMock()
@@ -109,6 +163,23 @@ async def test_get_run_detail_not_found(auth_headers):
             response = await ac.get("/api/v1/qa/runs/missing", headers=auth_headers)
 
     assert response.status_code == 404
+    assert response.json()["detail"] == "QA acceptance run not found"
+    assert response.headers["x-error-code"] == ApiErrorCode.QA_RUN_NOT_FOUND.value
+
+
+@pytest.mark.asyncio
+async def test_get_run_detail_failure_uses_shared_error_contract(auth_headers):
+    """Detail failures expose a stable QA API error code."""
+    mock_agent = AsyncMock()
+    mock_agent.get_run.side_effect = RuntimeError("db down")
+
+    with patch("agents.qa_agent.api.qa.get_agent", return_value=mock_agent):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.get("/api/v1/qa/runs/run_1", headers=auth_headers)
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Failed to get QA acceptance run details"
+    assert response.headers["x-error-code"] == ApiErrorCode.QA_RUN_DETAIL_FAILED.value
 
 
 @pytest.mark.asyncio
@@ -142,6 +213,21 @@ async def test_get_stats(auth_headers):
     assert data["total_runs"] == 10
     assert data["l0_fail_rate"] == 0.1
     assert data["top_l0_failures"][0]["check"] == "security"
+
+
+@pytest.mark.asyncio
+async def test_get_stats_failure_uses_shared_error_contract(auth_headers):
+    """Stats failures expose a stable QA API error code."""
+    mock_agent = AsyncMock()
+    mock_agent.get_stats.side_effect = RuntimeError("db down")
+
+    with patch("agents.qa_agent.api.qa.get_agent", return_value=mock_agent):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.get("/api/v1/qa/stats", headers=auth_headers)
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Failed to get QA acceptance statistics"
+    assert response.headers["x-error-code"] == ApiErrorCode.QA_STATS_FAILED.value
 
 
 @pytest.mark.asyncio

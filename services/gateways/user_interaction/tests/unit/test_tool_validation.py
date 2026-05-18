@@ -1,7 +1,7 @@
 """Tests for ToolValidator wiring in ChatService tool-calling loop."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -43,26 +43,8 @@ def chat_service():
 
 @pytest.fixture()
 def _patch_db():
-    """Stub out DB calls so ChatService.chat() doesn't hit a real database."""
-    with (
-        patch(
-            "services.gateways.user_interaction.core.chat_service.db_manager",
-            new=MagicMock(),
-        ) as mock_db,
-    ):
-        # Make the async context manager return a mock session
-        mock_session = AsyncMock()
-        mock_db.session.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_db.session.return_value.__aexit__ = AsyncMock(return_value=False)
-        # ConversationRepository stubs
-        with patch(
-            "services.gateways.user_interaction.core.chat_service.ConversationRepository",
-        ) as mock_repo_cls:
-            repo_inst = AsyncMock()
-            repo_inst.get_by_user = AsyncMock(return_value=[])
-            repo_inst.save = AsyncMock()
-            mock_repo_cls.return_value = repo_inst
-            yield
+    """ChatService uses in-memory stores by default in unit tests."""
+    yield
 
 
 # ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from starlette.requests import Request
 
 from shared import middleware as _middleware_mod
+from shared.api import ApiErrorCode
 from shared.middleware import internal_auth as _internal_auth_mod
 
 
@@ -170,6 +171,27 @@ async def test_internal_key_empty_fails_closed_in_production():
         with pytest.raises(HTTPException) as exc_info:
             await _internal_auth_mod.verify_internal_key(_make_request())
         assert exc_info.value.status_code == 503
+        assert (
+            exc_info.value.headers["X-Error-Code"]
+            == ApiErrorCode.INTERNAL_AUTH_NOT_CONFIGURED.value
+        )
+
+
+@pytest.mark.asyncio
+async def test_internal_key_mismatch_sets_error_code():
+    with patch.object(_internal_auth_mod, "settings") as mock_settings:
+        mock_settings.internal_service_key = "secret-key"
+        mock_settings.app_env = "production"
+        with pytest.raises(HTTPException) as exc_info:
+            await _internal_auth_mod.verify_internal_key(
+                _make_request({"X-Internal-Key": "wrong"})
+            )
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail == "Unauthorized"
+        assert (
+            exc_info.value.headers["X-Error-Code"]
+            == ApiErrorCode.INTERNAL_AUTH_UNAUTHORIZED.value
+        )
 
 
 @pytest.mark.asyncio

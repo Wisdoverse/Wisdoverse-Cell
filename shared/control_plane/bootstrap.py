@@ -2,14 +2,12 @@
 
 from dataclasses import dataclass
 
-from sqlalchemy.exc import IntegrityError
-
 from shared.control_plane.agent_catalog import (
     ORGANIZATION_ROLE_TEMPLATES,
     RUNTIME_MODULES,
 )
+from shared.control_plane.bootstrap_ports import ControlPlaneRoleBootstrapStore
 from shared.control_plane.models import AgentRole, AuditEvent, CompanyContext
-from shared.control_plane.repository import ControlPlaneRepository
 from shared.schemas.event import EventTypes
 
 
@@ -189,7 +187,7 @@ CORE_ORGANIZATION_ROLE_AGENT_SEEDS: dict[str, RoleAgentSeed] = {
 
 
 async def ensure_core_organization_role_agents(
-    repo: ControlPlaneRepository,
+    store: ControlPlaneRoleBootstrapStore,
     *,
     company_id: str,
     company_name: str = "Wisdoverse Cell",
@@ -197,23 +195,25 @@ async def ensure_core_organization_role_agents(
 ) -> list[str]:
     """Ensure CEO/CTO/CPO/COO exist as durable control-plane AgentRole records."""
 
-    await _ensure_company(repo, company_id=company_id, company_name=company_name)
+    await _ensure_company(store, company_id=company_id, company_name=company_name)
     created_agent_ids: list[str] = []
 
     for template in ORGANIZATION_ROLE_TEMPLATES:
-        if await repo.get_agent_role(company_id=company_id, agent_id=template.agent_id):
+        if await store.get_agent_role(company_id=company_id, agent_id=template.agent_id):
             continue
 
         seed = CORE_ORGANIZATION_ROLE_AGENT_SEEDS[template.agent_id]
-        role = _build_role_agent(template_id=template.agent_id, company_id=company_id, created_by=created_by)
+        role = _build_role_agent(
+            template_id=template.agent_id,
+            company_id=company_id,
+            created_by=created_by,
+        )
 
-        try:
-            async with repo.session.begin_nested():
-                row = await repo.create_agent_role(role)
-        except IntegrityError:
+        row = await store.create_agent_role_if_absent(role)
+        if row is None:
             continue
 
-        await repo.append_audit_event(
+        await store.append_audit_event(
             AuditEvent(
                 company_id=company_id,
                 action=EventTypes.AGENT_ROLE_CREATED,
@@ -241,7 +241,7 @@ async def ensure_core_organization_role_agents(
 
 
 async def ensure_core_runtime_agent_roles(
-    repo: ControlPlaneRepository,
+    store: ControlPlaneRoleBootstrapStore,
     *,
     company_id: str,
     company_name: str = "Wisdoverse Cell",
@@ -249,24 +249,22 @@ async def ensure_core_runtime_agent_roles(
 ) -> list[str]:
     """Ensure frontend-managed runtime modules exist as configurable AgentRole records."""
 
-    await _ensure_company(repo, company_id=company_id, company_name=company_name)
+    await _ensure_company(store, company_id=company_id, company_name=company_name)
     created_agent_ids: list[str] = []
 
     for module in RUNTIME_MODULES:
         if not module.frontend_managed:
             continue
-        if await repo.get_agent_role(company_id=company_id, agent_id=module.agent_id):
+        if await store.get_agent_role(company_id=company_id, agent_id=module.agent_id):
             continue
 
         role = module.to_agent_role(company_id=company_id, created_by=created_by)
 
-        try:
-            async with repo.session.begin_nested():
-                row = await repo.create_agent_role(role)
-        except IntegrityError:
+        row = await store.create_agent_role_if_absent(role)
+        if row is None:
             continue
 
-        await repo.append_audit_event(
+        await store.append_audit_event(
             AuditEvent(
                 company_id=company_id,
                 action=EventTypes.AGENT_ROLE_CREATED,
@@ -295,26 +293,22 @@ async def ensure_core_runtime_agent_roles(
 
 
 async def _ensure_company(
-    repo: ControlPlaneRepository,
+    store: ControlPlaneRoleBootstrapStore,
     *,
     company_id: str,
     company_name: str,
 ) -> None:
-    if await repo.get_company(company_id) is not None:
+    if await store.get_company(company_id) is not None:
         return
 
-    try:
-        async with repo.session.begin_nested():
-            await repo.create_company(
-                CompanyContext(
-                    company_id=company_id,
-                    name=company_name,
-                    mission="AI-native company operations with durable role agents.",
-                    metadata={"bootstrap": "core_organization_role_agents"},
-                )
-            )
-    except IntegrityError:
-        return
+    await store.create_company_if_absent(
+        CompanyContext(
+            company_id=company_id,
+            name=company_name,
+            mission="AI-native company operations with durable role agents.",
+            metadata={"bootstrap": "core_organization_role_agents"},
+        )
+    )
 
 
 def _build_role_agent(

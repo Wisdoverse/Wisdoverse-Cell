@@ -9,11 +9,11 @@ Endpoints:
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, Query
 
-from agents.requirement_manager.db.database import get_db
-from agents.requirement_manager.db.repository import MessageRepository
+from agents.requirement_manager.api.dependencies import get_message_query_service
+from agents.requirement_manager.core.message_queries import MessageQueryService
+from shared.api import raise_session_not_found
 from shared.utils.logger import get_logger
 
 logger = get_logger("api.messages")
@@ -30,7 +30,7 @@ async def search_messages(
     end_time: Optional[datetime] = Query(None, description="Filter by end time"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    db: AsyncSession = Depends(get_db),
+    queries: MessageQueryService = Depends(get_message_query_service),
 ):
     """
     Search messages with optional filters and full-text search.
@@ -40,10 +40,9 @@ async def search_messages(
     - Filtering by chat_id, sender_id, time range
     - Pagination
     """
-    repo = MessageRepository(db)
-    messages, total = await repo.search(
-        keyword=keyword,
+    result = await queries.search_messages(
         chat_id=chat_id,
+        keyword=keyword,
         sender_id=sender_id,
         start_time=start_time,
         end_time=end_time,
@@ -52,54 +51,42 @@ async def search_messages(
     )
 
     return {
-        "messages": [_message_to_dict(m) for m in messages],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "total_pages": (total + page_size - 1) // page_size,
+        "messages": [_message_to_dict(message) for message in result.messages],
+        "total": result.total,
+        "page": result.page,
+        "page_size": result.page_size,
+        "total_pages": result.total_pages,
     }
 
 
 @router.get("/session/{session_id}")
 async def get_session_messages(
     session_id: str,
-    db: AsyncSession = Depends(get_db),
+    queries: MessageQueryService = Depends(get_message_query_service),
 ):
     """
     Get all messages in a session.
 
     Returns messages ordered by sent_at ASC with session metadata.
     """
-    repo = MessageRepository(db)
-    messages = await repo.get_by_session(session_id)
-
-    if not messages:
-        raise HTTPException(status_code=404, detail="Session not found or has no messages")
-
-    # Get session metadata
-    first_msg = messages[0]
-    last_msg = messages[-1]
-
-    # Check if any requirements were extracted from this session
-    requirement_ids = set()
-    for msg in messages:
-        if msg.requirement_ids:
-            requirement_ids.update(msg.requirement_ids)
+    result = await queries.get_session_messages(session_id)
+    if result is None:
+        raise_session_not_found()
 
     return {
-        "session_id": session_id,
-        "chat_id": first_msg.chat_id,
-        "messages": [_message_to_dict(m) for m in messages],
-        "message_count": len(messages),
-        "started_at": first_msg.sent_at.isoformat() if first_msg.sent_at else None,
-        "ended_at": last_msg.sent_at.isoformat() if last_msg.sent_at else None,
-        "extracted": any(m.extracted for m in messages),
-        "requirement_ids": list(requirement_ids),
+        "session_id": result.session_id,
+        "chat_id": result.chat_id,
+        "messages": [_message_to_dict(message) for message in result.messages],
+        "message_count": result.message_count,
+        "started_at": result.started_at.isoformat() if result.started_at else None,
+        "ended_at": result.ended_at.isoformat() if result.ended_at else None,
+        "extracted": result.extracted,
+        "requirement_ids": result.requirement_ids,
     }
 
 
 def _message_to_dict(message) -> dict:
-    """Convert ChatMessage model to dict for API response"""
+    """Convert message read model to dict for API response."""
     return {
         "id": message.id,
         "chat_id": message.chat_id,

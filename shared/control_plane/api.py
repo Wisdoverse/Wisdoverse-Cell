@@ -3,43 +3,167 @@
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import asdict
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi import status as http_status
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.api import raise_control_plane_api_error
 from shared.config import settings
 from shared.middleware.internal_auth import verify_internal_key
-from shared.schemas.event import EventTypes
 
-from .adapter_registry import DEFAULT_ADAPTER_REGISTRY
+from .agent_operation_store import SqlAlchemyControlPlaneAgentOperationStore
+from .agent_operation_use_cases import (
+    AgentDefinitionNotFoundError,
+    AgentOperationCompanyNotFoundError,
+    wake_agent_definition,
+)
+from .agent_operation_use_cases import (
+    run_heartbeat_scheduler_once as run_heartbeat_scheduler_once_from_store,
+)
 from .agent_prompt_config import (
     AGENT_PROMPT_MAX_LENGTH,
     clean_system_prompt,
     clean_updated_by,
-    ensure_prompt_config_target,
     get_or_default_prompt_config,
-    prompt_config_to_dict,
+    update_prompt_config_with_audit,
 )
-from .agent_runner import AgentWakeupError, ControlPlaneAgentRunner
-from .approval_gate import ApprovalGate, ApprovalRequiredError
+from .agent_registry_store import SqlAlchemyControlPlaneAgentRegistryStore
+from .agent_registry_use_cases import (
+    AgentAlreadyExistsError,
+    AgentNotFoundError,
+    UnsupportedAdapterTypeError,
+    create_agent_role_with_audit,
+    update_agent_role_with_audit,
+    update_agent_status_with_audit,
+)
+from .agent_registry_use_cases import (
+    get_agent_role as get_agent_role_from_registry,
+)
+from .agent_registry_use_cases import (
+    list_agent_roles as list_agent_roles_from_registry,
+)
+from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
+from .agent_run_use_cases import (
+    AgentRunNotFoundError,
+)
+from .agent_run_use_cases import (
+    get_agent_run as get_agent_run_from_store,
+)
+from .agent_run_use_cases import (
+    list_agent_runs as list_agent_runs_from_store,
+)
+from .agent_runner import AgentWakeupError
+from .approval_gate import ApprovalRequiredError
+from .approval_store import SqlAlchemyControlPlaneApprovalStore
+from .approval_use_cases import resolve_approval_and_sync_proposal
+from .artifact_store import SqlAlchemyControlPlaneArtifactStore
+from .artifact_use_cases import (
+    ArtifactGoalNotFoundError,
+    ArtifactLinkMismatchError,
+    ArtifactNotFoundError,
+    ArtifactRunNotFoundError,
+    ArtifactWorkItemNotFoundError,
+    create_artifact_with_audit,
+)
+from .artifact_use_cases import (
+    get_artifact as get_artifact_from_store,
+)
+from .artifact_use_cases import (
+    list_artifacts as list_artifacts_from_store,
+)
+from .audit_timeline_store import SqlAlchemyControlPlaneAuditTimelineStore
+from .audit_timeline_use_cases import TimelineScopeRequiredError
+from .audit_timeline_use_cases import build_timeline as build_timeline_from_store
+from .audit_timeline_use_cases import (
+    list_audit_events as list_audit_events_from_store,
+)
+from .budget_store import SqlAlchemyControlPlaneBudgetStore
+from .budget_use_cases import (
+    ActiveBudgetPolicyConflictError,
+    BudgetPolicyNotFoundError,
+    create_budget_policy_with_audit,
+    update_budget_policy_with_audit,
+)
+from .budget_use_cases import (
+    get_budget_policy as get_budget_policy_from_store,
+)
+from .budget_use_cases import (
+    list_budget_policies as list_budget_policies_from_store,
+)
+from .budget_use_cases import (
+    list_budget_usage as list_budget_usage_from_store,
+)
+from .company_store import SqlAlchemyControlPlaneCompanyStore
+from .company_use_cases import (
+    CompanyAlreadyExistsError,
+    CompanyNotFoundError,
+    create_company_with_audit,
+    update_company_with_audit,
+)
+from .company_use_cases import (
+    get_company as get_company_from_store,
+)
+from .company_use_cases import (
+    list_companies as list_companies_from_store,
+)
 from .database import control_plane_db_manager
+from .decision_store import SqlAlchemyControlPlaneDecisionStore
+from .decision_use_cases import (
+    DecisionGoalNotFoundError,
+    DecisionLinkMismatchError,
+    DecisionNotFoundError,
+    DecisionRunNotFoundError,
+    DecisionWorkItemNotFoundError,
+    create_decision_with_audit,
+    update_decision_status_with_audit,
+)
+from .decision_use_cases import (
+    get_decision as get_decision_from_store,
+)
+from .decision_use_cases import (
+    list_decisions as list_decisions_from_store,
+)
+from .evolution_proposal_store import SqlAlchemyControlPlaneEvolutionProposalStore
+from .evolution_proposal_use_cases import (
+    EvolutionProposalApprovalNotFoundError,
+    EvolutionProposalApprovalRequiredError,
+    EvolutionProposalNotFoundError,
+    create_evolution_proposal_with_audit,
+    update_evolution_proposal_status_with_audit,
+)
+from .evolution_proposal_use_cases import (
+    get_evolution_proposal as get_evolution_proposal_from_store,
+)
+from .evolution_proposal_use_cases import (
+    list_evolution_proposals as list_evolution_proposals_from_store,
+)
+from .goal_store import SqlAlchemyControlPlaneGoalStore
+from .goal_use_cases import (
+    GoalNotFoundError,
+    ParentGoalNotFoundError,
+    create_goal_with_audit,
+    update_goal_status_with_audit,
+)
+from .goal_use_cases import (
+    get_goal as get_goal_from_store,
+)
+from .goal_use_cases import (
+    list_goals as list_goals_from_store,
+)
 from .models import (
     AgentInteractionMode,
     AgentKind,
     AgentRole,
-    ApprovalCategory,
     ApprovalStatus,
     Artifact,
     ArtifactType,
-    AuditEvent,
     BudgetPeriod,
     BudgetPolicy,
     BudgetScope,
-    CompanyContext,
     Decision,
     DecisionStatus,
     EvolutionProposal,
@@ -51,8 +175,21 @@ from .models import (
     WorkItemPriority,
     WorkItemStatus,
 )
-from .repository import ControlPlaneRepository
-from .scheduler import ControlPlaneHeartbeatScheduler
+from .prompt_config_store import SqlAlchemyControlPlanePromptConfigStore
+from .work_item_store import SqlAlchemyControlPlaneWorkItemStore
+from .work_item_use_cases import (
+    WorkItemDependencyNotFoundError,
+    WorkItemGoalNotFoundError,
+    WorkItemNotFoundError,
+    create_work_item_with_audit,
+    update_work_item_status_with_audit,
+)
+from .work_item_use_cases import (
+    get_work_item as get_work_item_from_store,
+)
+from .work_item_use_cases import (
+    list_work_items as list_work_items_from_store,
+)
 
 SessionProvider = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 BUDGET_POLICY_STATUSES = {"active", "paused", "archived"}
@@ -563,12 +700,6 @@ def _serialize(value: Any) -> Any:
     return value
 
 
-def _timeline_sort_key(value: datetime) -> float:
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=UTC)
-    return value.timestamp()
-
-
 def _row_to_dict(row: Any) -> dict[str, Any]:
     data: dict[str, Any] = {}
     for attr_ref in row.__mapper__.column_attrs:
@@ -576,13 +707,6 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
         key = "metadata" if attr == "metadata_json" else attr
         data[key] = _serialize(getattr(row, attr))
     return data
-
-
-def _rollout_requires_approval(rollout_state: str | None) -> bool:
-    return rollout_state in {
-        EvolutionRolloutState.CANARY.value,
-        EvolutionRolloutState.ACTIVE.value,
-    }
 
 
 def create_control_plane_router(
@@ -599,82 +723,14 @@ def create_control_plane_router(
     def resolve_company(company_id: str | None) -> str:
         return company_id or settings.control_plane_company_id
 
-    async def ensure_company(
-        repo: ControlPlaneRepository,
-        company_id: str,
-    ) -> None:
-        if await repo.get_company(company_id) is not None:
-            return
-        await repo.create_company(
-            CompanyContext(
-                company_id=company_id,
-                name="Wisdoverse Cell",
-                mission="AI-native company operations",
-            )
-        )
-
-    async def validate_execution_links(
-        repo: ControlPlaneRepository,
-        *,
-        company_id: str,
-        run_id: str | None = None,
-        work_item_id: str | None = None,
-        goal_id: str | None = None,
-    ) -> tuple[str | None, str | None]:
-        resolved_goal_id = goal_id
-        resolved_work_item_id = work_item_id
-        if run_id:
-            run = await repo.get_agent_run(run_id)
-            if run is None or run.company_id != company_id:
-                raise HTTPException(status_code=400, detail="run_not_found")
-            if run.work_item_id:
-                if resolved_work_item_id and resolved_work_item_id != run.work_item_id:
-                    raise HTTPException(status_code=400, detail="link_mismatch")
-                resolved_work_item_id = run.work_item_id
-            if run.goal_id:
-                if resolved_goal_id and resolved_goal_id != run.goal_id:
-                    raise HTTPException(status_code=400, detail="link_mismatch")
-                resolved_goal_id = run.goal_id
-        if resolved_work_item_id:
-            work_item = await repo.get_work_item(resolved_work_item_id)
-            if work_item is None or work_item.company_id != company_id:
-                raise HTTPException(status_code=400, detail="work_item_not_found")
-            if work_item.goal_id:
-                if resolved_goal_id and resolved_goal_id != work_item.goal_id:
-                    raise HTTPException(status_code=400, detail="link_mismatch")
-                resolved_goal_id = work_item.goal_id
-        if resolved_goal_id:
-            goal = await repo.get_goal(resolved_goal_id)
-            if goal is None or goal.company_id != company_id:
-                raise HTTPException(status_code=400, detail="goal_not_found")
-        return resolved_goal_id, resolved_work_item_id
-
-    async def ensure_no_active_budget_policy_conflict(
-        repo: ControlPlaneRepository,
-        *,
-        company_id: str,
-        scope: BudgetScope | str,
-        period: BudgetPeriod | str,
-        scope_id: str | None,
-        current_budget_id: str | None = None,
-    ) -> None:
-        existing = await repo.get_active_budget_policy(
-            company_id=company_id,
-            scope=scope,
-            scope_id=scope_id,
-            period=period,
-        )
-        if existing is not None and existing.budget_id != current_budget_id:
-            raise HTTPException(status_code=409, detail="active_budget_policy_exists")
-
     @router.get("/companies")
     async def list_companies(
         search: str | None = None,
         limit: int = Query(default=100, ge=1, le=500),
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        rows = await repo.list_companies(search=search, limit=limit)
+        store = SqlAlchemyControlPlaneCompanyStore(session)
+        rows = await list_companies_from_store(store, search=search, limit=limit)
         return {"companies": [_row_to_dict(row) for row in rows], "total": len(rows)}
 
     @router.post(
@@ -685,35 +741,18 @@ def create_control_plane_router(
         body: CompanyCreateRequest,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        company_id = body.company_id
-        if company_id and await repo.get_company(company_id) is not None:
-            raise HTTPException(status_code=409, detail="company_already_exists")
-
-        company_values: dict[str, Any] = {
-            "name": body.name,
-            "mission": body.mission,
-            "metadata": body.metadata,
-        }
-        if company_id:
-            company_values["company_id"] = company_id
-        row = await repo.create_company(
-            CompanyContext(**company_values)
-        )
-        await repo.append_audit_event(
-            AuditEvent(
-                company_id=row.company_id,
-                action=EventTypes.COMPANY_CREATED,
-                target_type="company",
-                target_id=row.company_id,
-                actor_type="user",
-                actor_id=body.created_by,
-                detail={
-                    "company_id": row.company_id,
-                    "name": row.name,
-                },
+        store = SqlAlchemyControlPlaneCompanyStore(session)
+        try:
+            row = await create_company_with_audit(
+                store,
+                company_id=body.company_id,
+                name=body.name,
+                mission=body.mission,
+                metadata=body.metadata,
+                created_by=body.created_by,
             )
-        )
+        except CompanyAlreadyExistsError:
+            raise_control_plane_api_error(status_code=409, detail="company_already_exists")
         return _row_to_dict(row)
 
     @router.get("/companies/{company_id}")
@@ -721,10 +760,11 @@ def create_control_plane_router(
         company_id: str,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        row = await repo.get_company(company_id)
-        if row is None:
-            raise HTTPException(status_code=404, detail="company_not_found")
+        store = SqlAlchemyControlPlaneCompanyStore(session)
+        try:
+            row = await get_company_from_store(store, company_id=company_id)
+        except CompanyNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="company_not_found")
         return _row_to_dict(row)
 
     @router.patch("/companies/{company_id}")
@@ -733,29 +773,18 @@ def create_control_plane_router(
         body: CompanyUpdateRequest,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        row = await repo.update_company_context(
-            company_id,
-            name=body.name,
-            mission=body.mission,
-            metadata=body.metadata,
-        )
-        if row is None:
-            raise HTTPException(status_code=404, detail="company_not_found")
-        await repo.append_audit_event(
-            AuditEvent(
-                company_id=row.company_id,
-                action=EventTypes.COMPANY_UPDATED,
-                target_type="company",
-                target_id=row.company_id,
-                actor_type="user",
+        store = SqlAlchemyControlPlaneCompanyStore(session)
+        try:
+            row = await update_company_with_audit(
+                store,
+                company_id=company_id,
+                name=body.name,
+                mission=body.mission,
+                metadata=body.metadata,
                 actor_id=body.actor_id,
-                detail={
-                    "company_id": row.company_id,
-                    "name": row.name,
-                },
             )
-        )
+        except CompanyNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="company_not_found")
         return _row_to_dict(row)
 
     @router.get("/goals")
@@ -768,8 +797,9 @@ def create_control_plane_router(
         limit: int = Query(default=100, ge=1, le=500),
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        rows = await repo.list_goals(
+        store = SqlAlchemyControlPlaneGoalStore(session)
+        rows = await list_goals_from_store(
+            store,
             company_id=resolve_company(company_id),
             status=status.value if status else None,
             owner_agent_id=owner_agent_id,
@@ -787,48 +817,30 @@ def create_control_plane_router(
         body: GoalCreateRequest,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneGoalStore(session)
         company_id = resolve_company(body.company_id)
-        await ensure_company(repo, company_id)
-        if body.parent_goal_id:
-            parent = await repo.get_goal(body.parent_goal_id)
-            if parent is None or parent.company_id != company_id:
-                raise HTTPException(status_code=400, detail="parent_goal_not_found")
-
-        row = await repo.create_goal(
-            Goal(
-                company_id=company_id,
-                title=body.title,
-                description=body.description,
-                status=body.status,
-                parent_goal_id=body.parent_goal_id,
-                owner_agent_id=body.owner_agent_id,
-                owner_user_id=body.owner_user_id,
-                success_metric=body.success_metric,
-                target_value=body.target_value,
-                current_value=body.current_value,
-                due_at=body.due_at,
-                tags=body.tags,
-                metadata=body.metadata,
+        try:
+            row = await create_goal_with_audit(
+                store,
+                Goal(
+                    company_id=company_id,
+                    title=body.title,
+                    description=body.description,
+                    status=body.status,
+                    parent_goal_id=body.parent_goal_id,
+                    owner_agent_id=body.owner_agent_id,
+                    owner_user_id=body.owner_user_id,
+                    success_metric=body.success_metric,
+                    target_value=body.target_value,
+                    current_value=body.current_value,
+                    due_at=body.due_at,
+                    tags=body.tags,
+                    metadata=body.metadata,
+                ),
+                created_by=body.created_by,
             )
-        )
-        await repo.append_audit_event(
-            AuditEvent(
-                company_id=company_id,
-                action=EventTypes.GOAL_CREATED,
-                target_type="goal",
-                target_id=row.goal_id,
-                actor_type="user",
-                actor_id=body.created_by,
-                detail={
-                    "goal_id": row.goal_id,
-                    "status": row.status,
-                    "parent_goal_id": row.parent_goal_id,
-                    "owner_agent_id": row.owner_agent_id,
-                    "owner_user_id": row.owner_user_id,
-                },
-            )
-        )
+        except ParentGoalNotFoundError:
+            raise_control_plane_api_error(status_code=400, detail="parent_goal_not_found")
         return _row_to_dict(row)
 
     @router.get("/goals/{goal_id}")
@@ -837,9 +849,15 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        row = await ControlPlaneRepository(session).get_goal(goal_id)
-        if row is None or row.company_id != resolve_company(company_id):
-            raise HTTPException(status_code=404, detail="goal_not_found")
+        store = SqlAlchemyControlPlaneGoalStore(session)
+        try:
+            row = await get_goal_from_store(
+                store,
+                company_id=resolve_company(company_id),
+                goal_id=goal_id,
+            )
+        except GoalNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="goal_not_found")
         return _row_to_dict(row)
 
     @router.patch("/goals/{goal_id}/status")
@@ -849,32 +867,19 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneGoalStore(session)
         resolved_company_id = resolve_company(company_id)
-        existing = await repo.get_goal(goal_id)
-        if existing is None or existing.company_id != resolved_company_id:
-            raise HTTPException(status_code=404, detail="goal_not_found")
-        row = await repo.update_goal_status(
-            goal_id,
-            status=body.status.value,
-            current_value=body.current_value,
-        )
-        if row is None:
-            raise HTTPException(status_code=404, detail="goal_not_found")
-        await repo.append_audit_event(
-            AuditEvent(
+        try:
+            row = await update_goal_status_with_audit(
+                store,
                 company_id=resolved_company_id,
-                action=EventTypes.GOAL_UPDATED,
-                target_type="goal",
-                target_id=row.goal_id,
-                actor_type="user",
+                goal_id=goal_id,
+                status=body.status,
+                current_value=body.current_value,
                 actor_id=body.actor_id,
-                detail={
-                    "status": row.status,
-                    "current_value": row.current_value,
-                },
             )
-        )
+        except GoalNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="goal_not_found")
         return _row_to_dict(row)
 
     @router.get("/work-items")
@@ -889,8 +894,9 @@ def create_control_plane_router(
         limit: int = Query(default=100, ge=1, le=500),
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        rows = await repo.list_work_items(
+        store = SqlAlchemyControlPlaneWorkItemStore(session)
+        rows = await list_work_items_from_store(
+            store,
             company_id=resolve_company(company_id),
             status=status.value if status else None,
             priority=priority.value if priority else None,
@@ -910,54 +916,32 @@ def create_control_plane_router(
         body: WorkItemCreateRequest,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneWorkItemStore(session)
         company_id = resolve_company(body.company_id)
-        await ensure_company(repo, company_id)
-        if body.goal_id:
-            goal = await repo.get_goal(body.goal_id)
-            if goal is None or goal.company_id != company_id:
-                raise HTTPException(status_code=400, detail="goal_not_found")
-        for dependency_id in body.dependencies:
-            dependency = await repo.get_work_item(dependency_id)
-            if dependency is None or dependency.company_id != company_id:
-                raise HTTPException(status_code=400, detail="dependency_not_found")
-
-        row = await repo.create_work_item(
-            WorkItem(
-                company_id=company_id,
-                title=body.title,
-                description=body.description,
-                status=body.status,
-                priority=body.priority,
-                goal_id=body.goal_id,
-                owner_agent_id=body.owner_agent_id,
-                owner_user_id=body.owner_user_id,
-                source=body.source,
-                external_ref=body.external_ref,
-                dependencies=body.dependencies,
-                approval_required=body.approval_required,
-                metadata=body.metadata,
+        try:
+            row = await create_work_item_with_audit(
+                store,
+                WorkItem(
+                    company_id=company_id,
+                    title=body.title,
+                    description=body.description,
+                    status=body.status,
+                    priority=body.priority,
+                    goal_id=body.goal_id,
+                    owner_agent_id=body.owner_agent_id,
+                    owner_user_id=body.owner_user_id,
+                    source=body.source,
+                    external_ref=body.external_ref,
+                    dependencies=body.dependencies,
+                    approval_required=body.approval_required,
+                    metadata=body.metadata,
+                ),
+                created_by=body.created_by,
             )
-        )
-        await repo.append_audit_event(
-            AuditEvent(
-                company_id=company_id,
-                action=EventTypes.WORK_ITEM_CREATED,
-                target_type="work_item",
-                target_id=row.work_item_id,
-                actor_type="user",
-                actor_id=body.created_by,
-                work_item_id=row.work_item_id,
-                detail={
-                    "work_item_id": row.work_item_id,
-                    "status": row.status,
-                    "priority": row.priority,
-                    "goal_id": row.goal_id,
-                    "owner_agent_id": row.owner_agent_id,
-                    "owner_user_id": row.owner_user_id,
-                },
-            )
-        )
+        except WorkItemGoalNotFoundError:
+            raise_control_plane_api_error(status_code=400, detail="goal_not_found")
+        except WorkItemDependencyNotFoundError:
+            raise_control_plane_api_error(status_code=400, detail="dependency_not_found")
         return _row_to_dict(row)
 
     @router.get("/work-items/{work_item_id}")
@@ -966,9 +950,15 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        row = await ControlPlaneRepository(session).get_work_item(work_item_id)
-        if row is None or row.company_id != resolve_company(company_id):
-            raise HTTPException(status_code=404, detail="work_item_not_found")
+        store = SqlAlchemyControlPlaneWorkItemStore(session)
+        try:
+            row = await get_work_item_from_store(
+                store,
+                company_id=resolve_company(company_id),
+                work_item_id=work_item_id,
+            )
+        except WorkItemNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
         return _row_to_dict(row)
 
     @router.patch("/work-items/{work_item_id}/status")
@@ -978,35 +968,20 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneWorkItemStore(session)
         resolved_company_id = resolve_company(company_id)
-        existing = await repo.get_work_item(work_item_id)
-        if existing is None or existing.company_id != resolved_company_id:
-            raise HTTPException(status_code=404, detail="work_item_not_found")
-        row = await repo.update_work_item_status(
-            work_item_id,
-            status=body.status.value,
-            owner_agent_id=body.owner_agent_id,
-            owner_user_id=body.owner_user_id,
-        )
-        if row is None:
-            raise HTTPException(status_code=404, detail="work_item_not_found")
-        await repo.append_audit_event(
-            AuditEvent(
+        try:
+            row = await update_work_item_status_with_audit(
+                store,
                 company_id=resolved_company_id,
-                action=EventTypes.WORK_ITEM_UPDATED,
-                target_type="work_item",
-                target_id=row.work_item_id,
-                actor_type="user",
+                work_item_id=work_item_id,
+                status=body.status,
+                owner_agent_id=body.owner_agent_id,
+                owner_user_id=body.owner_user_id,
                 actor_id=body.actor_id,
-                work_item_id=row.work_item_id,
-                detail={
-                    "status": row.status,
-                    "owner_agent_id": row.owner_agent_id,
-                    "owner_user_id": row.owner_user_id,
-                },
             )
-        )
+        except WorkItemNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
         return _row_to_dict(row)
 
     @router.get("/decisions")
@@ -1019,8 +994,9 @@ def create_control_plane_router(
         limit: int = Query(default=50, ge=1, le=200),
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        rows = await repo.list_decisions(
+        store = SqlAlchemyControlPlaneDecisionStore(session)
+        rows = await list_decisions_from_store(
+            store,
             company_id=resolve_company(company_id),
             status=status.value if status else None,
             run_id=run_id,
@@ -1038,50 +1014,34 @@ def create_control_plane_router(
         body: DecisionCreateRequest,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneDecisionStore(session)
         company_id = resolve_company(body.company_id)
-        await ensure_company(repo, company_id)
-        goal_id, work_item_id = await validate_execution_links(
-            repo,
-            company_id=company_id,
-            run_id=body.run_id,
-            work_item_id=body.work_item_id,
-            goal_id=body.goal_id,
-        )
-        row = await repo.create_decision(
-            Decision(
-                company_id=company_id,
-                title=body.title,
-                rationale=body.rationale,
-                status=body.status,
-                run_id=body.run_id,
-                work_item_id=work_item_id,
-                goal_id=goal_id,
-                options=body.options,
-                selected_option=body.selected_option,
-                decided_by=body.decided_by,
-                metadata=body.metadata,
+        try:
+            row = await create_decision_with_audit(
+                store,
+                Decision(
+                    company_id=company_id,
+                    title=body.title,
+                    rationale=body.rationale,
+                    status=body.status,
+                    run_id=body.run_id,
+                    work_item_id=body.work_item_id,
+                    goal_id=body.goal_id,
+                    options=body.options,
+                    selected_option=body.selected_option,
+                    decided_by=body.decided_by,
+                    metadata=body.metadata,
+                ),
+                created_by=body.created_by,
             )
-        )
-        await repo.append_audit_event(
-            AuditEvent(
-                company_id=company_id,
-                action=EventTypes.DECISION_CREATED,
-                target_type="decision",
-                target_id=row.decision_id,
-                actor_type="user",
-                actor_id=body.created_by,
-                run_id=row.run_id,
-                work_item_id=row.work_item_id,
-                detail={
-                    "decision_id": row.decision_id,
-                    "status": row.status,
-                    "goal_id": row.goal_id,
-                    "work_item_id": row.work_item_id,
-                    "run_id": row.run_id,
-                },
-            )
-        )
+        except DecisionRunNotFoundError:
+            raise_control_plane_api_error(status_code=400, detail="run_not_found")
+        except DecisionWorkItemNotFoundError:
+            raise_control_plane_api_error(status_code=400, detail="work_item_not_found")
+        except DecisionGoalNotFoundError:
+            raise_control_plane_api_error(status_code=400, detail="goal_not_found")
+        except DecisionLinkMismatchError:
+            raise_control_plane_api_error(status_code=400, detail="link_mismatch")
         return _row_to_dict(row)
 
     @router.get("/decisions/{decision_id}")
@@ -1090,9 +1050,15 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        row = await ControlPlaneRepository(session).get_decision(decision_id)
-        if row is None or row.company_id != resolve_company(company_id):
-            raise HTTPException(status_code=404, detail="decision_not_found")
+        store = SqlAlchemyControlPlaneDecisionStore(session)
+        try:
+            row = await get_decision_from_store(
+                store,
+                company_id=resolve_company(company_id),
+                decision_id=decision_id,
+            )
+        except DecisionNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="decision_not_found")
         return _row_to_dict(row)
 
     @router.patch("/decisions/{decision_id}/status")
@@ -1102,37 +1068,20 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneDecisionStore(session)
         resolved_company_id = resolve_company(company_id)
-        existing = await repo.get_decision(decision_id)
-        if existing is None or existing.company_id != resolved_company_id:
-            raise HTTPException(status_code=404, detail="decision_not_found")
-        row = await repo.update_decision_status(
-            decision_id,
-            status=body.status.value,
-            selected_option=body.selected_option,
-            decided_by=body.decided_by,
-        )
-        if row is None:
-            raise HTTPException(status_code=404, detail="decision_not_found")
-        await repo.append_audit_event(
-            AuditEvent(
+        try:
+            row = await update_decision_status_with_audit(
+                store,
                 company_id=resolved_company_id,
-                action=EventTypes.DECISION_UPDATED,
-                target_type="decision",
-                target_id=row.decision_id,
-                actor_type="user",
+                decision_id=decision_id,
+                status=body.status,
+                selected_option=body.selected_option,
+                decided_by=body.decided_by,
                 actor_id=body.actor_id,
-                run_id=row.run_id,
-                work_item_id=row.work_item_id,
-                detail={
-                    "status": row.status,
-                    "selected_option": row.selected_option,
-                    "decided_by": row.decided_by,
-                    "goal_id": row.goal_id,
-                },
             )
-        )
+        except DecisionNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="decision_not_found")
         return _row_to_dict(row)
 
     @router.get("/artifacts")
@@ -1146,8 +1095,9 @@ def create_control_plane_router(
         limit: int = Query(default=50, ge=1, le=200),
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        rows = await repo.list_artifacts(
+        store = SqlAlchemyControlPlaneArtifactStore(session)
+        rows = await list_artifacts_from_store(
+            store,
             company_id=resolve_company(company_id),
             artifact_type=artifact_type.value if artifact_type else None,
             run_id=run_id,
@@ -1166,50 +1116,33 @@ def create_control_plane_router(
         body: ArtifactCreateRequest,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneArtifactStore(session)
         company_id = resolve_company(body.company_id)
-        await ensure_company(repo, company_id)
-        goal_id, work_item_id = await validate_execution_links(
-            repo,
-            company_id=company_id,
-            run_id=body.run_id,
-            work_item_id=body.work_item_id,
-            goal_id=body.goal_id,
-        )
-        row = await repo.create_artifact(
-            Artifact(
-                company_id=company_id,
-                artifact_type=body.artifact_type,
-                title=body.title,
-                uri=body.uri,
-                content_hash=body.content_hash,
-                run_id=body.run_id,
-                work_item_id=work_item_id,
-                goal_id=goal_id,
-                created_by_agent_id=body.created_by_agent_id,
-                metadata=body.metadata,
+        try:
+            row = await create_artifact_with_audit(
+                store,
+                Artifact(
+                    company_id=company_id,
+                    artifact_type=body.artifact_type,
+                    title=body.title,
+                    uri=body.uri,
+                    content_hash=body.content_hash,
+                    run_id=body.run_id,
+                    work_item_id=body.work_item_id,
+                    goal_id=body.goal_id,
+                    created_by_agent_id=body.created_by_agent_id,
+                    metadata=body.metadata,
+                ),
+                created_by=body.created_by,
             )
-        )
-        await repo.append_audit_event(
-            AuditEvent(
-                company_id=company_id,
-                action=EventTypes.ARTIFACT_CREATED,
-                target_type="artifact",
-                target_id=row.artifact_id,
-                actor_type="user",
-                actor_id=body.created_by,
-                run_id=row.run_id,
-                work_item_id=row.work_item_id,
-                detail={
-                    "artifact_id": row.artifact_id,
-                    "artifact_type": row.artifact_type,
-                    "goal_id": row.goal_id,
-                    "work_item_id": row.work_item_id,
-                    "run_id": row.run_id,
-                    "created_by_agent_id": row.created_by_agent_id,
-                },
-            )
-        )
+        except ArtifactRunNotFoundError:
+            raise_control_plane_api_error(status_code=400, detail="run_not_found")
+        except ArtifactWorkItemNotFoundError:
+            raise_control_plane_api_error(status_code=400, detail="work_item_not_found")
+        except ArtifactGoalNotFoundError:
+            raise_control_plane_api_error(status_code=400, detail="goal_not_found")
+        except ArtifactLinkMismatchError:
+            raise_control_plane_api_error(status_code=400, detail="link_mismatch")
         return _row_to_dict(row)
 
     @router.get("/artifacts/{artifact_id}")
@@ -1218,9 +1151,15 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        row = await ControlPlaneRepository(session).get_artifact(artifact_id)
-        if row is None or row.company_id != resolve_company(company_id):
-            raise HTTPException(status_code=404, detail="artifact_not_found")
+        store = SqlAlchemyControlPlaneArtifactStore(session)
+        try:
+            row = await get_artifact_from_store(
+                store,
+                company_id=resolve_company(company_id),
+                artifact_id=artifact_id,
+            )
+        except ArtifactNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="artifact_not_found")
         return _row_to_dict(row)
 
     @router.get("/evolution-proposals")
@@ -1233,8 +1172,9 @@ def create_control_plane_router(
         limit: int = Query(default=100, ge=1, le=500),
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        rows = await repo.list_evolution_proposals(
+        store = SqlAlchemyControlPlaneEvolutionProposalStore(session)
+        rows = await list_evolution_proposals_from_store(
+            store,
             company_id=resolve_company(company_id),
             tier=tier.value if tier else None,
             approval_state=approval_state.value if approval_state else None,
@@ -1255,67 +1195,26 @@ def create_control_plane_router(
         body: EvolutionProposalCreateRequest,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneEvolutionProposalStore(session)
         company_id = resolve_company(body.company_id)
-        await ensure_company(repo, company_id)
-
-        approval_id = body.approval_id
-        approval_state = ApprovalStatus.PENDING.value
-        if approval_id:
-            approval = await repo.get_approval(approval_id)
-            if approval is None or approval.company_id != company_id:
-                raise HTTPException(status_code=400, detail="approval_not_found")
-            approval_state = approval.status
-        elif body.approval_required:
-            approval = await ApprovalGate(repo).request_approval(
-                company_id=company_id,
-                category=ApprovalCategory.TECHNICAL,
-                requested_by=f"agent:{body.proposed_by}",
-                source_agent_id=body.proposed_by,
-                proposed_action=(
-                    f"Review {body.tier.value} evolution proposal for {body.scope}"
+        try:
+            row = await create_evolution_proposal_with_audit(
+                store,
+                EvolutionProposal(
+                    company_id=company_id,
+                    tier=body.tier,
+                    scope=body.scope,
+                    evidence=body.evidence,
+                    expected_benefit=body.expected_benefit,
+                    risk=body.risk,
+                    approval_id=body.approval_id,
+                    metadata=body.metadata,
                 ),
-                reason=body.expected_benefit,
-                risk=body.risk,
-                rollback_note=(
-                    "Do not promote the proposal; keep current runtime behavior."
-                ),
-                affected_resources=[body.scope],
+                approval_required=body.approval_required,
+                proposed_by=body.proposed_by,
             )
-            approval_id = approval.approval_id
-            approval_state = approval.status
-
-        row = await repo.create_evolution_proposal(
-            EvolutionProposal(
-                company_id=company_id,
-                tier=body.tier,
-                scope=body.scope,
-                evidence=body.evidence,
-                expected_benefit=body.expected_benefit,
-                risk=body.risk,
-                approval_state=approval_state,
-                approval_id=approval_id,
-                metadata=body.metadata,
-            )
-        )
-        await repo.append_audit_event(
-            AuditEvent(
-                company_id=company_id,
-                action=EventTypes.EVOLUTION_PROPOSAL_CREATED,
-                target_type="evolution_proposal",
-                target_id=row.proposal_id,
-                actor_type="agent",
-                actor_id=body.proposed_by,
-                detail={
-                    "proposal_id": row.proposal_id,
-                    "tier": row.tier,
-                    "scope": row.scope,
-                    "approval_state": row.approval_state,
-                    "rollout_state": row.rollout_state,
-                    "approval_id": row.approval_id,
-                },
-            )
-        )
+        except EvolutionProposalApprovalNotFoundError:
+            raise_control_plane_api_error(status_code=400, detail="approval_not_found")
         return _row_to_dict(row)
 
     @router.get("/evolution-proposals/{proposal_id}")
@@ -1324,9 +1223,15 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        row = await ControlPlaneRepository(session).get_evolution_proposal(proposal_id)
-        if row is None or row.company_id != resolve_company(company_id):
-            raise HTTPException(status_code=404, detail="evolution_proposal_not_found")
+        store = SqlAlchemyControlPlaneEvolutionProposalStore(session)
+        try:
+            row = await get_evolution_proposal_from_store(
+                store,
+                company_id=resolve_company(company_id),
+                proposal_id=proposal_id,
+            )
+        except EvolutionProposalNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="evolution_proposal_not_found")
         return _row_to_dict(row)
 
     @router.patch("/evolution-proposals/{proposal_id}/status")
@@ -1336,52 +1241,24 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneEvolutionProposalStore(session)
         resolved_company_id = resolve_company(company_id)
-        existing = await repo.get_evolution_proposal(proposal_id)
-        if existing is None or existing.company_id != resolved_company_id:
-            raise HTTPException(status_code=404, detail="evolution_proposal_not_found")
-
-        approval_id = body.approval_id
-        approval_state = body.approval_state.value if body.approval_state else None
-        if approval_id:
-            approval = await repo.get_approval(approval_id)
-            if approval is None or approval.company_id != resolved_company_id:
-                raise HTTPException(status_code=400, detail="approval_not_found")
-            approval_state = approval_state or approval.status
-
-        rollout_state = body.rollout_state.value if body.rollout_state else None
-        effective_approval_state = approval_state or existing.approval_state
-        if (
-            _rollout_requires_approval(rollout_state)
-            and effective_approval_state != ApprovalStatus.APPROVED.value
-        ):
-            raise HTTPException(status_code=400, detail="approval_required")
-
-        row = await repo.update_evolution_proposal_status(
-            proposal_id,
-            approval_state=approval_state,
-            rollout_state=rollout_state,
-            approval_id=approval_id,
-        )
-        if row is None:
-            raise HTTPException(status_code=404, detail="evolution_proposal_not_found")
-        await repo.append_audit_event(
-            AuditEvent(
+        try:
+            row = await update_evolution_proposal_status_with_audit(
+                store,
                 company_id=resolved_company_id,
-                action=EventTypes.EVOLUTION_PROPOSAL_UPDATED,
-                target_type="evolution_proposal",
-                target_id=row.proposal_id,
-                actor_type="user",
+                proposal_id=proposal_id,
+                approval_state=body.approval_state,
+                rollout_state=body.rollout_state,
+                approval_id=body.approval_id,
                 actor_id=body.actor_id,
-                detail={
-                    "proposal_id": row.proposal_id,
-                    "approval_state": row.approval_state,
-                    "rollout_state": row.rollout_state,
-                    "approval_id": row.approval_id,
-                },
             )
-        )
+        except EvolutionProposalNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="evolution_proposal_not_found")
+        except EvolutionProposalApprovalNotFoundError:
+            raise_control_plane_api_error(status_code=400, detail="approval_not_found")
+        except EvolutionProposalApprovalRequiredError:
+            raise_control_plane_api_error(status_code=400, detail="approval_required")
         return _row_to_dict(row)
 
     @router.get("/runs")
@@ -1395,8 +1272,9 @@ def create_control_plane_router(
         limit: int = Query(default=50, ge=1, le=200),
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        rows = await repo.list_agent_runs(
+        store = SqlAlchemyControlPlaneAgentRunStore(session)
+        rows = await list_agent_runs_from_store(
+            store,
             company_id=resolve_company(company_id),
             status=status,
             agent_id=agent_id,
@@ -1418,8 +1296,9 @@ def create_control_plane_router(
         limit: int = Query(default=100, ge=1, le=500),
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        rows = await repo.list_agent_roles(
+        store = SqlAlchemyControlPlaneAgentRegistryStore(session)
+        rows = await list_agent_roles_from_registry(
+            store,
             company_id=resolve_company(company_id),
             status=status,
             agent_kind=agent_kind.value if agent_kind else None,
@@ -1438,63 +1317,40 @@ def create_control_plane_router(
         body: AgentDefinitionCreateRequest,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneAgentRegistryStore(session)
         company_id = resolve_company(body.company_id)
-        await ensure_company(repo, company_id)
-        existing = await repo.get_agent_role(
-            company_id=company_id,
-            agent_id=body.agent_id,
-        )
-        if existing is not None:
-            raise HTTPException(status_code=409, detail="agent_already_exists")
-        if not DEFAULT_ADAPTER_REGISTRY.is_registered(body.adapter_type):
-            raise HTTPException(status_code=400, detail="unsupported_adapter_type")
-
-        row = await repo.create_agent_role(
-            AgentRole(
-                company_id=company_id,
-                agent_id=body.agent_id,
-                display_name=body.display_name,
-                agent_kind=body.agent_kind,
-                interaction_mode=body.interaction_mode,
-                role=body.role,
-                title=body.title,
-                domain=body.domain,
-                reports_to_agent_id=body.reports_to_agent_id,
-                adapter_type=body.adapter_type,
-                adapter_config=body.adapter_config,
-                context_sources=body.context_sources,
-                capabilities=body.capabilities,
-                responsibilities=body.responsibilities,
-                subscribed_events=body.subscribed_events,
-                published_events=body.published_events,
-                permissions=body.permissions,
-                budget_policy_id=body.budget_policy_id,
-                escalation_policy=body.escalation_policy,
-                status=body.status,
-                created_by=body.created_by,
-                metadata=body.metadata,
+        try:
+            row = await create_agent_role_with_audit(
+                store,
+                AgentRole(
+                    company_id=company_id,
+                    agent_id=body.agent_id,
+                    display_name=body.display_name,
+                    agent_kind=body.agent_kind,
+                    interaction_mode=body.interaction_mode,
+                    role=body.role,
+                    title=body.title,
+                    domain=body.domain,
+                    reports_to_agent_id=body.reports_to_agent_id,
+                    adapter_type=body.adapter_type,
+                    adapter_config=body.adapter_config,
+                    context_sources=body.context_sources,
+                    capabilities=body.capabilities,
+                    responsibilities=body.responsibilities,
+                    subscribed_events=body.subscribed_events,
+                    published_events=body.published_events,
+                    permissions=body.permissions,
+                    budget_policy_id=body.budget_policy_id,
+                    escalation_policy=body.escalation_policy,
+                    status=body.status,
+                    created_by=body.created_by,
+                    metadata=body.metadata,
+                ),
             )
-        )
-        await repo.append_audit_event(
-            AuditEvent(
-                company_id=company_id,
-                action=EventTypes.AGENT_ROLE_CREATED,
-                target_type="agent_role",
-                target_id=row.agent_id,
-                actor_type="user",
-                actor_id=body.created_by,
-                detail={
-                    "agent_id": row.agent_id,
-                    "role_id": row.role_id,
-                    "agent_kind": row.agent_kind,
-                    "interaction_mode": row.interaction_mode,
-                    "role": row.role,
-                    "adapter_type": row.adapter_type,
-                    "reports_to_agent_id": row.reports_to_agent_id,
-                },
-            )
-        )
+        except AgentAlreadyExistsError:
+            raise_control_plane_api_error(status_code=409, detail="agent_already_exists")
+        except UnsupportedAdapterTypeError:
+            raise_control_plane_api_error(status_code=400, detail="unsupported_adapter_type")
         return _row_to_dict(row)
 
     @router.get("/agents/{agent_id}")
@@ -1503,13 +1359,15 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        row = await repo.get_agent_role(
-            company_id=resolve_company(company_id),
-            agent_id=agent_id,
-        )
-        if row is None:
-            raise HTTPException(status_code=404, detail="agent_not_found")
+        store = SqlAlchemyControlPlaneAgentRegistryStore(session)
+        try:
+            row = await get_agent_role_from_registry(
+                store,
+                company_id=resolve_company(company_id),
+                agent_id=agent_id,
+            )
+        except AgentNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="agent_not_found")
         return _row_to_dict(row)
 
     @router.put("/agents/{agent_id}")
@@ -1519,72 +1377,41 @@ def create_control_plane_router(
         session: AsyncSession = Depends(get_session),
     ):
         if body.agent_id != agent_id:
-            raise HTTPException(status_code=400, detail="agent_id_mismatch")
-        if not DEFAULT_ADAPTER_REGISTRY.is_registered(body.adapter_type):
-            raise HTTPException(status_code=400, detail="unsupported_adapter_type")
+            raise_control_plane_api_error(status_code=400, detail="agent_id_mismatch")
 
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneAgentRegistryStore(session)
         company_id = resolve_company(body.company_id)
-        row = await repo.update_agent_role(
-            company_id=company_id,
-            agent_id=agent_id,
-            values={
-                "display_name": body.display_name,
-                "agent_kind": body.agent_kind,
-                "interaction_mode": body.interaction_mode,
-                "role": body.role,
-                "title": body.title,
-                "domain": body.domain,
-                "reports_to_agent_id": body.reports_to_agent_id,
-                "adapter_type": body.adapter_type,
-                "adapter_config": body.adapter_config,
-                "context_sources": body.context_sources,
-                "capabilities": body.capabilities,
-                "responsibilities": body.responsibilities,
-                "subscribed_events": body.subscribed_events,
-                "published_events": body.published_events,
-                "permissions": body.permissions,
-                "budget_policy_id": body.budget_policy_id,
-                "escalation_policy": body.escalation_policy,
-                "metadata": body.metadata,
-            },
-        )
-        if row is None:
-            raise HTTPException(status_code=404, detail="agent_not_found")
-        await repo.append_audit_event(
-            AuditEvent(
-                company_id=company_id,
-                action=EventTypes.AGENT_ROLE_UPDATED,
-                target_type="agent_role",
-                target_id=row.agent_id,
-                actor_type="user",
-                actor_id=body.created_by,
-                detail={
-                    "agent_id": row.agent_id,
-                    "role_id": row.role_id,
-                    "changed_fields": [
-                        "display_name",
-                        "agent_kind",
-                        "interaction_mode",
-                        "role",
-                        "title",
-                        "domain",
-                        "reports_to_agent_id",
-                        "adapter_type",
-                        "adapter_config",
-                        "context_sources",
-                        "capabilities",
-                        "responsibilities",
-                        "subscribed_events",
-                        "published_events",
-                        "permissions",
-                        "budget_policy_id",
-                        "escalation_policy",
-                        "metadata",
-                    ],
-                },
+        try:
+            row = await update_agent_role_with_audit(
+                store,
+                AgentRole(
+                    company_id=company_id,
+                    agent_id=agent_id,
+                    display_name=body.display_name,
+                    agent_kind=body.agent_kind,
+                    interaction_mode=body.interaction_mode,
+                    role=body.role,
+                    title=body.title,
+                    domain=body.domain,
+                    reports_to_agent_id=body.reports_to_agent_id,
+                    adapter_type=body.adapter_type,
+                    adapter_config=body.adapter_config,
+                    context_sources=body.context_sources,
+                    capabilities=body.capabilities,
+                    responsibilities=body.responsibilities,
+                    subscribed_events=body.subscribed_events,
+                    published_events=body.published_events,
+                    permissions=body.permissions,
+                    budget_policy_id=body.budget_policy_id,
+                    escalation_policy=body.escalation_policy,
+                    created_by=body.created_by,
+                    metadata=body.metadata,
+                ),
             )
-        )
+        except UnsupportedAdapterTypeError:
+            raise_control_plane_api_error(status_code=400, detail="unsupported_adapter_type")
+        except AgentNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="agent_not_found")
         return _row_to_dict(row)
 
     @router.get("/agents/{agent_id}/prompt-config")
@@ -1593,16 +1420,16 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlanePromptConfigStore(session)
         resolved_company_id = resolve_company(company_id)
         try:
             return await get_or_default_prompt_config(
-                repo,
+                store,
                 company_id=resolved_company_id,
                 agent_id=agent_id,
             )
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="agent_not_found") from exc
+        except KeyError:
+            raise_control_plane_api_error(status_code=404, detail="agent_not_found")
 
     @router.put("/agents/{agent_id}/prompt-config")
     async def update_agent_prompt_config(
@@ -1611,44 +1438,19 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlanePromptConfigStore(session)
         resolved_company_id = resolve_company(company_id)
-        await ensure_company(repo, resolved_company_id)
         try:
-            await ensure_prompt_config_target(
-                repo,
+            return await update_prompt_config_with_audit(
+                store,
                 company_id=resolved_company_id,
                 agent_id=agent_id,
+                system_prompt=body.system_prompt,
+                updated_by=body.updated_by,
+                metadata=body.metadata,
             )
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="agent_not_found") from exc
-        row = await repo.upsert_agent_prompt_config(
-            company_id=resolved_company_id,
-            agent_id=agent_id,
-            system_prompt=body.system_prompt,
-            updated_by=body.updated_by,
-            metadata=body.metadata,
-        )
-        await repo.append_audit_event(
-            AuditEvent(
-                company_id=resolved_company_id,
-                action=EventTypes.AGENT_PROMPT_CONFIG_UPDATED,
-                target_type="agent_prompt_config",
-                target_id=agent_id,
-                actor_type="user",
-                actor_id=body.updated_by,
-                detail={
-                    "agent_id": agent_id,
-                    "prompt_length": len(body.system_prompt),
-                    "metadata_keys": sorted(body.metadata.keys()),
-                },
-            )
-        )
-        return prompt_config_to_dict(
-            row,
-            company_id=resolved_company_id,
-            agent_id=agent_id,
-        )
+        except KeyError:
+            raise_control_plane_api_error(status_code=404, detail="agent_not_found")
 
     @router.patch("/agents/{agent_id}/status")
     async def update_agent_status(
@@ -1657,26 +1459,18 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneAgentRegistryStore(session)
         resolved_company_id = resolve_company(company_id)
-        row = await repo.update_agent_role_status(
-            company_id=resolved_company_id,
-            agent_id=agent_id,
-            status=body.status.strip(),
-        )
-        if row is None:
-            raise HTTPException(status_code=404, detail="agent_not_found")
-        await repo.append_audit_event(
-            AuditEvent(
+        try:
+            row = await update_agent_status_with_audit(
+                store,
                 company_id=resolved_company_id,
-                action=EventTypes.AGENT_ROLE_STATUS_UPDATED,
-                target_type="agent_role",
-                target_id=row.agent_id,
-                actor_type="user",
+                agent_id=agent_id,
+                status=body.status,
                 actor_id=body.actor_id,
-                detail={"status": row.status},
             )
-        )
+        except AgentNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="agent_not_found")
         return _row_to_dict(row)
 
     @router.post("/agents/{agent_id}/wake", dependencies=[Depends(verify_internal_key)])
@@ -1685,30 +1479,31 @@ def create_control_plane_router(
         body: AgentWakeupRequest,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        row = await repo.get_agent_role(
-            company_id=resolve_company(body.company_id),
-            agent_id=agent_id,
-        )
-        if row is None:
-            raise HTTPException(status_code=404, detail="agent_not_found")
+        store = SqlAlchemyControlPlaneAgentOperationStore(session)
         try:
-            result = await ControlPlaneAgentRunner(repo).wake(
-                row,
+            result = await wake_agent_definition(
+                store,
+                company_id=resolve_company(body.company_id),
+                agent_id=agent_id,
                 input_payload=body.input,
                 actor_id=body.actor_id,
                 trace_id=body.trace_id,
                 goal_id=body.goal_id,
                 work_item_id=body.work_item_id,
             )
+        except AgentDefinitionNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="agent_not_found")
         except AgentWakeupError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+            raise_control_plane_api_error(status_code=exc.status_code, detail=exc.detail)
 
-        run = await repo.get_agent_run(result.run_id)
         return {
-            "run": _row_to_dict(run) if run is not None else {"run_id": result.run_id},
-            "output": result.output,
-            "evidence_artifact_id": result.evidence_artifact_id,
+            "run": (
+                _row_to_dict(result.run)
+                if result.run is not None
+                else {"run_id": result.wakeup.run_id}
+            ),
+            "output": result.wakeup.output,
+            "evidence_artifact_id": result.wakeup.evidence_artifact_id,
         }
 
     @router.post(
@@ -1719,15 +1514,16 @@ def create_control_plane_router(
         body: HeartbeatRunRequest,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneAgentOperationStore(session)
         company_id = resolve_company(body.company_id)
-        if await repo.get_company(company_id) is None:
-            raise HTTPException(status_code=404, detail="company_not_found")
-
-        results = await ControlPlaneHeartbeatScheduler(repo).run_due_once(
-            company_id=company_id,
-            limit=body.limit,
-        )
+        try:
+            results = await run_heartbeat_scheduler_once_from_store(
+                store,
+                company_id=company_id,
+                limit=body.limit,
+            )
+        except AgentOperationCompanyNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="company_not_found")
         return {
             "company_id": company_id,
             "results": [asdict(item) for item in results],
@@ -1739,10 +1535,11 @@ def create_control_plane_router(
         run_id: str,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        row = await repo.get_agent_run(run_id)
-        if row is None:
-            raise HTTPException(status_code=404, detail="run_not_found")
+        store = SqlAlchemyControlPlaneAgentRunStore(session)
+        try:
+            row = await get_agent_run_from_store(store, run_id=run_id)
+        except AgentRunNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="run_not_found")
         return _row_to_dict(row)
 
     @router.get("/approvals")
@@ -1754,8 +1551,8 @@ def create_control_plane_router(
         limit: int = Query(default=50, ge=1, le=200),
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        rows = await repo.list_approvals(
+        store = SqlAlchemyControlPlaneApprovalStore(session)
+        rows = await store.list_approvals(
             company_id=resolve_company(company_id),
             status=status,
             run_id=run_id,
@@ -1770,34 +1567,16 @@ def create_control_plane_router(
         body: ApprovalActionRequest,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneApprovalStore(session)
         try:
-            decision = await ApprovalGate(repo).approve(
-                approval_id,
+            decision = await resolve_approval_and_sync_proposal(
+                store,
+                approval_id=approval_id,
                 resolved_by=body.resolved_by,
+                approved=True,
             )
         except ApprovalRequiredError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        proposal = await repo.update_evolution_proposal_approval_state_by_approval(
-            approval_id,
-            approval_state=ApprovalStatus.APPROVED.value,
-        )
-        if proposal is not None:
-            await repo.append_audit_event(
-                AuditEvent(
-                    company_id=proposal.company_id,
-                    action=EventTypes.EVOLUTION_PROPOSAL_UPDATED,
-                    target_type="evolution_proposal",
-                    target_id=proposal.proposal_id,
-                    actor_type="user",
-                    actor_id=body.resolved_by,
-                    detail={
-                        "proposal_id": proposal.proposal_id,
-                        "approval_state": proposal.approval_state,
-                        "approval_id": approval_id,
-                    },
-                )
-            )
+            raise_control_plane_api_error(status_code=404, detail=str(exc))
         return decision.__dict__
 
     @router.post("/approvals/{approval_id}/reject")
@@ -1806,36 +1585,16 @@ def create_control_plane_router(
         body: ApprovalActionRequest,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneApprovalStore(session)
         try:
-            decision = await ApprovalGate(repo).reject(
-                approval_id,
+            decision = await resolve_approval_and_sync_proposal(
+                store,
+                approval_id=approval_id,
                 resolved_by=body.resolved_by,
+                approved=False,
             )
         except ApprovalRequiredError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        proposal = await repo.update_evolution_proposal_approval_state_by_approval(
-            approval_id,
-            approval_state=ApprovalStatus.REJECTED.value,
-            rollout_state=EvolutionRolloutState.REJECTED.value,
-        )
-        if proposal is not None:
-            await repo.append_audit_event(
-                AuditEvent(
-                    company_id=proposal.company_id,
-                    action=EventTypes.EVOLUTION_PROPOSAL_UPDATED,
-                    target_type="evolution_proposal",
-                    target_id=proposal.proposal_id,
-                    actor_type="user",
-                    actor_id=body.resolved_by,
-                    detail={
-                        "proposal_id": proposal.proposal_id,
-                        "approval_state": proposal.approval_state,
-                        "rollout_state": proposal.rollout_state,
-                        "approval_id": approval_id,
-                    },
-                )
-            )
+            raise_control_plane_api_error(status_code=404, detail=str(exc))
         return decision.__dict__
 
     @router.get("/budgets/policies")
@@ -1850,9 +1609,10 @@ def create_control_plane_router(
     ):
         status = status.strip().lower() if status is not None else None
         if status is not None and status not in BUDGET_POLICY_STATUSES:
-            raise HTTPException(status_code=400, detail="invalid_budget_policy_status")
-        repo = ControlPlaneRepository(session)
-        rows = await repo.list_budget_policies(
+            raise_control_plane_api_error(status_code=400, detail="invalid_budget_policy_status")
+        store = SqlAlchemyControlPlaneBudgetStore(session)
+        rows = await list_budget_policies_from_store(
+            store,
             company_id=resolve_company(company_id),
             scope=scope,
             scope_id=scope_id,
@@ -1873,50 +1633,29 @@ def create_control_plane_router(
         body: BudgetPolicyCreateRequest,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneBudgetStore(session)
         company_id = resolve_company(body.company_id)
-        await ensure_company(repo, company_id)
-        if body.status == "active":
-            await ensure_no_active_budget_policy_conflict(
-                repo,
-                company_id=company_id,
-                scope=body.scope,
-                scope_id=body.scope_id,
-                period=body.period,
+        try:
+            row = await create_budget_policy_with_audit(
+                store,
+                BudgetPolicy(
+                    company_id=company_id,
+                    scope=body.scope,
+                    scope_id=body.scope_id,
+                    period=body.period,
+                    limit_usd=body.limit_usd,
+                    warning_threshold=body.warning_threshold,
+                    status=body.status,
+                    model_allowlist=body.model_allowlist,
+                    metadata=body.metadata,
+                ),
+                created_by=body.created_by,
             )
-        row = await repo.create_budget_policy(
-            BudgetPolicy(
-                company_id=company_id,
-                scope=body.scope,
-                scope_id=body.scope_id,
-                period=body.period,
-                limit_usd=body.limit_usd,
-                warning_threshold=body.warning_threshold,
-                status=body.status,
-                model_allowlist=body.model_allowlist,
-                metadata=body.metadata,
+        except ActiveBudgetPolicyConflictError:
+            raise_control_plane_api_error(
+                status_code=409,
+                detail="active_budget_policy_exists",
             )
-        )
-        await repo.append_audit_event(
-            AuditEvent(
-                company_id=company_id,
-                action=EventTypes.BUDGET_POLICY_CREATED,
-                target_type="budget_policy",
-                target_id=row.budget_id,
-                actor_type="user",
-                actor_id=body.created_by,
-                detail={
-                    "budget_id": row.budget_id,
-                    "scope": row.scope,
-                    "scope_id": row.scope_id,
-                    "period": row.period,
-                    "limit_usd": row.limit_usd,
-                    "warning_threshold": row.warning_threshold,
-                    "status": row.status,
-                    "model_allowlist": row.model_allowlist,
-                },
-            )
-        )
         return _row_to_dict(row)
 
     @router.get("/budgets/policies/{budget_id}")
@@ -1925,9 +1664,15 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        row = await ControlPlaneRepository(session).get_budget_policy(budget_id)
-        if row is None or row.company_id != resolve_company(company_id):
-            raise HTTPException(status_code=404, detail="budget_policy_not_found")
+        store = SqlAlchemyControlPlaneBudgetStore(session)
+        try:
+            row = await get_budget_policy_from_store(
+                store,
+                company_id=resolve_company(company_id),
+                budget_id=budget_id,
+            )
+        except BudgetPolicyNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="budget_policy_not_found")
         return _row_to_dict(row)
 
     @router.patch("/budgets/policies/{budget_id}")
@@ -1937,51 +1682,30 @@ def create_control_plane_router(
         company_id: str | None = None,
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
+        store = SqlAlchemyControlPlaneBudgetStore(session)
         resolved_company_id = resolve_company(company_id)
-        existing = await repo.get_budget_policy(budget_id)
-        if existing is None or existing.company_id != resolved_company_id:
-            raise HTTPException(status_code=404, detail="budget_policy_not_found")
-        if body.status == "active":
-            await ensure_no_active_budget_policy_conflict(
-                repo,
-                company_id=resolved_company_id,
-                scope=existing.scope,
-                scope_id=existing.scope_id,
-                period=existing.period,
-                current_budget_id=budget_id,
-            )
-
         update_values = body.model_dump(exclude_unset=True)
         update_values.pop("actor_id", None)
-        row = await repo.update_budget_policy(
-            budget_id,
-            limit_usd=body.limit_usd,
-            warning_threshold=body.warning_threshold,
-            status=body.status,
-            model_allowlist=body.model_allowlist,
-            metadata=body.metadata,
-        )
-        if row is None:
-            raise HTTPException(status_code=404, detail="budget_policy_not_found")
-        await repo.append_audit_event(
-            AuditEvent(
+        try:
+            row = await update_budget_policy_with_audit(
+                store,
                 company_id=resolved_company_id,
-                action=EventTypes.BUDGET_POLICY_UPDATED,
-                target_type="budget_policy",
-                target_id=row.budget_id,
-                actor_type="user",
+                budget_id=budget_id,
+                limit_usd=body.limit_usd,
+                warning_threshold=body.warning_threshold,
+                status=body.status,
+                model_allowlist=body.model_allowlist,
+                metadata=body.metadata,
                 actor_id=body.actor_id,
-                detail={
-                    "budget_id": row.budget_id,
-                    "scope": row.scope,
-                    "scope_id": row.scope_id,
-                    "period": row.period,
-                    "status": row.status,
-                    "changed_fields": sorted(update_values),
-                },
+                changed_fields=list(update_values),
             )
-        )
+        except BudgetPolicyNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="budget_policy_not_found")
+        except ActiveBudgetPolicyConflictError:
+            raise_control_plane_api_error(
+                status_code=409,
+                detail="active_budget_policy_exists",
+            )
         return _row_to_dict(row)
 
     @router.get("/budgets/usage")
@@ -1993,8 +1717,9 @@ def create_control_plane_router(
         limit: int = Query(default=50, ge=1, le=200),
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        rows = await repo.list_budget_usage(
+        store = SqlAlchemyControlPlaneBudgetStore(session)
+        rows = await list_budget_usage_from_store(
+            store,
             company_id=resolve_company(company_id),
             budget_id=budget_id,
             run_id=run_id,
@@ -2013,8 +1738,9 @@ def create_control_plane_router(
         limit: int = Query(default=100, ge=1, le=500),
         session: AsyncSession = Depends(get_session),
     ):
-        repo = ControlPlaneRepository(session)
-        rows = await repo.list_audit_events(
+        store = SqlAlchemyControlPlaneAuditTimelineStore(session)
+        rows = await list_audit_events_from_store(
+            store,
             company_id=resolve_company(company_id),
             trace_id=trace_id,
             run_id=run_id,
@@ -2032,107 +1758,25 @@ def create_control_plane_router(
         limit: int = Query(default=100, ge=1, le=500),
         session: AsyncSession = Depends(get_session),
     ):
-        if not trace_id and not run_id:
-            raise HTTPException(status_code=400, detail="trace_id_or_run_id_required")
-
-        repo = ControlPlaneRepository(session)
-        resolved_company_id = resolve_company(company_id)
-        runs = []
-        if run_id:
-            run = await repo.get_agent_run(run_id)
-            if run is not None and run.company_id == resolved_company_id:
-                runs = [run]
-        elif trace_id:
-            runs = await repo.list_agent_runs(
-                company_id=resolved_company_id,
+        store = SqlAlchemyControlPlaneAuditTimelineStore(session)
+        try:
+            items = await build_timeline_from_store(
+                store,
+                company_id=resolve_company(company_id),
                 trace_id=trace_id,
+                run_id=run_id,
                 limit=limit,
             )
-        run_ids = [row.run_id for row in runs]
-        audits = await repo.list_audit_events(
-            company_id=resolved_company_id,
-            trace_id=trace_id,
-            run_id=run_id,
-            limit=limit,
-        )
-        approvals = await repo.list_approvals(
-            company_id=resolved_company_id,
-            trace_id=trace_id,
-            run_id=run_id,
-            limit=limit,
-        )
-        budget_usage = await repo.list_budget_usage(
-            company_id=resolved_company_id,
-            trace_id=trace_id,
-            run_id=run_id,
-            limit=limit,
-        )
-        decisions = await repo.list_decisions(
-            company_id=resolved_company_id,
-            run_id=run_id,
-            run_ids=run_ids if not run_id else None,
-            limit=limit,
-        )
-        artifacts = await repo.list_artifacts(
-            company_id=resolved_company_id,
-            run_id=run_id,
-            run_ids=run_ids if not run_id else None,
-            limit=limit,
-        )
-
-        items = [
-            {
-                "type": "audit_event",
-                "at": row.created_at,
-                "data": _row_to_dict(row),
-            }
-            for row in audits
-        ]
-        items.extend(
-            {
-                "type": "agent_run",
-                "at": row.completed_at or row.started_at,
-                "data": _row_to_dict(row),
-            }
-            for row in runs
-        )
-        items.extend(
-            {
-                "type": "approval",
-                "at": row.resolved_at or row.created_at,
-                "data": _row_to_dict(row),
-            }
-            for row in approvals
-        )
-        items.extend(
-            {
-                "type": "budget_usage",
-                "at": row.created_at,
-                "data": _row_to_dict(row),
-            }
-            for row in budget_usage
-        )
-        items.extend(
-            {
-                "type": "decision",
-                "at": row.updated_at or row.created_at,
-                "data": _row_to_dict(row),
-            }
-            for row in decisions
-        )
-        items.extend(
-            {
-                "type": "artifact",
-                "at": row.created_at,
-                "data": _row_to_dict(row),
-            }
-            for row in artifacts
-        )
-        items.sort(key=lambda item: _timeline_sort_key(item["at"]), reverse=True)
+        except TimelineScopeRequiredError:
+            raise_control_plane_api_error(status_code=400, detail="trace_id_or_run_id_required")
         return {
             "timeline": [
-                {**item, "at": _serialize(item["at"])}
-                for item in items[:limit]
+                {
+                    "type": item.item_type,
+                    "at": _serialize(item.at),
+                    "data": _row_to_dict(item.data),
+                }
+                for item in items
             ]
         }
 

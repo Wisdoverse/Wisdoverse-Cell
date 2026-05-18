@@ -7,6 +7,7 @@ from shared.control_plane.bootstrap import (
     ensure_core_organization_role_agents,
     ensure_core_runtime_agent_roles,
 )
+from shared.control_plane.bootstrap_store import SqlAlchemyControlPlaneRoleBootstrapStore
 from shared.control_plane.models import AgentKind
 from shared.control_plane.repository import ControlPlaneRepository
 from shared.schemas.event import EventTypes
@@ -31,9 +32,10 @@ async def test_bootstrap_creates_core_organization_role_agents(
     db_session: AsyncSession,
 ):
     repo = ControlPlaneRepository(db_session)
+    store = SqlAlchemyControlPlaneRoleBootstrapStore(db_session)
 
     created = await ensure_core_organization_role_agents(
-        repo,
+        store,
         company_id="cmp_bootstrap",
         created_by="test-bootstrap",
     )
@@ -81,13 +83,14 @@ async def test_bootstrap_creates_core_organization_role_agents(
 @pytest.mark.asyncio
 async def test_bootstrap_is_idempotent(db_session: AsyncSession):
     repo = ControlPlaneRepository(db_session)
+    store = SqlAlchemyControlPlaneRoleBootstrapStore(db_session)
 
     first_created = await ensure_core_organization_role_agents(
-        repo,
+        store,
         company_id="cmp_bootstrap_idempotent",
     )
     second_created = await ensure_core_organization_role_agents(
-        repo,
+        store,
         company_id="cmp_bootstrap_idempotent",
     )
 
@@ -114,9 +117,10 @@ async def test_bootstrap_creates_configurable_runtime_agent_roles(
     db_session: AsyncSession,
 ):
     repo = ControlPlaneRepository(db_session)
+    store = SqlAlchemyControlPlaneRoleBootstrapStore(db_session)
 
     created = await ensure_core_runtime_agent_roles(
-        repo,
+        store,
         company_id="cmp_runtime_bootstrap",
         created_by="test-runtime-bootstrap",
     )
@@ -166,13 +170,14 @@ async def test_bootstrap_creates_configurable_runtime_agent_roles(
 @pytest.mark.asyncio
 async def test_runtime_agent_bootstrap_is_idempotent(db_session: AsyncSession):
     repo = ControlPlaneRepository(db_session)
+    store = SqlAlchemyControlPlaneRoleBootstrapStore(db_session)
 
     first_created = await ensure_core_runtime_agent_roles(
-        repo,
+        store,
         company_id="cmp_runtime_bootstrap_idempotent",
     )
     second_created = await ensure_core_runtime_agent_roles(
-        repo,
+        store,
         company_id="cmp_runtime_bootstrap_idempotent",
     )
 

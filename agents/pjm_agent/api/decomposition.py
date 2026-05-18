@@ -1,10 +1,24 @@
 """PMAgent Decomposition API - REST endpoints for work-package decomposition."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict
 
+from shared.api import (
+    raise_pm_decomposition_forbidden,
+    raise_pm_decomposition_not_found,
+    raise_pm_decomposition_retry_failed,
+    raise_pm_decomposition_unavailable,
+)
 from shared.utils.logger import get_logger
 
+from ..core.api_use_cases import (
+    PMApiDecompositionForbiddenError,
+    PMApiDecompositionNotFoundError,
+    PMApiDecompositionRetryFailedError,
+    PMApiDecompositionUnavailableError,
+    PMApiUseCase,
+    PMDecompositionActionCommand,
+)
 from ..service.agent import get_agent
 
 logger = get_logger("pjm_agent.api.decomposition")
@@ -56,67 +70,82 @@ class DecomposeStatusResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def get_decomposition_api_use_case() -> PMApiUseCase:
+    return PMApiUseCase(get_agent())
+
+
 @router.post("/{wp_id}/approve", response_model=DecomposeActionResponse)
-async def approve_decomposition(wp_id: int, body: ApproveRequest):
+async def approve_decomposition(
+    wp_id: int,
+    body: ApproveRequest,
+    pm_api: PMApiUseCase = Depends(get_decomposition_api_use_case),
+):
     """Approve a pending decomposition and write results to OpenProject."""
-    agent = get_agent()
-    result = await agent.approve_decomposition(wp_id, approved_by=body.operator)
-    if result is None:
-        raise HTTPException(status_code=404, detail="Record not found or status is not pending")
-    if result.get("error"):
-        raise HTTPException(status_code=403, detail=result["error"])
-    return DecomposeActionResponse(
-        success=True,
-        wp_id=wp_id,
-        action="approve",
-        message=(
-            f"Written to OP: {result.get('story_count', 0)} US, "
-            f"{result.get('task_count', 0)} Task"
-        ),
-        subject=result.get("subject", ""),
-        story_count=result.get("story_count", 0),
-        task_count=result.get("task_count", 0),
-    )
+    try:
+        return DecomposeActionResponse.model_validate(
+            await pm_api.approve_decomposition(
+                PMDecompositionActionCommand(
+                    wp_id=wp_id,
+                    operator=body.operator,
+                )
+            )
+        )
+    except PMApiDecompositionUnavailableError:
+        raise_pm_decomposition_unavailable()
+    except PMApiDecompositionForbiddenError as exc:
+        raise_pm_decomposition_forbidden(str(exc))
 
 
 @router.post("/{wp_id}/reject", response_model=DecomposeActionResponse)
-async def reject_decomposition(wp_id: int, body: RejectRequest):
+async def reject_decomposition(
+    wp_id: int,
+    body: RejectRequest,
+    pm_api: PMApiUseCase = Depends(get_decomposition_api_use_case),
+):
     """Reject a pending decomposition."""
-    agent = get_agent()
-    result = await agent.reject_decomposition(
-        wp_id,
-        rejected_by=body.operator,
-        reason=body.reason,
-    )
-    if result is None:
-        raise HTTPException(status_code=404, detail="Record not found or status is not pending")
-    if result.get("error"):
-        raise HTTPException(status_code=403, detail=result["error"])
-    return DecomposeActionResponse(
-        success=True,
-        wp_id=wp_id,
-        action="reject",
-        message="Rejected",
-        subject=result.get("subject", ""),
-    )
+    try:
+        return DecomposeActionResponse.model_validate(
+            await pm_api.reject_decomposition(
+                PMDecompositionActionCommand(
+                    wp_id=wp_id,
+                    operator=body.operator,
+                    reason=body.reason,
+                )
+            )
+        )
+    except PMApiDecompositionUnavailableError:
+        raise_pm_decomposition_unavailable()
+    except PMApiDecompositionForbiddenError as exc:
+        raise_pm_decomposition_forbidden(str(exc))
 
 
 @router.post("/{wp_id}/retry")
-async def retry_decomposition(wp_id: int):
+async def retry_decomposition(
+    wp_id: int,
+    pm_api: PMApiUseCase = Depends(get_decomposition_api_use_case),
+):
     """Retry a failed decomposition."""
-    agent = get_agent()
-    result = await agent._retry_decompose(wp_id)
-    if not result or result.get("error"):
-        detail = result.get("error", "Retry failed") if result else "Record not found"
-        raise HTTPException(status_code=404, detail=detail)
+    try:
+        result = await pm_api.retry_decomposition(wp_id)
+    except PMApiDecompositionRetryFailedError as exc:
+        raise_pm_decomposition_retry_failed(
+            status_code=404,
+            message=str(exc) or "Retry failed",
+        )
+    if not result:
+        raise_pm_decomposition_not_found()
     return result
 
 
 @router.get("/{wp_id}", response_model=DecomposeStatusResponse)
-async def get_decomposition(wp_id: int):
+async def get_decomposition(
+    wp_id: int,
+    pm_api: PMApiUseCase = Depends(get_decomposition_api_use_case),
+):
     """Get decomposition status for a work package."""
-    agent = get_agent()
-    result = await agent._get_decompose(wp_id)
-    if not result:
-        raise HTTPException(status_code=404, detail="Record not found")
-    return DecomposeStatusResponse(**result)
+    try:
+        return DecomposeStatusResponse.model_validate(
+            await pm_api.get_decomposition(wp_id)
+        )
+    except PMApiDecompositionNotFoundError:
+        raise_pm_decomposition_not_found()
