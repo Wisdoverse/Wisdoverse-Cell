@@ -1,0 +1,960 @@
+{
+  "components": {
+    "schemas": {
+      "AcceptanceFinding": {
+        "description": "Single acceptance finding.",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "check": {
+            "title": "Check",
+            "type": "string"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "is_blocking": {
+            "default": false,
+            "title": "Is Blocking",
+            "type": "boolean"
+          },
+          "level": {
+            "enum": [
+              "L0",
+              "L1",
+              "L2"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "severity": {
+            "default": "info",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "info"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "WARN",
+              "INFO",
+              "SKIP"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "level",
+          "category",
+          "check",
+          "status"
+        ],
+        "title": "AcceptanceFinding",
+        "type": "object"
+      },
+      "AcceptanceSummary": {
+        "description": "Acceptance summary.",
+        "properties": {
+          "l0_failures": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "L0 Failures",
+            "type": "integer"
+          },
+          "l0_gate": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "ERROR"
+            ],
+            "title": "L0 Gate",
+            "type": "string"
+          },
+          "l1_check": {
+            "enum": [
+              "PASS",
+              "WARN",
+              "ERROR"
+            ],
+            "title": "L1 Check",
+            "type": "string"
+          },
+          "l1_warnings": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "L1 Warnings",
+            "type": "integer"
+          },
+          "l2_report": {
+            "const": "INFO",
+            "default": "INFO",
+            "title": "L2 Report",
+            "type": "string"
+          },
+          "total_checks": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Total Checks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "l0_gate",
+          "l1_check"
+        ],
+        "title": "AcceptanceSummary",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "QACheckAggregate": {
+        "description": "Aggregated check statistics.",
+        "properties": {
+          "check": {
+            "title": "Check",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "check",
+          "count"
+        ],
+        "title": "QACheckAggregate",
+        "type": "object"
+      },
+      "QARunDetailResponse": {
+        "description": "GET /api/v1/qa/runs/{id} response body.",
+        "properties": {
+          "agent_name": {
+            "title": "Agent Name",
+            "type": "string"
+          },
+          "commit_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit Sha"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "files_changed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files Changed",
+            "type": "array"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/AcceptanceFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "notification_summary": {
+            "additionalProperties": true,
+            "title": "Notification Summary",
+            "type": "object"
+          },
+          "raw_report": {
+            "additionalProperties": true,
+            "title": "Raw Report",
+            "type": "object"
+          },
+          "report_markdown": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Markdown"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/AcceptanceSummary"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "agent_name",
+          "trigger",
+          "level",
+          "summary",
+          "raw_report",
+          "created_at"
+        ],
+        "title": "QARunDetailResponse",
+        "type": "object"
+      },
+      "QARunListItem": {
+        "description": "GET /api/v1/qa/runs list item.",
+        "properties": {
+          "agent_name": {
+            "title": "Agent Name",
+            "type": "string"
+          },
+          "commit_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit Sha"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "title": "Duration Seconds",
+            "type": "number"
+          },
+          "l0_status": {
+            "title": "L0 Status",
+            "type": "string"
+          },
+          "l1_status": {
+            "title": "L1 Status",
+            "type": "string"
+          },
+          "mr_iid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mr Iid"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "total_checks": {
+            "title": "Total Checks",
+            "type": "integer"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "agent_name",
+          "trigger",
+          "l0_status",
+          "l1_status",
+          "total_checks",
+          "duration_seconds",
+          "created_at"
+        ],
+        "title": "QARunListItem",
+        "type": "object"
+      },
+      "QARunListResponse": {
+        "description": "GET /api/v1/qa/runs response body.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QARunListItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "items"
+        ],
+        "title": "QARunListResponse",
+        "type": "object"
+      },
+      "QARunTriggerRequest": {
+        "description": "POST /api/v1/qa/run request body.",
+        "properties": {
+          "agent_name": {
+            "pattern": "^[a-z][a-z0-9_-]*$",
+            "title": "Agent Name",
+            "type": "string"
+          },
+          "commit_sha": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 7,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit Sha"
+          },
+          "files_changed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files Changed",
+            "type": "array"
+          },
+          "gitlab_project_id": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gitlab Project Id"
+          },
+          "level": {
+            "default": "all",
+            "enum": [
+              "l0",
+              "l1",
+              "l2",
+              "all"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "mr_iid": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mr Iid"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "requested_by": {
+            "default": "api",
+            "title": "Requested By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_name"
+        ],
+        "title": "QARunTriggerRequest",
+        "type": "object"
+      },
+      "QARunTriggerResponse": {
+        "description": "POST /api/v1/qa/run response body.",
+        "properties": {
+          "agent_name": {
+            "title": "Agent Name",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "title": "Duration Seconds",
+            "type": "number"
+          },
+          "level": {
+            "enum": [
+              "l0",
+              "l1",
+              "l2",
+              "all"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "notification_summary": {
+            "additionalProperties": true,
+            "title": "Notification Summary",
+            "type": "object"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "warn",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/AcceptanceSummary"
+          }
+        },
+        "required": [
+          "run_id",
+          "status",
+          "agent_name",
+          "level",
+          "summary",
+          "duration_seconds"
+        ],
+        "title": "QARunTriggerResponse",
+        "type": "object"
+      },
+      "QAStatsResponse": {
+        "description": "GET /api/v1/qa/stats response body.",
+        "properties": {
+          "agent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Name"
+          },
+          "avg_duration_seconds": {
+            "title": "Avg Duration Seconds",
+            "type": "number"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "failed_runs": {
+            "title": "Failed Runs",
+            "type": "integer"
+          },
+          "l0_fail_rate": {
+            "title": "L0 Fail Rate",
+            "type": "number"
+          },
+          "pass_runs": {
+            "title": "Pass Runs",
+            "type": "integer"
+          },
+          "top_l0_failures": {
+            "items": {
+              "$ref": "#/components/schemas/QACheckAggregate"
+            },
+            "title": "Top L0 Failures",
+            "type": "array"
+          },
+          "top_l1_warnings": {
+            "items": {
+              "$ref": "#/components/schemas/QACheckAggregate"
+            },
+            "title": "Top L1 Warnings",
+            "type": "array"
+          },
+          "total_runs": {
+            "title": "Total Runs",
+            "type": "integer"
+          },
+          "warn_runs": {
+            "title": "Warn Runs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "total_runs",
+          "pass_runs",
+          "warn_runs",
+          "failed_runs",
+          "l0_fail_rate",
+          "avg_duration_seconds"
+        ],
+        "title": "QAStatsResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Automated acceptance verification for AI-generated code",
+    "title": "QA Agent",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/agent/request": {
+      "post": {
+        "description": "Generic internal request boundary for deployed agent services.",
+        "operationId": "agent_request_agent_request_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Agent Request",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/qa/run": {
+      "post": {
+        "description": "Trigger a QA acceptance run manually.",
+        "operationId": "trigger_run_api_v1_qa_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QARunTriggerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QARunTriggerResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trigger Run",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/v1/qa/runs": {
+      "get": {
+        "description": "List QA acceptance run history.",
+        "operationId": "list_runs_api_v1_qa_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "agent_name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent Name"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QARunListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Runs",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/v1/qa/runs/{run_id}": {
+      "get": {
+        "description": "Get details for one QA acceptance run.",
+        "operationId": "get_run_detail_api_v1_qa_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QARunDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run Detail",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/v1/qa/stats": {
+      "get": {
+        "description": "Get QA run statistics.",
+        "operationId": "get_stats_api_v1_qa_stats_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "agent_name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent Name"
+            }
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QAStatsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Stats",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "liveness_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Liveness",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "readiness_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readiness",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/ready/detail": {
+      "get": {
+        "operationId": "readiness_detail_health_ready_detail_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readiness Detail",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/startup": {
+      "get": {
+        "operationId": "startup_probe_health_startup_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Startup Probe",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/status": {
+      "get": {
+        "operationId": "status_endpoint_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Status Endpoint",
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  }
+}

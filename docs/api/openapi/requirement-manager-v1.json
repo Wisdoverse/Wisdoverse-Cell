@@ -1,0 +1,4493 @@
+{
+  "components": {
+    "schemas": {
+      "AgentPromptConfigRequest": {
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "system_prompt": {
+            "default": "",
+            "maxLength": 50000,
+            "title": "System Prompt",
+            "type": "string"
+          },
+          "updated_by": {
+            "default": "webui",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Updated By",
+            "type": "string"
+          }
+        },
+        "title": "AgentPromptConfigRequest",
+        "type": "object"
+      },
+      "AnswerQuestionRequest": {
+        "description": "Answer open question request.",
+        "properties": {
+          "answer": {
+            "minLength": 1,
+            "title": "Answer",
+            "type": "string"
+          },
+          "answered_by": {
+            "default": "system",
+            "title": "Answered By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "title": "AnswerQuestionRequest",
+        "type": "object"
+      },
+      "BatchConfirmRequest": {
+        "description": "Batch requirement confirmation request.",
+        "properties": {
+          "confirmed_by": {
+            "description": "Confirmation actor",
+            "minLength": 1,
+            "title": "Confirmed By",
+            "type": "string"
+          },
+          "requirement_ids": {
+            "description": "Requirement ID list",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Requirement Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "requirement_ids",
+          "confirmed_by"
+        ],
+        "title": "BatchConfirmRequest",
+        "type": "object"
+      },
+      "BatchOperationResponse": {
+        "description": "Batch operation response.",
+        "properties": {
+          "failed": {
+            "description": "Failure count",
+            "title": "Failed",
+            "type": "integer"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/BatchOperationResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "succeeded": {
+            "description": "Success count",
+            "title": "Succeeded",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Number of requirements processed",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "succeeded",
+          "failed",
+          "results"
+        ],
+        "title": "BatchOperationResponse",
+        "type": "object"
+      },
+      "BatchOperationResult": {
+        "description": "Single result in a batch operation.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "requirement_id": {
+            "title": "Requirement Id",
+            "type": "string"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "requirement_id",
+          "success"
+        ],
+        "title": "BatchOperationResult",
+        "type": "object"
+      },
+      "BatchRejectRequest": {
+        "description": "Batch requirement rejection request.",
+        "properties": {
+          "reason": {
+            "description": "Rejection reason",
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "rejected_by": {
+            "default": "system",
+            "description": "Rejection actor",
+            "title": "Rejected By",
+            "type": "string"
+          },
+          "requirement_ids": {
+            "description": "Requirement ID list",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Requirement Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "requirement_ids",
+          "reason"
+        ],
+        "title": "BatchRejectRequest",
+        "type": "object"
+      },
+      "CircuitBreakerStatusResponse": {
+        "description": "Circuit breaker status response.",
+        "properties": {
+          "failure_threshold": {
+            "title": "Failure Threshold",
+            "type": "integer"
+          },
+          "failures": {
+            "title": "Failures",
+            "type": "integer"
+          },
+          "last_failure_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Failure Time"
+          },
+          "recovery_timeout": {
+            "title": "Recovery Timeout",
+            "type": "integer"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "failures",
+          "failure_threshold",
+          "recovery_timeout",
+          "last_failure_time"
+        ],
+        "title": "CircuitBreakerStatusResponse",
+        "type": "object"
+      },
+      "ConfirmRequest": {
+        "description": "Confirm requirement request.",
+        "properties": {
+          "confirmed_by": {
+            "minLength": 1,
+            "title": "Confirmed By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmed_by"
+        ],
+        "title": "ConfirmRequest",
+        "type": "object"
+      },
+      "ConflictCheckRequest": {
+        "description": "Conflict check request.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Requirement category",
+            "title": "Category"
+          },
+          "description": {
+            "description": "Requirement description",
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "exclude_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Requirement IDs to exclude",
+            "title": "Exclude Ids"
+          },
+          "title": {
+            "description": "Requirement title",
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "description"
+        ],
+        "title": "ConflictCheckRequest",
+        "type": "object"
+      },
+      "ConflictCheckResponse": {
+        "description": "Conflict check response.",
+        "properties": {
+          "confidence": {
+            "description": "Decision confidence",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "explanation": {
+            "title": "Explanation",
+            "type": "string"
+          },
+          "merge_suggestion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merge Suggestion"
+          },
+          "related_requirement_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Requirement Id"
+          },
+          "relation": {
+            "description": "Relation type: new/duplicate/update/conflict",
+            "title": "Relation",
+            "type": "string"
+          },
+          "suggested_action": {
+            "title": "Suggested Action",
+            "type": "string"
+          }
+        },
+        "required": [
+          "relation",
+          "confidence",
+          "explanation",
+          "suggested_action"
+        ],
+        "title": "ConflictCheckResponse",
+        "type": "object"
+      },
+      "DailyTrendItem": {
+        "description": "Daily trend item.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "count"
+        ],
+        "title": "DailyTrendItem",
+        "type": "object"
+      },
+      "DeleteRequirementRequest": {
+        "description": "Delete requirement request.",
+        "properties": {
+          "deleted_by": {
+            "description": "Deletion actor",
+            "minLength": 1,
+            "title": "Deleted By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deleted_by"
+        ],
+        "title": "DeleteRequirementRequest",
+        "type": "object"
+      },
+      "DeleteRequirementResponse": {
+        "description": "Delete requirement response.",
+        "properties": {
+          "message": {
+            "default": "Requirement deleted",
+            "title": "Message",
+            "type": "string"
+          },
+          "requirement_id": {
+            "title": "Requirement Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requirement_id",
+          "title"
+        ],
+        "title": "DeleteRequirementResponse",
+        "type": "object"
+      },
+      "EnhancedStatsResponse": {
+        "description": "Enhanced statistics response with trends.",
+        "properties": {
+          "requirements_by_category": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Requirements By Category",
+            "type": "object"
+          },
+          "requirements_by_priority": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Requirements By Priority",
+            "type": "object"
+          },
+          "requirements_by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Requirements By Status",
+            "type": "object"
+          },
+          "today_count": {
+            "default": 0,
+            "title": "Today Count",
+            "type": "integer"
+          },
+          "total_meetings": {
+            "title": "Total Meetings",
+            "type": "integer"
+          },
+          "unprocessed_meetings": {
+            "title": "Unprocessed Meetings",
+            "type": "integer"
+          },
+          "vector_store_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vector Store Count"
+          },
+          "weekly_trend": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DailyTrendItem"
+            },
+            "title": "Weekly Trend",
+            "type": "array"
+          }
+        },
+        "required": [
+          "requirements_by_status",
+          "requirements_by_priority",
+          "requirements_by_category",
+          "total_meetings",
+          "unprocessed_meetings"
+        ],
+        "title": "EnhancedStatsResponse",
+        "type": "object"
+      },
+      "FeishuWebhookRequest": {
+        "description": "Feishu webhook callback request.",
+        "properties": {
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "meeting_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Time"
+          },
+          "participants": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participants"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "topic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic"
+          }
+        },
+        "required": [
+          "event_type",
+          "summary"
+        ],
+        "title": "FeishuWebhookRequest",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HistoryEntry": {
+        "description": "Change history entry.",
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "detail",
+          "at"
+        ],
+        "title": "HistoryEntry",
+        "type": "object"
+      },
+      "IngestResponse": {
+        "description": "Ingest response.",
+        "properties": {
+          "meeting_id": {
+            "title": "Meeting Id",
+            "type": "string"
+          },
+          "questions_generated": {
+            "title": "Questions Generated",
+            "type": "integer"
+          },
+          "requirements_extracted": {
+            "title": "Requirements Extracted",
+            "type": "integer"
+          },
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "meeting_id",
+          "requirements_extracted",
+          "questions_generated"
+        ],
+        "title": "IngestResponse",
+        "type": "object"
+      },
+      "LLMUsageSummaryResponse": {
+        "description": "LLM usage summary response.",
+        "properties": {
+          "avg_latency_ms": {
+            "title": "Avg Latency Ms",
+            "type": "integer"
+          },
+          "by_agent": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "By Agent",
+            "type": "object"
+          },
+          "by_task_type": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "By Task Type",
+            "type": "object"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "failed_calls": {
+            "title": "Failed Calls",
+            "type": "integer"
+          },
+          "success_calls": {
+            "title": "Success Calls",
+            "type": "integer"
+          },
+          "total_calls": {
+            "title": "Total Calls",
+            "type": "integer"
+          },
+          "total_cost_usd": {
+            "title": "Total Cost Usd",
+            "type": "number"
+          },
+          "total_input_tokens": {
+            "title": "Total Input Tokens",
+            "type": "integer"
+          },
+          "total_output_tokens": {
+            "title": "Total Output Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "total_calls",
+          "success_calls",
+          "failed_calls",
+          "total_input_tokens",
+          "total_output_tokens",
+          "total_cost_usd",
+          "avg_latency_ms",
+          "by_agent",
+          "by_task_type"
+        ],
+        "title": "LLMUsageSummaryResponse",
+        "type": "object"
+      },
+      "MeetingListResponse": {
+        "description": "Meeting list response.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MeetingOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "page",
+          "page_size",
+          "items"
+        ],
+        "title": "MeetingListResponse",
+        "type": "object"
+      },
+      "MeetingOut": {
+        "description": "Meeting output.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "meeting_date": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Date"
+          },
+          "participants": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Participants",
+            "type": "array"
+          },
+          "processed": {
+            "title": "Processed",
+            "type": "boolean"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "title",
+          "meeting_date",
+          "participants",
+          "processed",
+          "created_at"
+        ],
+        "title": "MeetingOut",
+        "type": "object"
+      },
+      "OpenQuestionOut": {
+        "description": "Open clarification question output.",
+        "properties": {
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "answered_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered By"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "question",
+          "context",
+          "status",
+          "answer",
+          "answered_by",
+          "created_at"
+        ],
+        "title": "OpenQuestionOut",
+        "type": "object"
+      },
+      "PRDExportResponse": {
+        "description": "PRD export response.",
+        "properties": {
+          "content": {
+            "description": "PRD document content (Markdown)",
+            "title": "Content",
+            "type": "string"
+          },
+          "format": {
+            "default": "markdown",
+            "title": "Format",
+            "type": "string"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "requirements_count": {
+            "title": "Requirements Count",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "generated_at",
+          "requirements_count",
+          "version"
+        ],
+        "title": "PRDExportResponse",
+        "type": "object"
+      },
+      "QuestionsExportResponse": {
+        "description": "Question list export response.",
+        "properties": {
+          "content": {
+            "description": "Question list content (Markdown)",
+            "title": "Content",
+            "type": "string"
+          },
+          "format": {
+            "default": "markdown",
+            "title": "Format",
+            "type": "string"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "questions_count": {
+            "title": "Questions Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "content",
+          "generated_at",
+          "questions_count"
+        ],
+        "title": "QuestionsExportResponse",
+        "type": "object"
+      },
+      "RejectRequest": {
+        "description": "Reject requirement request.",
+        "properties": {
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "rejected_by": {
+            "default": "system",
+            "title": "Rejected By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "RejectRequest",
+        "type": "object"
+      },
+      "RequirementListResponse": {
+        "description": "Requirement list response.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RequirementOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "page",
+          "page_size",
+          "items"
+        ],
+        "title": "RequirementListResponse",
+        "type": "object"
+      },
+      "RequirementOut": {
+        "description": "Requirement output.",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "confirmed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed By"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "history": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/HistoryEntry"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "open_questions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/OpenQuestionOut"
+            },
+            "title": "Open Questions",
+            "type": "array"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "string"
+          },
+          "source_meeting_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Meeting Ids",
+            "type": "array"
+          },
+          "source_quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Quote"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "source_quote",
+          "status",
+          "priority",
+          "category",
+          "source_meeting_ids",
+          "confirmed_by",
+          "confirmed_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "RequirementOut",
+        "type": "object"
+      },
+      "RequirementUpdateRequest": {
+        "description": "Requirement update request.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "RequirementUpdateRequest",
+        "type": "object"
+      },
+      "SearchResultItem": {
+        "description": "Search result item.",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "similarity": {
+            "description": "Similarity score (0-1)",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Similarity",
+            "type": "number"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "category",
+          "similarity"
+        ],
+        "title": "SearchResultItem",
+        "type": "object"
+      },
+      "SemanticSearchResponse": {
+        "description": "Semantic search response.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SearchResultItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query",
+          "total",
+          "items"
+        ],
+        "title": "SemanticSearchResponse",
+        "type": "object"
+      },
+      "SimilarRequirementItem": {
+        "description": "Similar requirement item.",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "similarity": {
+            "title": "Similarity",
+            "type": "number"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "category",
+          "similarity"
+        ],
+        "title": "SimilarRequirementItem",
+        "type": "object"
+      },
+      "SimilarRequirementsResponse": {
+        "description": "Similar requirements response.",
+        "properties": {
+          "requirement_id": {
+            "title": "Requirement Id",
+            "type": "string"
+          },
+          "similar": {
+            "items": {
+              "$ref": "#/components/schemas/SimilarRequirementItem"
+            },
+            "title": "Similar",
+            "type": "array"
+          }
+        },
+        "required": [
+          "requirement_id",
+          "similar"
+        ],
+        "title": "SimilarRequirementsResponse",
+        "type": "object"
+      },
+      "StatsResponse": {
+        "description": "Statistics response.",
+        "properties": {
+          "requirements_by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Requirements By Status",
+            "type": "object"
+          },
+          "total_meetings": {
+            "title": "Total Meetings",
+            "type": "integer"
+          },
+          "unprocessed_meetings": {
+            "title": "Unprocessed Meetings",
+            "type": "integer"
+          },
+          "vector_store_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vector Store Count"
+          }
+        },
+        "required": [
+          "requirements_by_status",
+          "total_meetings",
+          "unprocessed_meetings"
+        ],
+        "title": "StatsResponse",
+        "type": "object"
+      },
+      "UploadRequest": {
+        "description": "Manual upload request.",
+        "properties": {
+          "content": {
+            "description": "Meeting content",
+            "minLength": 10,
+            "title": "Content",
+            "type": "string"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Context notes",
+            "title": "Context"
+          },
+          "meeting_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Meeting date in ISO format",
+            "title": "Meeting Date"
+          },
+          "participants": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Participant list",
+            "title": "Participants"
+          },
+          "source": {
+            "default": "upload",
+            "description": "Source: upload/wechat",
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Title",
+            "title": "Title"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "title": "UploadRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Extracts, tracks, and manages requirements from source conversations and meeting records.",
+    "title": "Requirement Manager Agent",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/agent/request": {
+      "post": {
+        "description": "Generic internal request boundary for deployed agent services.",
+        "operationId": "agent_request_agent_request_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Agent Request",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api": {
+      "delete": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      },
+      "get": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      },
+      "patch": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      },
+      "post": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      },
+      "put": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      }
+    },
+    "/api/": {
+      "delete": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api__get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      },
+      "get": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api__get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      },
+      "patch": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api__get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      },
+      "post": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api__get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      },
+      "put": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api__get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      }
+    },
+    "/api/feishu/health": {
+      "get": {
+        "description": "Return Feishu integration health.",
+        "operationId": "feishu_health_api_feishu_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Feishu Health",
+        "tags": [
+          "feishu"
+        ]
+      }
+    },
+    "/api/feishu/webhook": {
+      "post": {
+        "description": "Dispatch URL verification, events, bot messages, and card callbacks.",
+        "operationId": "feishu_webhook_api_feishu_webhook_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-lark-request-timestamp",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Lark-Request-Timestamp"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-lark-request-nonce",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Lark-Request-Nonce"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-lark-signature",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Lark-Signature"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Feishu Webhook",
+        "tags": [
+          "feishu"
+        ]
+      }
+    },
+    "/api/v1": {
+      "get": {
+        "description": "API information endpoint.",
+        "operationId": "api_info_api_v1_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Info"
+      }
+    },
+    "/api/v1/admin/circuit-breaker": {
+      "get": {
+        "description": "Get circuit breaker status.\n\nReturns the current LLM Gateway circuit breaker state.",
+        "operationId": "get_circuit_breaker_status_api_v1_admin_circuit_breaker_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitBreakerStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Circuit Breaker Status",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/circuit-breaker/reset": {
+      "post": {
+        "description": "Reset the circuit breaker.\n\nManually resets the circuit breaker state to CLOSED for operations\nscenarios where the LLM service has recovered.",
+        "operationId": "reset_circuit_breaker_api_v1_admin_circuit_breaker_reset_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Reset Circuit Breaker",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/admin/llm-usage": {
+      "get": {
+        "description": "Get LLM usage statistics.\n\nReturns usage statistics for the selected date, including:\n- Total calls and success/failure distribution.\n- Token usage.\n- Cost statistics.\n- Grouped statistics by agent and task type.",
+        "operationId": "get_llm_usage_api_v1_admin_llm_usage_get",
+        "parameters": [
+          {
+            "description": "Date in YYYY-MM-DD format. Defaults to today.",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Date in YYYY-MM-DD format. Defaults to today.",
+              "title": "Date"
+            }
+          },
+          {
+            "description": "Agent ID filter",
+            "in": "query",
+            "name": "agent_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Agent ID filter",
+              "title": "Agent Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LLMUsageSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Llm Usage",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/v1/agents": {
+      "get": {
+        "description": "Return runtime status summaries backed by control-plane records only.",
+        "operationId": "list_agent_runtime_statuses_api_v1_agents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Agent Runtime Statuses Api V1 Agents Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Agent Runtime Statuses",
+        "tags": [
+          "webui"
+        ]
+      }
+    },
+    "/api/v1/agents/{agent_id}/prompt-config": {
+      "get": {
+        "description": "Return the persisted system-prompt override for an agent detail page.",
+        "operationId": "get_agent_prompt_config_api_v1_agents__agent_id__prompt_config_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "company_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Prompt Config Api V1 Agents  Agent Id  Prompt Config Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Agent Prompt Config",
+        "tags": [
+          "webui"
+        ]
+      },
+      "put": {
+        "description": "Persist a system-prompt override used by deployed agent runtime code.",
+        "operationId": "update_agent_prompt_config_api_v1_agents__agent_id__prompt_config_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "company_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentPromptConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Agent Prompt Config Api V1 Agents  Agent Id  Prompt Config Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Agent Prompt Config",
+        "tags": [
+          "webui"
+        ]
+      }
+    },
+    "/api/v1/agents/{agent_id}/status": {
+      "get": {
+        "description": "Return one runtime status backed by control-plane records only.",
+        "operationId": "get_agent_runtime_status_api_v1_agents__agent_id__status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Runtime Status Api V1 Agents  Agent Id  Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Agent Runtime Status",
+        "tags": [
+          "webui"
+        ]
+      }
+    },
+    "/api/v1/approvals": {
+      "get": {
+        "description": "Return root approval list alias backed by durable control-plane approvals.",
+        "operationId": "list_pending_approvals_api_v1_approvals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Pending Approvals Api V1 Approvals Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Pending Approvals",
+        "tags": [
+          "webui"
+        ]
+      }
+    },
+    "/api/v1/events/stream": {
+      "get": {
+        "description": "SSE endpoint used by the WebUI cache invalidation listener.",
+        "operationId": "stream_events_api_v1_events_stream_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Stream Events",
+        "tags": [
+          "webui"
+        ]
+      }
+    },
+    "/api/v1/export/prd": {
+      "get": {
+        "description": "Export a PRD document.\n\nGenerates a product requirements document from existing requirements.\nSupports filtering by requirement status.",
+        "operationId": "export_prd_api_v1_export_prd_get",
+        "parameters": [
+          {
+            "description": "Status filter: confirmed/pending/all",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Status filter: confirmed/pending/all",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Output format: json/markdown",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "description": "Output format: json/markdown",
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project name",
+            "in": "query",
+            "name": "project_name",
+            "required": false,
+            "schema": {
+              "default": "Wisdoverse Cell",
+              "description": "Project name",
+              "title": "Project Name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Document version",
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "default": "1.0",
+              "description": "Document version",
+              "title": "Version",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PRDExportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Prd",
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/api/v1/export/prd/download": {
+      "get": {
+        "description": "Download a PRD document as a Markdown file.",
+        "operationId": "download_prd_api_v1_export_prd_download_get",
+        "parameters": [
+          {
+            "description": "Status filter",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Status filter",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Project name",
+            "in": "query",
+            "name": "project_name",
+            "required": false,
+            "schema": {
+              "default": "Wisdoverse Cell",
+              "description": "Project name",
+              "title": "Project Name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Document version",
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "default": "1.0",
+              "description": "Document version",
+              "title": "Version",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Prd",
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/api/v1/export/questions": {
+      "get": {
+        "description": "Export a question list.\n\nExports open clarification questions for the next discussion.",
+        "operationId": "export_questions_api_v1_export_questions_get",
+        "parameters": [
+          {
+            "description": "Status filter: open/answered/all",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Status filter: open/answered/all",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Output format: json/markdown",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "description": "Output format: json/markdown",
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project name",
+            "in": "query",
+            "name": "project_name",
+            "required": false,
+            "schema": {
+              "default": "Wisdoverse Cell",
+              "description": "Project name",
+              "title": "Project Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionsExportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Questions",
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/api/v1/export/questions/download": {
+      "get": {
+        "description": "Download a question list as a Markdown file.",
+        "operationId": "download_questions_api_v1_export_questions_download_get",
+        "parameters": [
+          {
+            "description": "Status filter",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "open",
+              "description": "Status filter",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Project name",
+            "in": "query",
+            "name": "project_name",
+            "required": false,
+            "schema": {
+              "default": "Wisdoverse Cell",
+              "description": "Project name",
+              "title": "Project Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Questions",
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "description": "Expose readiness in the shape used by the WebUI monitor page.",
+        "operationId": "webui_readiness_api_v1_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Webui Readiness Api V1 Health Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Webui Readiness",
+        "tags": [
+          "webui"
+        ]
+      }
+    },
+    "/api/v1/ingest/feishu": {
+      "post": {
+        "description": "Feishu webhook callback.\n\nReceives Feishu meeting summary webhook events.",
+        "operationId": "feishu_webhook_api_v1_ingest_feishu_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeishuWebhookRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Feishu Webhook",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/api/v1/ingest/upload": {
+      "post": {
+        "description": "Manually upload meeting content.\n\nSupports WeChat chat logs, manually curated meeting notes, and similar\nsource material.",
+        "operationId": "upload_content_api_v1_ingest_upload_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Content",
+        "tags": [
+          "ingest"
+        ]
+      }
+    },
+    "/api/v1/meetings": {
+      "get": {
+        "description": "List meetings.",
+        "operationId": "list_meetings_api_v1_meetings_get",
+        "parameters": [
+          {
+            "description": "Source filter",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Source filter",
+              "title": "Source"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Meetings",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/v1/messages/search": {
+      "get": {
+        "description": "Search messages with optional filters and full-text search.\n\nSupports:\n- Full-text search by keyword (Chinese supported)\n- Filtering by chat_id, sender_id, time range\n- Pagination",
+        "operationId": "search_messages_api_v1_messages_search_get",
+        "parameters": [
+          {
+            "description": "Filter by chat ID",
+            "in": "query",
+            "name": "chat_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by chat ID",
+              "title": "Chat Id"
+            }
+          },
+          {
+            "description": "Full-text search keyword",
+            "in": "query",
+            "name": "keyword",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Full-text search keyword",
+              "title": "Keyword"
+            }
+          },
+          {
+            "description": "Filter by sender open_id",
+            "in": "query",
+            "name": "sender_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by sender open_id",
+              "title": "Sender Id"
+            }
+          },
+          {
+            "description": "Filter by start time",
+            "in": "query",
+            "name": "start_time",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by start time",
+              "title": "Start Time"
+            }
+          },
+          {
+            "description": "Filter by end time",
+            "in": "query",
+            "name": "end_time",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by end time",
+              "title": "End Time"
+            }
+          },
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "Page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Messages",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/api/v1/messages/session/{session_id}": {
+      "get": {
+        "description": "Get all messages in a session.\n\nReturns messages ordered by sent_at ASC with session metadata.",
+        "operationId": "get_session_messages_api_v1_messages_session__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Session Messages",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/api/v1/questions/open": {
+      "get": {
+        "description": "List all unanswered questions.",
+        "operationId": "list_open_questions_api_v1_questions_open_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OpenQuestionOut"
+                  },
+                  "title": "Response List Open Questions Api V1 Questions Open Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Open Questions",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/api/v1/questions/{question_id}/answer": {
+      "post": {
+        "description": "Answer an open clarification question.",
+        "operationId": "answer_question_api_v1_questions__question_id__answer_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "question_id",
+            "required": true,
+            "schema": {
+              "title": "Question Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerQuestionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenQuestionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Answer Question",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/api/v1/requirements": {
+      "get": {
+        "description": "List requirements.",
+        "operationId": "list_requirements_api_v1_requirements_get",
+        "parameters": [
+          {
+            "description": "Status filter: pending/confirmed/changed/rejected",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Status filter: pending/confirmed/changed/rejected",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Category filter",
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Category filter",
+              "title": "Category"
+            }
+          },
+          {
+            "description": "Priority filter: high/medium/low",
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Priority filter: high/medium/low",
+              "title": "Priority"
+            }
+          },
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "Page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequirementListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Requirements",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/v1/requirements/analyze-text": {
+      "post": {
+        "description": "Analyze text and provide intelligent suggestions without creating a requirement.",
+        "operationId": "analyze_text_api_v1_requirements_analyze_text_post",
+        "parameters": [
+          {
+            "description": "Requirement title",
+            "in": "query",
+            "name": "title",
+            "required": true,
+            "schema": {
+              "description": "Requirement title",
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Requirement description",
+            "in": "query",
+            "name": "description",
+            "required": false,
+            "schema": {
+              "default": "",
+              "description": "Requirement description",
+              "title": "Description",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Use LLM for deeper analysis",
+            "in": "query",
+            "name": "use_llm",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Use LLM for deeper analysis",
+              "title": "Use Llm",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Analyze Text",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/v1/requirements/batch/confirm": {
+      "post": {
+        "description": "Batch-confirm requirements.\n\nConfirms multiple requirements in one request for batch workflows.",
+        "operationId": "batch_confirm_requirements_api_v1_requirements_batch_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchOperationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Batch Confirm Requirements",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/api/v1/requirements/batch/reject": {
+      "post": {
+        "description": "Batch-reject requirements.\n\nRejects multiple requirements with the same rejection reason.",
+        "operationId": "batch_reject_requirements_api_v1_requirements_batch_reject_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchRejectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchOperationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Batch Reject Requirements",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/api/v1/requirements/check-conflict": {
+      "post": {
+        "description": "Check requirement conflicts.\n\nChecks whether a new or updated requirement conflicts with, duplicates, or\nupdates existing requirements. Returns the relation and suggested action.",
+        "operationId": "check_conflict_api_v1_requirements_check_conflict_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConflictCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictCheckResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Check Conflict",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/v1/requirements/search": {
+      "get": {
+        "description": "Semantically search requirements.\n\nUses the vector database for semantic matching and returns the most\nrelevant requirements for the query.",
+        "operationId": "search_requirements_api_v1_requirements_search_get",
+        "parameters": [
+          {
+            "description": "Search keyword",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "Search keyword",
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Category filter",
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Category filter",
+              "title": "Category"
+            }
+          },
+          {
+            "description": "Result limit",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Result limit",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Minimum similarity threshold",
+            "in": "query",
+            "name": "min_similarity",
+            "required": false,
+            "schema": {
+              "default": 0.5,
+              "description": "Minimum similarity threshold",
+              "maximum": 1,
+              "minimum": 0,
+              "title": "Min Similarity",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticSearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Requirements",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/v1/requirements/{requirement_id}": {
+      "delete": {
+        "description": "Delete a requirement.\n\nDeletes related questions and vector-store records as well. Emits a\nrequirement.deleted event after deletion.",
+        "operationId": "delete_requirement_api_v1_requirements__requirement_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteRequirementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteRequirementResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Requirement",
+        "tags": [
+          "requirements"
+        ]
+      },
+      "get": {
+        "description": "Get requirement details.",
+        "operationId": "get_requirement_api_v1_requirements__requirement_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequirementOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Requirement",
+        "tags": [
+          "requirements"
+        ]
+      },
+      "put": {
+        "description": "Update requirement information.",
+        "operationId": "update_requirement_api_v1_requirements__requirement_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequirementUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequirementOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Requirement",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/v1/requirements/{requirement_id}/analyze": {
+      "post": {
+        "description": "Analyze a requirement and provide intelligent suggestions.\n\nReturns:\n- Category suggestion.\n- Priority suggestion.\n- Complexity estimate.\n- Dependency analysis.\n- Risk assessment.",
+        "operationId": "analyze_requirement_api_v1_requirements__requirement_id__analyze_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Use LLM for deeper analysis",
+            "in": "query",
+            "name": "use_llm",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Use LLM for deeper analysis",
+              "title": "Use Llm",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Analyze Requirement",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/v1/requirements/{requirement_id}/confirm": {
+      "put": {
+        "description": "Confirm a requirement.",
+        "operationId": "confirm_requirement_api_v1_requirements__requirement_id__confirm_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequirementOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Requirement",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/api/v1/requirements/{requirement_id}/context": {
+      "get": {
+        "description": "Get the context messages that led to this requirement.\n\nReturns the requirement along with its source messages and session info.",
+        "operationId": "get_requirement_context_api_v1_requirements__requirement_id__context_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Requirement Context",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/v1/requirements/{requirement_id}/diff": {
+      "get": {
+        "description": "Get a requirement change diff.\n\nCompares requirement state changes across two points in its history.",
+        "operationId": "get_requirement_diff_api_v1_requirements__requirement_id__diff_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Start change index",
+            "in": "query",
+            "name": "from_index",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Start change index",
+              "title": "From Index",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "End change index (-1 means latest)",
+            "in": "query",
+            "name": "to_index",
+            "required": false,
+            "schema": {
+              "default": -1,
+              "description": "End change index (-1 means latest)",
+              "title": "To Index",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Requirement Diff",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/v1/requirements/{requirement_id}/history": {
+      "get": {
+        "description": "Get requirement change history.\n\nReturns all change records for the requirement, including:\n- Creation.\n- Confirmation or rejection.\n- Updates.\n- Status changes.",
+        "operationId": "get_requirement_history_api_v1_requirements__requirement_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Requirement History",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/v1/requirements/{requirement_id}/reject": {
+      "put": {
+        "description": "Reject a requirement.",
+        "operationId": "reject_requirement_api_v1_requirements__requirement_id__reject_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequirementOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reject Requirement",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/api/v1/requirements/{requirement_id}/similar": {
+      "get": {
+        "description": "Find similar requirements.\n\nFinds other semantically similar requirements for the selected requirement.\nUseful for duplicate or related requirement discovery.",
+        "operationId": "find_similar_requirements_api_v1_requirements__requirement_id__similar_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Result limit",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "description": "Result limit",
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Minimum similarity",
+            "in": "query",
+            "name": "min_similarity",
+            "required": false,
+            "schema": {
+              "default": 0.7,
+              "description": "Minimum similarity",
+              "maximum": 1,
+              "minimum": 0,
+              "title": "Min Similarity",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilarRequirementsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Find Similar Requirements",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/v1/stats": {
+      "get": {
+        "description": "Get statistics.",
+        "operationId": "get_stats_api_v1_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Stats",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/v1/stats/enhanced": {
+      "get": {
+        "description": "Get enhanced statistics with trends.",
+        "operationId": "get_enhanced_stats_api_v1_stats_enhanced_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnhancedStatsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Enhanced Stats",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/wecom/health": {
+      "get": {
+        "description": "Return WeCom integration health.",
+        "operationId": "wecom_health_api_wecom_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Wecom Health",
+        "tags": [
+          "wecom"
+        ]
+      }
+    },
+    "/api/wecom/webhook": {
+      "get": {
+        "description": "Verify the WeCom callback URL.\n\nWeCom sends this GET request during callback URL setup.",
+        "operationId": "wecom_verify_api_wecom_webhook_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "msg_signature",
+            "required": true,
+            "schema": {
+              "title": "Msg Signature",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timestamp",
+            "required": true,
+            "schema": {
+              "title": "Timestamp",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "nonce",
+            "required": true,
+            "schema": {
+              "title": "Nonce",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "echostr",
+            "required": true,
+            "schema": {
+              "title": "Echostr",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Wecom Verify",
+        "tags": [
+          "wecom"
+        ]
+      },
+      "post": {
+        "description": "Handle WeCom message callbacks.",
+        "operationId": "wecom_webhook_api_wecom_webhook_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "msg_signature",
+            "required": true,
+            "schema": {
+              "title": "Msg Signature",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timestamp",
+            "required": true,
+            "schema": {
+              "title": "Timestamp",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "nonce",
+            "required": true,
+            "schema": {
+              "title": "Nonce",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Wecom Webhook",
+        "tags": [
+          "wecom"
+        ]
+      }
+    },
+    "/api/{path}": {
+      "delete": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api__path__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      },
+      "get": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api__path__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      },
+      "patch": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api__path__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      },
+      "post": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api__path__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      },
+      "put": {
+        "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
+        "operationId": "api_v1_redirect_api__path__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api V1 Redirect"
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "liveness_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Liveness",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "readiness_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readiness",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/ready/detail": {
+      "get": {
+        "operationId": "readiness_detail_health_ready_detail_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readiness Detail",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/startup": {
+      "get": {
+        "operationId": "startup_probe_health_startup_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Startup Probe",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/status": {
+      "get": {
+        "operationId": "status_endpoint_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Status Endpoint",
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  }
+}
