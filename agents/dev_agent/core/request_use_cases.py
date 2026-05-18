@@ -9,6 +9,7 @@ from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
 from ..models.schemas import WorkflowPlan
+from .domain.lifecycle.task_lifecycle import AWAITING_APPROVAL, FAILED
 from .repositories import DevTaskRepositoryPort, DevWorkflowLogRepositoryPort
 
 logger = get_logger("dev_agent.request_use_cases")
@@ -131,7 +132,7 @@ class DevRequestUseCase:
             return request_error("task_id required", "task_id_required")
 
         task = await self._repo.get_by_id(task_id)
-        if not task or task.status != "failed":
+        if not task or task.status != FAILED:
             return request_error(
                 "Task not found or not in failed state",
                 "dev_task_not_retryable",
@@ -163,7 +164,7 @@ class DevRequestUseCase:
             return request_error("task_id required", "task_id_required")
 
         task = await self._repo.get_by_id(task_id)
-        if not task or task.status != "awaiting_approval":
+        if not task or task.status != AWAITING_APPROVAL:
             return request_error(
                 "Task not found or not awaiting approval",
                 "dev_task_not_awaiting_approval",

@@ -9,6 +9,7 @@ from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
 from ..models.schemas import RiskLevel, SanitizedTask, TaskInput
+from .domain.lifecycle.task_lifecycle import REVIEWING
 from .input_sanitizer import InputRejectedError
 from .repositories import DevTaskRepositoryPort, DevWorkflowLogRepositoryPort
 
@@ -224,7 +225,7 @@ class DevEventUseCase:
                 logger.warning("qa_result_task_not_found", mr_iid=mr_iid)
                 return []
 
-            if task.status != "reviewing":
+            if task.status != REVIEWING:
                 logger.info(
                     "qa_result_ignored_wrong_status",
                     mr_iid=mr_iid,
