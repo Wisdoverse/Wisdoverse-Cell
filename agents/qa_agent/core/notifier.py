@@ -15,6 +15,10 @@ from shared.utils.logger import get_logger
 
 from .card_ports import QualityCardRendererPort
 from .config import QACoreConfig
+from .domain.acceptance_verdicts import (
+    is_blocking_finding,
+    is_warning_finding,
+)
 
 logger = get_logger("qa_agent.notifier")
 
@@ -145,7 +149,10 @@ class QANotifier:
                 blocking = [
                     f
                     for f in kwargs["findings"]
-                    if f.get("level") == "L0" and f.get("status") == "FAIL"
+                    if is_blocking_finding(
+                        level=f.get("level", ""),
+                        status=f.get("status", ""),
+                    )
                 ]
                 failed_ok = await self._event_publisher.publish(
                     Event.create(
@@ -188,8 +195,10 @@ class QANotifier:
         if high_checks:
             for f in findings:
                 if (
-                    f.get("level") == "L1"
-                    and f.get("status") == "WARN"
+                    is_warning_finding(
+                        level=f.get("level", ""),
+                        status=f.get("status", ""),
+                    )
                     and f.get("check") in high_checks
                 ):
                     return True
