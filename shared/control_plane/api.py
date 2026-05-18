@@ -1,6 +1,6 @@
 """FastAPI router for the shared control-plane ledger."""
 
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import asdict
 from datetime import date, datetime
@@ -97,7 +97,6 @@ from .budget_use_cases import (
 from .budget_use_cases import (
     list_budget_usage as list_budget_usage_from_store,
 )
-from .company_store import SqlAlchemyControlPlaneCompanyStore
 from .company_use_cases import (
     CompanyAlreadyExistsError,
     CompanyNotFoundError,
@@ -176,6 +175,7 @@ from .models import (
     WorkItemStatus,
 )
 from .prompt_config_store import SqlAlchemyControlPlanePromptConfigStore
+from .store_factory import ControlPlaneStores
 from .work_item_store import SqlAlchemyControlPlaneWorkItemStore
 from .work_item_use_cases import (
     WorkItemDependencyNotFoundError,
@@ -720,6 +720,10 @@ def create_control_plane_router(
         async with provider() as session:
             yield session
 
+    async def get_stores() -> AsyncGenerator[ControlPlaneStores, None]:
+        async with provider() as session:
+            yield ControlPlaneStores(session)
+
     def resolve_company(company_id: str | None) -> str:
         return company_id or settings.control_plane_company_id
 
@@ -727,10 +731,9 @@ def create_control_plane_router(
     async def list_companies(
         search: str | None = None,
         limit: int = Query(default=100, ge=1, le=500),
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneCompanyStore(session)
-        rows = await list_companies_from_store(store, search=search, limit=limit)
+        rows = await list_companies_from_store(stores.companies, search=search, limit=limit)
         return {"companies": [_row_to_dict(row) for row in rows], "total": len(rows)}
 
     @router.post(
@@ -739,12 +742,11 @@ def create_control_plane_router(
     )
     async def create_company(
         body: CompanyCreateRequest,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneCompanyStore(session)
         try:
             row = await create_company_with_audit(
-                store,
+                stores.companies,
                 company_id=body.company_id,
                 name=body.name,
                 mission=body.mission,
@@ -758,11 +760,10 @@ def create_control_plane_router(
     @router.get("/companies/{company_id}")
     async def get_company(
         company_id: str,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneCompanyStore(session)
         try:
-            row = await get_company_from_store(store, company_id=company_id)
+            row = await get_company_from_store(stores.companies, company_id=company_id)
         except CompanyNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="company_not_found")
         return _row_to_dict(row)
@@ -771,12 +772,11 @@ def create_control_plane_router(
     async def update_company(
         company_id: str,
         body: CompanyUpdateRequest,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneCompanyStore(session)
         try:
             row = await update_company_with_audit(
-                store,
+                stores.companies,
                 company_id=company_id,
                 name=body.name,
                 mission=body.mission,
