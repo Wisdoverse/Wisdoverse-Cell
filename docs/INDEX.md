@@ -79,15 +79,29 @@ For contributors, operators, and deployers.
 
 ---
 
-## Architecture Plans
+## Architecture
 
-Forward-looking plans for backend architecture work. Each plan must reconcile
-to the constitution documents (`AGENTS.md`, `SPEC.md`, `architecture.md`,
-`backend-boundaries.md`) rather than the other way around.
+The backend architecture is governed by the foundation documents under
+`docs/architecture/`. They reconcile to the constitution documents
+(`AGENTS.md`, `SPEC.md`, `architecture.md`, `backend-boundaries.md`) rather
+than the other way around. Every architecture-affecting PR must satisfy the
+Architecture Review Checklist before merge.
 
 | Document | Purpose |
 |----------|---------|
-| [Backend Evolution Plan](./architecture/backend-evolution-plan.md) | Phased follow-up plan after the PR #121 backend modularization slice |
+| [Architecture Principles](./architecture/architecture-principles.md) | Binding layering rules, boundary rules, and engineering constraints |
+| [Module Boundaries](./architecture/module-boundaries.md) | Bounded context catalog with responsibility, data, dependencies, and split fitness |
+| [Service Boundaries](./architecture/service-boundaries.md) | Decision matrix for runtime extraction; default modular-monolith posture |
+| [Data Ownership](./architecture/data-ownership.md) | Per-table write owner rules, cross-boundary read patterns, migration rules |
+| [API Guidelines](./architecture/api-guidelines.md) | HTTP/REST/RPC contract: versioning, DTOs, error envelope, OpenAPI, idempotency |
+| [Event Guidelines](./architecture/event-guidelines.md) | Domain vs integration events, envelope, producer/consumer contract, schema evolution |
+| [Testing Strategy](./architecture/testing-strategy.md) | Test pyramid, test types per layer, CI gates, mocking and data strategy |
+| [Observability Guidelines](./architecture/observability-guidelines.md) | Minimum logs, traces, metrics, alerts, SLOs, health endpoints |
+| [Architecture Review Checklist](./architecture/architecture-review-checklist.md) | Per-PR checklist used by author and reviewer |
+| [Migration Plan](./architecture/migration-plan.md) | Six-stage phased roadmap (Stage 0 docs → Stage 5 quality) |
+| [Backend Target Architecture](./architecture/backend-target-architecture.md) | Phase 2 target architecture and first-step proposal |
+| [Backend Architecture Analysis](./architecture/backend-architecture-analysis.md) | Phase 1 read-only audit (current state) |
+| [Backend Evolution Plan](./architecture/backend-evolution-plan.md) | Earlier follow-up plan after the PR #121 backend modularization slice |
 
 ---
 
