@@ -10,6 +10,8 @@ import json
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.utils.logger import get_logger
 
+from ..core.analysis_ports import EvolutionTraceAnalysisStore
+
 logger = get_logger("evolution_module.global_analyzer")
 
 # Operation whitelist (from design spec Section 5.2)
@@ -35,10 +37,15 @@ _KNOWN_AGENT_IDS = [
 class GlobalAnalyzer:
     """Cross-agent trace analysis for architecture-level suggestions."""
 
-    def __init__(self, llm_gateway):
+    def __init__(
+        self,
+        llm_gateway,
+        trace_store: EvolutionTraceAnalysisStore | None,
+    ):
         self._llm = llm_gateway
+        self._trace_store = trace_store
 
-    async def analyze(self, db_manager, days: int = 7) -> list[dict]:
+    async def analyze(self, days: int = 7) -> list[dict]:
         """Analyze all agents' recent traces and return proposals.
 
         Each proposal is a dict with:
@@ -49,8 +56,8 @@ class GlobalAnalyzer:
         - rationale: str
         - confidence: float (0-1)
         """
-        if db_manager is None:
-            logger.warning("global_analysis_skipped", reason="db_manager is None")
+        if self._trace_store is None:
+            logger.warning("global_analysis_skipped", reason="trace_store is None")
             return []
 
         if self._llm is None:
@@ -58,26 +65,19 @@ class GlobalAnalyzer:
             return []
 
         try:
-            async with db_manager.session() as session:
-                from shared.evolution.db.repository import EvolutionRepository
-
-                repo = EvolutionRepository(session)
-
-                # Gather data from all agents
-                performance_data = []
-                for agent_id in _KNOWN_AGENT_IDS:
-                    traces = await repo.get_recent_traces(agent_id, limit=100)
-                    if traces:
-                        success = sum(1 for t in traces if t.success)
-                        total = len(traces)
-                        performance_data.append(
-                            {
-                                "agent_id": agent_id,
-                                "success_count": success,
-                                "total_count": total,
-                                "success_rate": round(success / total, 4),
-                            }
-                        )
+            performance = await self._trace_store.list_agent_performance(
+                _KNOWN_AGENT_IDS,
+                limit_per_agent=100,
+            )
+            performance_data = [
+                {
+                    "agent_id": item.agent_id,
+                    "success_count": item.success_count,
+                    "total_count": item.total_count,
+                    "success_rate": item.success_rate,
+                }
+                for item in performance
+            ]
 
             if not performance_data:
                 return []

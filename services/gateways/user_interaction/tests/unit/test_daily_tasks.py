@@ -1,5 +1,6 @@
 """Unit tests for daily task Bitable config wiring."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -21,11 +22,19 @@ def reset_daily_task_dependencies():
     configure_daily_task_dependencies(None)
 
 
-def configure_with_bitable(bitable):
+def configure_with_bitable(
+    bitable,
+    *,
+    dispatch_llm=None,
+    progress_store=None,
+    messenger=None,
+):
     configure_daily_task_dependencies(
         DailyTaskDependencies(
             bitable=bitable,
-            messenger=AsyncMock(),
+            messenger=messenger or AsyncMock(),
+            dispatch_llm=dispatch_llm or AsyncMock(),
+            progress_store=progress_store or AsyncMock(),
             config=UserInteractionCoreConfig.from_values(
                 feishu_bitable_app_token="app-token",
                 feishu_bitable_member_table_id="member-table",
@@ -112,14 +121,16 @@ async def test_get_user_tasks_uses_injected_task_table_config() -> None:
 
 
 @pytest.mark.asyncio
-async def test_generate_dispatch_message_wraps_daily_context_as_untrusted_data(monkeypatch):
+async def test_generate_dispatch_message_wraps_daily_context_as_untrusted_data():
     captured = {}
 
     async def fake_complete(**kwargs):
         captured.update(kwargs)
         return "dispatch text"
 
-    monkeypatch.setattr(daily_tasks.llm_gateway, "complete", fake_complete)
+    dispatch_llm = AsyncMock()
+    dispatch_llm.complete = AsyncMock(side_effect=fake_complete)
+    configure_with_bitable(AsyncMock(), dispatch_llm=dispatch_llm)
 
     result = await daily_tasks._generate_dispatch_message(
         "Alice",
@@ -139,3 +150,26 @@ async def test_generate_dispatch_message_wraps_daily_context_as_untrusted_data(m
     assert "<untrusted_daily_task_context_json>" in prompt
     assert prompt.count("</untrusted_daily_task_context_json>") == 1
     assert "<\\/untrusted_daily_task_context_json>" in prompt
+
+
+@pytest.mark.asyncio
+async def test_collect_evening_progress_uses_injected_progress_store() -> None:
+    messenger = AsyncMock()
+    progress_store = AsyncMock()
+    progress_store.list_users_for_date = AsyncMock(return_value=[("ou_user_1", "Alice")])
+    progress_store.get_pending = AsyncMock(
+        return_value=[
+            SimpleNamespace(status="in_progress", task_title="Build report"),
+        ]
+    )
+    configure_with_bitable(
+        AsyncMock(),
+        messenger=messenger,
+        progress_store=progress_store,
+    )
+
+    await daily_tasks.collect_evening_progress()
+
+    progress_store.list_users_for_date.assert_awaited_once()
+    progress_store.get_pending.assert_awaited_once()
+    messenger.send_message.assert_awaited_once()

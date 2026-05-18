@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from shared.capabilities.sync.models.base import Base
 from shared.capabilities.sync.models.sync import (  # noqa: F401
     SubtaskMapping,
+    SyncEventOutbox,
     SyncLock,
     SyncLog,
     SyncMapping,

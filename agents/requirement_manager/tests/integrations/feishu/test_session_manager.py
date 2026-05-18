@@ -38,10 +38,10 @@ def manager_no_agent(mock_redis, mock_db_session):
 
 
 def _patch_repo(message_count: int):
-    """Return a context-manager that patches MessageRepository.count_by_session."""
+    """Return a context-manager that patches message-store session counts."""
     repo = MagicMock()
     repo.count_by_session = AsyncMock(return_value=message_count)
-    return patch.object(_sm_mod, "MessageRepository", return_value=repo)
+    return patch.object(_sm_mod, "SqlAlchemyRequirementMessageStore", return_value=repo)
 
 
 # ──────────────────────────────────────────────

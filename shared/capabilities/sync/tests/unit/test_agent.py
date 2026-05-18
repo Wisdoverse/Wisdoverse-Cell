@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from shared.app import UNKNOWN_ACTION_ERROR_CODE
 from shared.capabilities.sync.service.agent import SyncModule
 from shared.schemas.event import Event, EventTypes
 
@@ -63,6 +64,18 @@ async def test_handle_request_can_trigger_feishu_bitable_boundary() -> None:
 
     assert result == {"status": "success"}
     agent.trigger_feishu_bitable_sync.assert_awaited_once_with(triggered_by="manual")
+
+
+@pytest.mark.asyncio
+async def test_handle_request_unknown_action_uses_shared_error_contract() -> None:
+    agent = SyncModule(db=AsyncMock(), bus=AsyncMock())
+
+    result = await agent.handle_request({"action": "invalid"})
+
+    assert result == {
+        "error": "unknown action",
+        "error_code": UNKNOWN_ACTION_ERROR_CODE,
+    }
 
 
 @pytest.mark.asyncio
@@ -145,3 +158,20 @@ async def test_handle_event_sync_trigger_invalid_payload_returns_failed_event() 
     assert result[0].event_type == EventTypes.SYNC_FAILED
     assert result[0].metadata.trace_id == "trace_sync"
     assert result[0].payload["scope"] == "invalid"
+    assert result[0].payload["error_code"] == "sync_invalid_trigger_payload"
+
+
+@pytest.mark.asyncio
+async def test_health_check_uses_injected_health_store() -> None:
+    health_store = AsyncMock()
+    health_store.is_database_ready = AsyncMock(return_value=True)
+    agent = SyncModule(
+        db=AsyncMock(),
+        bus=AsyncMock(),
+        health_store=health_store,
+    )
+
+    result = await agent.health_check()
+
+    assert result == {"database": True}
+    health_store.is_database_ready.assert_awaited_once()

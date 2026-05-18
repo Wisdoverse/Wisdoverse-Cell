@@ -1,11 +1,12 @@
 """Unit tests for ToolExecutor handlers."""
 import json
-from unittest.mock import AsyncMock, patch
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
 from services.gateways.user_interaction.core.config import UserInteractionCoreConfig
-from shared.infra import event_bus as _event_bus_mod
 
 
 class FakeToolCardRenderer:
@@ -57,6 +58,10 @@ def tool_dependencies():
     mock_bitable = AsyncMock()
     mock_messenger = AsyncMock()
     mock_contact_lookup = AsyncMock()
+    mock_event_publisher = AsyncMock()
+    mock_event_publisher.publish_sync_trigger = AsyncMock(return_value=True)
+    mock_card_operation_store = AsyncMock()
+    mock_daily_progress_store = AsyncMock()
     card_renderer = FakeToolCardRenderer()
     approval_gate = FakeApprovalGate()
     configure_tool_dependencies(
@@ -66,6 +71,9 @@ def tool_dependencies():
             messenger=mock_messenger,
             contact_lookup=mock_contact_lookup,
             card_renderer=card_renderer,
+            event_publisher=mock_event_publisher,
+            card_operation_store=mock_card_operation_store,
+            daily_progress_store=mock_daily_progress_store,
             approval_gate=approval_gate,
             config=UserInteractionCoreConfig.from_values(
                 redis_url="redis://redis:6379/2",
@@ -83,6 +91,9 @@ def tool_dependencies():
         "messenger": mock_messenger,
         "contact_lookup": mock_contact_lookup,
         "card_renderer": card_renderer,
+        "event_publisher": mock_event_publisher,
+        "card_operation_store": mock_card_operation_store,
+        "daily_progress_store": mock_daily_progress_store,
         "approval_gate": approval_gate,
     }
     configure_tool_dependencies(None)
@@ -96,74 +107,115 @@ def executor(tool_dependencies):
 
 
 @pytest.mark.asyncio
-async def test_sync_now_publishes_event(executor):
-    """sync_now publishes a sync.trigger event through the EventBus."""
-    mock_bus = AsyncMock()
-    mock_bus.connect = AsyncMock()
-    mock_bus.publish = AsyncMock(return_value=True)
+async def test_sync_now_publishes_event(executor, tool_dependencies):
+    """sync_now publishes a sync.trigger command through the gateway publisher."""
+    publisher = tool_dependencies["event_publisher"]
 
-    with patch.object(_event_bus_mod, "event_bus", mock_bus):
-        result_str = await executor.execute("sync_now", {})
+    result_str = await executor.execute("sync_now", {})
 
     result = json.loads(result_str)
     assert result["success"] is True
     assert "触发" in result["message"]
-    mock_bus.connect.assert_called_once()
-    mock_bus.publish.assert_called_once()
-
-    published_event = mock_bus.publish.call_args[0][0]
-    assert published_event.event_type == "sync.trigger"
-    assert published_event.source_agent == "chat-agent"
-    assert published_event.payload["scope"] == "full"
+    publisher.publish_sync_trigger.assert_awaited_once_with(scope="full")
 
 
 @pytest.mark.asyncio
-async def test_sync_openproject_publishes_scoped_event(executor):
-    """sync_openproject publishes an OpenProject-scoped sync.trigger event."""
-    mock_bus = AsyncMock()
-    mock_bus.connect = AsyncMock()
-    mock_bus.publish = AsyncMock(return_value=True)
+async def test_sync_openproject_publishes_scoped_event(executor, tool_dependencies):
+    """sync_openproject publishes an OpenProject-scoped sync.trigger command."""
+    publisher = tool_dependencies["event_publisher"]
 
-    with patch.object(_event_bus_mod, "event_bus", mock_bus):
-        result_str = await executor.execute("sync_openproject", {})
+    result_str = await executor.execute("sync_openproject", {})
 
     result = json.loads(result_str)
     assert result["success"] is True
-    published_event = mock_bus.publish.call_args[0][0]
-    assert published_event.event_type == "sync.trigger"
-    assert published_event.payload["scope"] == "openproject"
+    publisher.publish_sync_trigger.assert_awaited_once_with(scope="openproject")
 
 
 @pytest.mark.asyncio
-async def test_sync_feishu_bitable_publishes_scoped_event(executor):
-    """sync_feishu_bitable publishes a Bitable-scoped sync.trigger event."""
-    mock_bus = AsyncMock()
-    mock_bus.connect = AsyncMock()
-    mock_bus.publish = AsyncMock(return_value=True)
+async def test_sync_feishu_bitable_publishes_scoped_event(executor, tool_dependencies):
+    """sync_feishu_bitable publishes a Bitable-scoped sync.trigger command."""
+    publisher = tool_dependencies["event_publisher"]
 
-    with patch.object(_event_bus_mod, "event_bus", mock_bus):
-        result_str = await executor.execute("sync_feishu_bitable", {})
+    result_str = await executor.execute("sync_feishu_bitable", {})
 
     result = json.loads(result_str)
     assert result["success"] is True
-    published_event = mock_bus.publish.call_args[0][0]
-    assert published_event.event_type == "sync.trigger"
-    assert published_event.payload["scope"] == "feishu_bitable"
+    publisher.publish_sync_trigger.assert_awaited_once_with(scope="feishu_bitable")
 
 
 @pytest.mark.asyncio
-async def test_sync_now_publish_failure(executor):
-    """EventBus publish failures return an error."""
-    mock_bus = AsyncMock()
-    mock_bus.connect = AsyncMock()
-    mock_bus.publish = AsyncMock(return_value=False)
+async def test_sync_now_publish_failure(executor, tool_dependencies):
+    """Gateway publisher failures return an error."""
+    publisher = tool_dependencies["event_publisher"]
+    publisher.publish_sync_trigger.return_value = False
 
-    with patch.object(_event_bus_mod, "event_bus", mock_bus):
-        result_str = await executor.execute("sync_now", {})
+    result_str = await executor.execute("sync_now", {})
 
     result = json.loads(result_str)
     assert "error" in result or result.get("success") is not True
     assert "失败" in result.get("error", result.get("message", ""))
+
+
+@pytest.mark.asyncio
+async def test_list_card_operations_uses_injected_store(executor, tool_dependencies):
+    """list_card_operations reads card-operation rows through the injected store."""
+    store = tool_dependencies["card_operation_store"]
+    store.query = AsyncMock(
+        return_value=[
+            SimpleNamespace(
+                action="confirm_create",
+                user_name="Alice",
+                assignee_name="Bob",
+                record_id="rec_1",
+                result="success",
+                created_at=datetime(2026, 5, 17, tzinfo=UTC),
+                error_message="",
+            )
+        ]
+    )
+
+    result_str = await executor.execute(
+        "list_card_operations",
+        {"user_id": "ou_user_1", "action": "confirm_create", "limit": 5},
+    )
+
+    result = json.loads(result_str)
+    assert result["total"] == 1
+    assert result["operations"][0]["record_id"] == "rec_1"
+    store.query.assert_awaited_once_with(
+        user_id="ou_user_1",
+        action="confirm_create",
+        limit=5,
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_daily_progress_uses_injected_store(executor, tool_dependencies):
+    """update_daily_progress updates progress through the injected store."""
+    store = tool_dependencies["daily_progress_store"]
+    bitable = tool_dependencies["bitable"]
+    progress = SimpleNamespace(
+        id=1,
+        user_id="ou_user_1",
+        date=datetime(2026, 5, 17, tzinfo=UTC).date(),
+        task_record_id="rec_task_1",
+        task_title="Build report",
+    )
+    store.update_progress = AsyncMock(return_value=progress)
+    store.get_pending = AsyncMock(return_value=[SimpleNamespace(status="completed")])
+    bitable.update_record = AsyncMock()
+
+    result_str = await executor.execute(
+        "update_daily_progress",
+        {"progress_id": 1, "status": "completed", "note": "done"},
+    )
+
+    result = json.loads(result_str)
+    assert result["success"] is True
+    assert result["all_tasks_updated"] is True
+    store.update_progress.assert_awaited_once_with(1, "completed", note="done")
+    store.get_pending.assert_awaited_once_with("ou_user_1", progress.date)
+    bitable.update_record.assert_awaited_once_with("rec_task_1", {"状态": "已完成"})
 
 
 @pytest.mark.asyncio

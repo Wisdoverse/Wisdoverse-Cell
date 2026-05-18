@@ -8,9 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.config import settings
 
+from .approval_ports import ControlPlaneApprovalStore
+from .approval_store import SqlAlchemyControlPlaneApprovalStore
 from .context import get_current_run_context
 from .models import ApprovalCategory, ApprovalRequest, ApprovalStatus
-from .repository import ControlPlaneRepository
 from .tables import ApprovalRequestTable
 
 
@@ -28,8 +29,8 @@ class ApprovalDecision:
 class ApprovalGate:
     """Creates and enforces SPEC approval requests."""
 
-    def __init__(self, repo: ControlPlaneRepository):
-        self._repo = repo
+    def __init__(self, store: ControlPlaneApprovalStore):
+        self._store = store
 
     async def request_approval(
         self,
@@ -49,7 +50,7 @@ class ApprovalGate:
         goal_id: str | None = None,
         trace_id: str | None = None,
     ) -> ApprovalRequestTable:
-        return await self._repo.request_approval(
+        return await self._store.request_approval(
             ApprovalRequest(
                 company_id=company_id,
                 category=category,
@@ -69,7 +70,7 @@ class ApprovalGate:
         )
 
     async def approve(self, approval_id: str, *, resolved_by: str) -> ApprovalDecision:
-        row = await self._repo.resolve_approval(
+        row = await self._store.resolve_approval(
             approval_id,
             status=ApprovalStatus.APPROVED,
             resolved_by=resolved_by,
@@ -83,7 +84,7 @@ class ApprovalGate:
         )
 
     async def reject(self, approval_id: str, *, resolved_by: str) -> ApprovalDecision:
-        row = await self._repo.resolve_approval(
+        row = await self._store.resolve_approval(
             approval_id,
             status=ApprovalStatus.REJECTED,
             resolved_by=resolved_by,
@@ -97,7 +98,7 @@ class ApprovalGate:
         )
 
     async def ensure_approved(self, approval_id: str) -> ApprovalDecision:
-        row = await self._repo.get_approval(approval_id)
+        row = await self._store.get_approval(approval_id)
         if row is None:
             raise ApprovalRequiredError(f"approval_not_found: {approval_id}")
         if row.status != ApprovalStatus.APPROVED.value:
@@ -179,7 +180,7 @@ class ApprovalGateService:
         resolved_trace_id = trace_id or (context.trace_id if context is not None else None)
 
         async with self._resolve_session_provider()() as session:
-            gate = ApprovalGate(ControlPlaneRepository(session))
+            gate = ApprovalGate(SqlAlchemyControlPlaneApprovalStore(session))
             return await gate.request_approval(
                 company_id=resolved_company_id,
                 category=category,
@@ -210,7 +211,7 @@ class ApprovalGateService:
                 raise ApprovalRequiredError("control_plane_approval_required")
             return None
         async with self._resolve_session_provider()() as session:
-            gate = ApprovalGate(ControlPlaneRepository(session))
+            gate = ApprovalGate(SqlAlchemyControlPlaneApprovalStore(session))
             return await gate.approve(approval_id, resolved_by=resolved_by)
 
     async def reject_for_sensitive_action(
@@ -226,7 +227,7 @@ class ApprovalGateService:
                 raise ApprovalRequiredError("control_plane_approval_required")
             return None
         async with self._resolve_session_provider()() as session:
-            gate = ApprovalGate(ControlPlaneRepository(session))
+            gate = ApprovalGate(SqlAlchemyControlPlaneApprovalStore(session))
             return await gate.reject(approval_id, resolved_by=resolved_by)
 
     async def ensure_approved_for_sensitive_action(
@@ -240,7 +241,7 @@ class ApprovalGateService:
                 raise ApprovalRequiredError("control_plane_approval_required")
             return None
         async with self._resolve_session_provider()() as session:
-            gate = ApprovalGate(ControlPlaneRepository(session))
+            gate = ApprovalGate(SqlAlchemyControlPlaneApprovalStore(session))
             return await gate.ensure_approved(approval_id)
 
     def _resolve_session_provider(self) -> SessionProvider:

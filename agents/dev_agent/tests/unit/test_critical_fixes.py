@@ -7,12 +7,14 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi import HTTPException
 
 from agents.dev_agent.db.repository import (
     DevTaskRepository,
     DevWorkflowLogRepository,
 )
 from agents.dev_agent.service.agent import DevAgent
+from shared.api import ApiErrorCode
 
 # --- Helpers ---
 
@@ -95,6 +97,21 @@ class TestRuntimeWiring:
         agent = DevAgent()
         result = await agent.handle_request({"action": "get_task_status", "wp_id": 1})
         assert "error" in result
+        assert result["error_code"] == "database_not_initialized"
+
+    @pytest.mark.asyncio
+    async def test_handle_request_unknown_action_uses_error_code(self):
+        agent, _ = _make_agent_with_db()
+        mock_repo = AsyncMock(spec=DevTaskRepository)
+
+        with patch.object(agent, "_get_repo", return_value=mock_repo):
+            result = await agent.handle_request({"action": "nonexistent"})
+
+        assert result == {
+            "error": "Unknown action: nonexistent",
+            "error_code": "unknown_action",
+            "action": "nonexistent",
+        }
 
     @pytest.mark.asyncio
     async def test_handle_request_list_active_without_db_returns_empty(self):
@@ -153,8 +170,8 @@ class TestReconcileResultCollection:
             with (
                 patch.object(main_module, "_get_agent"),
                 patch.object(main_module, "db_manager") as mock_db,
-                patch.object(main_module, "DevTaskRepository", return_value=mock_repo),
-                patch.object(main_module, "DevWorkflowLogRepository", return_value=AsyncMock()),
+                patch.object(main_module, "SqlAlchemyDevTaskStore", return_value=mock_repo),
+                patch.object(main_module, "SqlAlchemyDevWorkflowLogStore", return_value=AsyncMock()),
             ):
                 @asynccontextmanager
                 async def mock_session_cm():
@@ -224,8 +241,8 @@ class TestPendingTaskProcessing:
             with (
                 patch.object(main_module, "_get_agent"),
                 patch.object(main_module, "db_manager") as mock_db,
-                patch.object(main_module, "DevTaskRepository", return_value=mock_repo),
-                patch.object(main_module, "DevWorkflowLogRepository", return_value=mock_log_repo),
+                patch.object(main_module, "SqlAlchemyDevTaskStore", return_value=mock_repo),
+                patch.object(main_module, "SqlAlchemyDevWorkflowLogStore", return_value=mock_log_repo),
                 patch.object(main_module, "_start_pending_task") as mock_start,
             ):
                 @asynccontextmanager
@@ -276,8 +293,8 @@ class TestRetryReentry:
             with (
                 patch.object(main_module, "_get_agent"),
                 patch.object(main_module, "db_manager") as mock_db,
-                patch.object(main_module, "DevTaskRepository", return_value=mock_repo),
-                patch.object(main_module, "DevWorkflowLogRepository", return_value=mock_log_repo),
+                patch.object(main_module, "SqlAlchemyDevTaskStore", return_value=mock_repo),
+                patch.object(main_module, "SqlAlchemyDevWorkflowLogStore", return_value=mock_log_repo),
                 patch.object(main_module, "_start_pending_task") as mock_start,
             ):
                 @asynccontextmanager
@@ -297,22 +314,43 @@ class TestRetryReentry:
 
 
 class TestApprovalContinuation:
+    def test_dev_api_agent_not_ready_sets_error_code(self):
+        """The REST boundary exposes a stable error code before runtime startup."""
+        from agents.dev_agent.api import dev as dev_api
+        from agents.dev_agent.app import main as main_module
+
+        previous_runtime = getattr(main_module.app.state, "runtime", None)
+        main_module.app.state.runtime = None
+        try:
+            with pytest.raises(HTTPException) as exc_info:
+                dev_api._get_agent()
+        finally:
+            main_module.app.state.runtime = previous_runtime
+
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "Agent not ready"
+        assert (
+            exc_info.value.headers["X-Error-Code"]
+            == ApiErrorCode.DEV_AGENT_NOT_READY.value
+        )
+
     @pytest.mark.asyncio
     async def test_approve_workflow_api_forwards_approval_context(self):
         """The REST approval endpoint forwards human approval context to the agent."""
         from agents.dev_agent.api import dev as dev_api
+        from agents.dev_agent.core.api_use_cases import DevApiUseCase
 
         agent = MagicMock()
         agent.handle_request = AsyncMock(return_value={"success": True})
 
-        with patch.object(dev_api, "_get_agent", return_value=agent):
-            result = await dev_api.approve_workflow(
-                "dev-high-1",
-                dev_api.ApproveWorkflowRequest(
-                    operator="human:lead",
-                    approval_id="appr_dev_1",
-                ),
-            )
+        result = await dev_api.approve_workflow(
+            "dev-high-1",
+            dev_api.ApproveWorkflowRequest(
+                operator="human:lead",
+                approval_id="appr_dev_1",
+            ),
+            dev_api=DevApiUseCase(agent),
+        )
 
         assert result == {"success": True}
         agent.handle_request.assert_awaited_once_with(
@@ -356,10 +394,7 @@ class TestApprovalContinuation:
 
         with (
             patch.object(agent, "_get_repo", return_value=mock_repo),
-            patch(
-                "agents.dev_agent.service.agent.DevWorkflowLogRepository",
-                return_value=mock_log_repo,
-            ),
+            patch.object(agent, "_get_log_repo", return_value=mock_log_repo),
         ):
             result = await agent.handle_request(
                 {"action": "approve_workflow", "task_id": "dev-high-1"}
@@ -400,10 +435,7 @@ class TestApprovalContinuation:
 
         with (
             patch.object(agent, "_get_repo", return_value=mock_repo),
-            patch(
-                "agents.dev_agent.service.agent.DevWorkflowLogRepository",
-                return_value=mock_log_repo,
-            ),
+            patch.object(agent, "_get_log_repo", return_value=mock_log_repo),
         ):
             result = await agent.handle_request(
                 {"action": "approve_workflow", "task_id": "dev-high-1"}
@@ -411,6 +443,7 @@ class TestApprovalContinuation:
 
         assert result == {
             "error": "approved_by required for control-plane approval",
+            "error_code": "control_plane_approval_resolver_required",
             "task_id": "dev-high-1",
             "control_plane_approval_id": "appr_dev_1",
         }
@@ -453,10 +486,7 @@ class TestApprovalContinuation:
 
         with (
             patch.object(agent, "_get_repo", return_value=mock_repo),
-            patch(
-                "agents.dev_agent.service.agent.DevWorkflowLogRepository",
-                return_value=mock_log_repo,
-            ),
+            patch.object(agent, "_get_log_repo", return_value=mock_log_repo),
         ):
             result = await agent.handle_request(
                 {

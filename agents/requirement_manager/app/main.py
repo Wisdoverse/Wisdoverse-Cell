@@ -28,6 +28,7 @@ from .plugins import (
     ChannelRegistryPlugin,
     FeishuGatewayPlugin,
     GrpcPlugin,
+    RequirementOutboxDispatcherPlugin,
     SessionTimeoutPlugin,
 )
 from .routes import api_info_router, api_v1_redirect_router
@@ -84,6 +85,7 @@ app = create_agent_app(
             required=False,
         ),
         GrpcPlugin(),
+        RequirementOutboxDispatcherPlugin(),
         ChannelRegistryPlugin(),
         FeishuGatewayPlugin(),
         SessionTimeoutPlugin(),

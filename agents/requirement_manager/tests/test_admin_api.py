@@ -22,6 +22,7 @@ class TestLLMUsageAPI:
     @pytest.mark.asyncio
     async def test_get_llm_usage_default_date(self):
         """Get LLM usage for the current date."""
+        from agents.requirement_manager.api.dependencies import get_llm_usage_query_service
         from agents.requirement_manager.app.main import app
 
         mock_summary = {
@@ -47,21 +48,22 @@ class TestLLMUsageAPI:
             }
         }
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_main_agent, \
-             patch("agents.requirement_manager.api.admin.LLMUsageRepository") as MockRepo:
+        query_service = MagicMock()
+        query_service.get_daily_summary = AsyncMock(return_value=mock_summary)
+        app.dependency_overrides[get_llm_usage_query_service] = lambda: query_service
+        try:
+            with patch("agents.requirement_manager.app.main.agent") as mock_main_agent:
 
-            mock_main_agent.startup = AsyncMock()
-            mock_main_agent.shutdown = AsyncMock()
+                mock_main_agent.startup = AsyncMock()
+                mock_main_agent.shutdown = AsyncMock()
 
-            mock_repo = MagicMock()
-            mock_repo.get_daily_summary = AsyncMock(return_value=mock_summary)
-            MockRepo.return_value = mock_repo
-
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.get("/api/v1/admin/llm-usage")
+                async with AsyncClient(
+                    transport=ASGITransport(app=app),
+                    base_url="http://test"
+                ) as client:
+                    response = await client.get("/api/v1/admin/llm-usage")
+        finally:
+            app.dependency_overrides.pop(get_llm_usage_query_service, None)
 
         assert response.status_code == 200
         data = response.json()
@@ -70,10 +72,15 @@ class TestLLMUsageAPI:
         assert data["failed_calls"] == 1
         assert "by_agent" in data
         assert "by_task_type" in data
+        query_service.get_daily_summary.assert_awaited_once_with(
+            date=None,
+            agent_id=None,
+        )
 
     @pytest.mark.asyncio
     async def test_get_llm_usage_specific_date(self):
         """Get LLM usage for a specific date."""
+        from agents.requirement_manager.api.dependencies import get_llm_usage_query_service
         from agents.requirement_manager.app.main import app
 
         mock_summary = {
@@ -89,30 +96,36 @@ class TestLLMUsageAPI:
             "by_task_type": {}
         }
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_main_agent, \
-             patch("agents.requirement_manager.api.admin.LLMUsageRepository") as MockRepo:
+        query_service = MagicMock()
+        query_service.get_daily_summary = AsyncMock(return_value=mock_summary)
+        app.dependency_overrides[get_llm_usage_query_service] = lambda: query_service
+        try:
+            with patch("agents.requirement_manager.app.main.agent") as mock_main_agent:
 
-            mock_main_agent.startup = AsyncMock()
-            mock_main_agent.shutdown = AsyncMock()
+                mock_main_agent.startup = AsyncMock()
+                mock_main_agent.shutdown = AsyncMock()
 
-            mock_repo = MagicMock()
-            mock_repo.get_daily_summary = AsyncMock(return_value=mock_summary)
-            MockRepo.return_value = mock_repo
-
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.get("/api/v1/admin/llm-usage?date=2026-01-15")
+                async with AsyncClient(
+                    transport=ASGITransport(app=app),
+                    base_url="http://test"
+                ) as client:
+                    response = await client.get("/api/v1/admin/llm-usage?date=2026-01-15")
+        finally:
+            app.dependency_overrides.pop(get_llm_usage_query_service, None)
 
         assert response.status_code == 200
         data = response.json()
         assert data["date"] == "2026-01-15"
         assert data["total_calls"] == 5
+        query_service.get_daily_summary.assert_awaited_once_with(
+            date="2026-01-15",
+            agent_id=None,
+        )
 
     @pytest.mark.asyncio
     async def test_get_llm_usage_filtered_by_agent(self):
         """Get LLM usage filtered by Agent."""
+        from agents.requirement_manager.api.dependencies import get_llm_usage_query_service
         from agents.requirement_manager.app.main import app
 
         mock_summary = {
@@ -135,26 +148,31 @@ class TestLLMUsageAPI:
             "by_task_type": {}
         }
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_main_agent, \
-             patch("agents.requirement_manager.api.admin.LLMUsageRepository") as MockRepo:
+        query_service = MagicMock()
+        query_service.get_daily_summary = AsyncMock(return_value=mock_summary)
+        app.dependency_overrides[get_llm_usage_query_service] = lambda: query_service
+        try:
+            with patch("agents.requirement_manager.app.main.agent") as mock_main_agent:
 
-            mock_main_agent.startup = AsyncMock()
-            mock_main_agent.shutdown = AsyncMock()
+                mock_main_agent.startup = AsyncMock()
+                mock_main_agent.shutdown = AsyncMock()
 
-            mock_repo = MagicMock()
-            mock_repo.get_daily_summary = AsyncMock(return_value=mock_summary)
-            MockRepo.return_value = mock_repo
-
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.get("/api/v1/admin/llm-usage?agent_id=target-agent")
+                async with AsyncClient(
+                    transport=ASGITransport(app=app),
+                    base_url="http://test"
+                ) as client:
+                    response = await client.get("/api/v1/admin/llm-usage?agent_id=target-agent")
+        finally:
+            app.dependency_overrides.pop(get_llm_usage_query_service, None)
 
         assert response.status_code == 200
         data = response.json()
         assert data["total_calls"] == 3
         assert "target-agent" in data["by_agent"]
+        query_service.get_daily_summary.assert_awaited_once_with(
+            date=None,
+            agent_id="target-agent",
+        )
 
 
 class TestCircuitBreakerAPI:
@@ -163,87 +181,121 @@ class TestCircuitBreakerAPI:
     @pytest.mark.asyncio
     async def test_get_circuit_breaker_status(self):
         """Get circuit breaker status."""
+        from agents.requirement_manager.api.dependencies import (
+            get_circuit_breaker_admin_use_case,
+        )
         from agents.requirement_manager.app.main import app
+        from agents.requirement_manager.core.admin_circuit_breaker import (
+            CircuitBreakerStatus,
+        )
 
-        mock_stats = {
-            "state": "closed",
-            "failures": 0,
-            "failure_threshold": 5,
-            "recovery_timeout": 60,
-            "last_failure_time": None
-        }
+        circuit_breaker = MagicMock()
+        circuit_breaker.get_status.return_value = CircuitBreakerStatus(
+            state="closed",
+            failures=0,
+            failure_threshold=5,
+            recovery_timeout=60,
+            last_failure_time=None,
+        )
+        app.dependency_overrides[get_circuit_breaker_admin_use_case] = (
+            lambda: circuit_breaker
+        )
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_main_agent, \
-             patch("agents.requirement_manager.api.admin.llm_gateway") as mock_gateway:
+        try:
+            with patch("agents.requirement_manager.app.main.agent") as mock_main_agent:
 
-            mock_main_agent.startup = AsyncMock()
-            mock_main_agent.shutdown = AsyncMock()
-            mock_gateway.get_circuit_breaker_stats.return_value = mock_stats
+                mock_main_agent.startup = AsyncMock()
+                mock_main_agent.shutdown = AsyncMock()
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.get("/api/v1/admin/circuit-breaker")
+                async with AsyncClient(
+                    transport=ASGITransport(app=app),
+                    base_url="http://test"
+                ) as client:
+                    response = await client.get("/api/v1/admin/circuit-breaker")
+        finally:
+            app.dependency_overrides.pop(get_circuit_breaker_admin_use_case, None)
 
         assert response.status_code == 200
         data = response.json()
         assert data["state"] == "closed"
         assert data["failures"] == 0
         assert data["failure_threshold"] == 5
+        circuit_breaker.get_status.assert_called_once_with()
 
     @pytest.mark.asyncio
     async def test_get_circuit_breaker_status_open(self):
         """Get open circuit breaker status."""
+        from agents.requirement_manager.api.dependencies import (
+            get_circuit_breaker_admin_use_case,
+        )
         from agents.requirement_manager.app.main import app
+        from agents.requirement_manager.core.admin_circuit_breaker import (
+            CircuitBreakerStatus,
+        )
 
-        mock_stats = {
-            "state": "open",
-            "failures": 5,
-            "failure_threshold": 5,
-            "recovery_timeout": 60,
-            "last_failure_time": "2026-01-22T10:30:00+00:00"
-        }
+        circuit_breaker = MagicMock()
+        circuit_breaker.get_status.return_value = CircuitBreakerStatus(
+            state="open",
+            failures=5,
+            failure_threshold=5,
+            recovery_timeout=60,
+            last_failure_time="2026-01-22T10:30:00+00:00",
+        )
+        app.dependency_overrides[get_circuit_breaker_admin_use_case] = (
+            lambda: circuit_breaker
+        )
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_main_agent, \
-             patch("agents.requirement_manager.api.admin.llm_gateway") as mock_gateway:
+        try:
+            with patch("agents.requirement_manager.app.main.agent") as mock_main_agent:
 
-            mock_main_agent.startup = AsyncMock()
-            mock_main_agent.shutdown = AsyncMock()
-            mock_gateway.get_circuit_breaker_stats.return_value = mock_stats
+                mock_main_agent.startup = AsyncMock()
+                mock_main_agent.shutdown = AsyncMock()
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.get("/api/v1/admin/circuit-breaker")
+                async with AsyncClient(
+                    transport=ASGITransport(app=app),
+                    base_url="http://test"
+                ) as client:
+                    response = await client.get("/api/v1/admin/circuit-breaker")
+        finally:
+            app.dependency_overrides.pop(get_circuit_breaker_admin_use_case, None)
 
         assert response.status_code == 200
         data = response.json()
         assert data["state"] == "open"
         assert data["failures"] == 5
         assert data["last_failure_time"] is not None
+        circuit_breaker.get_status.assert_called_once_with()
 
     @pytest.mark.asyncio
     async def test_reset_circuit_breaker(self):
         """Reset the circuit breaker."""
+        from agents.requirement_manager.api.dependencies import (
+            get_circuit_breaker_admin_use_case,
+        )
         from agents.requirement_manager.app.main import app
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_main_agent, \
-             patch("agents.requirement_manager.api.admin.llm_gateway") as mock_gateway:
+        circuit_breaker = MagicMock()
+        circuit_breaker.reset = MagicMock()
+        app.dependency_overrides[get_circuit_breaker_admin_use_case] = (
+            lambda: circuit_breaker
+        )
 
-            mock_main_agent.startup = AsyncMock()
-            mock_main_agent.shutdown = AsyncMock()
-            mock_gateway.reset_circuit_breaker = MagicMock()
+        try:
+            with patch("agents.requirement_manager.app.main.agent") as mock_main_agent:
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.post("/api/v1/admin/circuit-breaker/reset")
+                mock_main_agent.startup = AsyncMock()
+                mock_main_agent.shutdown = AsyncMock()
+
+                async with AsyncClient(
+                    transport=ASGITransport(app=app),
+                    base_url="http://test"
+                ) as client:
+                    response = await client.post("/api/v1/admin/circuit-breaker/reset")
+        finally:
+            app.dependency_overrides.pop(get_circuit_breaker_admin_use_case, None)
 
         assert response.status_code == 200
         data = response.json()
         assert data["message"] == "Circuit breaker reset successfully"
         assert data["state"] == "closed"
-        mock_gateway.reset_circuit_breaker.assert_called_once()
+        circuit_breaker.reset.assert_called_once_with()

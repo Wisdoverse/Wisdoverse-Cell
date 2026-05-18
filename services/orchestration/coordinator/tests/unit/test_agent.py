@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from shared.app import UNKNOWN_ACTION_ERROR_CODE
 from shared.schemas.event import Event, EventTypes
 
 
@@ -38,6 +39,43 @@ async def test_health_check_reports_initialized_runtime_dependencies(tmp_path):
         "scratchpad": True,
         "state_store": True,
         "llm_gateway": True,
+    }
+
+
+@pytest.mark.asyncio
+async def test_health_check_uses_injected_health_store(tmp_path):
+    from services.orchestration.coordinator.service.agent import CoordinatorAgent
+    from shared.infra.scratchpad import Scratchpad
+
+    health_store = AsyncMock()
+    health_store.is_database_ready = AsyncMock(return_value=True)
+    agent = CoordinatorAgent(db=MagicMock(), health_store=health_store)
+    agent._scratchpad = Scratchpad(str(tmp_path / "scratchpad"))
+    await agent._scratchpad.initialize()
+
+    result = await agent.health_check()
+
+    assert result == {
+        "scratchpad": True,
+        "state_store": True,
+        "llm_gateway": True,
+        "database": True,
+    }
+    health_store.is_database_ready.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_request_unknown_action_uses_shared_error_contract():
+    from services.orchestration.coordinator.service.agent import CoordinatorAgent
+
+    agent = CoordinatorAgent()
+
+    result = await agent.handle_request({"action": "invalid"})
+
+    assert result == {
+        "error": "unknown action",
+        "error_code": UNKNOWN_ACTION_ERROR_CODE,
+        "action": "invalid",
     }
 
 

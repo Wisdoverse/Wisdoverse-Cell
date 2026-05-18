@@ -7,8 +7,16 @@ HTTP routes for MCP protocol endpoints.
 import json
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Request
 
+from shared.api import (
+    raise_mcp_invalid_json,
+    raise_mcp_prompt_not_found,
+    raise_mcp_resource_not_found,
+    raise_mcp_tool_execution_failed,
+    raise_mcp_tool_name_required,
+    raise_mcp_tool_not_found,
+)
 from shared.utils.logger import get_logger
 
 from .base import MCPServer
@@ -79,17 +87,11 @@ def create_mcp_router(
             body = await request.json()
         except json.JSONDecodeError as exc:
             logger.warning("mcp_tool_call_invalid_json", error=str(exc))
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid JSON",
-            )
+            raise_mcp_invalid_json()
 
         name = body.get("name")
         if not name:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Tool name is required",
-            )
+            raise_mcp_tool_name_required()
 
         arguments = body.get("arguments", {})
 
@@ -97,16 +99,10 @@ def create_mcp_router(
             result = await mcp_server.router.call_tool(name, arguments)
         except ValueError as exc:
             logger.warning("mcp_tool_not_found", tool=name, error=str(exc))
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Tool not found",
-            )
+            raise_mcp_tool_not_found()
         except Exception as exc:
             logger.error("mcp_tool_execution_failed", tool=name, error=str(exc))
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Tool execution failed",
-            )
+            raise_mcp_tool_execution_failed()
 
         # Format result
         if isinstance(result, dict):
@@ -127,10 +123,7 @@ def create_mcp_router(
         """Get tool schema."""
         tool = mcp_server.router.get_tool(tool_name)
         if tool is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Tool not found",
-            )
+            raise_mcp_tool_not_found()
 
         return {
             "name": tool.name,
@@ -161,10 +154,7 @@ def create_mcp_router(
             content, mime_type = await mcp_server.router.read_resource(uri)
         except ValueError as exc:
             logger.warning("mcp_resource_not_found", uri=uri, error=str(exc))
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Resource not found",
-            )
+            raise_mcp_resource_not_found()
 
         # Format content
         if isinstance(content, dict):
@@ -214,10 +204,7 @@ def create_mcp_router(
             content = await mcp_server.router.get_prompt_content(prompt_name, arguments)
         except ValueError as exc:
             logger.warning("mcp_prompt_not_found", prompt=prompt_name, error=str(exc))
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Prompt not found",
-            )
+            raise_mcp_prompt_not_found()
 
         return {
             "description": f"Prompt: {prompt_name}",
@@ -238,10 +225,7 @@ def create_mcp_router(
         """Get prompt schema."""
         prompt = mcp_server.router.get_prompt(prompt_name)
         if prompt is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Prompt not found",
-            )
+            raise_mcp_prompt_not_found()
 
         return {
             "name": prompt.name,

@@ -1,11 +1,10 @@
 """FastAPI entry point for dev_agent."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import Depends
-from sqlalchemy import text
 
 from shared.app import create_agent_app
 from shared.config import settings
@@ -16,18 +15,24 @@ from shared.utils.logger import get_logger
 from ..adapters.agentforge_client import ForgeClient
 from ..adapters.gitlab_client import GitLabClient
 from ..api.dev import router as dev_router
+from ..core.scheduler_use_cases import DevSchedulerUseCase
 from ..core.security_scanner import SecurityScanner
 from ..core.workflow_planner import inject_project_id
 from ..db.database import db_manager
-from ..db.repository import DevTaskRepository, DevWorkflowLogRepository
+from ..db.outbox_store import SqlAlchemyDevEventOutboxSessionStore
+from ..db.reconcile_lock import SqlAlchemyDevReconcileLock
+from ..db.task_store import SqlAlchemyDevTaskStore
+from ..db.workflow_log_store import SqlAlchemyDevWorkflowLogStore
 from ..service.agent import DevAgent
 from ..service.config_factory import build_dev_core_config
 from ..service.notifier_factory import build_dev_notifier
+from .plugins import DevOutboxDispatcherPlugin
 
 logger = get_logger("dev_agent.app")
 
 _raw_agent = DevAgent()
 scheduler = AsyncIOScheduler()
+_scheduler_use_case = DevSchedulerUseCase()
 
 # Module-level references for lifecycle management
 _forge_client: ForgeClient | None = None
@@ -40,6 +45,7 @@ app = create_agent_app(
     routers=[
         (dev_router, [Depends(verify_internal_key)]),
     ],
+    plugins=[DevOutboxDispatcherPlugin()],
     control_plane_enabled=settings.control_plane_enabled,
     control_plane_company_id=settings.control_plane_company_id,
     on_startup=lambda rt: _on_startup(rt),
@@ -146,17 +152,6 @@ async def _stop_scheduler(runtime) -> None:
     logger.info("dev_scheduler_stopped")
 
 
-def _poll_interval(elapsed: timedelta) -> timedelta | None:
-    """Return the minimum polling interval for a given elapsed time, or None if timed out."""
-    if elapsed < timedelta(minutes=10):
-        return timedelta(seconds=30)
-    if elapsed < timedelta(hours=2):
-        return timedelta(minutes=2)
-    if elapsed < timedelta(hours=6):
-        return timedelta(minutes=5)
-    return None  # Timed out
-
-
 async def _reconcile() -> None:
     """ReconciliationLoop: scan active tasks, poll AgentForge, trigger result collection,
     and start pending/planning tasks when slots open."""
@@ -171,17 +166,15 @@ async def _reconcile() -> None:
 
     try:
         async with db_manager.session() as session:
-            # Advisory lock: ensure single-instance reconciliation
-            lock_result = await session.execute(
-                text("SELECT pg_try_advisory_lock(hashtext('dev_agent_reconcile'))")
-            )
-            if not lock_result.scalar():
+            lock = SqlAlchemyDevReconcileLock(session)
+            if not await lock.try_acquire():
                 logger.debug("reconcile_lock_not_acquired")
                 return
 
+            staged_events = []
             try:
-                repo = DevTaskRepository(session)
-                log_repo = DevWorkflowLogRepository(session)
+                repo = SqlAlchemyDevTaskStore(session)
+                log_repo = SqlAlchemyDevWorkflowLogStore(session)
 
                 # Update gauge metrics
                 active_tasks = await repo.list_active_tasks()
@@ -201,7 +194,7 @@ async def _reconcile() -> None:
                         continue
 
                     elapsed = now - task.workflow_started_at
-                    min_interval = _poll_interval(elapsed)
+                    min_interval = _scheduler_use_case.poll_interval(elapsed)
 
                     if min_interval is None:
                         await repo.update_status(
@@ -226,9 +219,7 @@ async def _reconcile() -> None:
                         task_id=task.id,
                         workflow_id=task.workflow_id,
                     )
-                    task.last_polled_at = now
-                    task.updated_at = now
-                    await session.flush()
+                    await repo.mark_polled(task.id, polled_at=now)
 
                     # Poll AgentForge using the module-level forge client
                     try:
@@ -259,20 +250,16 @@ async def _reconcile() -> None:
                                         config=core_config,
                                     )
                                     events = await collector.handle_completion(task, status)
-                                    # Publish events returned by ResultCollector
+                                    # Stage events returned by ResultCollector
                                     # (qa.run-requested, dev.mr-created, etc.)
+                                    # in the same local transaction as task updates.
                                     if events:
-                                        from shared.infra.event_bus import event_bus
+                                        outbox = SqlAlchemyDevEventOutboxSessionStore(
+                                            session
+                                        )
                                         for evt in events:
-                                            try:
-                                                await event_bus.publish(evt)
-                                            except Exception as pub_err:
-                                                logger.error(
-                                                    "event_publish_error",
-                                                    event_type=evt.event_type,
-                                                    error=str(pub_err),
-                                                    exc_info=True,
-                                                )
+                                            await outbox.add(evt)
+                                        staged_events.extend(events)
                                 else:
                                     # No GitLab client — just mark security_scanning
                                     await repo.update_status(task.id, "security_scanning")
@@ -326,11 +313,9 @@ async def _reconcile() -> None:
 
                 await session.commit()
             finally:
-                await session.execute(
-                    text(
-                        "SELECT pg_advisory_unlock(hashtext('dev_agent_reconcile'))"
-                    )
-                )
+                await lock.release()
+            if staged_events:
+                await agent.publish_staged_dev_events(staged_events)
     except Exception as e:
         FORGE_POLL_ERRORS.inc()
         logger.error("reconcile_error", error=str(e), exc_info=True)
@@ -421,12 +406,9 @@ async def _expire_stale() -> None:
         return
 
     try:
-        from ..db.database import db_manager
-        from ..db.repository import DevTaskRepository
-
         async with db_manager.session() as session:
-            repo = DevTaskRepository(session)
-            expired = await repo.expire_stale_pending(hours=24)
+            repo = SqlAlchemyDevTaskStore(session)
+            expired = await _scheduler_use_case.expire_stale_pending(repo, hours=24)
             if expired > 0:
                 logger.info("expired_stale_tasks", count=expired)
             await session.commit()

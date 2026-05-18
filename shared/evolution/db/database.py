@@ -28,9 +28,12 @@ class EvolutionDatabaseManager(BaseDatabaseManager):
         )
 
 
+db_manager = EvolutionDatabaseManager()
+
+
 async def get_evolution_db(
-    db_manager: EvolutionDatabaseManager,
+    manager: EvolutionDatabaseManager = db_manager,
 ) -> AsyncGenerator[AsyncSession, None]:
     """Dependency-injection helper that yields a write session."""
-    async with db_manager.session() as session:
+    async with manager.session() as session:
         yield session

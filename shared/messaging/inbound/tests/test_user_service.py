@@ -166,7 +166,7 @@ class TestUserServiceResolve:
 
         # Patch UserRepository
         with patch(
-            "shared.messaging.inbound.user_service.UserRepository",
+            "shared.messaging.inbound.user_service.SqlAlchemyUserIdentityStore",
             return_value=repo,
         ):
             user = await service.resolve_user(Platform.FEISHU, "ou_123")
@@ -183,7 +183,7 @@ class TestUserServiceResolve:
         service = UserService(db=db, adapters=adapters)
 
         with patch(
-            "shared.messaging.inbound.user_service.UserRepository",
+            "shared.messaging.inbound.user_service.SqlAlchemyUserIdentityStore",
             return_value=repo,
         ):
             with patch(
@@ -209,7 +209,7 @@ class TestUserServiceResolve:
         service = UserService(db=db, adapters=adapters)
 
         with patch(
-            "shared.messaging.inbound.user_service.UserRepository",
+            "shared.messaging.inbound.user_service.SqlAlchemyUserIdentityStore",
             return_value=repo,
         ):
             user = await service.resolve_user(Platform.WECOM, "wecom_user_1")
@@ -226,7 +226,7 @@ class TestUserServiceResolve:
         service = UserService(db=db, adapters=adapters)
 
         with patch(
-            "shared.messaging.inbound.user_service.UserRepository",
+            "shared.messaging.inbound.user_service.SqlAlchemyUserIdentityStore",
             return_value=repo,
         ):
             with patch(
@@ -286,7 +286,7 @@ class TestUserServiceCache:
         service = UserService(db=db, redis=mock_redis)
 
         with patch(
-            "shared.messaging.inbound.user_service.UserRepository",
+            "shared.messaging.inbound.user_service.SqlAlchemyUserIdentityStore",
             return_value=repo,
         ):
             user = await service.resolve_user(Platform.FEISHU, "ou_db")
@@ -323,7 +323,7 @@ class TestUserServicePlatformMapping:
         service = UserService(db=db, adapters=adapters)
 
         with patch(
-            "shared.messaging.inbound.user_service.UserRepository",
+            "shared.messaging.inbound.user_service.SqlAlchemyUserIdentityStore",
             return_value=repo,
         ):
             with patch(
@@ -345,7 +345,7 @@ class TestUserServicePlatformMapping:
         service = UserService(db=db, adapters=adapters)
 
         with patch(
-            "shared.messaging.inbound.user_service.UserRepository",
+            "shared.messaging.inbound.user_service.SqlAlchemyUserIdentityStore",
             return_value=repo,
         ):
             with patch(
@@ -366,7 +366,7 @@ class TestUserServicePlatformMapping:
         service = UserService(db=db, adapters=adapters)
 
         with patch(
-            "shared.messaging.inbound.user_service.UserRepository",
+            "shared.messaging.inbound.user_service.SqlAlchemyUserIdentityStore",
             return_value=repo,
         ):
             with patch(

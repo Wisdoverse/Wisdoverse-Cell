@@ -60,6 +60,7 @@ async def test_agent_prompt_config_round_trips_through_webui_api(monkeypatch) ->
     assert fetched.status_code == 200
     assert fetched.json()["system_prompt"] == saved.json()["system_prompt"]
     assert missing.status_code == 404
+    assert missing.headers["x-error-code"] == "agent.not_found"
 
     async with engine.begin() as conn:
         await conn.run_sync(control_plane_metadata.drop_all)

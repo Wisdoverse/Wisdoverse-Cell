@@ -10,15 +10,20 @@ from shared.infra.conversation_engine import (
     ToolExecutionEvent,
 )
 from shared.infra.denial_tracker import DenialTracker
-from shared.infra.llm_gateway import llm_gateway
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.infra.tool_registry import ToolRegistry, build_tool
 from shared.infra.tool_validator import ToolValidationError, ToolValidator
 from shared.utils.logger import get_logger
 
 from ..app.metrics import TOOL_CALLS
-from ..db.database import db_manager
-from ..db.repository import ConversationRepository, DailyProgressRepository
+from .chat_ports import (
+    ChatHistoryStore,
+    ChatLLM,
+    DailyProgressContextStore,
+    EmptyDailyProgressContextStore,
+    InMemoryChatHistoryStore,
+    UnconfiguredChatLLM,
+)
 from .config import UserInteractionCoreConfig
 from .tools import TOOLS, ToolExecutor, _get_redis, _tool_registry
 
@@ -112,9 +117,18 @@ def _build_tool_registry() -> ToolRegistry:
 class ChatService:
     """LLM chat service with tool calling support."""
 
-    def __init__(self, config: UserInteractionCoreConfig | None = None):
+    def __init__(
+        self,
+        config: UserInteractionCoreConfig | None = None,
+        *,
+        llm: ChatLLM | None = None,
+        history_store: ChatHistoryStore | None = None,
+        daily_progress_store: DailyProgressContextStore | None = None,
+    ):
         self._config = config or UserInteractionCoreConfig()
-        self._llm = llm_gateway
+        self._llm = llm or UnconfiguredChatLLM()
+        self._history_store = history_store or InMemoryChatHistoryStore()
+        self._daily_progress_store = daily_progress_store or EmptyDailyProgressContextStore()
         self._max_history = MAX_HISTORY
         self._registry = _build_tool_registry()
         self._tool_validator = ToolValidator(
@@ -134,17 +148,13 @@ class ChatService:
         )
 
     async def _get_history(self, user_id: str) -> list[dict]:
-        async with db_manager.session() as session:
-            repo = ConversationRepository(session)
-            return await repo.get_by_user(user_id) or []
+        return await self._history_store.get_by_user(user_id) or []
 
     async def _save_history(self, user_id: str, messages: list[dict]):
         if len(messages) > self._max_history:
             messages = messages[-self._max_history:]
             messages = self._strip_orphaned_tool_messages(messages)
-        async with db_manager.session() as session:
-            repo = ConversationRepository(session)
-            await repo.save(user_id, messages)
+        await self._history_store.save(user_id, messages)
 
     async def chat(
         self,
@@ -325,9 +335,7 @@ class ChatService:
 
         # Check if user has pending daily progress
         try:
-            async with db_manager.session() as session:
-                repo = DailyProgressRepository(session)
-                pending = await repo.get_pending(user_id, now.date())
+            pending = await self._daily_progress_store.get_pending(user_id, now.date())
             if pending:
                 records = []
                 for p in pending:
@@ -367,9 +375,7 @@ class ChatService:
         )
 
     async def clear_history(self, user_id: str) -> None:
-        async with db_manager.session() as session:
-            repo = ConversationRepository(session)
-            await repo.clear(user_id)
+        await self._history_store.clear(user_id)
 
     @staticmethod
     def _build_untrusted_context_message(untrusted_context: dict | None) -> str:

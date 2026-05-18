@@ -11,26 +11,34 @@ from typing import Optional
 
 from shared.config import settings as app_settings
 from shared.infra.event_bus import EventBus, event_bus
+from shared.infra.event_publisher import EventBusEventPublisher
 from shared.infra.llm_gateway import llm_gateway
 from shared.integrations.feishu.bitable import bitable_service
 from shared.integrations.feishu.client import get_feishu_client
 from shared.integrations.openproject.client import get_op_client
-from shared.observability.privacy import hash_identifier
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
 from ..adapters.feishu_cards import FeishuPJMCardRenderer
+from ..core.alert_ports import PJMAlertLogStore
 from ..core.alert_service import AlertService
 from ..core.config_service import PMConfigService
 from ..core.decompose import DecomposeService
 from ..core.decomposition_orchestrator import DecompositionOrchestrator
+from ..core.decomposition_ports import PJMDecompositionStore
+from ..core.event_use_cases import PJMEventUseCase, PJMMetricsPort
+from ..core.health_ports import PJMHealthStore
+from ..core.health_use_cases import PJMHealthUseCase
 from ..core.op_writer import OPWriterService
 from ..core.push_service import PushService
 from ..core.report_service import ReportService
+from ..core.request_use_cases import PJMRequestUseCase
+from ..db.alert_log_store import SqlAlchemyPJMAlertLogStore
 from ..db.database import DatabaseManager, db_manager
-from ..db.repository import AlertLogRepository, DecompositionRepository
-from ..models.schemas import ChatPMQueryPayload, RiskDetectedPayload
+from ..db.decomposition_store import SqlAlchemyPJMDecompositionStore
+from ..db.health_store import SqlAlchemyPJMHealthStore
+from ..db.outbox_store import SqlAlchemyPJMEventOutboxStore
 from .config_factory import build_pjm_core_config
 
 try:
@@ -44,7 +52,12 @@ logger = get_logger("pjm_agent.service")
 
 # --- Named constants (formerly magic numbers) ---
 STALE_APPROVAL_HOURS = 24  # Hours before a pending approval is considered stale
-CHAT_ALERTS_PREVIEW = 5  # Max alerts returned in chat query response
+
+
+class _PJMMetrics(PJMMetricsPort):
+    def record_alert_triggered(self, *, alert_type: str, severity: str) -> None:
+        if _metrics_available:
+            ALERTS_TRIGGERED.labels(alert_type=alert_type, severity=severity).inc()
 
 
 class PMAgent(BaseAgent):
@@ -52,6 +65,9 @@ class PMAgent(BaseAgent):
         self,
         db: Optional[DatabaseManager] = None,
         bus: Optional[EventBus] = None,
+        decomposition_store: PJMDecompositionStore | None = None,
+        alert_log_store: PJMAlertLogStore | None = None,
+        health_store: PJMHealthStore | None = None,
     ):
         super().__init__(
             agent_id="pjm-agent",
@@ -75,6 +91,11 @@ class PMAgent(BaseAgent):
         )
         self._db_manager = db or db_manager
         self._event_bus = bus or event_bus
+        self._decomposition_store = decomposition_store or SqlAlchemyPJMDecompositionStore(
+            self._db_manager
+        )
+        self._alert_log_store = alert_log_store or SqlAlchemyPJMAlertLogStore(self._db_manager)
+        self._health_store = health_store or SqlAlchemyPJMHealthStore(self._db_manager)
         self._config: PMConfigService | None = None
         self._alert: AlertService | None = None
         self._push: PushService | None = None
@@ -120,10 +141,12 @@ class PMAgent(BaseAgent):
             decompose_service=self._decompose,
             push_service=self._push,
             create_event_fn=self.create_event,
-            event_bus=self._event_bus,
+            event_publisher=EventBusEventPublisher(self._event_bus),
             op_client=op_client,
             messenger=feishu_client,
             card_renderer=card_renderer,
+            outbox_store=SqlAlchemyPJMEventOutboxStore(self._db_manager),
+            decomposition_store=self._decomposition_store,
             config=self._core_config,
         )
         await self._config.refresh()
@@ -140,263 +163,99 @@ class PMAgent(BaseAgent):
         logger.info("agent_stopped", agent_id=self.agent_id)
 
     async def handle_event(self, event: Event) -> list[Event]:
-        if event.event_type == EventTypes.SYNC_COMPLETED:
-            return await self._run_alerts(event)
-        if event.event_type == EventTypes.ANALYSIS_RISK_DETECTED:
-            return await self._handle_risks(event)
-        if event.event_type == EventTypes.CHAT_PM_QUERY:
-            return await self._handle_chat_query(event)
-        if event.event_type == EventTypes.SYNC_TASK_NEEDS_DECOMPOSE:
-            return await self._handle_decompose(event)
-        if event.event_type == EventTypes.COORDINATOR_DISPATCH:
-            if event.payload.get("target_agent") == self.agent_id:
-                logger.info(
-                    "coordinator_dispatch_received",
-                    task_id=event.payload.get("task_id"),
-                    workflow_id=event.payload.get("workflow_id"),
-                    instruction=event.payload.get("instruction"),
-                )
-            return []
-        return []
+        return await self._event_use_case().handle(event)
+
+    def _event_use_case(self) -> PJMEventUseCase:
+        return PJMEventUseCase(
+            agent_id=self.agent_id,
+            config=self._config,
+            alert=self._alert,
+            push=self._push,
+            alert_log_store=self._alert_log_store,
+            decomposition=self._decomposition_orchestrator,
+            event_factory=self,
+            metrics=_PJMMetrics(),
+        )
 
     async def handle_request(self, request: dict) -> dict:
         standard_response = await self.handle_standard_request(request)
         if standard_response is not None:
             return standard_response
 
-        action = request.get("action")
-        if action == "config":
-            return {
-                "members": self._config.members,
-                "projects": self._config.projects,
-                "rules": self._config.rules,
-            }
-        if action == "alerts":
-            alerts = await self._alert.check_all()
-            return {"alerts": alerts}
-        if action == "refresh_config":
-            await self._config.refresh()
-            return {"status": "refreshed"}
-        if action == "push_alerts":
-            alerts = request.get("alerts", [])
-            await self._push.push_alerts(alerts)
-            return {"status": "pushed", "count": len(alerts)}
-        if action == "retry_decompose":
-            return await self._retry_decompose(request.get("wp_id"))
-        if action == "get_decompose":
-            return await self._get_decompose(request.get("wp_id"))
-        if action == "daily_report":
-            return await self._run_report("daily")
-        if action == "weekly_report":
-            return await self._run_report("weekly")
-        if action == "check_stale_approvals":
-            await self._check_stale_approvals()
-            return {"status": "ok"}
-        return {"error": "unknown action"}
+        return await self._request_use_case().handle(request)
+
+    def _request_use_case(self) -> PJMRequestUseCase:
+        return PJMRequestUseCase(
+            config=self._config,
+            alert=self._alert,
+            push=self._push,
+            report=self._report,
+            decomposition=self._decomposition_orchestrator,
+            decomposition_store=self._decomposition_store,
+        )
 
     async def health_check(self) -> dict[str, bool]:
         """Public health check for readiness probes."""
-        checks = {"database": False}
-        try:
-            if self._db_manager:
-                from sqlalchemy import text
+        return await self._health_use_case().check()
 
-                async with self._db_manager.session() as session:
-                    await session.execute(text("SELECT 1"))
-                checks["database"] = True
-        except Exception as e:
-            logger.error("health_check_db_failed", error=str(e), error_type=type(e).__name__)
-        checks["config_loaded"] = len(self._config.members) > 0 if self._config else False
-        return checks
-
-    async def _run_alerts(self, event: Event) -> list[Event]:
-        events = []
-
-        # 1. Check alerts
-        try:
-            alerts = await self._alert.check_all()
-        except Exception as e:
-            logger.error("pm_alert_check_failed", error=str(e), trace_id=event.metadata.trace_id)
-            return events
-
-        if not alerts:
-            return events
-
-        # 2. Push to Feishu
-        push_ok = False
-        try:
-            push_ok = await self._push.push_alerts(alerts)
-        except Exception as e:
-            logger.error("pm_alert_push_failed", error=str(e), alert_count=len(alerts))
-
-        # 3. Record metrics
-        if _metrics_available:
-            for a in alerts:
-                ALERTS_TRIGGERED.labels(alert_type=a["type"], severity=a["severity"]).inc()
-
-        # 4. Log to database
-        try:
-            async with self._db_manager.session() as session:
-                repo = AlertLogRepository(session)
-                for a in alerts:
-                    await repo.create(
-                        alert_type=a["type"],
-                        target=a.get("task", ""),
-                        message=a["message"],
-                        severity=a["severity"],
-                    )
-        except Exception as e:
-            logger.error("pm_alert_log_failed", error=str(e))
-
-        # 5. Publish event (always, even if push failed)
-        events.append(
-            self.create_event(
-                EventTypes.PM_ALERT_TRIGGERED,
-                {"alert_count": len(alerts), "alerts": alerts, "push_ok": push_ok},
-                trace_id=event.metadata.trace_id,
-            )
+    def _health_use_case(self) -> PJMHealthUseCase:
+        return PJMHealthUseCase(
+            health_store=self._health_store,
+            config=self._config,
         )
-        return events
 
-    async def _handle_risks(self, event: Event) -> list[Event]:
-        payload = RiskDetectedPayload.model_validate(event.payload)
-        risks = payload.risks
-        if not risks:
-            return []
-        logger.info("pm_risks_received", count=len(risks))
-        try:
-            await self._push.push_risks(risks)
-        except Exception as e:
-            logger.warning("pm_risks_push_failed", error=str(e), count=len(risks))
-        return []
+    async def publish_pending_pjm_events(self, limit: int = 100) -> dict[str, int]:
+        """Retry pending PJM outbox events through the decomposition boundary."""
+        if self._decomposition_orchestrator is None:
+            raise RuntimeError("decomposition_orchestrator_not_started")
+        return await self._decomposition_orchestrator.publish_pending_pjm_events(limit=limit)
 
-    async def _handle_chat_query(self, event: Event) -> list[Event]:
-        payload = ChatPMQueryPayload.model_validate(event.payload)
-        user_id = payload.user_id
-        try:
-            config = {"members": len(self._config.members), "projects": len(self._config.projects)}
-            alerts = await self._alert.check_all()
-            response = {
-                "config_summary": config,
-                "active_alerts": len(alerts),
-                "alerts": alerts[:CHAT_ALERTS_PREVIEW],
-            }
-        except Exception as e:
-            logger.error(
-                "chat_query_failed",
-                error=str(e),
-                error_type=type(e).__name__,
-                user_hash=hash_identifier(user_id),
-                trace_id=event.metadata.trace_id,
-            )
-            response = {"error": f"Failed to retrieve PM status: {type(e).__name__}"}
-        return [
-            self.create_event(
-                EventTypes.CHAT_PM_RESPONSE,
-                {"user_id": user_id, "response": response},
-                trace_id=event.metadata.trace_id,
-            )
-        ]
+    async def publish_event_via_outbox(self, event: Event) -> bool:
+        """Stage a runtime-produced PJM event before EventBus delivery."""
+        await self._publish_pjm_event_via_outbox(event)
+        return True
 
-    async def _handle_decompose(self, event: Event) -> list[Event]:
-        """Delegate decomposition to the DecompositionOrchestrator."""
-        try:
-            return await self._decomposition_orchestrator.handle_decompose(event)
-        except Exception as e:
-            logger.error("decomposition_failed", error=str(e), trace_id=event.metadata.trace_id)
-            # Notify via event bus so gateway can send Feishu message
-            try:
-                await self._event_bus.publish(
-                    Event.create(
-                        event_type=EventTypes.PM_DECOMPOSITION_FAILED,
-                        source_agent="pjm-agent",
-                        payload={
-                            "error": str(e),
-                            "trace_id": event.metadata.trace_id,
-                            "requirement_title": event.payload.get("title", "Unknown"),
-                        },
-                        trace_id=event.metadata.trace_id,
-                    )
-                )
-            except Exception:
-                pass
-            return []
-
-    async def _retry_decompose(self, wp_id: int | None) -> dict:
-        """Delegate to DecompositionOrchestrator."""
-        return await self._decomposition_orchestrator.retry_decompose(wp_id)
-
-    async def _get_decompose(self, wp_id: int | None) -> dict:
-        """Delegate to DecompositionOrchestrator."""
-        return await self._decomposition_orchestrator.get_decompose(wp_id)
-
-    async def _run_report(self, report_type: str) -> dict:
-        try:
-            if report_type == "weekly":
-                result = await self._report.generate_weekly()
-            else:
-                result = await self._report.generate_daily()
-            await self._report.push_card(result["card"])
-            return {"status": "sent", "total": result["stats"]["total"]}
-        except Exception as e:
-            logger.error("report_failed", report_type=report_type, error=str(e))
-            return {"error": "report_failed"}
-
-    async def _check_stale_approvals(self) -> None:
-        """Scan for decomposition records pending > 24 hours and send a reminder."""
-        try:
-            async with self._db_manager.session() as session:
-                repo = DecompositionRepository(session)
-                stale = await repo.get_stale_pending(older_than_hours=STALE_APPROVAL_HOURS)
-            if not stale:
-                return
-            logger.info("stale_approvals_found", count=len(stale))
-            for record in stale:
-                subject = (record.decompose_result or {}).get("summary", f"WP#{record.wp_id}")
-                try:
-                    await self._push.send_stale_approval_reminder(
-                        wp_id=record.wp_id,
-                        subject=subject,
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "stale_approval_reminder_failed", wp_id=record.wp_id, error=str(e)
-                    )
-        except Exception as e:
-            logger.error("stale_approvals_check_failed", error=str(e))
+    async def _publish_pjm_event_via_outbox(
+        self,
+        event: Event,
+        *,
+        wp_id: int | None = None,
+    ) -> None:
+        """Publish a PJM notification through the durable outbox boundary."""
+        if self._decomposition_orchestrator is None:
+            raise RuntimeError("decomposition_orchestrator_not_started")
+        await self._decomposition_orchestrator.publish_event_via_outbox(
+            event,
+            wp_id=wp_id,
+        )
 
     async def check_approval_timeouts(self):
         """Scan for pending approvals older than 24h and send reminders."""
-        async with self._db_manager.session() as session:
-            repo = DecompositionRepository(session)
-            # Get all pending records older than 24h
-            pending = await repo.get_stale_pending(older_than_hours=STALE_APPROVAL_HOURS)
-            now = datetime.now(UTC)
-            for record in pending:
-                if hasattr(record, "created_at") and record.created_at:
-                    age = now - record.created_at
-                    if age > timedelta(hours=STALE_APPROVAL_HOURS):
-                        logger.warning(
-                            "approval_timeout",
-                            record_id=record.id,
-                            age_hours=age.total_seconds() / 3600,
-                        )
-                        # Send reminder via event bus
-                        try:
-                            from shared.schemas.event import Event, EventTypes
-
-                            await self._event_bus.publish(
-                                Event.create(
-                                    event_type=EventTypes.PM_APPROVAL_TIMEOUT,
-                                    source_agent="pjm-agent",
-                                    payload={
-                                        "record_id": str(record.id),
-                                        "age_hours": round(age.total_seconds() / 3600, 1),
-                                    },
-                                )
-                            )
-                        except Exception as e:
-                            logger.error("approval_timeout_notify_failed", error=str(e))
+        pending = await self._decomposition_store.list_stale_pending(
+            older_than_hours=STALE_APPROVAL_HOURS
+        )
+        now = datetime.now(UTC)
+        for record in pending:
+            if hasattr(record, "created_at") and record.created_at:
+                age = now - record.created_at
+                if age > timedelta(hours=STALE_APPROVAL_HOURS):
+                    logger.warning(
+                        "approval_timeout",
+                        record_id=record.id,
+                        age_hours=age.total_seconds() / 3600,
+                    )
+                    timeout_event = Event.create(
+                        event_type=EventTypes.PM_APPROVAL_TIMEOUT,
+                        source_agent=self.agent_id,
+                        payload={
+                            "record_id": str(record.id),
+                            "age_hours": round(age.total_seconds() / 3600, 1),
+                        },
+                    )
+                    try:
+                        await self._publish_pjm_event_via_outbox(timeout_event)
+                    except Exception as e:
+                        logger.error("approval_timeout_notify_failed", error=str(e))
 
     async def approve_decomposition(self, wp_id: int, approved_by: str) -> dict | None:
         """Delegate to DecompositionOrchestrator."""

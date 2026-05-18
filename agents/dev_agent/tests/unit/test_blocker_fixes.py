@@ -195,8 +195,6 @@ class TestReconcilePublishesEvents:
         mock_collector = AsyncMock()
         mock_collector.handle_completion = AsyncMock(return_value=[qa_event, mr_event])
 
-        mock_event_bus = AsyncMock()
-
         mock_gitlab = AsyncMock()
 
         orig_forge = main_module._forge_client
@@ -206,18 +204,21 @@ class TestReconcilePublishesEvents:
             main_module._forge_client = mock_forge
             main_module._gitlab_client = mock_gitlab
 
+            runtime_agent = MagicMock()
+            runtime_agent.publish_staged_dev_events = AsyncMock()
+
+            outbox = MagicMock()
+            outbox.add = AsyncMock()
+
             with (
-                patch.object(main_module, "_get_agent"),
+                patch.object(main_module, "_get_agent", return_value=runtime_agent),
                 patch.object(main_module, "db_manager") as mock_db,
-                patch.object(main_module, "DevTaskRepository", return_value=mock_repo),
-                patch.object(main_module, "DevWorkflowLogRepository", return_value=AsyncMock()),
+                patch.object(main_module, "SqlAlchemyDevTaskStore", return_value=mock_repo),
+                patch.object(main_module, "SqlAlchemyDevWorkflowLogStore", return_value=AsyncMock()),
+                patch.object(main_module, "SqlAlchemyDevEventOutboxSessionStore", return_value=outbox),
                 patch(
                     "agents.dev_agent.core.result_collector.ResultCollector",
                     return_value=mock_collector,
-                ),
-                patch(
-                    "shared.infra.event_bus.event_bus",
-                    mock_event_bus,
                 ),
             ):
                 @asynccontextmanager
@@ -228,14 +229,15 @@ class TestReconcilePublishesEvents:
 
                 await main_module._reconcile()
 
-            # Verify events were published
-            assert mock_event_bus.publish.call_count == 2
-            published_events = [
-                call.args[0] for call in mock_event_bus.publish.call_args_list
-            ]
-            event_types = [e.event_type for e in published_events]
+            # Verify events were staged before the post-commit publish attempt.
+            assert outbox.add.await_count == 2
+            staged_events = [call.args[0] for call in outbox.add.await_args_list]
+            event_types = [e.event_type for e in staged_events]
             assert EventTypes.QA_RUN_REQUESTED in event_types
             assert EventTypes.DEV_MR_CREATED in event_types
+            runtime_agent.publish_staged_dev_events.assert_awaited_once_with(
+                [qa_event, mr_event]
+            )
         finally:
             main_module._forge_client = orig_forge
             main_module._gitlab_client = orig_gitlab
@@ -450,10 +452,7 @@ class TestChildTaskUniqueIDs:
 
         with (
             patch.object(agent, "_get_repo", return_value=mock_repo),
-            patch(
-                "agents.dev_agent.service.agent.DevWorkflowLogRepository",
-                return_value=mock_log_repo,
-            ),
+            patch.object(agent, "_get_log_repo", return_value=mock_log_repo),
         ):
             await agent.handle_event(event)
 
@@ -500,10 +499,7 @@ class TestApprovalMissingPlan:
 
         with (
             patch.object(agent, "_get_repo", return_value=mock_repo),
-            patch(
-                "agents.dev_agent.service.agent.DevWorkflowLogRepository",
-                return_value=mock_log_repo,
-            ),
+            patch.object(agent, "_get_log_repo", return_value=mock_log_repo),
         ):
             result = await agent.handle_request(
                 {"action": "approve_workflow", "task_id": "dev-high-1"}

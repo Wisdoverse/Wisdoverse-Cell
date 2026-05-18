@@ -1,14 +1,16 @@
 """Repository - qa_agent"""
 
+import inspect
 from datetime import UTC, datetime, timedelta
 from typing import Any, Optional
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
-from ..models.qa import QAAcceptanceResult, QAAcceptanceRun
+from ..models.qa import QAAcceptanceResult, QAAcceptanceRun, QAEventOutbox
 from ..models.schemas import QACheckAggregate, QARunStats
 
 logger = get_logger("qa_agent.repository")
@@ -156,3 +158,66 @@ class AcceptanceResultRepository:
             .order_by(QAAcceptanceResult.level, QAAcceptanceResult.status)
         )
         return list(result.scalars().all())
+
+
+class QAEventOutboxRepository:
+    """QA integration-event outbox data access."""
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def add(self, event: Event) -> QAEventOutbox:
+        """Store an integration event in the local transaction outbox."""
+        payload = event.model_dump(mode="json")
+        row = QAEventOutbox(
+            event_id=event.event_id,
+            event_type=event.event_type,
+            source_agent=event.source_agent,
+            payload=payload["payload"],
+            schema_version=event.schema_version,
+            trace_id=payload["metadata"].get("trace_id"),
+            correlation_id=payload["metadata"].get("correlation_id"),
+            retry_count=payload["metadata"].get("retry_count", 0),
+            status="pending",
+            attempts=0,
+        )
+        self.session.add(row)
+        result = self.session.flush()
+        if inspect.isawaitable(result):
+            await result
+        return row
+
+    async def list_pending(self, limit: int = 100) -> list[QAEventOutbox]:
+        """List pending events for retry dispatch."""
+        result = await self.session.execute(
+            select(QAEventOutbox)
+            .where(QAEventOutbox.status == "pending")
+            .order_by(QAEventOutbox.created_at, QAEventOutbox.event_id)
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def mark_published(self, event_id: str) -> None:
+        """Mark an outbox row as published."""
+        await self.session.execute(
+            update(QAEventOutbox)
+            .where(QAEventOutbox.event_id == event_id)
+            .values(
+                status="published",
+                attempts=QAEventOutbox.attempts + 1,
+                published_at=datetime.now(UTC),
+                last_error=None,
+            )
+        )
+
+    async def mark_failed(self, event_id: str, error: str) -> None:
+        """Record a publish failure without removing the pending event."""
+        await self.session.execute(
+            update(QAEventOutbox)
+            .where(QAEventOutbox.event_id == event_id)
+            .values(
+                status="pending",
+                attempts=QAEventOutbox.attempts + 1,
+                last_error=error[:1000],
+            )
+        )

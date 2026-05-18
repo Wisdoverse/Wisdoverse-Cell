@@ -18,98 +18,73 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from agents.requirement_manager.service.agent import IngestResult
-
-
-@pytest.fixture
-def mock_agent():
-    """Create a mock Agent."""
-    mock_agent_instance = MagicMock()
-
-    # Configure ingest mock.
-    mock_agent_instance.ingest_meeting = AsyncMock(return_value=IngestResult(
-        meeting_id="mtg_test123",
-        requirements_extracted=2,
-        questions_generated=1,
-        requirement_ids=["req_1", "req_2"]
-    ))
-
-    # Configure feedback mock.
-    mock_agent_instance.confirm_requirement = AsyncMock()
-    mock_agent_instance.reject_requirement = AsyncMock()
-
-    # Patch get_agent to return our mock
-    with patch("agents.requirement_manager.api.ingest.get_agent", return_value=mock_agent_instance), \
-         patch("agents.requirement_manager.api.feedback.get_agent", return_value=mock_agent_instance):
-
-        yield {
-            "ingest": mock_agent_instance,
-            "feedback": mock_agent_instance
-        }
-
-
-@pytest.fixture
-def mock_db_session():
-    """Create a mock database session."""
-    with patch("agents.requirement_manager.api.ingest.get_db") as mock_get_db, \
-         patch("agents.requirement_manager.api.feedback.get_db") as mock_get_db_feedback:
-
-        mock_session = MagicMock()
-
-        async def get_session():
-            yield mock_session
-
-        mock_get_db.return_value = get_session()
-        mock_get_db_feedback.return_value = get_session()
-
-        yield mock_session
+from agents.requirement_manager.core.ingest_use_cases import IngestUseCaseResult
 
 
 class TestIngestAPI:
     """Ingest API tests."""
 
     @pytest.mark.asyncio
-    async def test_upload_delegates_to_agent(self, mock_agent, mock_db_session):
-        """Upload endpoint delegates to the Agent."""
+    async def test_upload_delegates_to_ingest_use_case(self):
+        """Upload endpoint delegates to the ingest use case."""
+        from agents.requirement_manager.api.dependencies import get_ingest_use_case
         from agents.requirement_manager.app.main import app
 
+        ingest_use_case = MagicMock()
+        ingest_use_case.upload_content = AsyncMock(
+            return_value=IngestUseCaseResult(
+                meeting_id="mtg_test123",
+                requirements_extracted=2,
+                questions_generated=1,
+            )
+        )
+        app.dependency_overrides[get_ingest_use_case] = lambda: ingest_use_case
+        response = None
         # Mock lifespan to skip agent startup
-        with patch("agents.requirement_manager.app.main.agent") as mock_main_agent:
-            mock_main_agent.startup = AsyncMock()
-            mock_main_agent.shutdown = AsyncMock()
+        try:
+            with patch("agents.requirement_manager.app.main.agent") as mock_main_agent:
+                mock_main_agent.startup = AsyncMock()
+                mock_main_agent.shutdown = AsyncMock()
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                await client.post(
-                    "/api/v1/ingest/upload",
-                    json={
-                        "content": "会议内容：讨论了新功能需求",
-                        "source": "upload",
-                        "title": "测试会议"
-                    }
-                )
+                async with AsyncClient(
+                    transport=ASGITransport(app=app),
+                    base_url="http://test"
+                ) as client:
+                    response = await client.post(
+                        "/api/v1/ingest/upload",
+                        json={
+                            "content": "会议内容：讨论了新功能需求",
+                            "source": "upload",
+                            "title": "测试会议"
+                        }
+                    )
+        finally:
+            app.dependency_overrides.pop(get_ingest_use_case, None)
 
-        # Validate that the Agent was called.
-        mock_agent["ingest"].ingest_meeting.assert_called_once()
-
-        # Validate parameters.
-        call_args = mock_agent["ingest"].ingest_meeting.call_args
-        assert call_args.kwargs["content"] == "会议内容：讨论了新功能需求"
-        assert call_args.kwargs["source"] == "upload"
-        assert call_args.kwargs["title"] == "测试会议"
+        assert response is not None
+        assert response.status_code == 200
+        ingest_use_case.upload_content.assert_awaited_once_with(
+            content="会议内容：讨论了新功能需求",
+            source="upload",
+            title="测试会议",
+            meeting_date=None,
+            participants=None,
+            context=None,
+        )
 
 
 class TestFeedbackAPI:
     """Feedback API tests."""
 
     @pytest.mark.asyncio
-    async def test_confirm_delegates_to_agent(self, mock_agent, mock_db_session):
-        """Confirm endpoint delegates to the Agent."""
+    async def test_confirm_delegates_to_feedback_use_case(self):
+        """Confirm endpoint delegates to the feedback use case."""
         # Create mock requirement with all RequirementOut fields.
         from datetime import datetime
 
+        from agents.requirement_manager.api.dependencies import (
+            get_requirement_feedback_use_case,
+        )
         from agents.requirement_manager.app.main import app
         mock_requirement = MagicMock()
         mock_requirement.id = "req_123"
@@ -126,35 +101,42 @@ class TestFeedbackAPI:
         mock_requirement.created_at = datetime.now()
         mock_requirement.updated_at = datetime.now()
 
-        mock_agent["feedback"].confirm_requirement = AsyncMock(return_value=mock_requirement)
+        feedback_use_case = MagicMock()
+        feedback_use_case.confirm_requirement = AsyncMock(return_value=mock_requirement)
+        app.dependency_overrides[get_requirement_feedback_use_case] = (
+            lambda: feedback_use_case
+        )
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_main_agent:
-            mock_main_agent.startup = AsyncMock()
-            mock_main_agent.shutdown = AsyncMock()
+        try:
+            with patch("agents.requirement_manager.app.main.agent") as mock_main_agent:
+                mock_main_agent.startup = AsyncMock()
+                mock_main_agent.shutdown = AsyncMock()
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                await client.put(
-                    "/api/v1/requirements/req_123/confirm",
-                    json={"confirmed_by": "测试用户"}
-                )
+                async with AsyncClient(
+                    transport=ASGITransport(app=app),
+                    base_url="http://test"
+                ) as client:
+                    await client.put(
+                        "/api/v1/requirements/req_123/confirm",
+                        json={"confirmed_by": "测试用户"}
+                    )
+        finally:
+            app.dependency_overrides.pop(get_requirement_feedback_use_case, None)
 
-        # Validate that the Agent was called.
-        mock_agent["feedback"].confirm_requirement.assert_called_once()
-
-        # Validate parameters.
-        call_args = mock_agent["feedback"].confirm_requirement.call_args
-        assert call_args.kwargs["requirement_id"] == "req_123"
-        assert call_args.kwargs["confirmed_by"] == "测试用户"
+        feedback_use_case.confirm_requirement.assert_awaited_once_with(
+            requirement_id="req_123",
+            confirmed_by="测试用户",
+        )
 
     @pytest.mark.asyncio
-    async def test_reject_delegates_to_agent(self, mock_agent, mock_db_session):
-        """Reject endpoint delegates to the Agent."""
+    async def test_reject_delegates_to_feedback_use_case(self):
+        """Reject endpoint delegates to the feedback use case."""
         # Create mock requirement with all RequirementOut fields.
         from datetime import datetime
 
+        from agents.requirement_manager.api.dependencies import (
+            get_requirement_feedback_use_case,
+        )
         from agents.requirement_manager.app.main import app
         mock_requirement = MagicMock()
         mock_requirement.id = "req_123"
@@ -171,32 +153,36 @@ class TestFeedbackAPI:
         mock_requirement.created_at = datetime.now()
         mock_requirement.updated_at = datetime.now()
 
-        mock_agent["feedback"].reject_requirement = AsyncMock(return_value=mock_requirement)
+        feedback_use_case = MagicMock()
+        feedback_use_case.reject_requirement = AsyncMock(return_value=mock_requirement)
+        app.dependency_overrides[get_requirement_feedback_use_case] = (
+            lambda: feedback_use_case
+        )
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_main_agent:
-            mock_main_agent.startup = AsyncMock()
-            mock_main_agent.shutdown = AsyncMock()
+        try:
+            with patch("agents.requirement_manager.app.main.agent") as mock_main_agent:
+                mock_main_agent.startup = AsyncMock()
+                mock_main_agent.shutdown = AsyncMock()
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                await client.put(
-                    "/api/v1/requirements/req_123/reject",
-                    json={
-                        "reason": "不符合产品方向",
-                        "rejected_by": "产品经理"
-                    }
-                )
+                async with AsyncClient(
+                    transport=ASGITransport(app=app),
+                    base_url="http://test"
+                ) as client:
+                    await client.put(
+                        "/api/v1/requirements/req_123/reject",
+                        json={
+                            "reason": "不符合产品方向",
+                            "rejected_by": "产品经理"
+                        }
+                    )
+        finally:
+            app.dependency_overrides.pop(get_requirement_feedback_use_case, None)
 
-        # Validate that the Agent was called.
-        mock_agent["feedback"].reject_requirement.assert_called_once()
-
-        # Validate parameters.
-        call_args = mock_agent["feedback"].reject_requirement.call_args
-        assert call_args.kwargs["requirement_id"] == "req_123"
-        assert call_args.kwargs["reason"] == "不符合产品方向"
-        assert call_args.kwargs["rejected_by"] == "产品经理"
+        feedback_use_case.reject_requirement.assert_awaited_once_with(
+            requirement_id="req_123",
+            reason="不符合产品方向",
+            rejected_by="产品经理",
+        )
 
 
 class TestAgentEventPublishing:

@@ -3,6 +3,7 @@ Integration Tests - ChatAgent API
 
 FastAPI endpoint integration tests for health, readiness, and webhook routing.
 """
+from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -79,6 +80,57 @@ async def test_webhook_challenge(test_app, mock_agent):
     assert resp.status_code == 200
     data = resp.json()
     assert data["challenge"] == "test_challenge_token"
+
+
+@pytest.mark.asyncio
+async def test_daily_progress_route_delegates_to_query_service():
+    """GET /api/daily-progress should delegate read logic to the query use case."""
+    from fastapi import FastAPI
+
+    from services.gateways.user_interaction.api.daily_progress import (
+        router as daily_progress_router,
+    )
+    from services.gateways.user_interaction.api.dependencies import (
+        get_daily_progress_query_service,
+    )
+    query_service = MagicMock()
+    expected = {
+        "entries": [
+            {
+                "id": 1,
+                "user_id": "u_1",
+                "user_name": "Alice",
+                "date": "2026-05-17",
+                "task_record_id": "rec_1",
+                "task_title": "Ship backend boundary",
+                "status": "done",
+                "note": "completed",
+                "raw_reply": "done",
+            }
+        ],
+        "total": 1,
+    }
+    query_service.list_progress_response = AsyncMock(
+        return_value=expected,
+    )
+    app = FastAPI()
+    app.include_router(daily_progress_router)
+    app.dependency_overrides[get_daily_progress_query_service] = lambda: query_service
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get(
+            "/api/daily-progress",
+            params={"target_date": "2026-05-17", "user_id": "u_1", "days": 2},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == expected
+    query_service.list_progress_response.assert_awaited_once_with(
+        target_date=date(2026, 5, 17),
+        user_id="u_1",
+        days=2,
+    )
 
 
 @pytest.mark.asyncio

@@ -6,11 +6,14 @@ from typing import Any
 from sqlalchemy.exc import SQLAlchemyError
 
 from shared.config import settings
+from shared.schemas.event import EventTypes
 from shared.utils.logger import get_logger
 
 from .agent_catalog import get_managed_agent_catalog
 from .database import control_plane_db_manager
-from .repository import ControlPlaneRepository
+from .models import AuditEvent, CompanyContext
+from .prompt_config_ports import ControlPlanePromptConfigStore
+from .prompt_config_store import SqlAlchemyControlPlanePromptConfigStore
 
 AGENT_PROMPT_MAX_LENGTH = 50_000
 
@@ -33,16 +36,31 @@ def is_catalog_managed_agent(agent_id: str) -> bool:
 
 
 async def ensure_prompt_config_target(
-    repo: ControlPlaneRepository,
+    store: ControlPlanePromptConfigStore,
     *,
     company_id: str,
     agent_id: str,
 ) -> None:
-    if await repo.get_agent_role(company_id=company_id, agent_id=agent_id) is not None:
+    if await store.get_agent_role(company_id=company_id, agent_id=agent_id) is not None:
         return
     if is_catalog_managed_agent(agent_id):
         return
     raise KeyError(agent_id)
+
+
+async def ensure_prompt_config_company(
+    store: ControlPlanePromptConfigStore,
+    company_id: str,
+) -> None:
+    if await store.get_company(company_id) is not None:
+        return
+    await store.create_company(
+        CompanyContext(
+            company_id=company_id,
+            name="Wisdoverse Cell",
+            mission="AI-native company operations",
+        )
+    )
 
 
 def _serialize(value: Any) -> Any:
@@ -80,18 +98,58 @@ def prompt_config_to_dict(
 
 
 async def get_or_default_prompt_config(
-    repo: ControlPlaneRepository,
+    store: ControlPlanePromptConfigStore,
     *,
     company_id: str,
     agent_id: str,
 ) -> dict[str, Any]:
-    row = await repo.get_agent_prompt_config(company_id=company_id, agent_id=agent_id)
+    row = await store.get_agent_prompt_config(company_id=company_id, agent_id=agent_id)
     if row is None:
         await ensure_prompt_config_target(
-            repo,
+            store,
             company_id=company_id,
             agent_id=agent_id,
         )
+    return prompt_config_to_dict(row, company_id=company_id, agent_id=agent_id)
+
+
+async def update_prompt_config_with_audit(
+    store: ControlPlanePromptConfigStore,
+    *,
+    company_id: str,
+    agent_id: str,
+    system_prompt: str,
+    updated_by: str,
+    metadata: dict[str, Any],
+) -> dict[str, Any]:
+    await ensure_prompt_config_company(store, company_id)
+    await ensure_prompt_config_target(
+        store,
+        company_id=company_id,
+        agent_id=agent_id,
+    )
+    row = await store.upsert_agent_prompt_config(
+        company_id=company_id,
+        agent_id=agent_id,
+        system_prompt=system_prompt,
+        updated_by=updated_by,
+        metadata=metadata,
+    )
+    await store.append_audit_event(
+        AuditEvent(
+            company_id=company_id,
+            action=EventTypes.AGENT_PROMPT_CONFIG_UPDATED,
+            target_type="agent_prompt_config",
+            target_id=agent_id,
+            actor_type="user",
+            actor_id=updated_by,
+            detail={
+                "agent_id": agent_id,
+                "prompt_length": len(system_prompt),
+                "metadata_keys": sorted(metadata.keys()),
+            },
+        )
+    )
     return prompt_config_to_dict(row, company_id=company_id, agent_id=agent_id)
 
 
@@ -107,8 +165,8 @@ async def resolve_agent_system_prompt(
     resolved_company_id = company_id or settings.control_plane_company_id
     try:
         async with control_plane_db_manager.read_session_ctx() as session:
-            repo = ControlPlaneRepository(session)
-            row = await repo.get_agent_prompt_config(
+            store = SqlAlchemyControlPlanePromptConfigStore(session)
+            row = await store.get_agent_prompt_config(
                 company_id=resolved_company_id,
                 agent_id=agent_id,
             )

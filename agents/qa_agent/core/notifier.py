@@ -9,8 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from shared.core import FeishuWebhookPort, GitLabMergeRequestNotePort
-from shared.infra.event_bus import EventBus, event_bus
+from shared.core import EventPublisher, FeishuWebhookPort, GitLabMergeRequestNotePort
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
@@ -25,13 +24,13 @@ class QANotifier:
 
     def __init__(
         self,
-        bus: EventBus | None = None,
+        event_publisher: EventPublisher | None = None,
         gitlab: GitLabMergeRequestNotePort | None = None,
         feishu_webhook: FeishuWebhookPort | None = None,
         card_renderer: QualityCardRendererPort | None = None,
         config: QACoreConfig | None = None,
     ):
-        self._bus = bus or event_bus
+        self._event_publisher = event_publisher
         self._gitlab = gitlab
         self._feishu_webhook = feishu_webhook
         self._card_renderer = card_renderer
@@ -53,6 +52,7 @@ class QANotifier:
         target: str = "",
         report_markdown: str | None = None,
         trace_id: str | None = None,
+        eventbus_summary: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Fan-out notifications to all channels.
 
@@ -61,22 +61,25 @@ class QANotifier:
         """
         result: dict[str, Any] = {}
 
-        # 1. EventBus — always publish qa.acceptance-completed
-        result["eventbus"] = await self._publish_events(
-            run_id=run_id,
-            agent_name=agent_name,
-            summary=summary,
-            findings=findings,
-            duration_seconds=duration_seconds,
-            commit_sha=commit_sha,
-            mr_iid=mr_iid,
-            gitlab_project_id=gitlab_project_id,
-            trigger=trigger,
-            level=level,
-            target=target,
-            report_markdown=report_markdown,
-            trace_id=trace_id,
-        )
+        # 1. EventBus — application services may provide an outbox-backed result.
+        if eventbus_summary is not None:
+            result["eventbus"] = eventbus_summary
+        else:
+            result["eventbus"] = await self._publish_events(
+                run_id=run_id,
+                agent_name=agent_name,
+                summary=summary,
+                findings=findings,
+                duration_seconds=duration_seconds,
+                commit_sha=commit_sha,
+                mr_iid=mr_iid,
+                gitlab_project_id=gitlab_project_id,
+                trigger=trigger,
+                level=level,
+                target=target,
+                report_markdown=report_markdown,
+                trace_id=trace_id,
+            )
 
         # 2. Feishu — only on L0 FAIL or high-severity L1
         should_feishu = self._should_notify_feishu(summary, findings)
@@ -104,6 +107,9 @@ class QANotifier:
 
     async def _publish_events(self, **kwargs) -> dict:
         """Publish qa.acceptance-completed (always) and qa.gate-failed (on L0 fail)."""
+        if self._event_publisher is None:
+            return {"sent": False, "reason": "no_event_publisher"}
+
         try:
             summary = kwargs["summary"]
 
@@ -123,7 +129,7 @@ class QANotifier:
                 "report_markdown": kwargs.get("report_markdown"),
                 "completed_at": datetime.now(UTC).isoformat(),
             }
-            await self._bus.publish(
+            completed_ok = await self._event_publisher.publish(
                 Event.create(
                     event_type=EventTypes.QA_ACCEPTANCE_COMPLETED,
                     source_agent="qa-agent",
@@ -131,6 +137,8 @@ class QANotifier:
                     trace_id=kwargs.get("trace_id"),
                 )
             )
+            if not completed_ok:
+                raise RuntimeError("qa_acceptance_completed_publish_rejected")
 
             # Publish gate-failed if L0 failed
             if summary.get("l0_gate") == "FAIL":
@@ -139,7 +147,7 @@ class QANotifier:
                     for f in kwargs["findings"]
                     if f.get("level") == "L0" and f.get("status") == "FAIL"
                 ]
-                await self._bus.publish(
+                failed_ok = await self._event_publisher.publish(
                     Event.create(
                         event_type=EventTypes.QA_GATE_FAILED,
                         source_agent="qa-agent",
@@ -157,6 +165,8 @@ class QANotifier:
                         trace_id=kwargs.get("trace_id"),
                     )
                 )
+                if not failed_ok:
+                    raise RuntimeError("qa_gate_failed_publish_rejected")
 
             return {"sent": True}
         except Exception as e:

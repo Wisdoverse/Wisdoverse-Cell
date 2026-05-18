@@ -4,31 +4,47 @@ RequirementManagerAgent core.
 Inherits BaseAgent and implements the standard Agent interface. All business
 logic is coordinated through this class; FastAPI is only the HTTP adapter.
 """
+import inspect
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Optional
 
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.config import settings as app_settings
-from shared.core import FeishuMessengerPort
+from shared.control_plane.agent_prompt_config import resolve_agent_system_prompt
+from shared.core import EventPublisher, FeishuMessengerPort
 from shared.infra.event_bus import EventBus, event_bus
+from shared.infra.event_publisher import EventBusEventPublisher
+from shared.infra.llm_gateway import llm_gateway
 from shared.infra.notification import NotificationChannel, notification_service
 from shared.observability.privacy import hash_identifier
 from shared.schemas.agent import BaseAgent
-from shared.schemas.event import Event, EventTypes
+from shared.schemas.event import Event, EventMetadata, EventTypes
 from shared.utils.logger import get_logger
 
 from ..core.card_ports import RequirementCardRendererPort
-from ..core.extractor import extractor
-from ..db.database import DatabaseManager, db_manager
-from ..db.repository import (
-    MeetingRepository,
-    MessageRepository,
-    QuestionRepository,
-    RequirementRepository,
+from ..core.event_use_cases import (
+    SUBSCRIBED_EVENTS,
+    RequirementManagerEventUseCase,
 )
+from ..core.extractor import RequirementExtractor
+from ..core.health_ports import RequirementHealthStore
+from ..core.health_use_cases import RequirementHealthUseCase
+from ..core.meeting_ports import RequirementMeetingStore
+from ..core.message_ports import RequirementMessageStore
+from ..core.outbox_ports import RequirementEventOutboxStore
+from ..core.question_ports import RequirementQuestionStore
+from ..core.request_use_cases import RequirementManagerRequestUseCase
+from ..core.requirement_lifecycle import record_updated
+from ..core.requirement_ports import RequirementStore
+from ..db.database import DatabaseManager, db_manager
+from ..db.health_store import SqlAlchemyRequirementHealthStore
+from ..db.meeting_store import SqlAlchemyRequirementMeetingStore
+from ..db.message_store import SqlAlchemyRequirementMessageStore
+from ..db.outbox_store import SqlAlchemyRequirementEventOutboxStore
+from ..db.question_store import SqlAlchemyRequirementQuestionStore
+from ..db.requirement_store import SqlAlchemyRequirementStore
 from ..db.vector_store import VectorStore, vector_store
 from ..models import Meeting, OpenQuestion, Requirement
 
@@ -58,13 +74,14 @@ class RequirementManagerAgent(BaseAgent):
         self,
         db: Optional[DatabaseManager] = None,
         bus: Optional[EventBus] = None,
+        event_publisher: Optional[EventPublisher] = None,
         vectors: Optional[VectorStore] = None,
+        requirement_extractor: Optional[RequirementExtractor] = None,
         messenger: Optional[FeishuMessengerPort] = None,
         card_renderer: Optional[RequirementCardRendererPort] = None,
+        outbox_store: RequirementEventOutboxStore | None = None,
+        health_store: RequirementHealthStore | None = None,
     ):
-        # Import subscribed event list.
-        from .event_handlers import SUBSCRIBED_EVENTS
-
         super().__init__(
             agent_id="requirement-manager",
             agent_name="Requirement Manager",
@@ -73,13 +90,25 @@ class RequirementManagerAgent(BaseAgent):
                 EventTypes.REQUIREMENT_EXTRACTED,
                 EventTypes.REQUIREMENT_CONFIRMED,
                 EventTypes.REQUIREMENT_REJECTED,
+                EventTypes.REQUIREMENT_CHANGED,
                 EventTypes.REQUIREMENT_DELETED,
             ]
         )
         # Dependency injection supports replacement during tests.
         self._db_manager = db or db_manager
         self._event_bus = bus or event_bus
+        self._event_publisher = event_publisher or EventBusEventPublisher(self._event_bus)
+        self._outbox_store = outbox_store or SqlAlchemyRequirementEventOutboxStore(
+            self._db_manager
+        )
+        self._health_store = health_store or SqlAlchemyRequirementHealthStore(
+            self._db_manager
+        )
         self._vector_store = vectors or vector_store
+        self._extractor = requirement_extractor or RequirementExtractor(
+            llm=llm_gateway,
+            system_prompt_resolver=resolve_agent_system_prompt,
+        )
         self._messenger = messenger
         self._card_renderer = card_renderer
 
@@ -139,10 +168,15 @@ class RequirementManagerAgent(BaseAgent):
         """
         Handle a received event.
 
-        Delegates handling to the event_handlers module.
+        Delegates handling to the application event use case.
         """
-        from .event_handlers import dispatch_event
-        return await dispatch_event(self, event)
+        return await self._event_use_case().handle(event)
+
+    def _event_use_case(self) -> RequirementManagerEventUseCase:
+        return RequirementManagerEventUseCase(
+            agent=self,
+            session_factory=self._db_manager.session,
+        )
 
     async def handle_request(self, request: dict) -> dict:
         """
@@ -155,85 +189,25 @@ class RequirementManagerAgent(BaseAgent):
         if standard_response is not None:
             return standard_response
 
-        action = request.get("action")
-        if action == "ingest":
-            content = request.get("content")
-            if not isinstance(content, str) or not content.strip():
-                return {"status": "error", "error": "content_required"}
+        return await self._request_use_case().handle(request)
 
-            try:
-                meeting_date = self._parse_meeting_date(request.get("meeting_date"))
-            except ValueError as exc:
-                return {"status": "error", "error": str(exc)}
-
-            async with self._db_manager.session() as session:
-                result = await self.ingest_meeting(
-                    content=content,
-                    source=str(request.get("source") or "agent_request"),
-                    session=session,
-                    title=self._optional_str(request.get("title")),
-                    meeting_date=meeting_date,
-                    participants=self._string_list(request.get("participants")),
-                    context=self._optional_str(request.get("context")),
-                    source_id=self._optional_str(request.get("source_id")),
-                )
-
-            return {
-                "status": "ok",
-                "meeting_id": result.meeting_id,
-                "requirements_extracted": result.requirements_extracted,
-                "questions_generated": result.questions_generated,
-                "requirement_ids": result.requirement_ids,
-            }
-        return {"status": "ok"}
+    def _request_use_case(self) -> RequirementManagerRequestUseCase:
+        return RequirementManagerRequestUseCase(
+            agent=self,
+            session_factory=self._db_manager.session,
+        )
 
     async def health_check(self) -> dict[str, bool]:
         """Return readiness checks for the requirement manager runtime boundary."""
-        checks = {
-            "database": False,
-            "event_bus": bool(getattr(self._event_bus, "is_connected", False)),
-            "messenger": self._messenger is not None,
-            "card_renderer": self._card_renderer is not None,
-        }
-        try:
-            async with self._db_manager.session() as session:
-                await session.execute(text("SELECT 1"))
-            checks["database"] = True
-        except Exception as exc:
-            logger.error(
-                "health_check_db_failed",
-                error=str(exc),
-                error_type=type(exc).__name__,
-            )
-        return checks
+        return await self._health_use_case().check()
 
-    def _parse_meeting_date(self, value: Any) -> datetime | None:
-        if value in (None, ""):
-            return None
-        if isinstance(value, datetime):
-            return value
-        if not isinstance(value, str):
-            raise ValueError("meeting_date_must_be_iso_datetime")
-        normalized = value.replace("Z", "+00:00")
-        try:
-            parsed = datetime.fromisoformat(normalized)
-        except ValueError as exc:
-            raise ValueError("meeting_date_must_be_iso_datetime") from exc
-        if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=UTC)
-        return parsed
-
-    def _optional_str(self, value: Any) -> str | None:
-        if value is None:
-            return None
-        return str(value)
-
-    def _string_list(self, value: Any) -> list[str]:
-        if value is None:
-            return []
-        if isinstance(value, list):
-            return [str(item) for item in value if item is not None]
-        return [str(value)]
+    def _health_use_case(self) -> RequirementHealthUseCase:
+        return RequirementHealthUseCase(
+            health_store=self._health_store,
+            event_bus=self._event_bus,
+            messenger=self._messenger,
+            card_renderer=self._card_renderer,
+        )
 
     # ========== Business Methods ==========
 
@@ -264,9 +238,9 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             IngestResult with extracted requirement and question counts.
         """
-        meeting_repo = MeetingRepository(session)
-        requirement_repo = RequirementRepository(session)
-        question_repo = QuestionRepository(session)
+        meeting_store = self._get_meeting_store(session)
+        requirement_store = self._get_requirement_store(session)
+        question_store = self._get_question_store(session)
 
         # Create meeting record.
         meeting = Meeting(
@@ -278,7 +252,7 @@ class RequirementManagerAgent(BaseAgent):
             participants=participants or [],
             context=context
         )
-        await meeting_repo.create(meeting)
+        await meeting_store.create(meeting)
 
         logger.info(
             "meeting_created",
@@ -288,7 +262,7 @@ class RequirementManagerAgent(BaseAgent):
         )
 
         # Extract requirements.
-        result = await extractor.extract(
+        result = await self._extractor.extract(
             content=content,
             source=source,
             meeting_date=meeting_date.isoformat() if meeting_date else None,
@@ -310,7 +284,7 @@ class RequirementManagerAgent(BaseAgent):
             requirements.append(requirement)
 
         if requirements:
-            await requirement_repo.create_batch(requirements)
+            await requirement_store.create_batch(requirements)
 
             # Add to vector store synchronously; non-critical failure does not block the main flow.
             try:
@@ -346,16 +320,23 @@ class RequirementManagerAgent(BaseAgent):
                 questions.append(question)
 
         if questions:
-            await question_repo.create_batch(questions)
+            await question_store.create_batch(questions)
 
         # Mark meeting as processed.
-        await meeting_repo.mark_processed(meeting.id)
+        await meeting_store.mark_processed(meeting.id)
 
-        # Publish event.
-        await self._publish_requirements_extracted(
-            requirements=requirements,
-            meeting_id=meeting.id
-        )
+        extracted_event = None
+        if requirements:
+            extracted_event = self._create_requirements_extracted_event(
+                requirements=requirements,
+                meeting_id=meeting.id,
+            )
+            await self._stage_requirement_event(session, extracted_event)
+
+        await self._commit_requirement_mutation(session, use_case="ingest_meeting")
+
+        if extracted_event:
+            await self._publish_staged_requirement_event(extracted_event)
 
         # Send notification; non-critical failure does not block the main flow.
         if requirements:
@@ -399,7 +380,7 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             Confirmed requirement, or None if it does not exist.
         """
-        repo = RequirementRepository(session)
+        repo = self._get_requirement_store(session)
         requirement = await repo.confirm(requirement_id, confirmed_by)
 
         if not requirement:
@@ -411,8 +392,10 @@ class RequirementManagerAgent(BaseAgent):
             confirmed_by=confirmed_by
         )
 
-        # Publish event.
-        await self._publish_requirement_confirmed(requirement, confirmed_by)
+        event = self._create_requirement_confirmed_event(requirement, confirmed_by)
+        await self._stage_requirement_event(session, event)
+        await self._commit_requirement_mutation(session, use_case="confirm_requirement")
+        await self._publish_staged_requirement_event(event, requirement_id=requirement.id)
 
         return requirement
 
@@ -437,7 +420,7 @@ class RequirementManagerAgent(BaseAgent):
         """
         from .feedback_learning import FeedbackLearningService
 
-        repo = RequirementRepository(session)
+        repo = self._get_requirement_store(session)
 
         # Load the original requirement for feedback learning.
         original_req = await repo.get_by_id(requirement_id)
@@ -479,9 +462,83 @@ class RequirementManagerAgent(BaseAgent):
                 error=str(e),
             )
 
-        # Publish event.
-        await self._publish_requirement_rejected(requirement, reason)
+        event = self._create_requirement_rejected_event(requirement, reason)
+        await self._stage_requirement_event(session, event)
+        await self._commit_requirement_mutation(session, use_case="reject_requirement")
+        await self._publish_staged_requirement_event(event, requirement_id=requirement.id)
 
+        return requirement
+
+    async def update_requirement(
+        self,
+        requirement_id: str,
+        changes: dict[str, Any],
+        session: AsyncSession,
+    ) -> Optional[Requirement]:
+        """
+        Update a requirement through the application boundary.
+
+        HTTP/RPC adapters pass validated DTO data here. This use case owns
+        history recording, feedback learning, and event publication.
+        """
+        from .feedback_learning import FeedbackLearningService
+
+        repo = self._get_requirement_store(session)
+        requirement = await repo.get_by_id(requirement_id)
+        if not requirement:
+            return None
+
+        update_data = dict(changes)
+        comment = update_data.pop("comment", None)
+        if not update_data:
+            return requirement
+
+        original_values = {
+            "title": requirement.title,
+            "description": requirement.description,
+            "priority": requirement.priority,
+            "category": requirement.category,
+        }
+        changed_fields = list(update_data.keys())
+        changed_by = comment or "system"
+
+        record_updated(requirement, changed_fields, changed_by)
+        requirement = await repo.update(requirement_id, **update_data)
+        if requirement is None:
+            return None
+
+        feedback_fields = {"title", "description", "priority", "category"}
+        if update_data.keys() & feedback_fields:
+            try:
+                corrected_values = {
+                    "title": requirement.title,
+                    "description": requirement.description,
+                    "priority": requirement.priority,
+                    "category": requirement.category,
+                }
+                feedback_service = FeedbackLearningService(session)
+                await feedback_service.record_correction(
+                    requirement_id=requirement_id,
+                    original=original_values,
+                    corrected=corrected_values,
+                    corrected_by=comment or "user",
+                    note=f"Updated fields: {changed_fields}",
+                )
+            except Exception as exc:
+                logger.warning(
+                    "feedback_recording_failed",
+                    requirement_id=requirement_id,
+                    error=str(exc),
+                )
+
+        event = self._create_requirement_changed_event(
+            requirement,
+            changed_fields,
+            changed_by,
+        )
+        await self._stage_requirement_event(session, event)
+        await self._commit_requirement_mutation(session, use_case="update_requirement")
+        await self._publish_staged_requirement_event(event, requirement_id=requirement.id)
         return requirement
 
     async def delete_requirement(
@@ -503,11 +560,16 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             Deleted requirement, or None if it does not exist.
         """
-        repo = RequirementRepository(session)
+        repo = self._get_requirement_store(session)
         requirement = await repo.delete(requirement_id)
 
         if not requirement:
             return None
+
+        event = self._create_requirement_deleted_event(requirement, deleted_by)
+        await self._stage_requirement_event(session, event)
+        await self._commit_requirement_mutation(session, use_case="delete_requirement")
+        await self._delete_requirement_vector_record(requirement_id)
 
         logger.info(
             "requirement_deleted",
@@ -516,10 +578,206 @@ class RequirementManagerAgent(BaseAgent):
             deleted_by_hash=hash_identifier(deleted_by),
         )
 
-        # Publish event.
-        await self._publish_requirement_deleted(requirement, deleted_by)
+        await self._publish_staged_requirement_event(event, requirement_id=requirement.id)
 
         return requirement
+
+    async def answer_question(
+        self,
+        question_id: str,
+        answer: str,
+        answered_by: str,
+        session: AsyncSession,
+    ) -> Optional[OpenQuestion]:
+        """
+        Answer an open clarification question through the application boundary.
+
+        HTTP/RPC adapters pass validated DTO data here. This use case owns the
+        write transaction and keeps the route layer free of persistence rules.
+        """
+        question_store = self._get_question_store(session)
+        question = await question_store.answer(
+            question_id,
+            answer=answer,
+            answered_by=answered_by,
+        )
+        if not question:
+            return None
+
+        await self._commit_requirement_mutation(session, use_case="answer_question")
+
+        logger.info(
+            "question_answered",
+            question_id=question_id,
+            answered_by_hash=hash_identifier(answered_by),
+        )
+
+        return question
+
+    async def list_open_questions(
+        self,
+        session: AsyncSession,
+        *,
+        limit: int = 50,
+    ) -> list[OpenQuestion]:
+        """List unanswered clarification questions through the application facade."""
+        question_store = self._get_question_store(session)
+        return await question_store.list_open(limit=limit)
+
+    async def publish_pending_requirement_events(self, limit: int = 100) -> dict[str, int]:
+        """
+        Retry pending Requirement outbox events.
+
+        This is intentionally a callable application use case, so a future
+        scheduler, admin endpoint, or worker can reuse it without knowing
+        persistence details.
+        """
+        rows = await self._outbox_store.list_pending(limit=limit)
+
+        published = 0
+        failed = 0
+        for row in rows:
+            event = self._event_from_outbox(row)
+            try:
+                ok = await self._event_publisher.publish(event)
+                if not ok:
+                    raise RuntimeError("event_bus_publish_returned_false")
+                await self._mark_requirement_event_published(event)
+                published += 1
+            except Exception as exc:
+                await self._mark_requirement_event_failed(event, exc)
+                failed += 1
+
+        logger.info(
+            "requirement_outbox_dispatch_completed",
+            total=len(rows),
+            published=published,
+            failed=failed,
+        )
+        return {"total": len(rows), "published": published, "failed": failed}
+
+    async def publish_event_via_outbox(self, event: Event) -> bool:
+        """Stage a runtime-produced Requirement event before EventBus delivery."""
+        await self._outbox_store.add(event)
+        await self._publish_staged_requirement_event(event)
+        return True
+
+    async def _stage_requirement_event(
+        self,
+        session: AsyncSession,
+        event: Event,
+    ) -> Event:
+        """Persist an integration event in the local Requirement outbox."""
+        await self._outbox_store.stage(session, event)
+        return event
+
+    def _event_from_outbox(self, row) -> Event:
+        """Rebuild an immutable Event from a Requirement outbox row."""
+        return Event(
+            event_id=row.event_id,
+            event_type=row.event_type,
+            timestamp=row.created_at,
+            source_agent=row.source_agent,
+            payload=row.payload,
+            schema_version=row.schema_version,
+            metadata=EventMetadata(
+                trace_id=row.trace_id,
+                correlation_id=row.correlation_id,
+                retry_count=row.retry_count,
+            ),
+        )
+
+    async def _commit_requirement_mutation(
+        self,
+        session: AsyncSession,
+        *,
+        use_case: str,
+    ) -> None:
+        """Commit the local requirement transaction before external side effects."""
+        result = session.commit()
+        if inspect.isawaitable(result):
+            await result
+        logger.debug("requirement_mutation_committed", use_case=use_case)
+
+    def _get_requirement_store(
+        self,
+        session: AsyncSession,
+    ) -> RequirementStore:
+        """Build the persistence adapter for requirement use cases."""
+        return SqlAlchemyRequirementStore(session)
+
+    def _get_meeting_store(
+        self,
+        session: AsyncSession,
+    ) -> RequirementMeetingStore:
+        """Build the persistence adapter for meeting use cases."""
+        return SqlAlchemyRequirementMeetingStore(session)
+
+    def _get_message_store(
+        self,
+        session: AsyncSession,
+    ) -> RequirementMessageStore:
+        """Build the persistence adapter for chat-message use cases."""
+        return SqlAlchemyRequirementMessageStore(session)
+
+    def _get_question_store(
+        self,
+        session: AsyncSession,
+    ) -> RequirementQuestionStore:
+        """Build the persistence adapter for question use cases."""
+        return SqlAlchemyRequirementQuestionStore(session)
+
+    async def _mark_requirement_event_published(self, event: Event) -> None:
+        """Best-effort mark for a successfully published outbox event."""
+        if not isinstance(self._db_manager, DatabaseManager):
+            return
+        try:
+            await self._outbox_store.mark_published(event.event_id)
+        except Exception as exc:
+            logger.warning(
+                "requirement_outbox_mark_published_failed",
+                event_id=event.event_id,
+                event_type=event.event_type,
+                error=str(exc),
+            )
+
+    async def _mark_requirement_event_failed(self, event: Event, error: Exception) -> None:
+        """Best-effort failure recording for an outbox event publish attempt."""
+        if not isinstance(self._db_manager, DatabaseManager):
+            return
+        try:
+            await self._outbox_store.mark_failed(event.event_id, str(error))
+        except Exception as exc:
+            logger.warning(
+                "requirement_outbox_mark_failed_failed",
+                event_id=event.event_id,
+                event_type=event.event_type,
+                publish_error=str(error),
+                error=str(exc),
+            )
+
+    async def _delete_requirement_vector_record(self, requirement_id: str) -> None:
+        """
+        Best-effort cleanup for the requirement search index.
+
+        The database is the source of truth. If vector cleanup fails, query-time
+        filtering still prevents orphaned vector records from surfacing.
+        """
+        try:
+            result = self._vector_store.delete_requirement(requirement_id)
+            if inspect.isawaitable(result):
+                await result
+            logger.info(
+                "vector_store_record_deleted",
+                requirement_id=requirement_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "vector_store_delete_failed",
+                requirement_id=requirement_id,
+                error=str(exc),
+                note="Orphaned vector record may exist, will be filtered on query",
+            )
 
     # ========== Convenience Methods Without External Sessions ==========
 
@@ -541,7 +799,7 @@ class RequirementManagerAgent(BaseAgent):
             (requirements_list, total_count, total_pages)
         """
         async with self._db_manager.session() as session:
-            repo = RequirementRepository(session)
+            repo = self._get_requirement_store(session)
             skip = (page - 1) * page_size
             requirements, total = await repo.list_all(
                 status="PENDING",
@@ -573,7 +831,7 @@ class RequirementManagerAgent(BaseAgent):
             Confirmed requirement list.
         """
         async with self._db_manager.session() as session:
-            repo = RequirementRepository(session)
+            repo = self._get_requirement_store(session)
             requirements, _ = await repo.list_all(status="CONFIRMED", limit=1000)
 
             return [
@@ -605,15 +863,20 @@ class RequirementManagerAgent(BaseAgent):
             Operation results; each item contains requirement_id, success, and error.
         """
         results = []
+        events_to_publish: list[tuple[Event, str]] = []
         async with self._db_manager.session() as session:
-            repo = RequirementRepository(session)
+            repo = self._get_requirement_store(session)
 
             for req_id in requirement_ids:
                 try:
                     requirement = await repo.confirm(req_id, confirmed_by)
                     if requirement:
-                        # Publish event.
-                        await self._publish_requirement_confirmed(requirement, confirmed_by)
+                        event = self._create_requirement_confirmed_event(
+                            requirement,
+                            confirmed_by,
+                        )
+                        await self._stage_requirement_event(session, event)
+                        events_to_publish.append((event, requirement.id))
                         results.append({
                             "requirement_id": req_id,
                             "success": True,
@@ -642,6 +905,9 @@ class RequirementManagerAgent(BaseAgent):
                         error=str(e)
                     )
 
+        for event, requirement_id in events_to_publish:
+            await self._publish_staged_requirement_event(event, requirement_id=requirement_id)
+
         return results
 
     async def batch_reject_requirements(
@@ -662,15 +928,17 @@ class RequirementManagerAgent(BaseAgent):
             Operation results; each item contains requirement_id, success, and error.
         """
         results = []
+        events_to_publish: list[tuple[Event, str]] = []
         async with self._db_manager.session() as session:
-            repo = RequirementRepository(session)
+            repo = self._get_requirement_store(session)
 
             for req_id in requirement_ids:
                 try:
                     requirement = await repo.reject(req_id, reason=reason, rejected_by=rejected_by)
                     if requirement:
-                        # Publish event.
-                        await self._publish_requirement_rejected(requirement, reason)
+                        event = self._create_requirement_rejected_event(requirement, reason)
+                        await self._stage_requirement_event(session, event)
+                        events_to_publish.append((event, requirement.id))
                         results.append({
                             "requirement_id": req_id,
                             "success": True,
@@ -700,6 +968,9 @@ class RequirementManagerAgent(BaseAgent):
                         error=str(e)
                     )
 
+        for event, requirement_id in events_to_publish:
+            await self._publish_staged_requirement_event(event, requirement_id=requirement_id)
+
         return results
 
     async def get_requirement(self, requirement_id: str) -> Optional[Requirement]:
@@ -713,7 +984,7 @@ class RequirementManagerAgent(BaseAgent):
             Requirement object, or None if it does not exist.
         """
         async with self._db_manager.session() as session:
-            repo = RequirementRepository(session)
+            repo = self._get_requirement_store(session)
             return await repo.get_by_id(requirement_id)
 
     async def get_meeting(self, meeting_id: str) -> Optional[Meeting]:
@@ -727,7 +998,7 @@ class RequirementManagerAgent(BaseAgent):
             Meeting object, or None if it does not exist.
         """
         async with self._db_manager.session() as session:
-            repo = MeetingRepository(session)
+            repo = self._get_meeting_store(session)
             return await repo.get_by_id(meeting_id)
 
     # ========== Session Extraction Methods ==========
@@ -745,11 +1016,11 @@ class RequirementManagerAgent(BaseAgent):
             IngestResult if extraction succeeded, None if no messages or error
         """
         async with self._db_manager.session() as db_session:
-            msg_repo = MessageRepository(db_session)
-            req_repo = RequirementRepository(db_session)
+            msg_store = self._get_message_store(db_session)
+            req_store = self._get_requirement_store(db_session)
 
             # Get all messages in session
-            messages = await msg_repo.get_by_session(session_id)
+            messages = await msg_store.get_by_session(session_id)
             if not messages:
                 logger.warning("extract_from_session_no_messages", session_id=session_id)
                 return None
@@ -777,14 +1048,14 @@ class RequirementManagerAgent(BaseAgent):
 
             if result and result.requirements_extracted > 0:
                 # Mark messages as extracted and link to requirements
-                await msg_repo.mark_extracted(session_id, result.requirement_ids)
+                await msg_store.mark_extracted(session_id, result.requirement_ids)
 
                 # Get message IDs for context linking
                 message_ids = [m.id for m in messages]
 
                 # Update requirements with context_message_ids
                 for req_id in result.requirement_ids:
-                    req = await req_repo.get_by_id(req_id)
+                    req = await req_store.get_by_id(req_id)
                     if req and hasattr(req, 'context_message_ids'):
                         req.context_message_ids = message_ids
 
@@ -887,19 +1158,15 @@ class RequirementManagerAgent(BaseAgent):
                 error=str(e),
             )
 
-    # ========== Event Publishing Helpers ==========
+    # ========== Event Creation and Publishing Helpers ==========
 
-    async def _publish_requirements_extracted(
+    def _create_requirements_extracted_event(
         self,
         requirements: list[Requirement],
-        meeting_id: str
-    ):
-        """Publish a requirements-extracted event."""
-        if not requirements:
-            return
-
-        # Publish aggregate event for all requirements extracted from one meeting.
-        event = self.create_event(
+        meeting_id: str,
+    ) -> Event:
+        """Create a requirements-extracted integration event."""
+        return self.create_event(
             event_type=EventTypes.REQUIREMENT_EXTRACTED,
             payload={
                 "meeting_id": meeting_id,
@@ -913,33 +1180,17 @@ class RequirementManagerAgent(BaseAgent):
                         "category": r.category,
                     }
                     for r in requirements
-                ]
-            }
+                ],
+            },
         )
 
-        try:
-            await self._event_bus.publish(event)
-            logger.info(
-                "event_published",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                requirement_count=len(requirements)
-            )
-        except Exception as e:
-            # Event publishing failure does not block the main flow.
-            logger.error(
-                "event_publish_failed",
-                event_type=EventTypes.REQUIREMENT_EXTRACTED,
-                error=str(e)
-            )
-
-    async def _publish_requirement_confirmed(
+    def _create_requirement_confirmed_event(
         self,
         requirement: Requirement,
-        confirmed_by: str
-    ):
-        """Publish a requirement-confirmed event."""
-        event = self.create_event(
+        confirmed_by: str,
+    ) -> Event:
+        """Create a requirement-confirmed integration event."""
+        return self.create_event(
             event_type=EventTypes.REQUIREMENT_CONFIRMED,
             payload={
                 "requirement_id": requirement.id,
@@ -947,85 +1198,86 @@ class RequirementManagerAgent(BaseAgent):
                 "priority": requirement.priority,
                 "category": requirement.category,
                 "confirmed_by": confirmed_by,
-                "confirmed_at": datetime.now(UTC).isoformat()
-            }
+                "confirmed_at": datetime.now(UTC).isoformat(),
+            },
         )
 
-        try:
-            await self._event_bus.publish(event)
-            logger.info(
-                "event_published",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                requirement_id=requirement.id
-            )
-        except Exception as e:
-            logger.error(
-                "event_publish_failed",
-                event_type=EventTypes.REQUIREMENT_CONFIRMED,
-                error=str(e)
-            )
-
-    async def _publish_requirement_rejected(
+    def _create_requirement_rejected_event(
         self,
         requirement: Requirement,
-        reason: str
-    ):
-        """Publish a requirement-rejected event."""
-        event = self.create_event(
+        reason: str,
+    ) -> Event:
+        """Create a requirement-rejected integration event."""
+        return self.create_event(
             event_type=EventTypes.REQUIREMENT_REJECTED,
             payload={
                 "requirement_id": requirement.id,
                 "title": requirement.title,
                 "reason": reason,
-                "rejected_at": datetime.now(UTC).isoformat()
-            }
+                "rejected_at": datetime.now(UTC).isoformat(),
+            },
         )
 
-        try:
-            await self._event_bus.publish(event)
-            logger.info(
-                "event_published",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                requirement_id=requirement.id
-            )
-        except Exception as e:
-            logger.error(
-                "event_publish_failed",
-                event_type=EventTypes.REQUIREMENT_REJECTED,
-                error=str(e)
-            )
-
-    async def _publish_requirement_deleted(
+    def _create_requirement_changed_event(
         self,
         requirement: Requirement,
-        deleted_by: str
-    ):
-        """Publish a requirement-deleted event."""
-        event = self.create_event(
+        changed_fields: list[str],
+        changed_by: str,
+    ) -> Event:
+        """Create a requirement-changed integration event."""
+        return self.create_event(
+            event_type=EventTypes.REQUIREMENT_CHANGED,
+            payload={
+                "requirement_id": requirement.id,
+                "title": requirement.title,
+                "changed_fields": changed_fields,
+                "changed_by": changed_by,
+                "changed_at": datetime.now(UTC).isoformat(),
+            },
+        )
+
+    def _create_requirement_deleted_event(
+        self,
+        requirement: Requirement,
+        deleted_by: str,
+    ) -> Event:
+        """Create a requirement-deleted integration event."""
+        return self.create_event(
             event_type=EventTypes.REQUIREMENT_DELETED,
             payload={
                 "requirement_id": requirement.id,
                 "title": requirement.title,
                 "deleted_by": deleted_by,
-                "deleted_at": datetime.now(UTC).isoformat()
-            }
+                "deleted_at": datetime.now(UTC).isoformat(),
+            },
         )
 
+    async def _publish_staged_requirement_event(
+        self,
+        event: Event,
+        *,
+        requirement_id: str | None = None,
+    ) -> None:
+        """Publish an event already persisted in the Requirement outbox."""
         try:
-            await self._event_bus.publish(event)
+            ok = await self._event_publisher.publish(event)
+            if not ok:
+                raise RuntimeError("event_bus_publish_returned_false")
+            await self._mark_requirement_event_published(event)
             logger.info(
                 "event_published",
                 event_id=event.event_id,
                 event_type=event.event_type,
-                requirement_id=requirement.id
+                requirement_id=requirement_id,
             )
-        except Exception as e:
+        except Exception as exc:
+            await self._mark_requirement_event_failed(event, exc)
             logger.error(
                 "event_publish_failed",
-                event_type=EventTypes.REQUIREMENT_DELETED,
-                error=str(e)
+                event_id=event.event_id,
+                event_type=event.event_type,
+                requirement_id=requirement_id,
+                error=str(exc),
             )
 
 

@@ -1,5 +1,5 @@
 from .base import Base
-from .qa import QAAcceptanceResult, QAAcceptanceRun
+from .qa import QAAcceptanceResult, QAAcceptanceRun, QAEventOutbox
 from .schemas import (
     AcceptanceExecutionResult,
     AcceptanceFinding,
@@ -13,6 +13,7 @@ __all__ = [
     "Base",
     "QAAcceptanceRun",
     "QAAcceptanceResult",
+    "QAEventOutbox",
     "QARunRequest",
     "AcceptanceExecutionResult",
     "AcceptanceFinding",

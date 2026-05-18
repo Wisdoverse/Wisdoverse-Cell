@@ -43,36 +43,31 @@ class TestStatsSkillExecute:
         mock_db = AsyncMock()
         mock_user = MagicMock(id="user_001")
 
-        mock_req_repo_class = MagicMock()
-        mock_req_repo = MagicMock()
-        mock_req_repo.count_by_status = AsyncMock(return_value={
+        mock_store_class = MagicMock()
+        mock_store = MagicMock()
+        mock_store.count_by_status = AsyncMock(return_value={
             "pending": 5,
             "confirmed": 10,
             "rejected": 2,
         })
-        mock_req_repo.count_by_priority = AsyncMock(return_value={
+        mock_store.count_by_priority = AsyncMock(return_value={
             "high": 3,
             "medium": 8,
             "low": 6,
         })
-        mock_req_repo.count_by_category = AsyncMock(return_value={
+        mock_store.count_by_category = AsyncMock(return_value={
             "feature": 10,
             "bug": 5,
             "enhancement": 2,
         })
-        mock_req_repo.get_daily_counts = AsyncMock(return_value=[
+        mock_store.get_daily_counts = AsyncMock(return_value=[
             {"date": "01/25", "count": 3},
             {"date": "01/26", "count": 5},
             {"date": "01/27", "count": 2},
         ])
-        mock_req_repo.count_today = AsyncMock(return_value=2)
-        mock_req_repo_class.return_value = mock_req_repo
-
-        mock_meeting_repo_class = MagicMock()
-        mock_meeting_repo = MagicMock()
-        mock_meeting_repo.list_all = AsyncMock(return_value=([], 10))
-        mock_meeting_repo.list_unprocessed = AsyncMock(return_value=[MagicMock(), MagicMock()])
-        mock_meeting_repo_class.return_value = mock_meeting_repo
+        mock_store.count_today = AsyncMock(return_value=2)
+        mock_store.meeting_counts = AsyncMock(return_value=(10, 2))
+        mock_store_class.return_value = mock_store
 
         message = create_message("/stats")
         context = SkillContext(
@@ -84,14 +79,10 @@ class TestStatsSkillExecute:
 
         skill = StatsSkill()
         with patch(
-            "agents.requirement_manager.skills.stats.RequirementRepository",
-            mock_req_repo_class,
+            "agents.requirement_manager.skills.stats.build_requirement_skill_store",
+            mock_store_class,
         ):
-            with patch(
-                "agents.requirement_manager.skills.stats.MeetingRepository",
-                mock_meeting_repo_class,
-            ):
-                result = await skill.execute(context)
+            result = await skill.execute(context)
 
         assert result.success is True
         assert result.response.card is not None

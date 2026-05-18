@@ -1,16 +1,32 @@
 """QAAgent API - REST Endpoints"""
 
-import asyncio
+from fastapi import APIRouter, Depends, Query
 
-from fastapi import APIRouter, HTTPException, Query
-
+from shared.api import (
+    raise_qa_run_detail_failed,
+    raise_qa_run_failed,
+    raise_qa_run_list_failed,
+    raise_qa_run_not_found,
+    raise_qa_run_timeout,
+    raise_qa_stats_failed,
+)
 from shared.utils.logger import get_logger
 
-from ..models.schemas import QARunRequest
+from ..core.api_use_cases import (
+    QAApiListRunsFailedError,
+    QAApiRunDetailFailedError,
+    QAApiRunFailedError,
+    QAApiRunNotFoundError,
+    QAApiStatsFailedError,
+    QAApiTimeoutError,
+    QAApiUseCase,
+    QAListRunsQuery,
+    QAStatsQuery,
+    QATriggerRunCommand,
+)
 from ..service.agent import get_agent
 from .schemas import (
     QARunDetailResponse,
-    QARunListItem,
     QARunListResponse,
     QARunTriggerRequest,
     QARunTriggerResponse,
@@ -21,56 +37,40 @@ router = APIRouter(prefix="/api/v1/qa", tags=["qa"])
 logger = get_logger("qa_agent.api")
 
 
+def get_qa_api_use_case() -> QAApiUseCase:
+    return QAApiUseCase(get_agent())
+
+
 @router.post(
     "/run",
     response_model=QARunTriggerResponse,
 )
-async def trigger_run(request: QARunTriggerRequest):
+async def trigger_run(
+    request: QARunTriggerRequest,
+    qa_api: QAApiUseCase = Depends(get_qa_api_use_case),
+):
     """Trigger a QA acceptance run manually."""
-    agent = get_agent()
-
-    run_req = QARunRequest(
-        agent_name=request.agent_name,
-        level=request.level,
-        commit_sha=request.commit_sha,
-        files_changed=request.files_changed,
-        mr_iid=request.mr_iid,
-        gitlab_project_id=request.gitlab_project_id,
-        trigger="manual",  # Explicitly mark API-triggered runs as manual.
-        requested_by=request.requested_by,
-        reason=request.reason,
-    )
-
     try:
-        # Rely on run_acceptance's internal timeout control.
-        result = await agent.run_acceptance(run_req)
-
-        # Map L0 status to the API status.
-        status_map = {
-            "PASS": "passed",
-            "FAIL": "failed",
-            "WARN": "warn",
-            "ERROR": "error",
-        }
-        status = status_map.get(result.summary.l0_gate, "error")
-
-        # run_id and notification_summary are injected by agent.run_acceptance
-
-        return QARunTriggerResponse(
-            run_id=result.run_id,
-            status=status,
-            agent_name=request.agent_name,
-            level=request.level,
-            summary=result.summary,
-            duration_seconds=result.duration_seconds,
-            notification_summary=result.notification_summary,
+        return QARunTriggerResponse.model_validate(
+            await qa_api.trigger_run(
+                QATriggerRunCommand(
+                    agent_name=request.agent_name,
+                    level=request.level,
+                    commit_sha=request.commit_sha,
+                    files_changed=request.files_changed,
+                    mr_iid=request.mr_iid,
+                    gitlab_project_id=request.gitlab_project_id,
+                    requested_by=request.requested_by,
+                    reason=request.reason,
+                )
+            )
         )
-    except asyncio.TimeoutError:
+    except QAApiTimeoutError:
         logger.error("api_run_timeout", agent_name=request.agent_name)
-        raise HTTPException(status_code=504, detail="QA acceptance run timed out")
-    except Exception as e:
-        logger.error("api_run_error", error=str(e))
-        raise HTTPException(status_code=500, detail=f"QA acceptance run failed: {str(e)}")
+        raise_qa_run_timeout()
+    except QAApiRunFailedError as exc:
+        logger.error("api_run_error", error=str(exc))
+        raise_qa_run_failed(f"QA acceptance run failed: {str(exc)}")
 
 
 @router.get(
@@ -81,72 +81,40 @@ async def list_runs(
     agent_name: str | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    qa_api: QAApiUseCase = Depends(get_qa_api_use_case),
 ):
     """List QA acceptance run history."""
-    agent = get_agent()
     try:
-        runs_data = await agent.list_runs(
-            agent_name=agent_name,
-            limit=limit,
-            offset=offset,
-        )
-
-        items = []
-        for r in runs_data:
-            items.append(
-                QARunListItem(
-                    run_id=r["id"],
-                    agent_name=r["agent_name"],
-                    commit_sha=r.get("commit_sha"),
-                    mr_iid=r.get("mr_iid"),
-                    trigger=r["trigger"],
-                    l0_status=r["l0_status"],
-                    l1_status=r["l1_status"],
-                    total_checks=r["total_checks"],
-                    duration_seconds=r["duration_seconds"],
-                    created_at=r["created_at"],
+        return QARunListResponse.model_validate(
+            await qa_api.list_runs(
+                QAListRunsQuery(
+                    agent_name=agent_name,
+                    limit=limit,
+                    offset=offset,
                 )
             )
-
-        # total currently reflects returned items; use richer metadata when the agent exposes it.
-        return QARunListResponse(total=len(items), items=items)
-    except Exception as e:
-        logger.error("api_list_runs_error", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to list QA acceptance runs")
+        )
+    except QAApiListRunsFailedError as exc:
+        logger.error("api_list_runs_error", error=str(exc))
+        raise_qa_run_list_failed()
 
 
 @router.get(
     "/runs/{run_id}",
     response_model=QARunDetailResponse,
 )
-async def get_run_detail(run_id: str):
+async def get_run_detail(
+    run_id: str,
+    qa_api: QAApiUseCase = Depends(get_qa_api_use_case),
+):
     """Get details for one QA acceptance run."""
-    agent = get_agent()
     try:
-        run = await agent.get_run(run_id)
-        if not run:
-            raise HTTPException(status_code=404, detail="QA acceptance run not found")
-
-        return QARunDetailResponse(
-            run_id=run["id"],
-            agent_name=run["agent_name"],
-            commit_sha=run.get("commit_sha"),
-            files_changed=run.get("files_changed", []),
-            trigger=run["trigger"],
-            level=run["level"],
-            summary=run["summary"],
-            findings=run.get("findings", []),
-            raw_report=run["raw_report"],
-            report_markdown=run.get("report_markdown"),
-            notification_summary=run.get("notification_summary", {}),
-            created_at=run["created_at"],
-            completed_at=run.get("completed_at"),
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("api_get_run_detail_error", run_id=run_id, error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to get QA acceptance run details")
+        return QARunDetailResponse.model_validate(await qa_api.get_run_detail(run_id))
+    except QAApiRunDetailFailedError as exc:
+        logger.error("api_get_run_detail_error", run_id=run_id, error=str(exc))
+        raise_qa_run_detail_failed()
+    except QAApiRunNotFoundError:
+        raise_qa_run_not_found()
 
 
 @router.get(
@@ -156,23 +124,13 @@ async def get_run_detail(run_id: str):
 async def get_stats(
     agent_name: str | None = Query(None),
     days: int = Query(30, ge=1, le=365),
+    qa_api: QAApiUseCase = Depends(get_qa_api_use_case),
 ):
     """Get QA run statistics."""
-    agent = get_agent()
     try:
-        stats = await agent.get_stats(agent_name=agent_name, days=days)
-        return QAStatsResponse(
-            agent_name=stats.agent_name,
-            days=stats.days,
-            total_runs=stats.total_runs,
-            pass_runs=stats.pass_runs,
-            warn_runs=stats.warn_runs,
-            failed_runs=stats.failed_runs,
-            l0_fail_rate=stats.l0_fail_rate,
-            avg_duration_seconds=stats.avg_duration_seconds,
-            top_l0_failures=stats.top_l0_failures,
-            top_l1_warnings=stats.top_l1_warnings,
+        return QAStatsResponse.model_validate(
+            await qa_api.get_stats(QAStatsQuery(agent_name=agent_name, days=days))
         )
-    except Exception as e:
-        logger.error("api_get_stats_error", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to get QA acceptance statistics")
+    except QAApiStatsFailedError as exc:
+        logger.error("api_get_stats_error", error=str(exc))
+        raise_qa_stats_failed()

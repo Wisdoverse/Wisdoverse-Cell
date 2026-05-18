@@ -7,6 +7,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from shared.api import ApiErrorCode
 from shared.integrations.wecom.router import router
 
 _wecom_router_mod = _sys.modules["shared.integrations.wecom.router"]
@@ -75,6 +76,10 @@ class TestWecomRouter:
                 },
             )
             assert response.status_code == 503
+            assert (
+                response.headers["x-error-code"]
+                == ApiErrorCode.WECOM_SECURITY_NOT_CONFIGURED.value
+            )
 
     def test_url_verification_rejects_invalid_signature_when_enabled(self, client):
         with patch.object(_wecom_router_mod, "settings") as mock_settings:
@@ -95,6 +100,63 @@ class TestWecomRouter:
                 },
             )
             assert response.status_code == 403
+            assert response.json()["detail"] == "Invalid WeCom signature"
+            assert (
+                response.headers["x-error-code"]
+                == ApiErrorCode.WECOM_INVALID_SIGNATURE.value
+            )
+
+    def test_webhook_rejects_missing_encrypted_payload_when_enabled(self, client):
+        with patch.object(_wecom_router_mod, "settings") as mock_settings:
+            mock_settings.wecom_enabled = True
+            mock_settings.app_env = "production"
+            mock_settings.wecom_token.get_secret_value.return_value = "token"
+            mock_settings.wecom_encoding_aes_key.get_secret_value.return_value = (
+                "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG"
+            )
+            mock_settings.wecom_corp_id = "corp123"
+            response = client.post(
+                "/api/wecom/webhook",
+                params={
+                    "msg_signature": "sig",
+                    "timestamp": "123",
+                    "nonce": "abc",
+                },
+                content=b"<xml><MsgType>text</MsgType></xml>",
+            )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Missing encrypted WeCom payload"
+        assert (
+            response.headers["x-error-code"]
+            == ApiErrorCode.WECOM_MISSING_ENCRYPTED_PAYLOAD.value
+        )
+
+    def test_webhook_rejects_invalid_xml_when_security_required(self, client):
+        with patch.object(_wecom_router_mod, "settings") as mock_settings:
+            mock_settings.wecom_enabled = True
+            mock_settings.app_env = "production"
+            mock_settings.wecom_token.get_secret_value.return_value = "token"
+            mock_settings.wecom_encoding_aes_key.get_secret_value.return_value = (
+                "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG"
+            )
+            mock_settings.wecom_corp_id = "corp123"
+            response = client.post(
+                "/api/wecom/webhook",
+                params={
+                    "msg_signature": "sig",
+                    "timestamp": "123",
+                    "nonce": "abc",
+                },
+                content=b"not-xml",
+            )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid WeCom XML payload"
+        assert (
+            response.headers["x-error-code"]
+            == ApiErrorCode.WECOM_INVALID_XML_PAYLOAD.value
+        )
 
     def test_health_check_disabled(self, client):
         with patch.object(_wecom_router_mod, "settings") as mock_settings:

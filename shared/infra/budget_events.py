@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from shared.core import EventPublisher
+from shared.infra.event_publisher import EventBusEventPublisher
 from shared.schemas.event import Event, EventTypes
 from shared.schemas.event_payloads import BudgetUsageRecordedPayload
 from shared.utils.logger import get_logger
@@ -25,11 +27,13 @@ async def publish_budget_usage_recorded(
     run_id: str | None = None,
     trace_id: str | None = None,
     event_bus: Any | None = None,
+    event_publisher: EventPublisher | None = None,
 ) -> Event | None:
     """Publish the budget.usage-recorded EventBus contract.
 
     Event publication is operational evidence and must not make the already
-    persisted budget usage fail.
+    persisted budget usage fail. New callers should inject event_publisher;
+    event_bus is retained as a compatibility adapter.
     """
     payload = BudgetUsageRecordedPayload(
         company_id=company_id,
@@ -53,11 +57,13 @@ async def publish_budget_usage_recorded(
     )
 
     try:
-        if event_bus is None:
-            from shared.infra.event_bus import event_bus as default_event_bus
+        if event_publisher is None:
+            if event_bus is None:
+                from shared.infra.event_bus import event_bus as default_event_bus
 
-            event_bus = default_event_bus
-        published = await event_bus.publish(event)
+                event_bus = default_event_bus
+            event_publisher = EventBusEventPublisher(event_bus)
+        published = await event_publisher.publish(event)
     except Exception as exc:
         logger.warning(
             "budget_usage_event_publish_failed",

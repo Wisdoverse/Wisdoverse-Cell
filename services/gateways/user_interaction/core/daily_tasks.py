@@ -2,15 +2,13 @@
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from typing import Any, Protocol
 
 from shared.core import BitableTablePort, FeishuMessengerPort
-from shared.infra.llm_gateway import llm_gateway
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
-from ..db.database import db_manager
-from ..db.repository import DailyProgressRepository
 from .config import UserInteractionCoreConfig
 
 logger = get_logger("chat_agent.daily_tasks")
@@ -24,12 +22,42 @@ _UNTRUSTED_DAILY_TASK_INSTRUCTION = (
 )
 
 
+class DailyDispatchLLM(Protocol):
+    async def complete(
+        self,
+        *,
+        prompt: str,
+        agent_id: str,
+        task_type: str,
+        max_tokens: int,
+    ) -> str: ...
+
+
+class DailyProgressItem(Protocol):
+    status: str
+    task_title: str
+
+
+class DailyProgressStore(Protocol):
+    async def create_batch(self, items: list[dict[str, Any]]) -> None: ...
+
+    async def list_users_for_date(self, target_date: Any) -> list[tuple[str, str]]: ...
+
+    async def get_pending(
+        self,
+        user_id: str,
+        target_date: Any,
+    ) -> list[DailyProgressItem]: ...
+
+
 @dataclass(frozen=True)
 class DailyTaskDependencies:
     """External platform ports used by daily task jobs."""
 
     bitable: BitableTablePort
     messenger: FeishuMessengerPort
+    dispatch_llm: DailyDispatchLLM
+    progress_store: DailyProgressStore
     config: UserInteractionCoreConfig = field(default_factory=UserInteractionCoreConfig)
 
 
@@ -158,7 +186,7 @@ Requirements:
 
 Output only the message content. Do not add a preface or explanation."""
 
-    return await llm_gateway.complete(
+    return await _require_dependencies().dispatch_llm.complete(
         prompt=prompt,
         agent_id="chat-agent",
         task_type="daily_dispatch",
@@ -171,7 +199,8 @@ async def dispatch_morning_tasks():
     logger.info("morning_dispatch_start")
     try:
         members = await _get_members()
-        messenger = _require_dependencies().messenger
+        deps = _require_dependencies()
+        messenger = deps.messenger
         today = datetime.now(_SHANGHAI_TZ).date()
         dispatched = 0
 
@@ -211,19 +240,17 @@ async def dispatch_morning_tasks():
                 )
                 continue
 
-            async with db_manager.session() as session:
-                repo = DailyProgressRepository(session)
-                await repo.create_batch([
-                    {
-                        "user_id": open_id,
-                        "user_name": name,
-                        "date": today,
-                        "task_record_id": t["record_id"],
-                        "task_title": t["title"],
-                        "status": _STATUS_MAP.get(t["status"], "pending"),
-                    }
-                    for t in tasks
-                ])
+            await deps.progress_store.create_batch([
+                {
+                    "user_id": open_id,
+                    "user_name": name,
+                    "date": today,
+                    "task_record_id": t["record_id"],
+                    "task_title": t["title"],
+                    "status": _STATUS_MAP.get(t["status"], "pending"),
+                }
+                for t in tasks
+            ])
 
         logger.info("morning_dispatch_done", dispatched=dispatched, total_members=len(members))
     except Exception as e:
@@ -235,24 +262,14 @@ async def collect_evening_progress():
     logger.info("evening_collect_start")
     try:
         today = datetime.now(_SHANGHAI_TZ).date()
-        messenger = _require_dependencies().messenger
+        deps = _require_dependencies()
+        messenger = deps.messenger
         asked = 0
 
-        async with db_manager.session() as session:
-            repo = DailyProgressRepository(session)
-            from sqlalchemy import select
-
-            from ..models.daily_progress import DailyProgress
-            stmt = select(DailyProgress.user_id, DailyProgress.user_name).where(
-                DailyProgress.date == today
-            ).distinct()
-            result = await session.execute(stmt)
-            users = result.all()
+        users = await deps.progress_store.list_users_for_date(today)
 
         for user_id, user_name in users:
-            async with db_manager.session() as session:
-                repo = DailyProgressRepository(session)
-                progress_list = await repo.get_pending(user_id, today)
+            progress_list = await deps.progress_store.get_pending(user_id, today)
 
             if not progress_list:
                 continue

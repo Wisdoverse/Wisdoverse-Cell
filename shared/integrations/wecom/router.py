@@ -9,8 +9,22 @@ from xml.etree.ElementTree import Element
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from defusedxml import ElementTree as ET
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Query, Request
 
+from shared.api import (
+    raise_wecom_corp_id_mismatch,
+    raise_wecom_invalid_ciphertext,
+    raise_wecom_invalid_encoding_aes_key,
+    raise_wecom_invalid_encoding_aes_key_length,
+    raise_wecom_invalid_message_length,
+    raise_wecom_invalid_padding,
+    raise_wecom_invalid_payload,
+    raise_wecom_invalid_signature,
+    raise_wecom_invalid_xml_payload,
+    raise_wecom_missing_encrypted_payload,
+    raise_wecom_missing_message_type,
+    raise_wecom_security_not_configured,
+)
 from shared.config import settings
 from shared.utils.logger import get_logger
 
@@ -55,10 +69,7 @@ def _wecom_crypto_config() -> tuple[str, str, str]:
         if not value
     ]
     if missing and _callback_security_required():
-        raise HTTPException(
-            status_code=503,
-            detail=f"WeCom webhook security is not configured: {', '.join(missing)}",
-        )
+        raise_wecom_security_not_configured(missing)
     return token, encoding_aes_key, corp_id
 
 
@@ -83,39 +94,39 @@ def _verify_wecom_signature(
 
 def _decrypt_wecom_payload(encrypted: str, encoding_aes_key: str, corp_id: str) -> str:
     if len(encoding_aes_key) != 43:
-        raise HTTPException(status_code=503, detail="Invalid WeCom EncodingAESKey length")
+        raise_wecom_invalid_encoding_aes_key_length()
 
     try:
         aes_key = base64.b64decode(encoding_aes_key + "=")
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail="Invalid WeCom EncodingAESKey") from exc
+    except Exception:
+        raise_wecom_invalid_encoding_aes_key()
 
     try:
         cipher = Cipher(algorithms.AES(aes_key), modes.CBC(aes_key[:16]))
         decryptor = cipher.decryptor()
         padded = decryptor.update(base64.b64decode(encrypted)) + decryptor.finalize()
-    except Exception as exc:
-        raise HTTPException(status_code=403, detail="Invalid WeCom ciphertext") from exc
+    except Exception:
+        raise_wecom_invalid_ciphertext()
 
     if not padded:
-        raise HTTPException(status_code=403, detail="Invalid WeCom ciphertext")
+        raise_wecom_invalid_ciphertext()
     padding_len = padded[-1]
     if padding_len < 1 or padding_len > 32:
-        raise HTTPException(status_code=403, detail="Invalid WeCom padding")
+        raise_wecom_invalid_padding()
 
     plain = padded[:-padding_len]
     if len(plain) < 20:
-        raise HTTPException(status_code=403, detail="Invalid WeCom payload")
+        raise_wecom_invalid_payload()
 
     msg_len = struct.unpack(">I", plain[16:20])[0]
     msg_start = 20
     msg_end = msg_start + msg_len
     if len(plain) < msg_end:
-        raise HTTPException(status_code=403, detail="Invalid WeCom message length")
+        raise_wecom_invalid_message_length()
 
     actual_corp_id = plain[msg_end:].decode("utf-8")
     if actual_corp_id != corp_id:
-        raise HTTPException(status_code=403, detail="WeCom corp_id mismatch")
+        raise_wecom_corp_id_mismatch()
 
     return plain[msg_start:msg_end].decode("utf-8")
 
@@ -137,7 +148,7 @@ async def wecom_verify(
     if not token:
         return echostr
     if not _verify_wecom_signature(msg_signature, timestamp, nonce, echostr, token):
-        raise HTTPException(status_code=403, detail="Invalid WeCom signature")
+        raise_wecom_invalid_signature()
     return _decrypt_wecom_payload(echostr, encoding_aes_key, corp_id)
 
 
@@ -157,15 +168,15 @@ async def wecom_webhook(
         encrypted = root.findtext("Encrypt")
         if encrypted:
             if not _verify_wecom_signature(msg_signature, timestamp, nonce, encrypted, token):
-                raise HTTPException(status_code=403, detail="Invalid WeCom signature")
+                raise_wecom_invalid_signature()
             root = ET.fromstring(_decrypt_wecom_payload(encrypted, encoding_aes_key, corp_id))
         elif _callback_security_required():
-            raise HTTPException(status_code=400, detail="Missing encrypted WeCom payload")
+            raise_wecom_missing_encrypted_payload()
 
         msg_type = root.find("MsgType")
         if msg_type is None:
             if _callback_security_required():
-                raise HTTPException(status_code=400, detail="Missing WeCom message type")
+                raise_wecom_missing_message_type()
             data = await request.json()
             return await _handle_card_callback(data)
 
@@ -184,9 +195,9 @@ async def wecom_webhook(
 
         return "success"
 
-    except ET.ParseError as exc:
+    except ET.ParseError:
         if _callback_security_required():
-            raise HTTPException(status_code=400, detail="Invalid WeCom XML payload") from exc
+            raise_wecom_invalid_xml_payload()
         data = await request.json()
         return await _handle_card_callback(data)
 

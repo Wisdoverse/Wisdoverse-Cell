@@ -38,7 +38,7 @@ class TestFeedbackLearningService:
             "category": "feature",
         }
 
-        with patch.object(service.feedback_repo, 'create', new_callable=AsyncMock) as mock_create:
+        with patch.object(service.feedback_store, 'create', new_callable=AsyncMock) as mock_create:
             mock_create.return_value = MagicMock(id="fb_test")
 
             await service.record_correction(
@@ -66,7 +66,7 @@ class TestFeedbackLearningService:
             "category": "feature",
         }
 
-        with patch.object(service.feedback_repo, 'create', new_callable=AsyncMock) as mock_create:
+        with patch.object(service.feedback_store, 'create', new_callable=AsyncMock) as mock_create:
             mock_create.return_value = MagicMock(id="fb_test")
 
             await service.record_rejection(
@@ -93,7 +93,11 @@ class TestFeedbackLearningService:
             }
         ]
 
-        with patch.object(service.feedback_repo, 'get_examples_for_prompt', new_callable=AsyncMock) as mock_get:
+        with patch.object(
+            service.feedback_store,
+            'get_examples_for_prompt',
+            new_callable=AsyncMock,
+        ) as mock_get:
             mock_get.return_value = mock_examples
 
             result = await service.get_prompt_examples(limit=5)
@@ -104,7 +108,11 @@ class TestFeedbackLearningService:
     @pytest.mark.asyncio
     async def test_build_learning_prompt_section_empty(self, service):
         """Test building prompt section with no examples."""
-        with patch.object(service.feedback_repo, 'get_examples_for_prompt', new_callable=AsyncMock) as mock_get:
+        with patch.object(
+            service.feedback_store,
+            'get_examples_for_prompt',
+            new_callable=AsyncMock,
+        ) as mock_get:
             mock_get.return_value = []
 
             result = await service.build_learning_prompt_section()
@@ -126,7 +134,11 @@ class TestFeedbackLearningService:
             }
         ]
 
-        with patch.object(service.feedback_repo, 'get_examples_for_prompt', new_callable=AsyncMock) as mock_get:
+        with patch.object(
+            service.feedback_store,
+            'get_examples_for_prompt',
+            new_callable=AsyncMock,
+        ) as mock_get:
             mock_get.return_value = mock_examples
 
             result = await service.build_learning_prompt_section(limit=3)
@@ -142,8 +154,16 @@ class TestFeedbackLearningService:
     @pytest.mark.asyncio
     async def test_get_learning_stats(self, service):
         """Test getting learning statistics."""
-        with patch.object(service.feedback_repo, 'count_by_type', new_callable=AsyncMock) as mock_count:
-            with patch.object(service.feedback_repo, 'list_recent', new_callable=AsyncMock) as mock_list:
+        with patch.object(
+            service.feedback_store,
+            'count_by_type',
+            new_callable=AsyncMock,
+        ) as mock_count:
+            with patch.object(
+                service.feedback_store,
+                'list_recent',
+                new_callable=AsyncMock,
+            ) as mock_list:
                 mock_count.return_value = {"correction": 10, "rejection": 5}
                 mock_list.return_value = [
                     MagicMock(used_in_prompt=True),

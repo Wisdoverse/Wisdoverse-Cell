@@ -7,7 +7,7 @@ import json
 from typing import Any
 
 from shared.control_plane.models import Artifact, ArtifactType, AuditEvent
-from shared.control_plane.repository import ControlPlaneRepository
+from shared.control_plane.run_evidence_ports import ControlPlaneRunEvidenceStore
 from shared.schemas.event import EventTypes
 
 
@@ -20,7 +20,7 @@ def hash_evidence(value: dict[str, Any]) -> str:
 
 
 async def create_run_evidence_artifact(
-    repo: ControlPlaneRepository,
+    repo: ControlPlaneRunEvidenceStore,
     *,
     company_id: str,
     agent_id: str,

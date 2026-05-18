@@ -3,7 +3,7 @@ ListSkill - List pending requirements.
 
 Displays pending requirements in a paginated card with confirm/reject buttons.
 """
-from agents.requirement_manager.db.repository import RequirementRepository
+from agents.requirement_manager.db.skill_store import build_requirement_skill_store
 from agents.requirement_manager.models import RequirementStatus
 from shared.infra.skill import BaseSkill, Permission, SkillContext, SkillError, SkillResult
 from shared.messaging.inbound import AgentResponse, CardAction, CardActionStyle, UnifiedCard
@@ -27,10 +27,10 @@ class ListSkill(BaseSkill):
         if context.db is None:
             raise SkillError("数据库不可用")
 
-        repo = RequirementRepository(context.db)
+        store = build_requirement_skill_store(context.db)
         skip = (page - 1) * self.PAGE_SIZE
 
-        requirements, total = await repo.list_all(
+        requirements, total = await store.list_all(
             status=RequirementStatus.PENDING.value,
             skip=skip,
             limit=self.PAGE_SIZE,

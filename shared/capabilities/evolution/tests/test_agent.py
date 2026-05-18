@@ -9,6 +9,9 @@ import pytest
 
 from shared.schemas.event import Event, EventTypes
 
+from ..core.analysis_ports import AgentPerformanceSnapshot
+from ..core.health_ports import EvolutionHealthStore
+from ..core.seed_ports import EvolutionSkillSeedStore
 from ..service.agent import EvolutionModule
 from ..service.global_analyzer import GlobalAnalyzer
 
@@ -37,6 +40,57 @@ def mock_db():
     return db
 
 
+class FakeEvolutionTraceAnalysisStore:
+    def __init__(
+        self,
+        snapshots: list[AgentPerformanceSnapshot] | None = None,
+    ):
+        self.snapshots = snapshots or []
+        self.agent_ids: list[str] = []
+        self.limit_per_agent: int | None = None
+
+    async def list_agent_performance(
+        self,
+        agent_ids: list[str],
+        *,
+        limit_per_agent: int = 100,
+    ) -> list[AgentPerformanceSnapshot]:
+        self.agent_ids = agent_ids
+        self.limit_per_agent = limit_per_agent
+        return self.snapshots
+
+
+class FakeEvolutionSkillSeedStore(EvolutionSkillSeedStore):
+    def __init__(self, seeded: int = 0):
+        self.seeded = seeded
+        self.seeds = []
+
+    async def seed_missing_active_skills(self, seeds):
+        self.seeds = list(seeds)
+        return self.seeded
+
+
+class FakeEvolutionHealthStore(EvolutionHealthStore):
+    def __init__(self, ready: bool = True):
+        self.ready = ready
+
+    async def is_database_ready(self) -> bool:
+        return self.ready
+
+
+class FakeEvolutionControlPlaneProposalStore:
+    def __init__(self):
+        self.company_ids: list[str] = []
+        self.proposals: list[dict] = []
+
+    async def ensure_company(self, company_id: str) -> None:
+        self.company_ids.append(company_id)
+
+    async def record_proposal(self, **kwargs) -> str:
+        self.proposals.append(kwargs)
+        return "evo_prop_1"
+
+
 @pytest.fixture
 def agent(mock_db, mock_bus, mock_llm):
     return EvolutionModule(
@@ -44,12 +98,36 @@ def agent(mock_db, mock_bus, mock_llm):
         bus=mock_bus,
         llm=mock_llm,
         control_plane_enabled=False,
+        health_store=FakeEvolutionHealthStore(),
+        seed_store=FakeEvolutionSkillSeedStore(),
+        trace_analysis_store=FakeEvolutionTraceAnalysisStore(
+            [
+                AgentPerformanceSnapshot(
+                    agent_id="pjm-agent",
+                    success_count=5,
+                    total_count=5,
+                    success_rate=1.0,
+                )
+            ]
+        ),
     )
 
 
 @pytest.fixture
 def analyzer(mock_llm):
-    return GlobalAnalyzer(mock_llm)
+    return GlobalAnalyzer(
+        mock_llm,
+        FakeEvolutionTraceAnalysisStore(
+            [
+                AgentPerformanceSnapshot(
+                    agent_id="pjm-agent",
+                    success_count=3,
+                    total_count=3,
+                    success_rate=1.0,
+                )
+            ]
+        ),
+    )
 
 
 # ── Helper ─────────────────────────────────────────────────────────────────
@@ -62,12 +140,6 @@ def _make_event(event_type: str, payload: dict | None = None, trace_id: str | No
         payload=payload or {},
         trace_id=trace_id,
     )
-
-
-def _make_trace(success: bool = True):
-    t = MagicMock()
-    t.success = success
-    return t
 
 
 # ── EvolutionModule Tests ──────────────────────────────────────────────────
@@ -92,23 +164,21 @@ class TestEvolutionModuleHandleEvent:
     @pytest.mark.asyncio
     async def test_dispatches_cycle_triggered(self, agent):
         event = _make_event(EventTypes.EVOLUTION_CYCLE_TRIGGERED, {"days": 3})
-        with patch.object(
-            agent, "_analyze_and_propose",
-            new_callable=AsyncMock, return_value=[],
-        ) as mock:
+        event_use_case = AsyncMock()
+        event_use_case.handle = AsyncMock(return_value=[])
+        with patch.object(agent, "_event_use_case", return_value=event_use_case):
             result = await agent.handle_event(event)
-            mock.assert_awaited_once_with(event)
+        event_use_case.handle.assert_awaited_once_with(event)
         assert result == []
 
     @pytest.mark.asyncio
     async def test_dispatches_human_feedback(self, agent):
         event = _make_event(EventTypes.EVOLUTION_HUMAN_FEEDBACK, {"approved": True})
-        with patch.object(
-            agent, "_process_feedback",
-            new_callable=AsyncMock, return_value=[],
-        ) as mock:
+        event_use_case = AsyncMock()
+        event_use_case.handle = AsyncMock(return_value=[])
+        with patch.object(agent, "_event_use_case", return_value=event_use_case):
             result = await agent.handle_event(event)
-            mock.assert_awaited_once_with(event)
+        event_use_case.handle.assert_awaited_once_with(event)
         assert result == []
 
     @pytest.mark.asyncio
@@ -116,6 +186,31 @@ class TestEvolutionModuleHandleEvent:
         event = _make_event("some.unknown.event")
         result = await agent.handle_event(event)
         assert result == []
+
+
+class TestEvolutionModuleStartup:
+    @pytest.mark.asyncio
+    async def test_bootstrap_seeds_delegates_to_seed_store(
+        self,
+        mock_db,
+        mock_bus,
+        mock_llm,
+    ):
+        seed_store = FakeEvolutionSkillSeedStore(seeded=3)
+        agent = EvolutionModule(
+            db=mock_db,
+            bus=mock_bus,
+            llm=mock_llm,
+            control_plane_enabled=False,
+            health_store=FakeEvolutionHealthStore(),
+            seed_store=seed_store,
+            trace_analysis_store=FakeEvolutionTraceAnalysisStore(),
+        )
+
+        await agent._bootstrap_seeds()
+
+        assert len(seed_store.seeds) > 0
+        assert any(seed.skill_id == "pjm-agent:decompose" for seed in seed_store.seeds)
 
 
 class TestAnalyzeAndPropose:
@@ -133,30 +228,12 @@ class TestAnalyzeAndPropose:
         ]
         mock_llm.complete = AsyncMock(return_value=json.dumps(proposals))
 
-        # Mock the db session and repo
-        mock_session = AsyncMock()
-        mock_traces = [_make_trace(True) for _ in range(5)]
-
-        @asynccontextmanager
-        async def _session():
-            yield mock_session
-
-        agent._db_manager = MagicMock()
-        agent._db_manager.session = _session
-
-        with patch(
-            "shared.evolution.db.repository.EvolutionRepository"
-        ) as MockRepo:
-            repo_instance = AsyncMock()
-            repo_instance.get_recent_traces = AsyncMock(return_value=mock_traces)
-            MockRepo.return_value = repo_instance
-
-            event = _make_event(
-                EventTypes.EVOLUTION_CYCLE_TRIGGERED,
-                {"days": 7},
-                trace_id="trace-123",
-            )
-            result = await agent.handle_event(event)
+        event = _make_event(
+            EventTypes.EVOLUTION_CYCLE_TRIGGERED,
+            {"days": 7},
+            trace_id="trace-123",
+        )
+        result = await agent.handle_event(event)
 
         assert len(result) == 1
         assert result[0].event_type == EventTypes.EVOLUTION_SKILL_PROPOSED
@@ -242,45 +319,29 @@ class TestHandleRequest:
             )
         )
         agent._control_plane_approvals.enforced = False
-        repo = AsyncMock()
-        repo.get_company = AsyncMock(side_effect=[None, SimpleNamespace()])
-        repo.create_company = AsyncMock()
-        repo.create_evolution_proposal = AsyncMock(
-            return_value=SimpleNamespace(
-                proposal_id="evo_prop_1",
-                tier="L2",
-                scope="agent:pjm-agent",
-                approval_state="pending",
-                rollout_state="proposed",
-                approval_id="appr_evo_1",
-            )
-        )
-        repo.append_audit_event = AsyncMock()
+        store = FakeEvolutionControlPlaneProposalStore()
+        agent._control_plane_proposal_store = store
 
-        with patch(
-            "shared.capabilities.evolution.service.agent.ControlPlaneRepository",
-            return_value=repo,
-        ):
-            result = await agent._attach_proposal_approval(
-                {
-                    "operation": "modify_event_subscription",
-                    "target_agent": "pjm-agent",
-                    "description": "Subscribe to QA feedback",
-                    "rationale": "Improve handoff quality",
-                },
-                trace_id="trace-evo",
-            )
+        result = await agent._attach_proposal_approval(
+            {
+                "operation": "modify_event_subscription",
+                "target_agent": "pjm-agent",
+                "description": "Subscribe to QA feedback",
+                "rationale": "Improve handoff quality",
+            },
+            trace_id="trace-evo",
+        )
 
         assert result["control_plane_approval_id"] == "appr_evo_1"
         assert result["control_plane_proposal_id"] == "evo_prop_1"
-        repo.create_company.assert_awaited_once()
-        repo.create_evolution_proposal.assert_awaited_once()
-        proposal = repo.create_evolution_proposal.await_args.args[0]
-        assert proposal.tier == "L2"
-        assert proposal.scope == "agent:pjm-agent"
-        assert proposal.approval_id == "appr_evo_1"
-        assert proposal.evidence["trace_id"] == "trace-evo"
-        repo.append_audit_event.assert_awaited_once()
+        assert store.company_ids == ["cmp_wisdoverse_cell"]
+        assert len(store.proposals) == 1
+        proposal = store.proposals[0]
+        assert proposal["tier"] == "L2"
+        assert proposal["scope"] == "agent:pjm-agent"
+        assert proposal["approval_id"] == "appr_evo_1"
+        assert proposal["evidence"]["trace_id"] == "trace-evo"
+        assert proposal["actor_id"] == "evolution-module"
 
     @pytest.mark.asyncio
     async def test_feedback_requires_resolver_for_control_plane_approval(self, agent):
@@ -292,7 +353,7 @@ class TestHandleRequest:
             {"approved": True, "control_plane_approval_id": "appr_evo_1"},
         )
 
-        result = await agent._process_feedback(event)
+        result = await agent.handle_event(event)
 
         assert result == []
         agent._control_plane_approvals.approve_for_sensitive_action.assert_not_awaited()
@@ -313,7 +374,7 @@ class TestHandleRequest:
             },
         )
 
-        result = await agent._process_feedback(event)
+        result = await agent.handle_event(event)
 
         assert result == []
         agent._control_plane_approvals.approve_for_sensitive_action.assert_awaited_once_with(
@@ -339,7 +400,7 @@ class TestHandleRequest:
             },
         )
 
-        result = await agent._process_pattern_approval(event)
+        result = await agent.handle_event(event)
 
         assert result == []
         agent._control_plane_approvals.approve_for_sensitive_action.assert_not_awaited()
@@ -364,7 +425,7 @@ class TestHandleRequest:
             },
         )
 
-        result = await agent._process_pattern_approval(event)
+        result = await agent.handle_event(event)
 
         assert result == []
         agent._control_plane_approvals.approve_for_sensitive_action.assert_awaited_once_with(
@@ -383,7 +444,7 @@ class TestHandleRequest:
 
 class TestGlobalAnalyzerWhitelist:
     @pytest.mark.asyncio
-    async def test_filters_to_whitelist(self, analyzer, mock_db, mock_llm):
+    async def test_filters_to_whitelist(self, analyzer, mock_llm):
         proposals = [
             {"operation": "add_skill", "target_agent": "pjm-agent", "confidence": 0.9},
             {"operation": "delete_agent", "target_agent": "pjm-agent", "confidence": 0.9},
@@ -391,23 +452,7 @@ class TestGlobalAnalyzerWhitelist:
         ]
         mock_llm.complete = AsyncMock(return_value=json.dumps(proposals))
 
-        mock_session = AsyncMock()
-        mock_traces = [_make_trace(True) for _ in range(3)]
-
-        @asynccontextmanager
-        async def _session():
-            yield mock_session
-
-        mock_db.session = _session
-
-        with patch(
-            "shared.evolution.db.repository.EvolutionRepository"
-        ) as MockRepo:
-            repo_instance = AsyncMock()
-            repo_instance.get_recent_traces = AsyncMock(return_value=mock_traces)
-            MockRepo.return_value = repo_instance
-
-            result = await analyzer.analyze(mock_db, days=7)
+        result = await analyzer.analyze(days=7)
 
         assert len(result) == 2
         ops = [p["operation"] for p in result]
@@ -423,51 +468,25 @@ class TestGlobalAnalyzerWhitelist:
 
 class TestGlobalAnalyzerErrorHandling:
     @pytest.mark.asyncio
-    async def test_returns_empty_on_llm_error(self, analyzer, mock_db, mock_llm):
+    async def test_returns_empty_on_llm_error(self, analyzer, mock_llm):
         mock_llm.complete = AsyncMock(side_effect=RuntimeError("LLM down"))
 
-        mock_session = AsyncMock()
-        mock_traces = [_make_trace(True)]
-
-        @asynccontextmanager
-        async def _session():
-            yield mock_session
-
-        mock_db.session = _session
-
-        with patch(
-            "shared.evolution.db.repository.EvolutionRepository"
-        ) as MockRepo:
-            repo_instance = AsyncMock()
-            repo_instance.get_recent_traces = AsyncMock(return_value=mock_traces)
-            MockRepo.return_value = repo_instance
-
-            result = await analyzer.analyze(mock_db, days=7)
+        result = await analyzer.analyze(days=7)
 
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_returns_empty_on_no_data(self, analyzer, mock_db, mock_llm):
-        mock_session = AsyncMock()
-
-        @asynccontextmanager
-        async def _session():
-            yield mock_session
-
-        mock_db.session = _session
-
-        with patch(
-            "shared.evolution.db.repository.EvolutionRepository"
-        ) as MockRepo:
-            repo_instance = AsyncMock()
-            repo_instance.get_recent_traces = AsyncMock(return_value=[])
-            MockRepo.return_value = repo_instance
-
-            result = await analyzer.analyze(mock_db, days=7)
+    async def test_returns_empty_on_no_data(self, mock_llm):
+        analyzer = GlobalAnalyzer(
+            mock_llm,
+            FakeEvolutionTraceAnalysisStore(),
+        )
+        result = await analyzer.analyze(days=7)
 
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_returns_empty_on_none_db(self, analyzer):
-        result = await analyzer.analyze(None, days=7)
+    async def test_returns_empty_without_trace_store(self, mock_llm):
+        analyzer = GlobalAnalyzer(mock_llm, None)
+        result = await analyzer.analyze(days=7)
         assert result == []

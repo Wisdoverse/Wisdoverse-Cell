@@ -5,12 +5,10 @@ Extracts structured requirements from meeting records through the LLM Gateway.
 """
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Protocol
 
 from pydantic import BaseModel
 
-from shared.control_plane.agent_prompt_config import resolve_agent_system_prompt
-from shared.infra.llm_gateway import llm_gateway
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.utils.logger import get_logger
 
@@ -48,6 +46,24 @@ class ExtractionResult(BaseModel):
     requirements: list[ExtractedRequirement] = []
     decisions: list[ExtractedDecision] = []
     open_questions: list[ExtractedQuestion] = []
+
+
+class RequirementExtractionLLM(Protocol):
+    async def complete(
+        self,
+        *,
+        prompt: str,
+        agent_id: str,
+        task_type: str,
+        temperature: float = 0,
+        system_prompt: str | None = None,
+    ) -> str:
+        """Complete a requirement-extraction prompt."""
+
+
+class SystemPromptResolver(Protocol):
+    async def __call__(self, agent_id: str, default_prompt: str) -> str:
+        """Resolve the deployed system prompt for an agent."""
 
 
 def build_extraction_prompt(
@@ -89,10 +105,21 @@ class RequirementExtractor:
     - Open questions
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        llm: RequirementExtractionLLM,
+        system_prompt_resolver: SystemPromptResolver,
+        prompt_template: str | None = None,
+    ):
+        self._llm = llm
+        self._system_prompt_resolver = system_prompt_resolver
+
         # Load the prompt template.
-        prompt_path = Path(__file__).parent.parent / "prompts" / "extract_requirements.md"
-        self.prompt_template = prompt_path.read_text(encoding="utf-8")
+        if prompt_template is None:
+            prompt_path = Path(__file__).parent.parent / "prompts" / "extract_requirements.md"
+            prompt_template = prompt_path.read_text(encoding="utf-8")
+        self.prompt_template = prompt_template
 
     async def extract(
         self,
@@ -132,12 +159,12 @@ class RequirementExtractor:
 
         try:
             # Call the LLM.
-            response = await llm_gateway.complete(
+            response = await self._llm.complete(
                 prompt=prompt,
                 agent_id="requirement-manager",
                 task_type="extraction",
                 temperature=0,
-                system_prompt=await resolve_agent_system_prompt(
+                system_prompt=await self._system_prompt_resolver(
                     "requirement-manager",
                     _DEFAULT_SYSTEM_PROMPT,
                 ),
@@ -247,7 +274,3 @@ class RequirementExtractor:
             "低": "low",
         }
         return priority_map.get(priority.lower(), "medium")
-
-
-# Global extractor instance.
-extractor = RequirementExtractor()

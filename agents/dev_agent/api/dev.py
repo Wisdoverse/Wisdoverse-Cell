@@ -1,9 +1,12 @@
 """REST API for dev_agent."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict
 
+from shared.api import raise_dev_agent_not_ready
 from shared.utils.logger import get_logger
+
+from ..core.api_use_cases import DevApiUseCase, DevWorkflowApprovalCommand
 
 router = APIRouter(prefix="/api/v1/dev", tags=["dev"])
 logger = get_logger("dev_agent.api")
@@ -21,47 +24,59 @@ def _get_agent():
 
     runtime = getattr(app.state, "runtime", None)
     if runtime is None:
-        raise HTTPException(status_code=503, detail="Agent not ready")
+        raise_dev_agent_not_ready()
     return runtime.agent
 
 
+def get_dev_api_use_case() -> DevApiUseCase:
+    return DevApiUseCase(_get_agent())
+
+
 @router.get("/tasks")
-async def list_tasks():
-    agent = _get_agent()
-    return await agent.handle_request({"action": "list_active_workflows"})
+async def list_tasks(dev_api: DevApiUseCase = Depends(get_dev_api_use_case)):
+    return await dev_api.list_tasks()
 
 
 @router.get("/tasks/failed")
-async def list_failed_tasks():
-    agent = _get_agent()
-    return await agent.handle_request({"action": "list_failed"})
+async def list_failed_tasks(dev_api: DevApiUseCase = Depends(get_dev_api_use_case)):
+    return await dev_api.list_failed_tasks()
 
 
 @router.get("/tasks/{wp_id}")
-async def get_task_status(wp_id: int):
-    agent = _get_agent()
-    return await agent.handle_request({"action": "get_task_status", "wp_id": wp_id})
+async def get_task_status(
+    wp_id: int,
+    dev_api: DevApiUseCase = Depends(get_dev_api_use_case),
+):
+    return await dev_api.get_task_status(wp_id)
 
 
 @router.post("/tasks/{task_id}/retry")
-async def retry_task(task_id: str):
-    agent = _get_agent()
-    return await agent.handle_request({"action": "retry_task", "task_id": task_id})
+async def retry_task(
+    task_id: str,
+    dev_api: DevApiUseCase = Depends(get_dev_api_use_case),
+):
+    return await dev_api.retry_task(task_id)
 
 
 @router.post("/tasks/{task_id}/cancel")
-async def cancel_workflow(task_id: str):
-    agent = _get_agent()
-    return await agent.handle_request({"action": "cancel_workflow", "task_id": task_id})
+async def cancel_workflow(
+    task_id: str,
+    dev_api: DevApiUseCase = Depends(get_dev_api_use_case),
+):
+    return await dev_api.cancel_workflow(task_id)
 
 
 @router.post("/tasks/{task_id}/approve")
-async def approve_workflow(task_id: str, body: ApproveWorkflowRequest | None = None):
-    agent = _get_agent()
-    request = {"action": "approve_workflow", "task_id": task_id}
-    if body is not None:
-        if body.operator:
-            request["approved_by"] = body.operator
-        if body.approval_id:
-            request["approval_id"] = body.approval_id
-    return await agent.handle_request(request)
+async def approve_workflow(
+    task_id: str,
+    body: ApproveWorkflowRequest | None = None,
+    dev_api: DevApiUseCase = Depends(get_dev_api_use_case),
+):
+    body = body or ApproveWorkflowRequest()
+    return await dev_api.approve_workflow(
+        DevWorkflowApprovalCommand(
+            task_id=task_id,
+            operator=body.operator,
+            approval_id=body.approval_id,
+        )
+    )

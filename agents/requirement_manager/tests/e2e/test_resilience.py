@@ -197,9 +197,7 @@ class TestVectorStoreResilience:
             "title": "Test"
         })
 
-        with patch(
-            "agents.requirement_manager.api.requirements.vector_store.search"
-        ) as mock_search:
+        with patch("agents.requirement_manager.api.dependencies.vector_store.search") as mock_search:
             mock_search.side_effect = Exception("Vector search failed")
 
             resp = await client.get("/api/requirements/search", params={"q": "离线录音"})

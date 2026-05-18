@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from typing import Optional
 
 from agents.requirement_manager.db.database import DatabaseManager
-from agents.requirement_manager.db.repository import MessageRepository
+from agents.requirement_manager.db.message_store import SqlAlchemyRequirementMessageStore
 from agents.requirement_manager.models.chat_message import ChatMessage
 from shared.config import settings
 from shared.core.ids import IDPrefix, generate_id
@@ -30,10 +30,17 @@ class MessageRecorder:
     SKIP_MESSAGE_TYPES = {"sticker", "system", "share_card", "share_user"}
     MIN_TEXT_LENGTH = 3  # Skip very short acknowledgements such as "OK" or "+1".
 
-    def __init__(self, feishu_client, db: DatabaseManager, session_manager=None):
+    def __init__(
+        self,
+        feishu_client,
+        db: DatabaseManager,
+        session_manager=None,
+        message_store_factory=None,
+    ):
         self.client = feishu_client
         self.db = db
         self.session_manager = session_manager
+        self._message_store_factory = message_store_factory
         self._user_cache: dict[str, str] = {}
 
     def set_session_manager(self, session_manager):
@@ -104,9 +111,8 @@ class MessageRecorder:
         )
 
         async with self.db.session() as db_session:
-            repo = MessageRepository(db_session)
-            await repo.create(chat_message)
-            await db_session.commit()
+            store = self._new_message_store(db_session)
+            await store.create(chat_message)
 
         logger.info(
             "message_recorded",
@@ -210,9 +216,14 @@ class MessageRecorder:
     async def _exists(self, feishu_message_id: str) -> bool:
         """Check if message already exists"""
         async with self.db.session() as db_session:
-            repo = MessageRepository(db_session)
-            existing = await repo.get_by_feishu_message_id(feishu_message_id)
+            store = self._new_message_store(db_session)
+            existing = await store.get_by_feishu_message_id(feishu_message_id)
             return existing is not None
+
+    def _new_message_store(self, db_session):
+        """Create the message store, resolving the default at call time for tests."""
+        factory = self._message_store_factory or SqlAlchemyRequirementMessageStore
+        return factory(db_session)
 
     async def _get_sender_name(self, open_id: str) -> str:
         """Get sender name with caching"""

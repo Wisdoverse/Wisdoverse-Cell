@@ -13,6 +13,7 @@ from shared.protocols.a2a.models import (
 from shared.protocols.bridge.event_bridge import (
     EventA2AMapping,
     EventBusA2ABridge,
+    create_event_bridge,
 )
 from shared.schemas.event import Event, EventMetadata, EventTypes
 
@@ -228,6 +229,71 @@ class TestEventBusA2ABridge:
         assert result_event.payload["artifacts"][0]["name"] == "result.json"
 
     @pytest.mark.asyncio
+    async def test_route_event_to_a2a_direct_call_publishes_terminal_result(
+        self,
+        bridge: EventBusA2ABridge,
+        mock_registry,
+        mock_event_bus,
+    ):
+        """Direct route_event_to_a2a callers can publish via the publisher port."""
+        mapping = EventA2AMapping(
+            event_type="test.event",
+            target_agent_id="target-agent",
+        )
+        bridge.add_mapping(mapping)
+        task = Task()
+        task.update_status(TaskState.completed("Done!"))
+        mock_client = AsyncMock()
+        mock_client.send_message = AsyncMock(return_value=task)
+        mock_registry.get_client = AsyncMock(return_value=mock_client)
+        event = Event(
+            event_type="test.event",
+            source_agent="source",
+            payload={},
+            metadata=EventMetadata(trace_id="trace_123"),
+        )
+
+        result = await bridge.route_event_to_a2a(event)
+
+        assert result is task
+        mock_event_bus.publish.assert_awaited_once()
+        published_event = mock_event_bus.publish.await_args.args[0]
+        assert published_event.event_type == EventTypes.A2A_TASK_COMPLETED
+        assert published_event.metadata.trace_id == "trace_123"
+
+    @pytest.mark.asyncio
+    async def test_handle_event_returns_result_without_direct_publish(
+        self,
+        bridge: EventBusA2ABridge,
+        mock_registry,
+        mock_event_bus,
+    ):
+        """Runtime handle_event path returns events for runtime/outbox publishing."""
+        mapping = EventA2AMapping(
+            event_type="test.event",
+            target_agent_id="target-agent",
+        )
+        bridge.add_mapping(mapping)
+        task = Task()
+        task.update_status(TaskState.completed("Done!"))
+        mock_client = AsyncMock()
+        mock_client.send_message = AsyncMock(return_value=task)
+        mock_registry.get_client = AsyncMock(return_value=mock_client)
+        event = Event(
+            event_type="test.event",
+            source_agent="source",
+            payload={},
+            metadata=EventMetadata(trace_id="trace_123"),
+        )
+
+        result = await bridge.handle_event(event)
+
+        assert len(result) == 1
+        assert result[0].event_type == EventTypes.A2A_TASK_COMPLETED
+        assert result[0].metadata.trace_id == "trace_123"
+        mock_event_bus.publish.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_handle_event_unmapped(self, bridge: EventBusA2ABridge):
         """Test handling event without mapping."""
         event = Event(
@@ -254,6 +320,22 @@ class TestEventBusA2ABridge:
         mock_client1.disconnect.assert_called_once()
         mock_client2.disconnect.assert_called_once()
         assert len(bridge._active_clients) == 0
+
+    @pytest.mark.asyncio
+    async def test_factory_preserves_positional_mappings_compatibility(
+        self,
+        mock_registry,
+        mock_event_bus,
+    ):
+        """Factory still accepts mappings as the third positional argument."""
+        mapping = EventA2AMapping(
+            event_type="test.event",
+            target_agent_id="target-agent",
+        )
+
+        bridge = await create_event_bridge(mock_registry, mock_event_bus, [mapping])
+
+        assert "test.event" in bridge._mappings
 
 
 class TestEventA2AMappingIntegration:

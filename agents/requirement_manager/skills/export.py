@@ -3,7 +3,7 @@ ExportSkill - Export requirements as PRD.
 
 Generates a PRD document from confirmed requirements.
 """
-from agents.requirement_manager.db.repository import RequirementRepository
+from agents.requirement_manager.db.skill_store import build_requirement_skill_store
 from agents.requirement_manager.models import RequirementStatus
 from shared.infra.skill import BaseSkill, Permission, SkillContext, SkillError, SkillResult
 from shared.messaging.inbound import AgentResponse, CardAction, CardActionStyle, UnifiedCard
@@ -25,10 +25,10 @@ class ExportSkill(BaseSkill):
         if context.db is None:
             raise SkillError("数据库不可用")
 
-        repo = RequirementRepository(context.db)
+        store = build_requirement_skill_store(context.db)
 
         # Get confirmed requirements
-        requirements, total = await repo.list_all(
+        requirements, total = await store.list_all(
             status=RequirementStatus.CONFIRMED.value,
             limit=100,
         )

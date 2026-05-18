@@ -17,8 +17,10 @@ from shared.schemas.agent import BaseAgent
 from shared.utils.logger import get_logger
 
 from ..api.sync import router as sync_router
+from ..core.scheduler_use_cases import SyncSchedulerUseCase
 from ..db.database import db_manager
 from ..service.agent import agent as _raw_agent
+from .plugins import SyncOutboxDispatcherPlugin
 
 logger = get_logger("sync_module.app")
 
@@ -29,7 +31,10 @@ app = create_agent_app(
     title="Sync Module",
     description="OpenProject and Feishu Bitable sync support capability",
     routers=[(sync_router, [Depends(verify_internal_key)])],
-    plugins=[InfraHealthPlugin(db_manager=db_manager)],
+    plugins=[
+        InfraHealthPlugin(db_manager=db_manager),
+        SyncOutboxDispatcherPlugin(),
+    ],
     control_plane_enabled=settings.control_plane_enabled,
     control_plane_company_id=settings.control_plane_company_id,
     on_startup=lambda rt: _start_scheduler(rt),
@@ -48,10 +53,14 @@ def _get_agent() -> BaseAgent:
     return runtime.agent
 
 
+def get_sync_scheduler_use_case() -> SyncSchedulerUseCase:
+    return SyncSchedulerUseCase(_get_agent())
+
+
 async def _scheduled_sync() -> None:
     logger.info("scheduled_sync_triggered")
     try:
-        await _get_agent().trigger_sync(triggered_by="scheduler")
+        await get_sync_scheduler_use_case().run_scheduled_sync()
     except Exception as e:
         logger.error("scheduled_sync_failed", error=str(e), error_type=type(e).__name__)
 

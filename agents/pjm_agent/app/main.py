@@ -13,8 +13,10 @@ from shared.schemas.agent import BaseAgent
 from shared.utils.logger import get_logger
 
 from ..api.pm import router as pm_router
+from ..core.scheduler_use_cases import PJMSchedulerUseCase
 from ..db.database import db_manager
 from ..service.agent import agent as _raw_agent
+from .plugins import PJMOutboxDispatcherPlugin
 
 # Backward-compatible alias: test_api.py patches `agents.pjm_agent.app.main.agent`
 agent = _raw_agent
@@ -37,7 +39,10 @@ app = create_agent_app(
     routers=[
         (pm_router, [Depends(verify_internal_key)]),
     ],
-    plugins=[InfraHealthPlugin(db_manager=db_manager)],
+    plugins=[
+        InfraHealthPlugin(db_manager=db_manager),
+        PJMOutboxDispatcherPlugin(),
+    ],
     control_plane_enabled=settings.control_plane_enabled,
     control_plane_company_id=settings.control_plane_company_id,
     on_startup=lambda rt: _start_scheduler(rt),
@@ -53,6 +58,10 @@ def _get_agent() -> BaseAgent:
             "Agent runtime not initialized; scheduler fired before startup completed"
         )
     return runtime.agent
+
+
+def get_pjm_scheduler_use_case() -> PJMSchedulerUseCase:
+    return PJMSchedulerUseCase(_get_agent())
 
 
 async def _start_scheduler(runtime) -> None:
@@ -91,11 +100,9 @@ async def _stop_scheduler(runtime) -> None:
 async def _hourly_alerts() -> None:
     logger.info("hourly_alerts_triggered")
     try:
-        agent = _get_agent()
-        result = await agent.handle_request({"action": "alerts"})
+        result = await get_pjm_scheduler_use_case().run_hourly_alerts()
         alerts = result.get("alerts", [])
         if alerts:
-            await agent.handle_request({"action": "push_alerts", "alerts": alerts})
             if _prometheus_available:
                 for a in alerts:
                     ALERTS_TRIGGERED.labels(
@@ -110,7 +117,7 @@ async def _run_scheduled_action(action: str) -> None:
     """Execute a scheduled agent action with logging and error handling."""
     logger.info("scheduled_action_triggered", action=action)
     try:
-        await _get_agent().handle_request({"action": action})
+        await get_pjm_scheduler_use_case().run_scheduled_action(action)
     except Exception as e:
         logger.error(
             "scheduled_action_failed", action=action, error=str(e), error_type=type(e).__name__

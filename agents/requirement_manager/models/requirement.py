@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from shared.core.ids import IDPrefix, generate_id
@@ -149,3 +149,34 @@ class OpenQuestion(Base):
 
     def __repr__(self) -> str:
         return f"<OpenQuestion id={self.id} status={self.status}>"
+
+
+class RequirementEventOutbox(Base):
+    """
+    Durable outbox for Requirement integration events.
+
+    Rows are created in the same local transaction as the source mutation. A
+    post-commit publisher can then publish and mark the row without losing the
+    event if the broker is unavailable.
+    """
+    __tablename__ = "requirement_event_outbox"
+
+    event_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(100), index=True)
+    source_agent: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict] = mapped_column(JSON)
+    schema_version: Mapped[str] = mapped_column(String(16), default="1.0")
+    trace_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    correlation_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC)
+    )
+    published_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )

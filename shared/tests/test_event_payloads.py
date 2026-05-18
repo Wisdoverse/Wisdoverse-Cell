@@ -777,9 +777,14 @@ class TestSyncPayloadContracts:
     def test_validate_sync_failed_payload(self):
         result = validate_event_payload(
             "sync.failed",
-            {"error": "upstream timeout", "scope": "openproject"},
+            {
+                "error": "upstream timeout",
+                "error_code": "openproject_timeout",
+                "scope": "openproject",
+            },
         )
         assert isinstance(result, SyncFailedPayload)
+        assert result.error_code == "openproject_timeout"
 
 
 class TestPMAndAnalysisPayloadContracts:

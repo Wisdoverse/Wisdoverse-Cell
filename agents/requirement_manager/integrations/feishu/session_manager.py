@@ -13,7 +13,7 @@ from typing import Optional
 from redis.asyncio import Redis
 
 from agents.requirement_manager.db.database import DatabaseManager
-from agents.requirement_manager.db.repository import MessageRepository
+from agents.requirement_manager.db.message_store import SqlAlchemyRequirementMessageStore
 from shared.config import settings
 from shared.core.ids import IDPrefix, generate_id
 from shared.observability.privacy import hash_identifier
@@ -27,7 +27,13 @@ class SessionManager:
 
     REDIS_KEY = "feishu:session_timeouts"
 
-    def __init__(self, redis: Redis, db: DatabaseManager, agent=None):
+    def __init__(
+        self,
+        redis: Redis,
+        db: DatabaseManager,
+        agent=None,
+        message_store_factory=None,
+    ):
         """
         Initialize SessionManager.
 
@@ -39,6 +45,7 @@ class SessionManager:
         self.redis = redis
         self.db = db
         self.agent = agent
+        self._message_store_factory = message_store_factory
         self._active_sessions: dict[str, str] = {}  # chat_id → session_id
 
     def set_agent(self, agent):
@@ -141,8 +148,13 @@ class SessionManager:
     async def _get_session_message_count(self, session_id: str) -> int:
         """Count messages in a session"""
         async with self.db.session() as db_session:
-            repo = MessageRepository(db_session)
-            return await repo.count_by_session(session_id)
+            store = self._new_message_store(db_session)
+            return await store.count_by_session(session_id)
+
+    def _new_message_store(self, db_session):
+        """Create the message store, resolving the default at call time for tests."""
+        factory = self._message_store_factory or SqlAlchemyRequirementMessageStore
+        return factory(db_session)
 
     async def force_end_session(self, chat_id: str) -> Optional[str]:
         """

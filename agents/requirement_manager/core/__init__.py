@@ -1,22 +1,17 @@
 # Core
-from .analyzer import AnalysisResult, RequirementAnalyzer, analyzer
-from .comparator import ComparisonResult, RelationType, RequirementComparator, comparator
-from .embedder import RequirementEmbedder, embedder
-from .extractor import RequirementExtractor, extractor
-from .generator import DocumentGenerator, generator
+from .analyzer import AnalysisResult, RequirementAnalyzer
+from .comparator import ComparisonResult, RelationType, RequirementComparator
+from .embedder import RequirementEmbedder
+from .extractor import RequirementExtractor
+from .generator import DocumentGenerator
 
 __all__ = [
     "RequirementExtractor",
-    "extractor",
     "RequirementEmbedder",
-    "embedder",
     "RequirementComparator",
-    "comparator",
     "RelationType",
     "ComparisonResult",
     "DocumentGenerator",
-    "generator",
     "RequirementAnalyzer",
-    "analyzer",
     "AnalysisResult",
 ]

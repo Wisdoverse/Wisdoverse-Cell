@@ -55,6 +55,7 @@ async def test_handle_request_unknown_action():
     agent = DevAgent()
     result = await agent.handle_request({"action": "nonexistent"})
     assert "error" in result
+    assert result["error_code"] == "database_not_initialized"
 
 
 @pytest.mark.asyncio
@@ -76,6 +77,22 @@ async def test_health_check_reports_wired_dependencies():
         "agentforge_client": True,
         "gitlab_client": True,
     }
+
+
+@pytest.mark.asyncio
+async def test_health_check_uses_injected_health_store():
+    health_store = AsyncMock()
+    health_store.is_database_ready = AsyncMock(return_value=True)
+    agent = DevAgent(health_store=health_store)
+    agent._notifier = object()
+
+    with patch.object(agent_module.settings, "agentforge_api_url", None):
+        with patch.object(agent_module.settings, "dev_gitlab_api_url", None):
+            with patch.object(agent_module.settings, "dev_gitlab_project_id", None):
+                result = await agent.health_check()
+
+    assert result == {"database": True, "notifier": True}
+    health_store.is_database_ready.assert_awaited_once()
 
 
 @pytest.mark.asyncio

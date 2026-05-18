@@ -1,6 +1,6 @@
 # Wisdoverse Cell Event Catalog
 
-Last updated: 2026-05-04
+Last updated: 2026-05-17
 
 This catalog documents event names, producers, consumers, and payload
 expectations. English is the primary documentation language. Event names remain
@@ -112,6 +112,7 @@ without coupling runtime packages.
 | `decision.created` | control-plane API | operator console | Durable decision created |
 | `decision.updated` | control-plane API | operator console | Decision status changed |
 | `agent_role.created` | control-plane API | operator console | Agent role definition created |
+| `agent_role.updated` | control-plane API | operator console | Agent role definition metadata or communication contract changed |
 | `agent_role.status-updated` | control-plane API | operator console | Agent role status changed |
 | `agent.prompt-config-updated` | control-plane API / WebUI compatibility API | operator console | Agent system-prompt override changed |
 | `agent.wakeup-requested` | control-plane API | agent runtime adapter | Manual wakeup requested |
@@ -260,11 +261,22 @@ If no scope is provided, the sync runtime runs the compatibility full sync.
 The user interaction gateway exposes separate deferred tools for these
 boundaries: `sync_now` emits `scope=full`, `sync_openproject` emits
 `scope=openproject`, and `sync_feishu_bitable` emits `scope=feishu_bitable`.
+These tool commands are staged in `chat_agent_event_outbox` before the
+post-commit EventBus publish attempt. The user-interaction gateway outbox
+dispatcher retries pending `sync.trigger` commands when immediate publish
+fails.
 
 `sync.started`, `sync.completed`, and `sync.failed` always include the resolved
 `scope` so project-management and analysis consumers can tell whether the event
 came from the full sync, the OpenProject projection, or the Feishu Bitable
 progress sync.
+
+Sync lifecycle events and OpenProject-to-PJM decomposition handoff events are
+staged in `sync_agent_event_outbox` before publishing. `sync.started`,
+`sync.completed`, and `sync.failed` are staged through the Sync application
+service; `sync.task-needs-decompose` is staged in the OpenProject projection
+transaction before the post-commit publish attempt. The Sync runtime outbox
+dispatcher retries pending rows when immediate EventBus publish fails.
 
 Example `sync.trigger` payload:
 
@@ -278,13 +290,16 @@ Example `sync.trigger` payload:
 ## 3.4 Analysis and Project Management Events
 
 `analysis.quality-evaluated` carries a compact list of quality evaluation
-records in `evaluations`. `pm.decomposition-failed` and `pm.approval-timeout`
-are failure-evidence events; both should keep the workflow trace when one is
-available so the Coordinator and operator surfaces can connect the failure to
-the original work. `pm.tasks-ready-for-dev` is a command-style handoff to the
-dev agent and must include the decomposed task list. `pm.prd-ready` is consumed
-by the coordinator when an upstream PRD generation boundary has already produced
-the product document.
+records in `evaluations`. Analysis report/risk/quality events are staged in
+`analysis_agent_event_outbox` before EventBus delivery; the runtime dispatcher
+retries pending rows if the immediate post-commit publish attempt fails.
+`pm.decomposition-failed` and `pm.approval-timeout` are failure-evidence events;
+both should keep the workflow trace when one is available so the Coordinator and
+operator surfaces can connect the failure to the original work.
+`pm.tasks-ready-for-dev` is a command-style handoff to the dev agent and must
+include the decomposed task list. `pm.prd-ready` is consumed by the coordinator
+when an upstream PRD generation boundary has already produced the product
+document.
 
 `pm.decompose-completed` reports the current decomposition state for a work
 package. Event payload `status` values are `pending`, `approved`, `rejected`,
@@ -294,6 +309,15 @@ Replayed `sync.task-needs-decompose` events must not delete or rerun records in
 `pending`, `writing`, `approved`, or `write_failed`; operators retry failed
 write attempts explicitly through the PJM retry API, which republishes
 `sync.task-needs-decompose` after deleting the stale record.
+
+PJM decomposition API actions that mutate local decomposition state stage their
+cross-boundary events in `pjm_agent_event_outbox` in the same local transaction
+before publishing. The runtime outbox dispatcher retries pending PJM events when
+the broker is unavailable during the immediate post-commit publish attempt.
+PJM service-level notifications that do not mutate decomposition state, such as
+`pm.decomposition-failed` from orchestration exceptions and
+`pm.approval-timeout` from stale approval scans, also stage events in
+`pjm_agent_event_outbox` before the EventBus publish attempt.
 
 Example `pm.decompose-completed` payload:
 
@@ -324,8 +348,18 @@ routes work to a target runtime boundary, and `coordinator.response` returns a
 compact response to the requesting gateway. Targeted coordinator decisions may
 also emit the concrete downstream command event directly, such as
 `pm.tasks-ready-for-dev` for the dev agent or `qa.run-requested` for the QA
-agent. Runtime agents can report back through `task.notification` when a
-dispatched task finishes or fails, and `task.progress` during long-running work.
+agent. Coordinator-produced dispatch and handoff events are staged in
+`coordinator_event_outbox` before EventBus delivery; the runtime dispatcher
+retries pending rows if the immediate publish attempt fails. Runtime agents can
+report back through `task.notification` when a dispatched task finishes or
+fails, and `task.progress` during long-running work.
+
+QA acceptance completion events are staged in `qa_agent_event_outbox` in the
+same local transaction that writes `qa_acceptance_runs` and
+`qa_acceptance_results`. `qa.acceptance-completed` is always staged for a
+persisted run; `qa.gate-failed` is also staged when the L0 gate fails. The QA
+runtime outbox dispatcher retries pending rows if immediate post-commit publish
+fails.
 
 The dev agent publishes workflow-created, merge-request-created, task-completed,
 and task-failed evidence, and may request QA with `qa.run-requested` after
@@ -380,6 +414,11 @@ and external A2A agents. Internal agents must not import A2A agent
 implementations directly. Route work through bridge mappings, typed HTTP/A2A
 clients, or EventBus events.
 
+When used through `handle_event()`, the bridge returns `a2a.task.*` events to
+the runtime so the runtime publisher or runtime outbox owns delivery. Direct
+`route_event_to_a2a()` callers must publish only through the bridge's
+`EventPublisher` port.
+
 Task state events share this payload:
 
 ```json
@@ -429,15 +468,15 @@ Required or recommended fields:
 |--------------|-----------|------------|
 | requirement manager agent | `requirement.*` | `project.*`, `sprint.*`, `meeting.uploaded`, `coordinator.dispatch` |
 | sync runtime | `sync.*` with `scope=full`, `openproject`, or `feishu_bitable` | `sync.trigger`, scheduler/API trigger paths |
-| analysis capability | `report.*`, `analysis.*` | `sync.completed` |
+| analysis capability | `report.*`, `analysis.*` via `analysis_agent_event_outbox` | `sync.completed` |
 | PJM agent | `pm.*`, `chat.pm-response`, retry `sync.task-needs-decompose` | `sync.completed`, `sync.task-needs-decompose`, `analysis.risk-detected`, `chat.pm-query`, `coordinator.dispatch` |
-| user interaction gateway | `chat.pm-query`, `coordinator.command`, `sync.trigger` | `chat.pm-response`, `coordinator.response` |
-| coordinator | `coordinator.response`, `coordinator.dispatch`, `pm.tasks-ready-for-dev`, `qa.run-requested` | `coordinator.command`, `task.notification`, `task.progress`, `pm.prd-ready`, `pm.decompose-completed`, `pm.decomposition-failed`, `analysis.risk-detected` |
-| channel gateway | `channel.message.inbound`, `channel.message.delivered`, `channel.message.edited`, `channel.message.deleted`, `channel.reaction.added`, `channel.reaction.removed`, `channel.read.receipt`, `channel.typing.started`, `channel.adapter.status` | `channel.message.outbound`, adapter-specific platform callbacks |
+| user interaction gateway | `chat.pm-query`, `coordinator.command`, `sync.trigger` via `chat_agent_event_outbox` | `chat.pm-response`, `coordinator.response` |
+| coordinator | `coordinator.response`, `coordinator.dispatch`, `pm.tasks-ready-for-dev`, `qa.run-requested` via `coordinator_event_outbox` | `coordinator.command`, `task.notification`, `task.progress`, `pm.prd-ready`, `pm.decompose-completed`, `pm.decomposition-failed`, `analysis.risk-detected` |
+| channel gateway | `channel.message.inbound`, `channel.message.delivered`, `channel.message.edited`, `channel.message.deleted`, `channel.reaction.added`, `channel.reaction.removed`, `channel.read.receipt`, `channel.typing.started`, `channel.adapter.status` via `channel_gateway_event_outbox` | `channel.message.outbound`, adapter-specific platform callbacks |
 | QA agent | `qa.acceptance-completed`, `qa.gate-failed` | `code.committed`, `qa.run-requested` |
-| Dev agent | `dev.workflow-created`, `dev.mr-created`, `dev.task-completed`, `dev.task-failed`, `qa.run-requested` | `pm.tasks-ready-for-dev`, `qa.acceptance-completed` |
+| Dev agent | `dev.workflow-created`, `dev.mr-created`, `dev.task-completed`, `dev.task-failed`, `qa.run-requested` via `dev_agent_event_outbox` | `pm.tasks-ready-for-dev`, `qa.acceptance-completed` |
 | A2A bridge | `a2a.task.*` | mapped EventBus events |
-| evolution capability | `evolution.*` | `evolution.cycle-triggered`, `evolution.human-feedback`, `evolution.pattern-approved`; reads persisted execution traces |
+| evolution capability | `evolution.*` via `evolution_event_outbox` | `evolution.cycle-triggered`, `evolution.human-feedback`, `evolution.pattern-approved`; reads persisted execution traces |
 | control plane | `goal.*`, `work_item.*`, `agent_run.*`, `audit.*` | runtime evidence and operator actions |
 
 ## 6. Evolution Events
@@ -445,6 +484,9 @@ Required or recommended fields:
 Execution traces are currently persisted by the runtime wrapper and read by the
 evolution capability from storage. Do not document `execution.traced` as an
 active EventBus contract until a publisher and consumer are wired.
+Evolution proposal events are staged in `evolution_event_outbox` before EventBus
+delivery; the runtime dispatcher retries pending rows if the immediate publish
+attempt fails.
 
 | Event type | Producer | Consumer | Purpose |
 |------------|----------|----------|---------|
@@ -472,6 +514,11 @@ active EventBus contract until a publisher and consumer are wired.
 | `dev.mr-created` | Dev agent | Event observers | Merge request was created |
 | `dev.task-completed` | Dev agent | Event observers | Development task completed after QA |
 | `dev.task-failed` | Dev agent | Event observers | Development task failed |
+
+Dev result-collection events are staged in `dev_agent_event_outbox` in the same
+local transaction that updates the Dev task and workflow log, then published
+after commit. The Dev runtime outbox dispatcher retries pending rows if the
+immediate post-commit EventBus publish fails.
 
 ## 9. Reserved Events
 

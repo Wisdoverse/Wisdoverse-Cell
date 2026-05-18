@@ -1,6 +1,7 @@
 """Channel gateway FastAPI entry point via create_agent_app."""
 
 from shared.app import RuntimePlugin, create_agent_app
+from shared.app.plugins.infra_health import InfraHealthPlugin
 from shared.config import settings
 from shared.messaging.outbound.adapters._stable.openclaw import OpenClawAdapter
 from shared.messaging.outbound.api.admin import router as admin_router
@@ -8,7 +9,9 @@ from shared.messaging.outbound.api.health import router as health_router
 from shared.messaging.outbound.core.registry import AdapterRegistry
 from shared.utils.logger import get_logger
 
+from ..db.database import db_manager
 from ..service.agent import get_agent
+from .plugins import ChannelOutboxDispatcherPlugin
 
 logger = get_logger(__name__)
 
@@ -32,7 +35,11 @@ app = create_agent_app(
     title="Channel Gateway Agent",
     description="Multi-platform messaging channel gateway.",
     routers=[health_router, admin_router],
-    plugins=[ChannelAdapterPlugin()],
+    plugins=[
+        InfraHealthPlugin(db_manager=db_manager),
+        ChannelAdapterPlugin(),
+        ChannelOutboxDispatcherPlugin(),
+    ],
     control_plane_enabled=settings.control_plane_enabled,
     control_plane_company_id=settings.control_plane_company_id,
 )

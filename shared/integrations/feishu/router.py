@@ -1,8 +1,13 @@
 """Unified Feishu webhook entry point."""
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Header, Request
 
+from shared.api import (
+    raise_feishu_invalid_json,
+    raise_feishu_invalid_signature,
+    raise_feishu_signature_key_not_configured,
+)
 from shared.config import settings
 from shared.utils.logger import get_logger
 
@@ -38,7 +43,7 @@ def _verify_signature_if_required(
 
     if not _secret_value(settings.feishu_encrypt_key):
         logger.error("feishu_signature_verification_misconfigured", reason="encrypt_key_not_configured")
-        raise HTTPException(status_code=401, detail="Signature verification key is not configured")
+        raise_feishu_signature_key_not_configured()
 
     client = feishu_client()
     if not client.verify_signature(
@@ -48,7 +53,7 @@ def _verify_signature_if_required(
         signature=signature,
     ):
         logger.warning("feishu_signature_invalid")
-        raise HTTPException(status_code=401, detail="Invalid signature")
+        raise_feishu_invalid_signature()
 
 
 @router.post("/webhook")
@@ -68,8 +73,8 @@ async def feishu_webhook(
     )
     try:
         data = await request.json()
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Invalid JSON") from exc
+    except ValueError:
+        raise_feishu_invalid_json()
 
     # URL verification.
     if data.get("type") == "url_verification":

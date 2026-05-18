@@ -15,7 +15,8 @@ from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
-from ..db.repository import FeedbackRepository, RequirementRepository
+from ..core.feedback_ports import RequirementFeedbackStore
+from ..db.feedback_store import SqlAlchemyRequirementFeedbackStore
 from ..models import FeedbackRecord
 
 logger = get_logger("feedback_learning")
@@ -24,10 +25,16 @@ logger = get_logger("feedback_learning")
 class FeedbackLearningService:
     """Service for feedback-based learning."""
 
-    def __init__(self, session: AsyncSession):
-        self.session = session
-        self.feedback_repo = FeedbackRepository(session)
-        self.requirement_repo = RequirementRepository(session)
+    def __init__(
+        self,
+        session: AsyncSession | None = None,
+        feedback_store: RequirementFeedbackStore | None = None,
+    ):
+        if feedback_store is None:
+            if session is None:
+                raise ValueError("session or feedback_store is required")
+            feedback_store = SqlAlchemyRequirementFeedbackStore(session)
+        self.feedback_store = feedback_store
 
     async def record_correction(
         self,
@@ -69,7 +76,7 @@ class FeedbackLearningService:
             correction_note=note,
         )
 
-        await self.feedback_repo.create(feedback)
+        await self.feedback_store.create(feedback)
 
         logger.info(
             "feedback_recorded",
@@ -109,7 +116,7 @@ class FeedbackLearningService:
             correction_note=reason,
         )
 
-        await self.feedback_repo.create(feedback)
+        await self.feedback_store.create(feedback)
 
         logger.info(
             "rejection_feedback_recorded",
@@ -127,7 +134,7 @@ class FeedbackLearningService:
         Returns formatted examples that can be included in the
         extraction prompt for few-shot learning.
         """
-        return await self.feedback_repo.get_examples_for_prompt(limit=limit)
+        return await self.feedback_store.get_examples_for_prompt(limit=limit)
 
     async def build_learning_prompt_section(self, limit: int = 3) -> str:
         """
@@ -175,8 +182,8 @@ class FeedbackLearningService:
 
     async def get_learning_stats(self) -> dict:
         """Get statistics about feedback/learning."""
-        counts = await self.feedback_repo.count_by_type()
-        examples = await self.feedback_repo.list_recent(limit=100)
+        counts = await self.feedback_store.count_by_type()
+        examples = await self.feedback_store.list_recent(limit=100)
 
         return {
             "total_feedback": sum(counts.values()),

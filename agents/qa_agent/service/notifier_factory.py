@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from shared.config import settings as app_settings
-from shared.infra.event_bus import EventBus
+from shared.core import EventPublisher
+from shared.infra.event_bus import EventBus, event_bus
+from shared.infra.event_publisher import EventBusEventPublisher
 from shared.integrations.feishu import FeishuWebhookClient
 from shared.integrations.gitlab import GitLabClient
 
@@ -25,11 +27,12 @@ def build_qa_core_config() -> QACoreConfig:
 
 def build_qa_notifier(
     bus: EventBus | None = None,
+    event_publisher: EventPublisher | None = None,
     config: QACoreConfig | None = None,
 ) -> QANotifier:
     """Build the QA notifier with concrete adapters at the service edge."""
     return QANotifier(
-        bus=bus,
+        event_publisher=event_publisher or EventBusEventPublisher(bus or event_bus),
         gitlab=GitLabClient(),
         feishu_webhook=FeishuWebhookClient(),
         card_renderer=FeishuQualityCardRenderer(),

@@ -18,8 +18,29 @@ if str(_project_root) not in sys.path:
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from agents.requirement_manager.core.message_queries import MessageQueryService
 from agents.requirement_manager.models.chat_message import ChatMessage
 from shared.core.ids import IDPrefix, generate_id
+
+
+async def _get_with_message_repository(app, repository, path: str):
+    from agents.requirement_manager.api.dependencies import get_message_query_service
+
+    app.dependency_overrides[get_message_query_service] = (
+        lambda: MessageQueryService(repository)
+    )
+    try:
+        with patch("agents.requirement_manager.app.main.agent") as mock_agent:
+            mock_agent.startup = AsyncMock()
+            mock_agent.shutdown = AsyncMock()
+
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+            ) as client:
+                return await client.get(path)
+    finally:
+        app.dependency_overrides.pop(get_message_query_service, None)
 
 
 class TestSearchMessagesAPI:
@@ -32,11 +53,41 @@ class TestSearchMessagesAPI:
 
         messages = []
         for i, (chat_id, sender_id, sender_name, content, hours_ago) in enumerate([
-            ("oc_api_chat", "ou_alice", "Alice", "We need OAuth login feature for enterprise", 5),
-            ("oc_api_chat", "ou_bob", "Bob", "Dashboard analytics should show real-time data", 4),
-            ("oc_api_chat", "ou_alice", "Alice", "OAuth must support Google and Microsoft", 3),
-            ("oc_other_api_chat", "ou_charlie", "Charlie", "API rate limiting needs improvement", 2),
-            ("oc_api_chat", "ou_bob", "Bob", "Mobile app needs offline mode", 1),
+            (
+                "oc_api_chat",
+                "ou_alice",
+                "Alice",
+                "We need OAuth login feature for enterprise",
+                5,
+            ),
+            (
+                "oc_api_chat",
+                "ou_bob",
+                "Bob",
+                "Dashboard analytics should show real-time data",
+                4,
+            ),
+            (
+                "oc_api_chat",
+                "ou_alice",
+                "Alice",
+                "OAuth must support Google and Microsoft",
+                3,
+            ),
+            (
+                "oc_other_api_chat",
+                "ou_charlie",
+                "Charlie",
+                "API rate limiting needs improvement",
+                2,
+            ),
+            (
+                "oc_api_chat",
+                "ou_bob",
+                "Bob",
+                "Mobile app needs offline mode",
+                1,
+            ),
         ]):
             msg = MagicMock(spec=ChatMessage)
             msg.id = f"msg_test_{i:03d}"
@@ -60,20 +111,14 @@ class TestSearchMessagesAPI:
         """Verify search returns all messages when no filters applied"""
         from agents.requirement_manager.app.main import app
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_agent, \
-             patch("agents.requirement_manager.api.messages.MessageRepository") as MockRepo:
-            mock_agent.startup = AsyncMock()
-            mock_agent.shutdown = AsyncMock()
+        mock_repo = MagicMock()
+        mock_repo.search = AsyncMock(return_value=(mock_messages, 5))
 
-            mock_repo = MagicMock()
-            mock_repo.search = AsyncMock(return_value=(mock_messages, 5))
-            MockRepo.return_value = mock_repo
-
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.get("/api/v1/messages/search")
+        response = await _get_with_message_repository(
+            app,
+            mock_repo,
+            "/api/v1/messages/search",
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -87,30 +132,21 @@ class TestSearchMessagesAPI:
         """Verify search with keyword uses full-text search"""
         from agents.requirement_manager.app.main import app
 
-        # Filter messages containing OAuth
         oauth_messages = [m for m in mock_messages if "OAuth" in m.content]
+        mock_repo = MagicMock()
+        mock_repo.search = AsyncMock(return_value=(oauth_messages, 2))
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_agent, \
-             patch("agents.requirement_manager.api.messages.MessageRepository") as MockRepo:
-            mock_agent.startup = AsyncMock()
-            mock_agent.shutdown = AsyncMock()
-
-            mock_repo = MagicMock()
-            mock_repo.search = AsyncMock(return_value=(oauth_messages, 2))
-            MockRepo.return_value = mock_repo
-
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.get("/api/v1/messages/search?keyword=OAuth")
+        response = await _get_with_message_repository(
+            app,
+            mock_repo,
+            "/api/v1/messages/search?keyword=OAuth",
+        )
 
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 2
         assert len(data["messages"]) == 2
 
-        # Verify repository was called with keyword
         mock_repo.search.assert_called_once()
         call_kwargs = mock_repo.search.call_args.kwargs
         assert call_kwargs["keyword"] == "OAuth"
@@ -120,29 +156,20 @@ class TestSearchMessagesAPI:
         """Verify search filters by chat_id"""
         from agents.requirement_manager.app.main import app
 
-        # Filter messages by chat_id
         filtered_messages = [m for m in mock_messages if m.chat_id == "oc_api_chat"]
+        mock_repo = MagicMock()
+        mock_repo.search = AsyncMock(return_value=(filtered_messages, 4))
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_agent, \
-             patch("agents.requirement_manager.api.messages.MessageRepository") as MockRepo:
-            mock_agent.startup = AsyncMock()
-            mock_agent.shutdown = AsyncMock()
-
-            mock_repo = MagicMock()
-            mock_repo.search = AsyncMock(return_value=(filtered_messages, 4))
-            MockRepo.return_value = mock_repo
-
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.get("/api/v1/messages/search?chat_id=oc_api_chat")
+        response = await _get_with_message_repository(
+            app,
+            mock_repo,
+            "/api/v1/messages/search?chat_id=oc_api_chat",
+        )
 
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 4
 
-        # Verify repository was called with chat_id filter
         mock_repo.search.assert_called_once()
         call_kwargs = mock_repo.search.call_args.kwargs
         assert call_kwargs["chat_id"] == "oc_api_chat"
@@ -152,33 +179,24 @@ class TestSearchMessagesAPI:
         """Verify search pagination works correctly"""
         from agents.requirement_manager.app.main import app
 
-        # First page - 2 messages
         page1_messages = mock_messages[:2]
+        mock_repo = MagicMock()
+        mock_repo.search = AsyncMock(return_value=(page1_messages, 5))
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_agent, \
-             patch("agents.requirement_manager.api.messages.MessageRepository") as MockRepo:
-            mock_agent.startup = AsyncMock()
-            mock_agent.shutdown = AsyncMock()
+        response = await _get_with_message_repository(
+            app,
+            mock_repo,
+            "/api/v1/messages/search?page=1&page_size=2",
+        )
 
-            mock_repo = MagicMock()
-            mock_repo.search = AsyncMock(return_value=(page1_messages, 5))
-            MockRepo.return_value = mock_repo
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 5
+        assert len(data["messages"]) == 2
+        assert data["page"] == 1
+        assert data["page_size"] == 2
+        assert data["total_pages"] == 3
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response1 = await client.get("/api/v1/messages/search?page=1&page_size=2")
-
-        assert response1.status_code == 200
-        data1 = response1.json()
-        assert data1["total"] == 5
-        assert len(data1["messages"]) == 2
-        assert data1["page"] == 1
-        assert data1["page_size"] == 2
-        assert data1["total_pages"] == 3
-
-        # Verify pagination params passed to repository
         call_kwargs = mock_repo.search.call_args.kwargs
         assert call_kwargs["page"] == 1
         assert call_kwargs["page_size"] == 2
@@ -188,30 +206,21 @@ class TestSearchMessagesAPI:
         """Verify search filters by time range"""
         from agents.requirement_manager.app.main import app
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_agent, \
-             patch("agents.requirement_manager.api.messages.MessageRepository") as MockRepo:
-            mock_agent.startup = AsyncMock()
-            mock_agent.shutdown = AsyncMock()
+        mock_repo = MagicMock()
+        mock_repo.search = AsyncMock(return_value=(mock_messages[:2], 2))
 
-            mock_repo = MagicMock()
-            mock_repo.search = AsyncMock(return_value=(mock_messages[:2], 2))
-            MockRepo.return_value = mock_repo
-
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.get(
-                    "/api/v1/messages/search"
-                    "?start_time=2026-01-20T00:00:00Z"
-                    "&end_time=2026-01-26T23:59:59Z"
-                )
+        response = await _get_with_message_repository(
+            app,
+            mock_repo,
+            "/api/v1/messages/search"
+            "?start_time=2026-01-20T00:00:00Z"
+            "&end_time=2026-01-26T23:59:59Z",
+        )
 
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 2
 
-        # Verify time parameters passed to repository
         mock_repo.search.assert_called_once()
         call_kwargs = mock_repo.search.call_args.kwargs
         assert call_kwargs["start_time"] is not None
@@ -222,29 +231,20 @@ class TestSearchMessagesAPI:
         """Verify search filters by sender_id"""
         from agents.requirement_manager.app.main import app
 
-        # Filter messages by sender_id
         alice_messages = [m for m in mock_messages if m.sender_id == "ou_alice"]
+        mock_repo = MagicMock()
+        mock_repo.search = AsyncMock(return_value=(alice_messages, 2))
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_agent, \
-             patch("agents.requirement_manager.api.messages.MessageRepository") as MockRepo:
-            mock_agent.startup = AsyncMock()
-            mock_agent.shutdown = AsyncMock()
-
-            mock_repo = MagicMock()
-            mock_repo.search = AsyncMock(return_value=(alice_messages, 2))
-            MockRepo.return_value = mock_repo
-
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.get("/api/v1/messages/search?sender_id=ou_alice")
+        response = await _get_with_message_repository(
+            app,
+            mock_repo,
+            "/api/v1/messages/search?sender_id=ou_alice",
+        )
 
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 2
 
-        # Verify sender_id passed to repository
         call_kwargs = mock_repo.search.call_args.kwargs
         assert call_kwargs["sender_id"] == "ou_alice"
 
@@ -283,21 +283,14 @@ class TestGetSessionMessagesAPI:
         from agents.requirement_manager.app.main import app
 
         session_id, messages = mock_session_messages
+        mock_repo = MagicMock()
+        mock_repo.get_by_session = AsyncMock(return_value=messages)
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_agent, \
-             patch("agents.requirement_manager.api.messages.MessageRepository") as MockRepo:
-            mock_agent.startup = AsyncMock()
-            mock_agent.shutdown = AsyncMock()
-
-            mock_repo = MagicMock()
-            mock_repo.get_by_session = AsyncMock(return_value=messages)
-            MockRepo.return_value = mock_repo
-
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.get(f"/api/v1/messages/session/{session_id}")
+        response = await _get_with_message_repository(
+            app,
+            mock_repo,
+            f"/api/v1/messages/session/{session_id}",
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -307,13 +300,11 @@ class TestGetSessionMessagesAPI:
         assert data["message_count"] == 3
         assert len(data["messages"]) == 3
 
-        # Verify metadata
         assert data["extracted"] is True
         assert set(data["requirement_ids"]) == {"req_001", "req_002"}
         assert data["started_at"] is not None
         assert data["ended_at"] is not None
 
-        # Verify repository was called with session_id
         mock_repo.get_by_session.assert_called_once_with(session_id)
 
     @pytest.mark.asyncio
@@ -321,24 +312,19 @@ class TestGetSessionMessagesAPI:
         """Verify 404 returned for non-existent session"""
         from agents.requirement_manager.app.main import app
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_agent, \
-             patch("agents.requirement_manager.api.messages.MessageRepository") as MockRepo:
-            mock_agent.startup = AsyncMock()
-            mock_agent.shutdown = AsyncMock()
+        mock_repo = MagicMock()
+        mock_repo.get_by_session = AsyncMock(return_value=[])
 
-            mock_repo = MagicMock()
-            mock_repo.get_by_session = AsyncMock(return_value=[])
-            MockRepo.return_value = mock_repo
-
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.get("/api/v1/messages/session/ses_nonexistent")
+        response = await _get_with_message_repository(
+            app,
+            mock_repo,
+            "/api/v1/messages/session/ses_nonexistent",
+        )
 
         assert response.status_code == 404
         data = response.json()
         assert data["detail"] == "Session not found or has no messages"
+        assert response.headers["x-error-code"] == "session.not_found"
 
     @pytest.mark.asyncio
     async def test_get_session_messages_not_extracted(self, mock_session_messages):
@@ -346,25 +332,18 @@ class TestGetSessionMessagesAPI:
         from agents.requirement_manager.app.main import app
 
         session_id, messages = mock_session_messages
-        # Mark messages as not extracted
         for msg in messages:
             msg.extracted = False
             msg.requirement_ids = None
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_agent, \
-             patch("agents.requirement_manager.api.messages.MessageRepository") as MockRepo:
-            mock_agent.startup = AsyncMock()
-            mock_agent.shutdown = AsyncMock()
+        mock_repo = MagicMock()
+        mock_repo.get_by_session = AsyncMock(return_value=messages)
 
-            mock_repo = MagicMock()
-            mock_repo.get_by_session = AsyncMock(return_value=messages)
-            MockRepo.return_value = mock_repo
-
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.get(f"/api/v1/messages/session/{session_id}")
+        response = await _get_with_message_repository(
+            app,
+            mock_repo,
+            f"/api/v1/messages/session/{session_id}",
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -383,7 +362,6 @@ class TestMessageResponseFormat:
         now = datetime.now(UTC)
         session_id = generate_id(IDPrefix.SESSION)
 
-        # Create a mock message with all fields
         mock_msg = MagicMock(spec=ChatMessage)
         mock_msg.id = "msg_format_001"
         mock_msg.chat_id = "oc_format_test"
@@ -398,20 +376,14 @@ class TestMessageResponseFormat:
         mock_msg.sent_at = now
         mock_msg.created_at = now
 
-        with patch("agents.requirement_manager.app.main.agent") as mock_agent, \
-             patch("agents.requirement_manager.api.messages.MessageRepository") as MockRepo:
-            mock_agent.startup = AsyncMock()
-            mock_agent.shutdown = AsyncMock()
+        mock_repo = MagicMock()
+        mock_repo.search = AsyncMock(return_value=([mock_msg], 1))
 
-            mock_repo = MagicMock()
-            mock_repo.search = AsyncMock(return_value=([mock_msg], 1))
-            MockRepo.return_value = mock_repo
-
-            async with AsyncClient(
-                transport=ASGITransport(app=app),
-                base_url="http://test"
-            ) as client:
-                response = await client.get("/api/v1/messages/search?chat_id=oc_format_test")
+        response = await _get_with_message_repository(
+            app,
+            mock_repo,
+            "/api/v1/messages/search?chat_id=oc_format_test",
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -419,7 +391,6 @@ class TestMessageResponseFormat:
 
         msg = data["messages"][0]
 
-        # Verify all required fields are present
         assert "id" in msg
         assert "chat_id" in msg
         assert "message_id" in msg
@@ -432,7 +403,6 @@ class TestMessageResponseFormat:
         assert "sent_at" in msg
         assert "created_at" in msg
 
-        # Verify field values
         assert msg["id"] == "msg_format_001"
         assert msg["chat_id"] == "oc_format_test"
         assert msg["message_id"] == "om_format_001"

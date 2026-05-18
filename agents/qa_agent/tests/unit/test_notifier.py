@@ -27,10 +27,10 @@ class FakeQualityCardRenderer:
 
 
 @pytest.fixture
-def mock_bus():
-    bus = AsyncMock()
-    bus.publish = AsyncMock()
-    return bus
+def mock_event_publisher():
+    publisher = AsyncMock()
+    publisher.publish = AsyncMock()
+    return publisher
 
 
 @pytest.fixture
@@ -53,9 +53,9 @@ def card_renderer():
 
 
 @pytest.fixture
-def notifier(mock_bus, mock_gitlab, mock_feishu_webhook, card_renderer):
+def notifier(mock_event_publisher, mock_gitlab, mock_feishu_webhook, card_renderer):
     return QANotifier(
-        bus=mock_bus,
+        event_publisher=mock_event_publisher,
         gitlab=mock_gitlab,
         feishu_webhook=mock_feishu_webhook,
         card_renderer=card_renderer,
@@ -75,7 +75,7 @@ def _make_summary(l0: str = "PASS", l1: str = "PASS") -> dict:
 
 class TestEventBusPublish:
     @pytest.mark.asyncio
-    async def test_always_publishes_completed(self, notifier, mock_bus):
+    async def test_always_publishes_completed(self, notifier, mock_event_publisher):
         result = await notifier.notify_all(
             run_id="run1",
             agent_name="pjm_agent",
@@ -84,10 +84,10 @@ class TestEventBusPublish:
             duration_seconds=5.0,
         )
         assert result["eventbus"]["sent"] is True
-        assert mock_bus.publish.call_count == 1
+        assert mock_event_publisher.publish.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_publishes_gate_failed_on_l0_fail(self, notifier, mock_bus):
+    async def test_publishes_gate_failed_on_l0_fail(self, notifier, mock_event_publisher):
         findings = [{"level": "L0", "status": "FAIL", "check": "secrets", "category": "security"}]
         await notifier.notify_all(
             run_id="run2",
@@ -97,7 +97,21 @@ class TestEventBusPublish:
             duration_seconds=3.0,
         )
         # 2 events: completed + gate_failed
-        assert mock_bus.publish.call_count == 2
+        assert mock_event_publisher.publish.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_uses_supplied_eventbus_summary_without_publishing(self, notifier, mock_event_publisher):
+        result = await notifier.notify_all(
+            run_id="run-outbox",
+            agent_name="pjm_agent",
+            summary=_make_summary(),
+            findings=[],
+            duration_seconds=5.0,
+            eventbus_summary={"sent": True, "published": 1, "failed": 0},
+        )
+
+        assert result["eventbus"] == {"sent": True, "published": 1, "failed": 0}
+        mock_event_publisher.publish.assert_not_called()
 
 
 class TestFeishuNotification:
@@ -116,13 +130,13 @@ class TestFeishuNotification:
     @pytest.mark.asyncio
     async def test_sends_feishu_on_l0_fail(
         self,
-        mock_bus,
+        mock_event_publisher,
         mock_gitlab,
         mock_feishu_webhook,
     ):
         card_renderer = FakeQualityCardRenderer()
         notifier = QANotifier(
-            bus=mock_bus,
+            event_publisher=mock_event_publisher,
             gitlab=mock_gitlab,
             feishu_webhook=mock_feishu_webhook,
             card_renderer=card_renderer,

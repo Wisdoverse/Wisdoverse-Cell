@@ -5,17 +5,17 @@ Provides system administration endpoints:
 - LLM usage statistics.
 - Circuit breaker status.
 """
-from datetime import UTC, datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.infra.llm_gateway import llm_gateway
-
-from ..db.database import get_db
-from ..db.repository import LLMUsageRepository
+from ..core.admin_circuit_breaker import CircuitBreakerAdminUseCase
+from ..core.llm_usage_queries import LLMUsageQueryService
+from .dependencies import (
+    get_circuit_breaker_admin_use_case,
+    get_llm_usage_query_service,
+)
 
 router = APIRouter(prefix="/api/v1/admin", tags=["Admin"])
 
@@ -43,18 +43,6 @@ class CircuitBreakerStatusResponse(BaseModel):
     last_failure_time: Optional[str]
 
 
-def _format_last_failure_time(value: object) -> Optional[str]:
-    """Normalize circuit-breaker timestamps for the public API contract."""
-
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value
-    if isinstance(value, int | float):
-        return datetime.fromtimestamp(value, UTC).isoformat()
-    return str(value)
-
-
 @router.get("/llm-usage", response_model=LLMUsageSummaryResponse)
 async def get_llm_usage(
     date: Optional[str] = Query(
@@ -66,7 +54,7 @@ async def get_llm_usage(
         default=None,
         description="Agent ID filter"
     ),
-    db: AsyncSession = Depends(get_db)
+    queries: LLMUsageQueryService = Depends(get_llm_usage_query_service),
 ):
     """
     Get LLM usage statistics.
@@ -77,41 +65,45 @@ async def get_llm_usage(
     - Cost statistics.
     - Grouped statistics by agent and task type.
     """
-    if date is None:
-        date = datetime.now(UTC).strftime("%Y-%m-%d")
-
-    repo = LLMUsageRepository(db)
-    summary = await repo.get_daily_summary(date, agent_id)
+    summary = await queries.get_daily_summary(date=date, agent_id=agent_id)
 
     return LLMUsageSummaryResponse(**summary)
 
 
 @router.get("/circuit-breaker", response_model=CircuitBreakerStatusResponse)
-async def get_circuit_breaker_status():
+async def get_circuit_breaker_status(
+    circuit_breaker: CircuitBreakerAdminUseCase = Depends(
+        get_circuit_breaker_admin_use_case
+    ),
+):
     """
     Get circuit breaker status.
 
     Returns the current LLM Gateway circuit breaker state.
     """
-    stats = llm_gateway.get_circuit_breaker_stats()
+    status = circuit_breaker.get_status()
 
     return CircuitBreakerStatusResponse(
-        state=stats["state"],
-        failures=stats.get("failures", stats.get("failure_count", 0)),
-        failure_threshold=stats["failure_threshold"],
-        recovery_timeout=stats["recovery_timeout"],
-        last_failure_time=_format_last_failure_time(stats.get("last_failure_time"))
+        state=status.state,
+        failures=status.failures,
+        failure_threshold=status.failure_threshold,
+        recovery_timeout=status.recovery_timeout,
+        last_failure_time=status.last_failure_time,
     )
 
 
 @router.post("/circuit-breaker/reset")
-async def reset_circuit_breaker():
+async def reset_circuit_breaker(
+    circuit_breaker: CircuitBreakerAdminUseCase = Depends(
+        get_circuit_breaker_admin_use_case
+    ),
+):
     """
     Reset the circuit breaker.
 
     Manually resets the circuit breaker state to CLOSED for operations
     scenarios where the LLM service has recovered.
     """
-    llm_gateway.reset_circuit_breaker()
+    circuit_breaker.reset()
 
     return {"message": "Circuit breaker reset successfully", "state": "closed"}

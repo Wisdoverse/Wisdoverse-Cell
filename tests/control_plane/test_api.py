@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.api import ERROR_CODE_HEADER
 from shared.control_plane.api import create_control_plane_router
 from shared.control_plane.models import (
     AgentRole,
@@ -232,6 +233,36 @@ async def test_control_plane_api_manages_evolution_proposals(
 
 
 @pytest.mark.asyncio
+async def test_control_plane_api_rejects_evolution_proposal_with_missing_approval(
+    db_session: AsyncSession,
+):
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/v1/control-plane/evolution-proposals",
+            json={
+                "company_id": "cmp_evolution",
+                "tier": "L2",
+                "scope": "agent-routing",
+                "evidence": {"p95_latency_ms": 1200},
+                "expected_benefit": "Reduce routing latency",
+                "risk": "May change coordinator dispatch behavior",
+                "approval_id": "approval_missing",
+                "proposed_by": "evolution-module",
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "approval_not_found"
+    assert response.headers[ERROR_CODE_HEADER] == "control_plane.approval_not_found"
+
+
+@pytest.mark.asyncio
 async def test_control_plane_api_lists_approves_and_builds_timeline(
     db_session: AsyncSession,
 ):
@@ -246,6 +277,9 @@ async def test_control_plane_api_lists_approves_and_builds_timeline(
         runs = await client.get(
             "/api/v1/control-plane/runs",
             params={"company_id": "cmp_api"},
+        )
+        fetched_run = await client.get(
+            f"/api/v1/control-plane/runs/{run.run_id}",
         )
         approvals = await client.get(
             "/api/v1/control-plane/approvals",
@@ -262,6 +296,8 @@ async def test_control_plane_api_lists_approves_and_builds_timeline(
 
     assert runs.status_code == 200
     assert runs.json()["runs"][0]["run_id"] == run.run_id
+    assert fetched_run.status_code == 200
+    assert fetched_run.json()["run_id"] == run.run_id
     assert approvals.status_code == 200
     assert approvals.json()["approvals"][0]["approval_id"] == approval.approval_id
     assert approved.status_code == 200
@@ -302,6 +338,10 @@ async def test_control_plane_api_manages_goals_and_work_items(
             "/api/v1/control-plane/goals",
             params={"company_id": "cmp_goal_api", "status": "active", "search": "SPEC"},
         )
+        fetched_goal = await client.get(
+            f"/api/v1/control-plane/goals/{goal_id}",
+            params={"company_id": "cmp_goal_api"},
+        )
         updated_goal = await client.patch(
             f"/api/v1/control-plane/goals/{goal_id}/status",
             params={"company_id": "cmp_goal_api"},
@@ -334,6 +374,10 @@ async def test_control_plane_api_manages_goals_and_work_items(
                 "priority": "high",
             },
         )
+        fetched_work = await client.get(
+            f"/api/v1/control-plane/work-items/{work_item_id}",
+            params={"company_id": "cmp_goal_api"},
+        )
         updated_work = await client.patch(
             f"/api/v1/control-plane/work-items/{work_item_id}/status",
             params={"company_id": "cmp_goal_api"},
@@ -352,6 +396,8 @@ async def test_control_plane_api_manages_goals_and_work_items(
     assert created_goal.json()["status"] == "active"
     assert listed_goals.status_code == 200
     assert listed_goals.json()["total"] == 1
+    assert fetched_goal.status_code == 200
+    assert fetched_goal.json()["goal_id"] == goal_id
     assert updated_goal.status_code == 200
     assert updated_goal.json()["status"] == "completed"
     assert updated_goal.json()["current_value"] == 100
@@ -359,6 +405,8 @@ async def test_control_plane_api_manages_goals_and_work_items(
     assert created_work.json()["goal_id"] == goal_id
     assert listed_work.status_code == 200
     assert listed_work.json()["work_items"][0]["work_item_id"] == work_item_id
+    assert fetched_work.status_code == 200
+    assert fetched_work.json()["work_item_id"] == work_item_id
     assert updated_work.status_code == 200
     assert updated_work.json()["status"] == "running"
     assert audits.status_code == 200
@@ -366,6 +414,33 @@ async def test_control_plane_api_manages_goals_and_work_items(
         EventTypes.WORK_ITEM_CREATED,
         EventTypes.WORK_ITEM_UPDATED,
     }
+
+
+@pytest.mark.asyncio
+async def test_control_plane_api_rejects_goal_with_missing_parent(
+    db_session: AsyncSession,
+):
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/v1/control-plane/goals",
+            json={
+                "company_id": "cmp_goal_api",
+                "title": "Bad child goal",
+                "parent_goal_id": "goal_missing",
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "parent_goal_not_found"
+    assert response.headers[ERROR_CODE_HEADER] == (
+        "control_plane.parent_goal_not_found"
+    )
 
 
 @pytest.mark.asyncio
@@ -390,6 +465,34 @@ async def test_control_plane_api_rejects_work_item_with_missing_goal(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "goal_not_found"
+    assert response.headers[ERROR_CODE_HEADER] == "control_plane.goal_not_found"
+
+
+@pytest.mark.asyncio
+async def test_control_plane_api_rejects_work_item_with_missing_dependency(
+    db_session: AsyncSession,
+):
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/v1/control-plane/work-items",
+            json={
+                "company_id": "cmp_goal_api",
+                "title": "Blocked work item",
+                "dependencies": ["work_missing"],
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "dependency_not_found"
+    assert response.headers[ERROR_CODE_HEADER] == (
+        "control_plane.dependency_not_found"
+    )
 
 
 @pytest.mark.asyncio
@@ -453,6 +556,10 @@ async def test_control_plane_api_manages_budget_policies(
                 "actor_id": "human:finance",
             },
         )
+        usage = await client.get(
+            "/api/v1/control-plane/budgets/usage",
+            params={"company_id": "cmp_budget_api", "budget_id": budget_id},
+        )
         audits = await client.get(
             "/api/v1/control-plane/audit-events",
             params={"company_id": "cmp_budget_api", "target_type": "budget_policy"},
@@ -474,6 +581,10 @@ async def test_control_plane_api_manages_budget_policies(
     assert created.json()["limit_usd"] == 12.5
     assert duplicate_active.status_code == 409
     assert duplicate_active.json()["detail"] == "active_budget_policy_exists"
+    assert (
+        duplicate_active.headers[ERROR_CODE_HEADER]
+        == "control_plane.active_budget_policy_exists"
+    )
     assert listed.status_code == 200
     assert listed.json()["total"] == 1
     assert listed.json()["budget_policies"][0]["budget_id"] == budget_id
@@ -484,6 +595,8 @@ async def test_control_plane_api_manages_budget_policies(
     assert updated.json()["warning_threshold"] == 0.6
     assert updated.json()["status"] == "paused"
     assert updated.json()["model_allowlist"] == ["gpt-5.2"]
+    assert usage.status_code == 200
+    assert usage.json()["usage"] == []
     assert audits.status_code == 200
     assert {item["action"] for item in audits.json()["audit_events"]} == {
         EventTypes.BUDGET_POLICY_CREATED,
@@ -532,6 +645,14 @@ async def test_control_plane_api_manages_decisions_artifacts_and_timeline(
             },
         )
         decision_id = decision.json()["decision_id"]
+        listed_decisions = await client.get(
+            "/api/v1/control-plane/decisions",
+            params={"company_id": "cmp_api", "run_id": run.run_id},
+        )
+        fetched_decision = await client.get(
+            f"/api/v1/control-plane/decisions/{decision_id}",
+            params={"company_id": "cmp_api"},
+        )
         accepted = await client.patch(
             f"/api/v1/control-plane/decisions/{decision_id}/status",
             params={"company_id": "cmp_api"},
@@ -560,13 +681,25 @@ async def test_control_plane_api_manages_decisions_artifacts_and_timeline(
             "/api/v1/control-plane/artifacts",
             params={"company_id": "cmp_api", "run_id": run.run_id},
         )
+        fetched_artifact = await client.get(
+            f"/api/v1/control-plane/artifacts/{artifact.json()['artifact_id']}",
+            params={"company_id": "cmp_api"},
+        )
         timeline = await client.get(
             "/api/v1/control-plane/timeline",
             params={"company_id": "cmp_api", "run_id": run.run_id},
         )
+        empty_trace_timeline = await client.get(
+            "/api/v1/control-plane/timeline",
+            params={"company_id": "cmp_api", "trace_id": "trace-without-runs"},
+        )
 
     assert decision.status_code == 201
     assert decision.json()["work_item_id"] == work_item_id
+    assert listed_decisions.status_code == 200
+    assert listed_decisions.json()["decisions"][0]["decision_id"] == decision_id
+    assert fetched_decision.status_code == 200
+    assert fetched_decision.json()["decision_id"] == decision_id
     assert accepted.status_code == 200
     assert accepted.json()["status"] == "accepted"
     assert accepted.json()["selected_option"] == "ship"
@@ -574,10 +707,69 @@ async def test_control_plane_api_manages_decisions_artifacts_and_timeline(
     assert artifact.json()["goal_id"] == goal_id
     assert artifacts.status_code == 200
     assert artifacts.json()["artifacts"][0]["artifact_id"] == artifact.json()["artifact_id"]
+    assert fetched_artifact.status_code == 200
+    assert fetched_artifact.json()["artifact_id"] == artifact.json()["artifact_id"]
     assert timeline.status_code == 200
     assert {"agent_run", "approval", "audit_event", "artifact", "decision"}.issubset(
         {item["type"] for item in timeline.json()["timeline"]}
     )
+    assert empty_trace_timeline.status_code == 200
+    assert {"artifact", "decision"}.isdisjoint(
+        {item["type"] for item in empty_trace_timeline.json()["timeline"]}
+    )
+
+
+@pytest.mark.asyncio
+async def test_control_plane_api_rejects_artifact_with_missing_run(
+    db_session: AsyncSession,
+):
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/v1/control-plane/artifacts",
+            json={
+                "company_id": "cmp_api",
+                "artifact_type": "report",
+                "title": "Bad artifact",
+                "uri": "artifact://runs/missing",
+                "run_id": "run_missing",
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "run_not_found"
+    assert response.headers[ERROR_CODE_HEADER] == "control_plane.run_not_found"
+
+
+@pytest.mark.asyncio
+async def test_control_plane_api_rejects_decision_with_missing_run(
+    db_session: AsyncSession,
+):
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/v1/control-plane/decisions",
+            json={
+                "company_id": "cmp_api",
+                "title": "Bad decision",
+                "rationale": "Missing run should fail",
+                "run_id": "run_missing",
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "run_not_found"
+    assert response.headers[ERROR_CODE_HEADER] == "control_plane.run_not_found"
 
 
 @pytest.mark.asyncio
@@ -1196,6 +1388,10 @@ async def test_control_plane_api_blocks_enabled_local_adapter_without_allowlist(
 
     assert wake.status_code == 403
     assert wake.json()["detail"] == "local_adapter_not_allowlisted"
+    assert (
+        wake.headers[ERROR_CODE_HEADER]
+        == "control_plane.local_adapter_not_allowlisted"
+    )
     assert runs.json()["runs"][0]["status"] == "failed"
     assert runs.json()["runs"][0]["error_category"] == "adapter_not_allowlisted"
 
@@ -1227,3 +1423,7 @@ async def test_control_plane_api_rejects_unknown_adapter_definition(
 
     assert created.status_code == 400
     assert created.json()["detail"] == "unsupported_adapter_type"
+    assert (
+        created.headers[ERROR_CODE_HEADER]
+        == "control_plane.unsupported_adapter_type"
+    )

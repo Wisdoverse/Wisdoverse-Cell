@@ -3,7 +3,7 @@ BatchSkill - Batch confirm/reject requirements.
 
 Allows users to confirm or reject multiple requirements at once.
 """
-from agents.requirement_manager.db.repository import RequirementRepository
+from agents.requirement_manager.db.skill_store import build_requirement_skill_store
 from agents.requirement_manager.models import RequirementStatus
 from shared.infra.skill import BaseSkill, Permission, SkillContext, SkillError, SkillResult
 from shared.messaging.inbound import AgentResponse, UnifiedCard
@@ -31,12 +31,12 @@ class BatchConfirmSkill(BaseSkill):
         if context.db is None:
             raise SkillError("数据库不可用")
 
-        repo = RequirementRepository(context.db)
+        store = build_requirement_skill_store(context.db)
         results = []
 
         for req_id in requirement_ids:
             try:
-                req = await repo.get_by_id(req_id)
+                req = await store.get_by_id(req_id)
                 if not req:
                     results.append({"id": req_id, "success": False, "error": "不存在"})
                     continue
@@ -49,12 +49,12 @@ class BatchConfirmSkill(BaseSkill):
                     })
                     continue
 
-                await repo.confirm(req_id, context.user.id)
+                await store.confirm(req_id, context.user.id)
                 results.append({"id": req_id, "success": True, "title": req.title})
             except Exception as e:
                 results.append({"id": req_id, "success": False, "error": str(e)})
 
-        await context.db.commit()
+        await store.commit()
 
         succeeded = [r for r in results if r["success"]]
         failed = [r for r in results if not r["success"]]
@@ -113,12 +113,12 @@ class BatchRejectSkill(BaseSkill):
         if context.db is None:
             raise SkillError("数据库不可用")
 
-        repo = RequirementRepository(context.db)
+        store = build_requirement_skill_store(context.db)
         results = []
 
         for req_id in requirement_ids:
             try:
-                req = await repo.get_by_id(req_id)
+                req = await store.get_by_id(req_id)
                 if not req:
                     results.append({"id": req_id, "success": False, "error": "不存在"})
                     continue
@@ -131,12 +131,12 @@ class BatchRejectSkill(BaseSkill):
                     })
                     continue
 
-                await repo.reject(req_id, reason, context.user.id)
+                await store.reject(req_id, reason, context.user.id)
                 results.append({"id": req_id, "success": True, "title": req.title})
             except Exception as e:
                 results.append({"id": req_id, "success": False, "error": str(e)})
 
-        await context.db.commit()
+        await store.commit()
 
         succeeded = [r for r in results if r["success"]]
         failed = [r for r in results if not r["success"]]

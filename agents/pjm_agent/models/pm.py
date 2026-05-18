@@ -64,3 +64,23 @@ class DecompositionRecord(Base):
     approved_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+class PJMEventOutbox(Base):
+    """Durable outbox for PJM integration events."""
+
+    __tablename__ = "pjm_agent_event_outbox"
+
+    event_id = Column(String(32), primary_key=True)
+    event_type = Column(String(100), nullable=False, index=True)
+    source_agent = Column(String(64), nullable=False)
+    payload = Column(JSONB, nullable=False)
+    schema_version = Column(String(16), nullable=False, default="1.0")
+    trace_id = Column(String(64), nullable=True)
+    correlation_id = Column(String(64), nullable=True)
+    retry_count = Column(Integer, nullable=False, default=0)
+    status = Column(String(16), nullable=False, default="pending", index=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    published_at = Column(DateTime(timezone=True), nullable=True)

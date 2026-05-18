@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from shared.app import UNKNOWN_ACTION_ERROR_CODE
 from shared.schemas.event import Event, EventTypes
 
 
@@ -191,9 +192,31 @@ class TestHandleRequest:
         result = await agent.handle_request({"action": "nonexistent"})
         assert "error" in result
         assert result["error"] == "unknown action"
+        assert result["error_code"] == UNKNOWN_ACTION_ERROR_CODE
 
     @pytest.mark.asyncio
     async def test_handle_request_no_action(self, agent):
         """Missing action returns an error."""
         result = await agent.handle_request({})
         assert "error" in result
+        assert result["error_code"] == UNKNOWN_ACTION_ERROR_CODE
+
+
+class TestHealthCheck:
+    @pytest.mark.asyncio
+    async def test_health_check_uses_injected_health_store(self, mock_db_manager, mock_event_bus):
+        """Health check delegates database probing to the health-store port."""
+        from shared.capabilities.analysis.service.agent import AnalysisModule
+
+        health_store = AsyncMock()
+        health_store.is_database_ready = AsyncMock(return_value=True)
+        agent = AnalysisModule(
+            db=mock_db_manager,
+            bus=mock_event_bus,
+            health_store=health_store,
+        )
+
+        result = await agent.health_check()
+
+        assert result == {"database": True, "event_bus": True}
+        health_store.is_database_ready.assert_awaited_once()

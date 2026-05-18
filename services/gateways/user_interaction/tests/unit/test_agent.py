@@ -3,10 +3,11 @@ Unit Tests - ChatAgent
 
 Core ChatAgent behavior tests.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from shared.app import UNKNOWN_ACTION_ERROR_CODE
 from shared.schemas.event import Event, EventTypes
 
 
@@ -32,7 +33,8 @@ async def test_agent_init(mock_event_bus, mock_chat_service):
 @pytest.mark.asyncio
 async def test_handle_event_pm_response(mock_event_bus, mock_chat_service):
     """Verify handle_event processes CHAT_PM_RESPONSE and returns no events."""
-    from services.gateways.user_interaction.service.agent import ChatAgent, _hash_user_id
+    from services.gateways.user_interaction.service.agent import ChatAgent
+    from shared.observability.privacy import hash_identifier
 
     agent = ChatAgent(db=MagicMock(), bus=mock_event_bus)
 
@@ -42,13 +44,15 @@ async def test_handle_event_pm_response(mock_event_bus, mock_chat_service):
         payload={"user_id": "test_user", "reply": "pm response"},
     )
 
-    with patch("services.gateways.user_interaction.service.agent.logger") as logger:
+    with patch(
+        "services.gateways.user_interaction.core.event_use_cases.logger"
+    ) as logger:
         result = await agent.handle_event(event)
 
     assert result == []
     log_call = logger.info.call_args
     assert log_call.args == ("project_management_response_received",)
-    assert log_call.kwargs["user_hash"] == _hash_user_id("test_user")
+    assert log_call.kwargs["user_hash"] == hash_identifier("test_user")
     assert "user_id" not in log_call.kwargs
 
 
@@ -119,6 +123,26 @@ async def test_handle_request_clear_history(mock_event_bus, mock_chat_service):
 
 
 @pytest.mark.asyncio
+async def test_health_check_uses_injected_health_store(mock_event_bus):
+    """Health check delegates database probing to the health-store port."""
+    from services.gateways.user_interaction.service.agent import ChatAgent
+
+    health_store = AsyncMock()
+    health_store.is_database_ready = AsyncMock(return_value=True)
+    agent = ChatAgent(
+        db=MagicMock(),
+        bus=mock_event_bus,
+        health_store=health_store,
+    )
+    agent._chat = MagicMock()
+
+    result = await agent.health_check()
+
+    assert result == {"database": True, "chat_service": True}
+    health_store.is_database_ready.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_handle_request_unknown(mock_event_bus, mock_chat_service):
     """Verify handle_request returns an error for an unknown action."""
     from services.gateways.user_interaction.service.agent import ChatAgent
@@ -128,4 +152,22 @@ async def test_handle_request_unknown(mock_event_bus, mock_chat_service):
 
     result = await agent.handle_request({"action": "nonexistent"})
 
-    assert result == {"error": "unknown action"}
+    assert result == {
+        "error": "unknown action",
+        "error_code": UNKNOWN_ACTION_ERROR_CODE,
+    }
+
+
+@pytest.mark.asyncio
+async def test_cleanup_conversations_uses_history_store(mock_event_bus):
+    """cleanup_conversations delegates persistence to the chat history store."""
+    from services.gateways.user_interaction.service.agent import ChatAgent
+
+    history_store = MagicMock()
+    history_store.delete_inactive = AsyncMock(return_value=7)
+    agent = ChatAgent(db=MagicMock(), bus=mock_event_bus, history_store=history_store)
+
+    result = await agent.handle_request({"action": "cleanup_conversations"})
+
+    assert result == {"status": "ok", "deleted": 7}
+    history_store.delete_inactive.assert_awaited_once_with(days=30)

@@ -1110,9 +1110,11 @@ class LLMGateway:
             return None
 
         from shared.control_plane.budget_guard import BudgetExceededError, BudgetGuard
+        from shared.control_plane.budget_guard_store import (
+            SqlAlchemyControlPlaneBudgetGuardStore,
+        )
         from shared.control_plane.database import control_plane_db_manager
         from shared.control_plane.models import BudgetPeriod, BudgetScope
-        from shared.control_plane.repository import ControlPlaneRepository
 
         resolved_company_id = (company_id or settings.control_plane_company_id).strip()
         if not resolved_company_id:
@@ -1127,7 +1129,7 @@ class LLMGateway:
             resolved_scope_id = agent_id
 
         async with control_plane_db_manager.session() as session:
-            guard = BudgetGuard(ControlPlaneRepository(session))
+            guard = BudgetGuard(SqlAlchemyControlPlaneBudgetGuardStore(session))
             decision = await guard.check(
                 company_id=resolved_company_id,
                 scope=scope_member,
@@ -1196,14 +1198,16 @@ class LLMGateway:
 
         try:
             from shared.control_plane.budget_guard import BudgetGuard
+            from shared.control_plane.budget_guard_store import (
+                SqlAlchemyControlPlaneBudgetGuardStore,
+            )
             from shared.control_plane.database import control_plane_db_manager
-            from shared.control_plane.repository import ControlPlaneRepository
 
             budget_event: dict[str, Any] | None = None
             async with control_plane_db_manager.session() as session:
-                repo = ControlPlaneRepository(session)
+                store = SqlAlchemyControlPlaneBudgetGuardStore(session)
                 if reservation is not None:
-                    guard = BudgetGuard(repo)
+                    guard = BudgetGuard(store)
                     usage = await guard.record_usage(
                         company_id=reservation.company_id,
                         budget_id=reservation.budget_id,
@@ -1227,7 +1231,7 @@ class LLMGateway:
                         "trace_id": trace_id,
                     }
                 if run_id is not None:
-                    run = await repo.add_agent_run_usage(
+                    run = await store.add_agent_run_usage(
                         run_id,
                         cost_usd=cost_usd,
                         input_tokens=input_tokens,

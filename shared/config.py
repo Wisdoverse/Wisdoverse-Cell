@@ -447,6 +447,10 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        # The repository-level .env is shared by Docker Compose, the frontend,
+        # and Python runtimes. Settings should validate Python-owned keys while
+        # ignoring unrelated operational keys from the same file.
+        extra="ignore",
     )
 
 

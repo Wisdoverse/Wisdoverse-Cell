@@ -24,7 +24,6 @@ from agents.requirement_manager.service.agent import (
     RequirementManagerAgent,
     agent,
 )
-from agents.requirement_manager.service.event_handlers import dispatch_event
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 
@@ -119,7 +118,7 @@ class TestEventDispatch:
             payload={}
         )
 
-        result = await dispatch_event(agent, event)
+        result = await agent.handle_event(event)
 
         assert result == []
 
@@ -132,8 +131,10 @@ class TestEventDispatch:
             payload={}
         )
 
-        with patch("agents.requirement_manager.service.event_handlers.logger") as mock_logger:
-            await dispatch_event(agent, event)
+        with patch(
+            "agents.requirement_manager.core.event_use_cases.logger"
+        ) as mock_logger:
+            await agent.handle_event(event)
             mock_logger.warning.assert_called_once()
 
 
@@ -229,19 +230,23 @@ class TestAgentDependencyInjection:
         mock_db = MagicMock()
         mock_bus = MagicMock()
         mock_vectors = MagicMock()
+        mock_extractor = MagicMock()
 
         test_agent = RequirementManagerAgent(
             db=mock_db,
             bus=mock_bus,
-            vectors=mock_vectors
+            vectors=mock_vectors,
+            requirement_extractor=mock_extractor,
         )
 
         assert test_agent._db_manager is mock_db
         assert test_agent._event_bus is mock_bus
         assert test_agent._vector_store is mock_vectors
+        assert test_agent._extractor is mock_extractor
 
     def test_agent_uses_defaults_when_no_injection(self):
         """Agent uses default dependencies when none are injected."""
+        from agents.requirement_manager.core.extractor import RequirementExtractor
         from agents.requirement_manager.db.database import db_manager
         from agents.requirement_manager.db.vector_store import vector_store
         from shared.infra.event_bus import event_bus as default_event_bus
@@ -251,6 +256,7 @@ class TestAgentDependencyInjection:
         assert test_agent._db_manager is db_manager
         assert test_agent._event_bus is default_event_bus
         assert test_agent._vector_store is vector_store
+        assert isinstance(test_agent._extractor, RequirementExtractor)
 
 
 class TestHandleRequest:
@@ -477,11 +483,11 @@ class TestExtractFromSession:
 
         test_agent = RequirementManagerAgent(db=mock_db)
 
-        # Mock MessageRepository
-        with patch("agents.requirement_manager.service.agent.MessageRepository") as MockMsgRepo:
+        # Mock message persistence port.
+        with patch.object(test_agent, "_get_message_store") as mock_get_msg_store:
             mock_repo_instance = MagicMock()
             mock_repo_instance.get_by_session = AsyncMock(return_value=[])
-            MockMsgRepo.return_value = mock_repo_instance
+            mock_get_msg_store.return_value = mock_repo_instance
 
             result = await test_agent.extract_from_session("ses_test123")
 
@@ -522,8 +528,8 @@ class TestExtractFromSession:
         )
 
         with (
-            patch("agents.requirement_manager.service.agent.MessageRepository") as MockMsgRepo,
-            patch("agents.requirement_manager.service.agent.RequirementRepository") as MockReqRepo,
+            patch.object(test_agent, "_get_message_store") as mock_get_msg_store,
+            patch.object(test_agent, "_get_requirement_store") as mock_get_req_store,
             patch.object(test_agent, "ingest_meeting", new_callable=AsyncMock) as mock_ingest,
             patch.object(
                 test_agent, "_send_session_extraction_card", new_callable=AsyncMock
@@ -533,11 +539,11 @@ class TestExtractFromSession:
             mock_msg_repo = MagicMock()
             mock_msg_repo.get_by_session = AsyncMock(return_value=[mock_msg])
             mock_msg_repo.mark_extracted = AsyncMock()
-            MockMsgRepo.return_value = mock_msg_repo
+            mock_get_msg_store.return_value = mock_msg_repo
 
             mock_req_repo = MagicMock()
             mock_req_repo.get_by_id = AsyncMock(return_value=None)
-            MockReqRepo.return_value = mock_req_repo
+            mock_get_req_store.return_value = mock_req_repo
 
             mock_ingest.return_value = mock_result
 
@@ -582,8 +588,8 @@ class TestExtractFromSession:
         )
 
         with (
-            patch("agents.requirement_manager.service.agent.MessageRepository") as MockMsgRepo,
-            patch("agents.requirement_manager.service.agent.RequirementRepository"),
+            patch.object(test_agent, "_get_message_store") as mock_get_msg_store,
+            patch.object(test_agent, "_get_requirement_store"),
             patch.object(test_agent, "ingest_meeting", new_callable=AsyncMock) as mock_ingest,
             patch.object(
                 test_agent, "_send_session_extraction_card", new_callable=AsyncMock
@@ -592,7 +598,7 @@ class TestExtractFromSession:
 
             mock_msg_repo = MagicMock()
             mock_msg_repo.get_by_session = AsyncMock(return_value=[mock_msg])
-            MockMsgRepo.return_value = mock_msg_repo
+            mock_get_msg_store.return_value = mock_msg_repo
 
             mock_ingest.return_value = mock_result
 

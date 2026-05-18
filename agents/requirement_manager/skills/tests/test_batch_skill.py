@@ -62,6 +62,7 @@ class TestBatchConfirmSkillExecute:
             create_mock_requirement("req_002"),
         ])
         mock_repo.confirm = AsyncMock()
+        mock_repo.commit = AsyncMock()
         mock_repo_class.return_value = mock_repo
 
         message = create_message("/batch-confirm req_001,req_002")
@@ -74,7 +75,7 @@ class TestBatchConfirmSkillExecute:
 
         skill = BatchConfirmSkill()
         with patch(
-            "agents.requirement_manager.skills.batch_operations.RequirementRepository",
+            "agents.requirement_manager.skills.batch_operations.build_requirement_skill_store",
             mock_repo_class,
         ):
             result = await skill.execute(context)
@@ -116,6 +117,7 @@ class TestBatchConfirmSkillExecute:
             None,  # Not found
         ])
         mock_repo.confirm = AsyncMock()
+        mock_repo.commit = AsyncMock()
         mock_repo_class.return_value = mock_repo
 
         message = create_message("/batch-confirm req_001,req_002")
@@ -128,7 +130,7 @@ class TestBatchConfirmSkillExecute:
 
         skill = BatchConfirmSkill()
         with patch(
-            "agents.requirement_manager.skills.batch_operations.RequirementRepository",
+            "agents.requirement_manager.skills.batch_operations.build_requirement_skill_store",
             mock_repo_class,
         ):
             result = await skill.execute(context)
@@ -151,6 +153,7 @@ class TestBatchRejectSkillExecute:
         mock_repo = MagicMock()
         mock_repo.get_by_id = AsyncMock(return_value=create_mock_requirement("req_001"))
         mock_repo.reject = AsyncMock()
+        mock_repo.commit = AsyncMock()
         mock_repo_class.return_value = mock_repo
 
         message = create_message("/batch-reject req_001 Not needed")
@@ -163,7 +166,7 @@ class TestBatchRejectSkillExecute:
 
         skill = BatchRejectSkill()
         with patch(
-            "agents.requirement_manager.skills.batch_operations.RequirementRepository",
+            "agents.requirement_manager.skills.batch_operations.build_requirement_skill_store",
             mock_repo_class,
         ):
             result = await skill.execute(context)

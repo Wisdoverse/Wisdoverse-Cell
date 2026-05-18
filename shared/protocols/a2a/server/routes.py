@@ -9,9 +9,10 @@ import json
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
+from shared.api import raise_a2a_not_enabled, raise_a2a_task_not_found
 from shared.schemas.agent import BaseAgent
 
 from ..middleware.auth import (
@@ -54,10 +55,7 @@ def create_a2a_router(
     async def get_agent_card() -> dict[str, Any]:
         """Return the agent card for discovery."""
         if not agent.a2a_enabled:
-            raise HTTPException(
-                status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail="A2A protocol not enabled for this agent",
-            )
+            raise_a2a_not_enabled()
 
         card = agent.get_agent_card()
         return card.to_well_known_json()
@@ -171,10 +169,7 @@ def create_a2a_router(
         """Stream task status updates via SSE."""
         task = await server._task_store.get_task(task_id)
         if task is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Task not found: {task_id}",
-            )
+            raise_a2a_task_not_found(task_id)
 
         async def status_gen() -> AsyncGenerator[str, None]:
             last_status = None
@@ -247,8 +242,5 @@ def mount_a2a_routes(
     @app.get("/.well-known/agent.json", include_in_schema=False)
     async def root_agent_card() -> dict[str, Any]:
         if not agent.a2a_enabled:
-            raise HTTPException(
-                status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail="A2A protocol not enabled for this agent",
-            )
+            raise_a2a_not_enabled()
         return agent.get_agent_card().to_well_known_json()

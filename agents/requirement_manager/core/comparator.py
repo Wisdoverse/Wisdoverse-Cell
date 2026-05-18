@@ -10,12 +10,10 @@ requirements:
 import json
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Protocol
 
 from pydantic import BaseModel, Field
 
-from shared.control_plane.agent_prompt_config import resolve_agent_system_prompt
-from shared.infra.llm_gateway import llm_gateway
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
@@ -26,12 +24,6 @@ _DEFAULT_SYSTEM_PROMPT = (
     "You are a professional requirements analysis expert. "
     "You are skilled at identifying relationships between requirements."
 )
-
-
-def _get_vector_store():
-    """Import lazily to avoid circular dependencies."""
-    from ..db.vector_store import vector_store
-    return vector_store
 
 
 class RelationType(str, Enum):
@@ -50,6 +42,37 @@ class ComparisonResult(BaseModel):
     suggested_action: str
     related_requirement_id: Optional[str] = None
     merge_suggestion: Optional[str] = None
+
+
+class RequirementVectorSearch(Protocol):
+    """Vector-search port used by conflict detection."""
+
+    async def search(
+        self,
+        query: str,
+        n_results: int = 5,
+        category_filter: str | None = None,
+        min_similarity: float = 0.6,
+    ) -> list[dict]:
+        """Return semantically similar requirement records."""
+
+
+class RequirementConflictLLM(Protocol):
+    async def complete(
+        self,
+        *,
+        prompt: str,
+        agent_id: str,
+        task_type: str,
+        temperature: float = 0,
+        system_prompt: str | None = None,
+    ) -> str:
+        """Complete a requirement conflict-analysis prompt."""
+
+
+class SystemPromptResolver(Protocol):
+    async def __call__(self, agent_id: str, default_prompt: str) -> str:
+        """Resolve the deployed system prompt for an agent."""
 
 
 def build_conflict_detection_prompt(
@@ -99,10 +122,23 @@ class RequirementComparator:
     - Only potential conflicts or duplicates need deeper analysis.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        vector_search: RequirementVectorSearch,
+        llm: RequirementConflictLLM,
+        system_prompt_resolver: SystemPromptResolver,
+        prompt_template: str | None = None,
+    ):
+        self._vector_search = vector_search
+        self._llm = llm
+        self._system_prompt_resolver = system_prompt_resolver
+
         # Load the prompt template.
-        prompt_path = Path(__file__).parent.parent / "prompts" / "detect_conflicts.md"
-        self.prompt_template = prompt_path.read_text(encoding="utf-8")
+        if prompt_template is None:
+            prompt_path = Path(__file__).parent.parent / "prompts" / "detect_conflicts.md"
+            prompt_template = prompt_path.read_text(encoding="utf-8")
+        self.prompt_template = prompt_template
 
         # Similarity thresholds.
         self.similarity_threshold = 0.6  # Values below this are considered unrelated.
@@ -131,7 +167,7 @@ class RequirementComparator:
         search_text = f"{new_title} {new_description}"
 
         # Vector-search similar requirements.
-        similar = await _get_vector_store().search(
+        similar = await self._vector_search.search(
             query=search_text,
             n_results=5,
             min_similarity=self.similarity_threshold
@@ -209,12 +245,12 @@ class RequirementComparator:
         )
 
         try:
-            response = await llm_gateway.complete(
+            response = await self._llm.complete(
                 prompt=prompt,
                 agent_id="requirement-manager",
                 task_type="conflict_detection",
                 temperature=0,
-                system_prompt=await resolve_agent_system_prompt(
+                system_prompt=await self._system_prompt_resolver(
                     "requirement-manager",
                     _DEFAULT_SYSTEM_PROMPT,
                 ),
@@ -329,7 +365,3 @@ class RequirementComparator:
             results.append((req, result))
 
         return results
-
-
-# Global comparator instance.
-comparator = RequirementComparator()
