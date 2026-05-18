@@ -79,6 +79,18 @@ For contributors, operators, and deployers.
 
 ---
 
+## Architecture Plans
+
+Forward-looking plans for backend architecture work. Each plan must reconcile
+to the constitution documents (`AGENTS.md`, `SPEC.md`, `architecture.md`,
+`backend-boundaries.md`) rather than the other way around.
+
+| Document | Purpose |
+|----------|---------|
+| [Backend Evolution Plan](./architecture/backend-evolution-plan.md) | Phased follow-up plan after the PR #121 backend modularization slice |
+
+---
+
 ## Configuration Reference
 
 | File | Purpose |
@@ -133,6 +145,7 @@ docs/
 ├── INDEX.md
 ├── overview/
 ├── adr/
+├── architecture/
 ├── examples/
 ├── guides/
 └── workflows/
