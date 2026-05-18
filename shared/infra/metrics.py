@@ -84,3 +84,28 @@ LOOP_BREAKER_OUTPUT_DECLINE_RATIO = Gauge(
     "Latest output decline ratio (latest / mean_previous)",
     ["agent_id"],
 )
+
+# ── Outbox Dispatcher ────────────────────────────────────────────────────────
+#
+# Closes part of Phase 1 audit P0-3 (no outbox lag metrics). Each runtime's
+# OutboxDispatcherPlugin should call OUTBOX_DISPATCH_EVENTS.labels(...).inc(N)
+# once per cycle and observe OUTBOX_DISPATCH_DURATION_SECONDS on every cycle.
+
+OUTBOX_DISPATCH_EVENTS = Counter(
+    "wisdoverse-cell_outbox_dispatch_events_total",
+    "Total integration events drained from a runtime's outbox table",
+    ["runtime", "outcome"],  # outcome: "published" | "failed" | "total"
+)
+
+OUTBOX_DISPATCH_DURATION_SECONDS = Histogram(
+    "wisdoverse-cell_outbox_dispatch_duration_seconds",
+    "Duration of one outbox dispatcher cycle, per runtime",
+    ["runtime"],
+    buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0),
+)
+
+OUTBOX_DISPATCH_ERRORS = Counter(
+    "wisdoverse-cell_outbox_dispatch_errors_total",
+    "Total uncaught errors raised by a runtime's outbox dispatcher loop",
+    ["runtime", "error_type"],
+)
