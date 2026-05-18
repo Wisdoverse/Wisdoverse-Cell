@@ -1,6 +1,6 @@
 # Wisdoverse Cell - Makefile
 
-.PHONY: all proto proto-python setup test test-public test-unit test-unit-full test-integration test-e2e test-python-full install dev openapi-snapshots
+.PHONY: all proto proto-python setup test test-public test-unit test-unit-full test-integration test-e2e test-python-full install dev openapi-snapshots migration-test
 
 PYTEST ?= python -m pytest
 RUST_GATEWAY_LOCAL_EVIDENCE_REPORT ?= .artifacts/rust-gateway-local-shadow-check.json
@@ -294,6 +294,13 @@ restart:
 # in PR diffs.
 openapi-snapshots:
 	python scripts/generate_openapi_snapshots.py
+
+# Migration round-trip — runs alembic upgrade head, downgrade base,
+# then upgrade head against $TEST_DATABASE_URL. Requires the test
+# database to be reachable (default postgres on 127.0.0.1:5433).
+# Stage 5 item 5 per docs/architecture/migration-plan.md.
+migration-test:
+	bash scripts/migration_round_trip.sh
 
 # Cleanup
 clean:

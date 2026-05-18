@@ -540,6 +540,27 @@ Development services may call `create_tables()` for local bootstrap when
 `schema_managed_by_alembic` and fail visibly if a required table is missing.
 Do not rely on service startup to create or mutate production schemas.
 
+### 9.1 Migration round-trip verification
+
+Run before tagging a release that touches `migrations/versions/`:
+
+```bash
+# Provision a dedicated test database; never point this at production.
+TEST_DATABASE_URL="postgresql+asyncpg://wisdoverse_cell:wisdoverse_cell@127.0.0.1:5433/wisdoverse_cell_migration_test" \
+  make migration-test
+```
+
+`make migration-test` runs `alembic upgrade head`,
+`alembic downgrade base`, then `alembic upgrade head` again. A failing
+exit code at any step blocks the release per
+[`docs/architecture/release-checklist.md`](../architecture/release-checklist.md)
+§5 ("Every new Alembic migration runs cleanly and cleanly reverts").
+
+The per-runtime cutover described in
+[`docs/architecture/per-runtime-migrations.md`](../architecture/per-runtime-migrations.md)
+will replace this single round-trip with per-runtime
+`make migrate-<runtime>` targets.
+
 ## 10. Control Plane Operations
 
 The control-plane ledger is opt-in until migrations are applied and the operator
