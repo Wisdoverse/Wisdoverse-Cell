@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .domain.agent_run_lifecycle import TERMINAL_STATUSES as AGENT_RUN_TERMINAL_STATUSES
 from .models import (
     AgentRole,
     AgentRun,
@@ -443,12 +444,7 @@ class ControlPlaneRepository:
             return None
         status_value = status.value if isinstance(status, Enum) else status
         row.status = status_value
-        if status_value in {
-            AgentRunStatus.SUCCEEDED.value,
-            AgentRunStatus.FAILED.value,
-            AgentRunStatus.CANCELLED.value,
-            AgentRunStatus.TIMED_OUT.value,
-        }:
+        if status_value in {s.value for s in AGENT_RUN_TERMINAL_STATUSES}:
             row.completed_at = _now()
         if error_category is not None:
             row.error_category = error_category
