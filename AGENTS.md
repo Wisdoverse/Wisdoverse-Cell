@@ -86,7 +86,12 @@ shared/
 ### Architecture Boundary Rules
 
 This section is the repository architecture constitution. `SPEC.md`,
-`docs/overview/architecture.md`, and this file must stay aligned.
+`docs/overview/architecture.md`, this file, and the foundation documents
+under `docs/architecture/` must stay aligned. Every architecture-affecting
+PR must satisfy
+[`docs/architecture/architecture-review-checklist.md`](docs/architecture/architecture-review-checklist.md)
+and follow the binding rules in
+[`docs/architecture/architecture-principles.md`](docs/architecture/architecture-principles.md).
 
 Wisdoverse Cell uses Control Plane Architecture at repository level.
 
