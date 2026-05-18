@@ -2207,7 +2207,8 @@ def test_control_plane_approval_api_delegates_to_use_case() -> None:
             end = len(api_source)
         function_source = api_source[start:end]
         assert "ControlPlaneRepository" not in function_source
-        assert "SqlAlchemyControlPlaneApprovalStore(session)" in function_source
+        assert "stores.approvals" in function_source
+        assert "AsyncSession" not in function_source
         assert "ApprovalGate(" not in function_source
         assert "append_audit_event" not in function_source
         assert "update_evolution_proposal_approval_state_by_approval" not in function_source
@@ -2245,7 +2246,8 @@ def test_control_plane_agent_registry_api_delegates_to_use_cases() -> None:
     ):
         function_source = _function_source(api_source, function_name)
         assert "ControlPlaneRepository" not in function_source
-        assert "SqlAlchemyControlPlaneAgentRegistryStore(session)" in function_source
+        assert "stores.agent_registry" in function_source
+        assert "AsyncSession" not in function_source
         assert "DEFAULT_ADAPTER_REGISTRY" not in function_source
 
     for function_name in ("create_agent", "update_agent", "update_agent_status"):
@@ -2270,7 +2272,8 @@ def test_control_plane_run_api_delegates_to_query_use_cases() -> None:
     for function_name in ("list_runs", "get_run"):
         function_source = _function_source(api_source, function_name)
         assert "ControlPlaneRepository" not in function_source
-        assert "SqlAlchemyControlPlaneAgentRunStore(session)" in function_source
+        assert "stores.agent_runs" in function_source
+        assert "AsyncSession" not in function_source
 
 
 def test_control_plane_company_api_delegates_to_use_cases() -> None:
@@ -2331,7 +2334,8 @@ def test_control_plane_goal_api_delegates_to_use_cases() -> None:
     ):
         function_source = _function_source(api_source, function_name)
         assert "ControlPlaneRepository" not in function_source
-        assert "SqlAlchemyControlPlaneGoalStore(session)" in function_source
+        assert "stores.goals" in function_source
+        assert "AsyncSession" not in function_source
 
     for function_name in ("create_goal", "update_goal_status"):
         function_source = _function_source(api_source, function_name)
@@ -2365,7 +2369,8 @@ def test_control_plane_work_item_api_delegates_to_use_cases() -> None:
     ):
         function_source = _function_source(api_source, function_name)
         assert "ControlPlaneRepository" not in function_source
-        assert "SqlAlchemyControlPlaneWorkItemStore(session)" in function_source
+        assert "stores.work_items" in function_source
+        assert "AsyncSession" not in function_source
 
     for function_name in ("create_work_item", "update_work_item_status"):
         function_source = _function_source(api_source, function_name)
@@ -2398,7 +2403,8 @@ def test_control_plane_decision_api_delegates_to_use_cases() -> None:
     ):
         function_source = _function_source(api_source, function_name)
         assert "ControlPlaneRepository" not in function_source
-        assert "SqlAlchemyControlPlaneDecisionStore(session)" in function_source
+        assert "stores.decisions" in function_source
+        assert "AsyncSession" not in function_source
 
     for function_name in ("create_decision", "update_decision_status"):
         function_source = _function_source(api_source, function_name)
@@ -2430,7 +2436,8 @@ def test_control_plane_artifact_api_delegates_to_use_cases() -> None:
     ):
         function_source = _function_source(api_source, function_name)
         assert "ControlPlaneRepository" not in function_source
-        assert "SqlAlchemyControlPlaneArtifactStore(session)" in function_source
+        assert "stores.artifacts" in function_source
+        assert "AsyncSession" not in function_source
 
     function_source = _function_source(api_source, "create_artifact")
     assert "AuditEvent(" not in function_source
@@ -2467,7 +2474,8 @@ def test_control_plane_evolution_proposal_api_delegates_to_use_cases() -> None:
     ):
         function_source = _function_source(api_source, function_name)
         assert "ControlPlaneRepository" not in function_source
-        assert "SqlAlchemyControlPlaneEvolutionProposalStore(session)" in function_source
+        assert "stores.evolution_proposals" in function_source
+        assert "AsyncSession" not in function_source
         assert "ApprovalGate(" not in function_source
 
     for function_name in (
@@ -2504,7 +2512,8 @@ def test_control_plane_budget_api_delegates_to_use_cases() -> None:
     ):
         function_source = _function_source(api_source, function_name)
         assert "ControlPlaneRepository" not in function_source
-        assert "SqlAlchemyControlPlaneBudgetStore(session)" in function_source
+        assert "stores.budgets" in function_source
+        assert "AsyncSession" not in function_source
 
     for function_name in ("create_budget_policy", "update_budget_policy"):
         function_source = _function_source(api_source, function_name)
@@ -2553,7 +2562,8 @@ def test_control_plane_audit_timeline_api_delegates_to_use_cases() -> None:
     for function_name in ("list_audit_events", "get_timeline"):
         function_source = _function_source(api_source, function_name)
         assert "ControlPlaneRepository" not in function_source
-        assert "SqlAlchemyControlPlaneAuditTimelineStore(session)" in function_source
+        assert "stores.audit_timeline" in function_source
+        assert "AsyncSession" not in function_source
 
     function_source = _function_source(api_source, "get_timeline")
     assert "list_decisions(" not in function_source
@@ -2587,7 +2597,8 @@ def test_control_plane_agent_operations_delegate_to_use_cases_and_ports() -> Non
     for function_name in ("wake_agent", "run_heartbeat_scheduler_once"):
         function_source = _function_source(api_source, function_name)
         assert "ControlPlaneRepository" not in function_source
-        assert "SqlAlchemyControlPlaneAgentOperationStore(session)" in function_source
+        assert "stores.agent_operations" in function_source
+        assert "AsyncSession" not in function_source
 
     for source in (runner_source, scheduler_source):
         assert "ControlPlaneAgentOperationStore" in source
@@ -2720,7 +2731,8 @@ def test_control_plane_prompt_config_api_delegates_to_use_case() -> None:
             end = len(api_source)
         function_source = api_source[start:end]
         assert "ControlPlaneRepository" not in function_source
-        assert "SqlAlchemyControlPlanePromptConfigStore(session)" in function_source
+        assert "stores.prompt_configs" in function_source
+        assert "AsyncSession" not in function_source
         assert "append_audit_event" not in function_source
         assert "upsert_agent_prompt_config" not in function_source
 
