@@ -15,7 +15,6 @@ from shared.api import raise_control_plane_api_error
 from shared.config import settings
 from shared.middleware.internal_auth import verify_internal_key
 
-from .agent_operation_store import SqlAlchemyControlPlaneAgentOperationStore
 from .agent_operation_use_cases import (
     AgentDefinitionNotFoundError,
     AgentOperationCompanyNotFoundError,
@@ -31,7 +30,6 @@ from .agent_prompt_config import (
     get_or_default_prompt_config,
     update_prompt_config_with_audit,
 )
-from .agent_registry_store import SqlAlchemyControlPlaneAgentRegistryStore
 from .agent_registry_use_cases import (
     AgentAlreadyExistsError,
     AgentNotFoundError,
@@ -46,7 +44,6 @@ from .agent_registry_use_cases import (
 from .agent_registry_use_cases import (
     list_agent_roles as list_agent_roles_from_registry,
 )
-from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from .agent_run_use_cases import (
     AgentRunNotFoundError,
 )
@@ -58,9 +55,7 @@ from .agent_run_use_cases import (
 )
 from .agent_runner import AgentWakeupError
 from .approval_gate import ApprovalRequiredError
-from .approval_store import SqlAlchemyControlPlaneApprovalStore
 from .approval_use_cases import resolve_approval_and_sync_proposal
-from .artifact_store import SqlAlchemyControlPlaneArtifactStore
 from .artifact_use_cases import (
     ArtifactGoalNotFoundError,
     ArtifactLinkMismatchError,
@@ -75,13 +70,11 @@ from .artifact_use_cases import (
 from .artifact_use_cases import (
     list_artifacts as list_artifacts_from_store,
 )
-from .audit_timeline_store import SqlAlchemyControlPlaneAuditTimelineStore
 from .audit_timeline_use_cases import TimelineScopeRequiredError
 from .audit_timeline_use_cases import build_timeline as build_timeline_from_store
 from .audit_timeline_use_cases import (
     list_audit_events as list_audit_events_from_store,
 )
-from .budget_store import SqlAlchemyControlPlaneBudgetStore
 from .budget_use_cases import (
     ActiveBudgetPolicyConflictError,
     BudgetPolicyNotFoundError,
@@ -110,7 +103,6 @@ from .company_use_cases import (
     list_companies as list_companies_from_store,
 )
 from .database import control_plane_db_manager
-from .decision_store import SqlAlchemyControlPlaneDecisionStore
 from .decision_use_cases import (
     DecisionGoalNotFoundError,
     DecisionLinkMismatchError,
@@ -126,7 +118,6 @@ from .decision_use_cases import (
 from .decision_use_cases import (
     list_decisions as list_decisions_from_store,
 )
-from .evolution_proposal_store import SqlAlchemyControlPlaneEvolutionProposalStore
 from .evolution_proposal_use_cases import (
     EvolutionProposalApprovalNotFoundError,
     EvolutionProposalApprovalRequiredError,
@@ -140,7 +131,6 @@ from .evolution_proposal_use_cases import (
 from .evolution_proposal_use_cases import (
     list_evolution_proposals as list_evolution_proposals_from_store,
 )
-from .goal_store import SqlAlchemyControlPlaneGoalStore
 from .goal_use_cases import (
     GoalNotFoundError,
     ParentGoalNotFoundError,
@@ -174,9 +164,7 @@ from .models import (
     WorkItemPriority,
     WorkItemStatus,
 )
-from .prompt_config_store import SqlAlchemyControlPlanePromptConfigStore
 from .store_factory import ControlPlaneStores
-from .work_item_store import SqlAlchemyControlPlaneWorkItemStore
 from .work_item_use_cases import (
     WorkItemDependencyNotFoundError,
     WorkItemGoalNotFoundError,
@@ -795,9 +783,9 @@ def create_control_plane_router(
         owner_user_id: str | None = None,
         search: str | None = None,
         limit: int = Query(default=100, ge=1, le=500),
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneGoalStore(session)
+        store = stores.goals
         rows = await list_goals_from_store(
             store,
             company_id=resolve_company(company_id),
@@ -815,9 +803,9 @@ def create_control_plane_router(
     )
     async def create_goal(
         body: GoalCreateRequest,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneGoalStore(session)
+        store = stores.goals
         company_id = resolve_company(body.company_id)
         try:
             row = await create_goal_with_audit(
@@ -847,9 +835,9 @@ def create_control_plane_router(
     async def get_goal(
         goal_id: str,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneGoalStore(session)
+        store = stores.goals
         try:
             row = await get_goal_from_store(
                 store,
@@ -865,9 +853,9 @@ def create_control_plane_router(
         goal_id: str,
         body: GoalStatusUpdateRequest,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneGoalStore(session)
+        store = stores.goals
         resolved_company_id = resolve_company(company_id)
         try:
             row = await update_goal_status_with_audit(
@@ -892,9 +880,9 @@ def create_control_plane_router(
         owner_user_id: str | None = None,
         search: str | None = None,
         limit: int = Query(default=100, ge=1, le=500),
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneWorkItemStore(session)
+        store = stores.work_items
         rows = await list_work_items_from_store(
             store,
             company_id=resolve_company(company_id),
@@ -914,9 +902,9 @@ def create_control_plane_router(
     )
     async def create_work_item(
         body: WorkItemCreateRequest,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneWorkItemStore(session)
+        store = stores.work_items
         company_id = resolve_company(body.company_id)
         try:
             row = await create_work_item_with_audit(
@@ -948,9 +936,9 @@ def create_control_plane_router(
     async def get_work_item(
         work_item_id: str,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneWorkItemStore(session)
+        store = stores.work_items
         try:
             row = await get_work_item_from_store(
                 store,
@@ -966,9 +954,9 @@ def create_control_plane_router(
         work_item_id: str,
         body: WorkItemStatusUpdateRequest,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneWorkItemStore(session)
+        store = stores.work_items
         resolved_company_id = resolve_company(company_id)
         try:
             row = await update_work_item_status_with_audit(
@@ -992,9 +980,9 @@ def create_control_plane_router(
         goal_id: str | None = None,
         work_item_id: str | None = None,
         limit: int = Query(default=50, ge=1, le=200),
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneDecisionStore(session)
+        store = stores.decisions
         rows = await list_decisions_from_store(
             store,
             company_id=resolve_company(company_id),
@@ -1012,9 +1000,9 @@ def create_control_plane_router(
     )
     async def create_decision(
         body: DecisionCreateRequest,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneDecisionStore(session)
+        store = stores.decisions
         company_id = resolve_company(body.company_id)
         try:
             row = await create_decision_with_audit(
@@ -1048,9 +1036,9 @@ def create_control_plane_router(
     async def get_decision(
         decision_id: str,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneDecisionStore(session)
+        store = stores.decisions
         try:
             row = await get_decision_from_store(
                 store,
@@ -1066,9 +1054,9 @@ def create_control_plane_router(
         decision_id: str,
         body: DecisionStatusUpdateRequest,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneDecisionStore(session)
+        store = stores.decisions
         resolved_company_id = resolve_company(company_id)
         try:
             row = await update_decision_status_with_audit(
@@ -1093,9 +1081,9 @@ def create_control_plane_router(
         work_item_id: str | None = None,
         created_by_agent_id: str | None = None,
         limit: int = Query(default=50, ge=1, le=200),
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneArtifactStore(session)
+        store = stores.artifacts
         rows = await list_artifacts_from_store(
             store,
             company_id=resolve_company(company_id),
@@ -1114,9 +1102,9 @@ def create_control_plane_router(
     )
     async def create_artifact(
         body: ArtifactCreateRequest,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneArtifactStore(session)
+        store = stores.artifacts
         company_id = resolve_company(body.company_id)
         try:
             row = await create_artifact_with_audit(
@@ -1149,9 +1137,9 @@ def create_control_plane_router(
     async def get_artifact(
         artifact_id: str,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneArtifactStore(session)
+        store = stores.artifacts
         try:
             row = await get_artifact_from_store(
                 store,
@@ -1170,9 +1158,9 @@ def create_control_plane_router(
         rollout_state: EvolutionRolloutState | None = None,
         scope: str | None = None,
         limit: int = Query(default=100, ge=1, le=500),
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneEvolutionProposalStore(session)
+        store = stores.evolution_proposals
         rows = await list_evolution_proposals_from_store(
             store,
             company_id=resolve_company(company_id),
@@ -1193,9 +1181,9 @@ def create_control_plane_router(
     )
     async def create_evolution_proposal(
         body: EvolutionProposalCreateRequest,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneEvolutionProposalStore(session)
+        store = stores.evolution_proposals
         company_id = resolve_company(body.company_id)
         try:
             row = await create_evolution_proposal_with_audit(
@@ -1221,9 +1209,9 @@ def create_control_plane_router(
     async def get_evolution_proposal(
         proposal_id: str,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneEvolutionProposalStore(session)
+        store = stores.evolution_proposals
         try:
             row = await get_evolution_proposal_from_store(
                 store,
@@ -1239,9 +1227,9 @@ def create_control_plane_router(
         proposal_id: str,
         body: EvolutionProposalStatusUpdateRequest,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneEvolutionProposalStore(session)
+        store = stores.evolution_proposals
         resolved_company_id = resolve_company(company_id)
         try:
             row = await update_evolution_proposal_status_with_audit(
@@ -1270,9 +1258,9 @@ def create_control_plane_router(
         goal_id: str | None = None,
         work_item_id: str | None = None,
         limit: int = Query(default=50, ge=1, le=200),
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneAgentRunStore(session)
+        store = stores.agent_runs
         rows = await list_agent_runs_from_store(
             store,
             company_id=resolve_company(company_id),
@@ -1294,9 +1282,9 @@ def create_control_plane_router(
         adapter_type: str | None = None,
         search: str | None = None,
         limit: int = Query(default=100, ge=1, le=500),
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneAgentRegistryStore(session)
+        store = stores.agent_registry
         rows = await list_agent_roles_from_registry(
             store,
             company_id=resolve_company(company_id),
@@ -1315,9 +1303,9 @@ def create_control_plane_router(
     )
     async def create_agent(
         body: AgentDefinitionCreateRequest,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneAgentRegistryStore(session)
+        store = stores.agent_registry
         company_id = resolve_company(body.company_id)
         try:
             row = await create_agent_role_with_audit(
@@ -1357,9 +1345,9 @@ def create_control_plane_router(
     async def get_agent(
         agent_id: str,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneAgentRegistryStore(session)
+        store = stores.agent_registry
         try:
             row = await get_agent_role_from_registry(
                 store,
@@ -1374,12 +1362,12 @@ def create_control_plane_router(
     async def update_agent(
         agent_id: str,
         body: AgentDefinitionCreateRequest,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
         if body.agent_id != agent_id:
             raise_control_plane_api_error(status_code=400, detail="agent_id_mismatch")
 
-        store = SqlAlchemyControlPlaneAgentRegistryStore(session)
+        store = stores.agent_registry
         company_id = resolve_company(body.company_id)
         try:
             row = await update_agent_role_with_audit(
@@ -1418,9 +1406,9 @@ def create_control_plane_router(
     async def get_agent_prompt_config(
         agent_id: str,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlanePromptConfigStore(session)
+        store = stores.prompt_configs
         resolved_company_id = resolve_company(company_id)
         try:
             return await get_or_default_prompt_config(
@@ -1436,9 +1424,9 @@ def create_control_plane_router(
         agent_id: str,
         body: AgentPromptConfigUpdateRequest,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlanePromptConfigStore(session)
+        store = stores.prompt_configs
         resolved_company_id = resolve_company(company_id)
         try:
             return await update_prompt_config_with_audit(
@@ -1457,9 +1445,9 @@ def create_control_plane_router(
         agent_id: str,
         body: AgentStatusUpdateRequest,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneAgentRegistryStore(session)
+        store = stores.agent_registry
         resolved_company_id = resolve_company(company_id)
         try:
             row = await update_agent_status_with_audit(
@@ -1477,9 +1465,9 @@ def create_control_plane_router(
     async def wake_agent(
         agent_id: str,
         body: AgentWakeupRequest,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneAgentOperationStore(session)
+        store = stores.agent_operations
         try:
             result = await wake_agent_definition(
                 store,
@@ -1512,9 +1500,9 @@ def create_control_plane_router(
     )
     async def run_heartbeat_scheduler_once(
         body: HeartbeatRunRequest,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneAgentOperationStore(session)
+        store = stores.agent_operations
         company_id = resolve_company(body.company_id)
         try:
             results = await run_heartbeat_scheduler_once_from_store(
@@ -1533,9 +1521,9 @@ def create_control_plane_router(
     @router.get("/runs/{run_id}")
     async def get_run(
         run_id: str,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneAgentRunStore(session)
+        store = stores.agent_runs
         try:
             row = await get_agent_run_from_store(store, run_id=run_id)
         except AgentRunNotFoundError:
@@ -1549,9 +1537,9 @@ def create_control_plane_router(
         run_id: str | None = None,
         trace_id: str | None = None,
         limit: int = Query(default=50, ge=1, le=200),
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneApprovalStore(session)
+        store = stores.approvals
         rows = await store.list_approvals(
             company_id=resolve_company(company_id),
             status=status,
@@ -1565,9 +1553,9 @@ def create_control_plane_router(
     async def approve(
         approval_id: str,
         body: ApprovalActionRequest,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneApprovalStore(session)
+        store = stores.approvals
         try:
             decision = await resolve_approval_and_sync_proposal(
                 store,
@@ -1583,9 +1571,9 @@ def create_control_plane_router(
     async def reject(
         approval_id: str,
         body: ApprovalActionRequest,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneApprovalStore(session)
+        store = stores.approvals
         try:
             decision = await resolve_approval_and_sync_proposal(
                 store,
@@ -1605,12 +1593,12 @@ def create_control_plane_router(
         period: BudgetPeriod | None = None,
         status: str | None = None,
         limit: int = Query(default=100, ge=1, le=500),
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
         status = status.strip().lower() if status is not None else None
         if status is not None and status not in BUDGET_POLICY_STATUSES:
             raise_control_plane_api_error(status_code=400, detail="invalid_budget_policy_status")
-        store = SqlAlchemyControlPlaneBudgetStore(session)
+        store = stores.budgets
         rows = await list_budget_policies_from_store(
             store,
             company_id=resolve_company(company_id),
@@ -1631,9 +1619,9 @@ def create_control_plane_router(
     )
     async def create_budget_policy(
         body: BudgetPolicyCreateRequest,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneBudgetStore(session)
+        store = stores.budgets
         company_id = resolve_company(body.company_id)
         try:
             row = await create_budget_policy_with_audit(
@@ -1662,9 +1650,9 @@ def create_control_plane_router(
     async def get_budget_policy(
         budget_id: str,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneBudgetStore(session)
+        store = stores.budgets
         try:
             row = await get_budget_policy_from_store(
                 store,
@@ -1680,9 +1668,9 @@ def create_control_plane_router(
         budget_id: str,
         body: BudgetPolicyUpdateRequest,
         company_id: str | None = None,
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneBudgetStore(session)
+        store = stores.budgets
         resolved_company_id = resolve_company(company_id)
         update_values = body.model_dump(exclude_unset=True)
         update_values.pop("actor_id", None)
@@ -1715,9 +1703,9 @@ def create_control_plane_router(
         run_id: str | None = None,
         trace_id: str | None = None,
         limit: int = Query(default=50, ge=1, le=200),
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneBudgetStore(session)
+        store = stores.budgets
         rows = await list_budget_usage_from_store(
             store,
             company_id=resolve_company(company_id),
@@ -1736,9 +1724,9 @@ def create_control_plane_router(
         target_type: str | None = None,
         target_id: str | None = None,
         limit: int = Query(default=100, ge=1, le=500),
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneAuditTimelineStore(session)
+        store = stores.audit_timeline
         rows = await list_audit_events_from_store(
             store,
             company_id=resolve_company(company_id),
@@ -1756,9 +1744,9 @@ def create_control_plane_router(
         trace_id: str | None = None,
         run_id: str | None = None,
         limit: int = Query(default=100, ge=1, le=500),
-        session: AsyncSession = Depends(get_session),
+        stores: ControlPlaneStores = Depends(get_stores),
     ):
-        store = SqlAlchemyControlPlaneAuditTimelineStore(session)
+        store = stores.audit_timeline
         try:
             items = await build_timeline_from_store(
                 store,
