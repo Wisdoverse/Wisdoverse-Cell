@@ -2295,7 +2295,12 @@ def test_control_plane_company_api_delegates_to_use_cases() -> None:
     ):
         function_source = _function_source(api_source, function_name)
         assert "ControlPlaneRepository" not in function_source
-        assert "SqlAlchemyControlPlaneCompanyStore(session)" in function_source
+        # AsyncSession must not appear in the route signature; routes now
+        # depend on ControlPlaneStores. See PR migrating the company routes
+        # to the store factory introduced by docs/architecture/migration-plan.md
+        # §Stage 1 item 3/4.
+        assert "AsyncSession" not in function_source
+        assert "stores.companies" in function_source
 
     for function_name in ("create_company", "update_company"):
         function_source = _function_source(api_source, function_name)
