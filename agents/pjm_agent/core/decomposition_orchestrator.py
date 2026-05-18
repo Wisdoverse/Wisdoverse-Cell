@@ -20,9 +20,25 @@ from .card_ports import PJMCardRendererPort
 from .config import PJMCoreConfig
 from .decompose import DecomposeError, DecomposeService
 from .decomposition_ports import PJMDecompositionStore, PJMDecompositionTransaction
+from .domain.lifecycle.decomposition_lifecycle import (
+    APPROVED,
+    FAILED,
+    PENDING,
+    REJECTED,
+    WRITE_FAILED,
+    WRITING,
+)
 from .op_writer import OPWriterService
 from .outbox_ports import PJMEventOutboxStore
 from .push_service import PushService
+
+# Decomposition statuses that indicate the record already exists in some
+# active state. Reused by the existence check that rejects re-trigger.
+_EXISTING_BLOCKING_STATUSES: tuple[str, ...] = (PENDING, WRITING, APPROVED, WRITE_FAILED)
+
+# Decomposition statuses from which the record can still be re-decomposed.
+# Reused by retry paths that reset the record to pending.
+_RECOVERABLE_STATUSES: tuple[str, ...] = (FAILED, REJECTED, WRITE_FAILED)
 
 logger = get_logger("pjm_agent.decomposition_orchestrator")
 
@@ -208,7 +224,7 @@ class DecompositionOrchestrator:
         # Dedup check
         async with self._require_decomposition_store().transaction() as decomposition:
             existing = await decomposition.get_by_wp_id(wp_id)
-            if existing and existing.status in ("pending", "writing", "approved", "write_failed"):
+            if existing and existing.status in _EXISTING_BLOCKING_STATUSES:
                 logger.info("decompose_skip_duplicate", wp_id=wp_id, status=existing.status)
                 return []
             # Allow failed/rejected to retry — delete old record
@@ -676,7 +692,7 @@ class DecompositionOrchestrator:
             record = await decomposition.get_by_wp_id(wp_id)
             if not record:
                 return request_error("record not found", "pm.decomposition_not_found")
-            if record.status not in ("failed", "rejected", "write_failed"):
+            if record.status not in _RECOVERABLE_STATUSES:
                 return request_error(
                     (
                         f"cannot retry status '{record.status}', "
@@ -729,7 +745,7 @@ class DecompositionOrchestrator:
             record = await decomposition.get_by_wp_id(wp_id)
             if not record:
                 return request_error("record not found", "pm.decomposition_not_found")
-            if record.status not in ("failed", "rejected", "write_failed"):
+            if record.status not in _RECOVERABLE_STATUSES:
                 return request_error(
                     (
                         f"cannot retry status '{record.status}', "
