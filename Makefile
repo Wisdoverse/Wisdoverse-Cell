@@ -1,6 +1,6 @@
 # Wisdoverse Cell - Makefile
 
-.PHONY: all proto proto-python setup test test-public test-unit test-unit-full test-integration test-e2e test-python-full install dev
+.PHONY: all proto proto-python setup test test-public test-unit test-unit-full test-integration test-e2e test-python-full install dev openapi-snapshots
 
 PYTEST ?= python -m pytest
 RUST_GATEWAY_LOCAL_EVIDENCE_REPORT ?= .artifacts/rust-gateway-local-shadow-check.json
@@ -288,6 +288,12 @@ docker-test:
 # Restart
 restart:
 	docker compose $(COMPOSE_BASE) $(COMPOSE_APP) $(COMPOSE_PROXY) restart
+
+# OpenAPI snapshots — regenerate docs/api/openapi/<runtime>-v1.json.
+# Used by the architecture-review checklist to surface contract drift
+# in PR diffs.
+openapi-snapshots:
+	python scripts/generate_openapi_snapshots.py
 
 # Cleanup
 clean:
