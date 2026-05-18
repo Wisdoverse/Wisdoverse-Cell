@@ -99,6 +99,8 @@ Architecture Review Checklist before merge.
 | [Testing Strategy](./architecture/testing-strategy.md) | Test pyramid, test types per layer, CI gates, mocking and data strategy |
 | [Observability Guidelines](./architecture/observability-guidelines.md) | Minimum logs, traces, metrics, alerts, SLOs, health endpoints |
 | [Architecture Review Checklist](./architecture/architecture-review-checklist.md) | Per-PR checklist used by author and reviewer |
+| [Release Checklist](./architecture/release-checklist.md) | Pre-release sign-off across CI, contracts, data, observability, security, and operations |
+| [Rollback Checklist](./architecture/rollback-checklist.md) | Per-failure-class rollback playbook: code, configuration, data, events, frontend |
 | [Migration Plan](./architecture/migration-plan.md) | Six-stage phased roadmap (Stage 0 docs → Stage 5 quality) |
 | [Backend Target Architecture](./architecture/backend-target-architecture.md) | Phase 2 target architecture and first-step proposal |
 | [Backend Architecture Analysis](./architecture/backend-architecture-analysis.md) | Phase 1 read-only audit (current state) |
