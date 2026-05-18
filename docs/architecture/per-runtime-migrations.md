@@ -181,6 +181,42 @@ until the very last runtime is extracted.
 
 ---
 
+## 6.1 Local Split-Deployment Smoke
+
+`make split-deploy-<runtime>` brings up infra + one runtime as an
+independent container using the `split-agents` Compose profile,
+polls `/health/ready`, and runs an `/agent/request` smoke. It
+satisfies the "non-prod deployment proves the split" half of
+[`migration-plan.md`](./migration-plan.md) §Stage 4 pre-condition #4
+without booking a remote staging environment.
+
+```bash
+# After make up-infra brings up Postgres/Redis/NATS/Milvus.
+make split-deploy-dev
+make split-deploy-qa
+make split-deploy-pjm
+make split-deploy-requirement
+```
+
+The script lives at `scripts/split_deploy_smoke.sh`. Exit codes:
+
+- `0` — `/ready` returned 200 and `/agent/request` returned 2xx/4xx
+  (any structured HTTP response proves the runtime is reachable).
+- `1` — `docker compose up` failed.
+- `2` — `/ready` did not return 200 within `SMOKE_TIMEOUT_SECONDS`
+  (default 120 s).
+- `3` — `/agent/request` returned an HTTP code outside 2xx/4xx
+  (connection failure, timeout, or 5xx).
+
+Operator override knobs:
+
+- `RUNTIME` — agent ID (e.g. `dev-agent`).
+- `SMOKE_TIMEOUT_SECONDS` — how long to wait for `/ready`.
+- `PM_API_KEY` — internal-key header for the health probe.
+
+For load-side verification, pair with `make load-smoke` (k6, 10
+VUs). Together they cover the smoke + load half of pre-condition #4.
+
 ## 7. Sequencing Against Service Extraction
 
 This work is the **first** Stage 4 step per the migration plan. It is
