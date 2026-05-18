@@ -2193,6 +2193,11 @@ def test_control_plane_approval_gate_uses_approval_store_port() -> None:
     assert "ControlPlaneRepository" not in gate_source
     assert "ControlPlaneApprovalStore" in gate_source
     assert "SqlAlchemyControlPlaneApprovalStore(session)" in gate_source
+    # ORM types must not appear as return annotations on the gate API.
+    # ApprovalRequestTable is allowed as the converter input type only.
+    assert "-> ApprovalRequestTable" not in gate_source
+    assert "ApprovalRequestTable | None" not in gate_source
+    assert "_table_to_approval_request" in gate_source
 
 
 def test_control_plane_approval_api_delegates_to_use_case() -> None:
