@@ -12,7 +12,7 @@ aiosqlite>=0.22.1
 alembic>=1.15.0
 
 # Redis
-redis>=5.2.0
+redis>=7.4.0
 
 # NATS JetStream
 nats-py>=2.9.0
