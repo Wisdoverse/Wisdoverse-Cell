@@ -49,8 +49,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install pip-audit
           pip install -r requirements.txt
+          pip install -r requirements-dev.txt
       - name: Ruff
         run: ruff check agents/ shared/ skills/ tests/
+      - name: Mypy (scoped per pyproject.toml)
+        run: make typecheck
       - name: Python dependency audit
         run: |
           pip-audit -r requirements.txt
