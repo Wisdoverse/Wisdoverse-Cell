@@ -1,12 +1,59 @@
 # Backend Evolution Follow-Up Plan
 
-Last updated: 2026-05-18
+Last updated: 2026-05-18 (refreshed after Stages 0–3 landed)
 
-Status: Forward-looking plan. Captures the next phases of backend architecture
-work after PR #121 (`refactor(backend): modularize service boundaries`,
-branch `refactor/settings-env-contract`). The overall backend architecture
-goal is not complete; PR #121 is one incremental slice of it. This document
-is the working contract for what comes next.
+Status: Forward-looking plan. The plan below was originally drafted after
+PR #121 modularized service boundaries. Since then, Stages 0–3 of the
+migration plan have landed on `main` (see §0 Status Update). The remaining
+sections describe what came next at the time of writing and now serve as
+historical context for the work that has been completed.
+
+The canonical six-stage roadmap is in
+[`migration-plan.md`](./migration-plan.md). When the two documents
+disagree, the migration plan wins.
+
+---
+
+## 0. Status Update
+
+The original plan's "Recommended Next Phases" (A–H) and Stage roadmap have
+substantially landed. As of 2026-05-18:
+
+| Stage | Status | Key PRs |
+|-------|--------|---------|
+| 0. Architecture docs + standards | ✓ landed | #124 (10 foundation docs), #142, #146, #147, #149, #154 |
+| 1. Code structure cleanup | ✓ landed | #125 (use-case logger), #126 (lifecycle → domain/), #127, #128, #129 (outbox metrics on all 10 runtimes), #131, #134 (ControlPlaneStores), #135, #136 (40 routes migrated), #143 (ORM leak fix), #144 (boundary tests), #145 (PR template), #150, #151, #152, #153 |
+| 2. Domain modeling | ✓ landed | #131 (pjm + qa domain seed), #137 (Decomposition aggregate), #138 (Task aggregate), #139 (Requirement aggregate), #140 (AcceptanceVerdict value object), #141 (AgentRunLifecycle aggregate) |
+| 3. Data ownership + boundaries | ✓ landed at the design layer | #142 (Identity boundary doc), #143 (ApprovalGate ORM leak fix), #144 (cross-runtime ORM boundary tests), #154 (per-runtime migration cutover plan) |
+| 4. Service boundary evolution | partial | Pre-conditions: #1 ✓ (outbox in #126/#129 + replay in #146 + idempotency in #149), #2 ✓ (cutover plan in #154), #3 ✓ (OpenAPI snapshots in #148); #4 (non-prod deployment) requires operator coordination and is out of scope for documentation work |
+| 5. Engineering quality | partial | Items 4 (test) ✓, 6 (deps Dependabot) ✓, 7 (security cso) ✓, 8 (release checklist) ✓ #147, 9 (rollback) ✓ #147, 10 (incident runbook) ✓ #146, plus new event-catalog tests #153 and PR template gate #145. Items 3 (mypy / pyright) and 5 (CI Alembic up/down workflow) remain — both require new tooling or CI workflow changes outside the scope of this plan |
+
+Closed Phase 1 audit gaps:
+
+| Phase 1 audit ID | Status |
+|------------------|--------|
+| H1 / P0-2 (single Alembic dir) | Design closure #154; physical cutover deferred |
+| H2 / P0-1 (902-LOC repository monolith) | Reduced via per-aggregate stores + factory #134/#135/#136 |
+| H5 / P1-3 (ORM leak into business logic) | Closed for routes #135/#136 and ApprovalGate #143 |
+| H6 / P0-3 (no outbox metrics) | ✓ #128 + #129 (all 10 runtimes) |
+| H8 / P1-4 (no contract tests) | ✓ event-catalog tests #153 |
+| H9 / P1-5 (no Identity boundary) | Closed at design layer #142 |
+| M1 (1783-LOC api.py) | Per-aggregate router split #135/#136 not done; routes use factory instead (cleaner outcome) |
+| M2 (no domain layer) | Closed — every runtime has `core/domain/` with aggregate/value object |
+| M5 (Analysis source-table drift) | Documented; no current drift, no projection layer needed yet |
+| M6 (non-uniform error envelope) | Foundation laid in `api-guidelines.md`; full rollout still pending |
+
+Stage 4 pre-condition #4 (non-prod deployment) and Stage 5 items 3, 5
+require infrastructure or tooling decisions outside the scope of
+documentation/code-organization work. The rest of this document is kept
+verbatim as historical context.
+
+---
+
+## 1. Current PR Scope
+
+PR #121 captures one architecture slice. It does not finalize the backend
+architecture target.
 
 This plan is consistent with the architecture constitution in
 [`AGENTS.md`](../../AGENTS.md), [`SPEC.md`](../../SPEC.md),
