@@ -1,6 +1,6 @@
 # Wisdoverse Cell - Makefile
 
-.PHONY: all proto proto-python setup test test-public test-unit test-unit-full test-integration test-e2e test-python-full install dev openapi-snapshots migration-test
+.PHONY: all proto proto-python setup test test-public test-unit test-unit-full test-integration test-e2e test-python-full install dev openapi-snapshots migration-test typecheck
 
 PYTEST ?= python -m pytest
 RUST_GATEWAY_LOCAL_EVIDENCE_REPORT ?= .artifacts/rust-gateway-local-shadow-check.json
@@ -301,6 +301,14 @@ openapi-snapshots:
 # Stage 5 item 5 per docs/architecture/migration-plan.md.
 migration-test:
 	bash scripts/migration_round_trip.sh
+
+# Static type check — Stage 5 item 3 per
+# docs/architecture/migration-plan.md. Scope is the `files` list in
+# pyproject.toml [tool.mypy]. Expand the list one module at a time as
+# more code becomes typed.
+# Requires: pip install -r requirements-dev.txt
+typecheck:
+	python -m mypy
 
 # Cleanup
 clean:

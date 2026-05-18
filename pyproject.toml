@@ -51,3 +51,26 @@ ignore = ["E501"]
 "**/test_*.py" = ["E402"]
 "**/conftest.py" = ["E402"]
 "**/*_pb2.py" = ["E712", "F821", "E501"]  # protobuf auto-generated
+
+# Static type checking — Stage 5 item 3 per
+# docs/architecture/migration-plan.md. Scope is intentionally narrow:
+# one well-typed module at a time. Expanding the check is a separate
+# follow-up PR that demonstrates the module passes locally before the
+# CI gate sees it.
+[tool.mypy]
+python_version = "3.12"
+files = [
+    "shared/core/request_result.py",
+    "shared/core/ids.py",
+]
+# Pure ports / protocols / value-object helpers. No SQLAlchemy, no
+# FastAPI, no async LiteLLM clients in scope yet. `follow_imports =
+# silent` prevents cascading errors from transitive untyped modules.
+follow_imports = "silent"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+no_implicit_optional = true
+ignore_missing_imports = true
