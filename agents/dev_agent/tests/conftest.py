@@ -6,26 +6,14 @@ import pytest
 import pytest_asyncio
 
 from agents.dev_agent.models.schemas import RiskLevel, SanitizedTask, TaskInput
+from shared.testing import dispose_module_engines
 
 
 @pytest_asyncio.fixture(autouse=True)
-async def _dispose_module_engines_between_tests() -> AsyncGenerator[None, None]:
-    """Dispose every reachable AsyncEngine after each test to prevent
-    pytest-asyncio function-scoped loop bleed through module-level
-    DatabaseManager singletons."""
-    yield
-
-    import gc
-
-    from sqlalchemy.ext.asyncio import AsyncEngine
-
-    for obj in gc.get_objects():
-        if not isinstance(obj, AsyncEngine):
-            continue
-        try:
-            await obj.dispose()
-        except Exception:
-            pass
+async def _isolate_module_pools() -> AsyncGenerator[None, None]:
+    """Prevent cross-loop pool bleed via `shared.testing.dispose_module_engines`."""
+    async with dispose_module_engines():
+        yield
 
 
 @pytest.fixture
