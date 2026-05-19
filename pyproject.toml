@@ -118,6 +118,24 @@ files = [
     "agents/requirement_manager/core/requirement_ports.py",
     "agents/requirement_manager/core/skill_ports.py",
     "agents/requirement_manager/core/webui_ports.py",
+    # Control plane per-aggregate ports (Protocol classes).
+    "shared/control_plane/agent_operation_ports.py",
+    "shared/control_plane/agent_registry_ports.py",
+    "shared/control_plane/agent_run_ports.py",
+    "shared/control_plane/approval_ports.py",
+    "shared/control_plane/artifact_ports.py",
+    "shared/control_plane/audit_timeline_ports.py",
+    "shared/control_plane/bootstrap_ports.py",
+    "shared/control_plane/budget_guard_ports.py",
+    "shared/control_plane/budget_ports.py",
+    "shared/control_plane/company_ports.py",
+    "shared/control_plane/decision_ports.py",
+    "shared/control_plane/evolution_proposal_ports.py",
+    "shared/control_plane/goal_ports.py",
+    "shared/control_plane/prompt_config_ports.py",
+    "shared/control_plane/run_evidence_ports.py",
+    "shared/control_plane/runtime_plugin_ports.py",
+    "shared/control_plane/work_item_ports.py",
 ]
 # Pure ports / protocols / value-object helpers. No SQLAlchemy, no
 # FastAPI, no async LiteLLM clients in scope yet. `follow_imports =
