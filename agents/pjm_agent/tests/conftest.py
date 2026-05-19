@@ -30,32 +30,14 @@ os.environ.setdefault("POSTGRES_PASSWORD", "test")
 # Import all models so SQLAlchemy can register them.
 from agents.pjm_agent.models.base import Base
 from agents.pjm_agent.models.pm import AlertLog, PMConfigCache  # noqa: F401
+from shared.testing import dispose_module_engines
 
 
 @pytest_asyncio.fixture(autouse=True)
-async def _dispose_module_engines_between_tests() -> AsyncGenerator[None, None]:
-    """Dispose every reachable AsyncEngine after each test.
-
-    Module-level DatabaseManager singletons (`agents.pjm_agent.db.database.db_manager`,
-    `shared.control_plane.database.control_plane_db_manager`) cache asyncpg
-    connections bound to the event loop in which they were first used.
-    pytest-asyncio's function-scoped loop policy then trips
-    `RuntimeError: Event loop is closed` on the next test. Walking
-    `gc.get_objects()` covers every singleton without hard-coding the list.
-    """
-    yield
-
-    import gc
-
-    from sqlalchemy.ext.asyncio import AsyncEngine
-
-    for obj in gc.get_objects():
-        if not isinstance(obj, AsyncEngine):
-            continue
-        try:
-            await obj.dispose()
-        except Exception:
-            pass
+async def _isolate_module_pools() -> AsyncGenerator[None, None]:
+    """Prevent cross-loop pool bleed via `shared.testing.dispose_module_engines`."""
+    async with dispose_module_engines():
+        yield
 
 
 @pytest_asyncio.fixture

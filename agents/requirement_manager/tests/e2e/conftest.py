@@ -60,6 +60,7 @@ from shared.infra.event_bus import EventBus
 from shared.infra.llm_gateway import llm_gateway as _llm_gw_instance
 from shared.infra.milvus_store import MilvusVectorStore
 from shared.schemas.event import Event
+from shared.testing import dispose_module_engines
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,24 @@ E2E_TIMEOUT = 30
 
 # ============ Per-test middleware state reset ============
 
+def _walk_middleware_tree(node, seen):
+    """Yield every middleware instance reachable from a Starlette stack root."""
+    node_id = id(node)
+    if node_id in seen:
+        return
+    seen.add(node_id)
+    yield node
+    for attr in ("app", "wrapped_app", "middleware"):
+        child = getattr(node, attr, None)
+        if child is None or child is node:
+            continue
+        if isinstance(child, list):
+            for c in child:
+                yield from _walk_middleware_tree(c, seen)
+        else:
+            yield from _walk_middleware_tree(child, seen)
+
+
 @pytest.fixture(autouse=True)
 def _reset_rate_limit_state() -> None:
     """Clear in-memory rate-limit counters before each test.
@@ -80,34 +99,32 @@ def _reset_rate_limit_state() -> None:
     instance. The FastAPI app is a module singleton, so the log persists across
     tests; once the concurrency suite has burned through the per-window quota
     every following test gets 429s.
+
+    Fails loudly if the middleware can't be located — a silent no-op here
+    would let a future Starlette/middleware rename re-introduce the cross-test
+    429 bleed without any signal.
     """
     from shared.middleware import RateLimitMiddleware
 
-    def _walk(node, seen):
-        node_id = id(node)
-        if node_id in seen:
-            return
-        seen.add(node_id)
-        if isinstance(node, RateLimitMiddleware):
-            yield node
-        for attr in ("app", "wrapped_app", "middleware"):
-            child = getattr(node, attr, None)
-            if child is None or child is node:
-                continue
-            if isinstance(child, list):
-                for c in child:
-                    yield from _walk(c, seen)
-            else:
-                yield from _walk(child, seen)
+    # Starlette builds `middleware_stack` lazily on the first ASGI call.
+    # Force a build so the rate limiter instance is reachable from the first
+    # test on — httpx ASGITransport doesn't trigger lifespan, which is the
+    # other path that would build it.
+    if app.middleware_stack is None:
+        app.middleware_stack = app.build_middleware_stack()
 
-    # Starlette builds middleware_stack lazily on the first ASGI call. Force a
-    # build so the rate limiter instance is reachable from the first test on.
-    stack = app.middleware_stack
-    if stack is None:
-        stack = app.build_middleware_stack()
-        app.middleware_stack = stack
-
-    for instance in _walk(stack, set()):
+    rate_limiters = [
+        node
+        for node in _walk_middleware_tree(app.middleware_stack, set())
+        if isinstance(node, RateLimitMiddleware)
+    ]
+    assert rate_limiters, (
+        "RateLimitMiddleware not reachable from app.middleware_stack — the "
+        "e2e suite relies on resetting its per-IP request log between tests. "
+        "If the middleware was renamed or removed, update this fixture; do "
+        "not just drop the assertion."
+    )
+    for instance in rate_limiters:
         instance._requests.clear()
         instance._last_gc = 0.0
 
@@ -115,36 +132,18 @@ def _reset_rate_limit_state() -> None:
 # ============ Cross-loop pool isolation ============
 
 @pytest_asyncio.fixture(autouse=True)
-async def _dispose_module_engines_between_tests() -> AsyncGenerator[None, None]:
-    """Dispose every module-level SQLAlchemy AsyncEngine after each test.
+async def _isolate_module_pools() -> AsyncGenerator[None, None]:
+    """Prevent cross-loop pool bleed via `shared.testing.dispose_module_engines`.
 
-    pytest-asyncio gives each test a fresh event loop (function-scoped). The
-    requirement_manager runtime creates two module-level engine singletons at
-    import time — `agents.requirement_manager.db.database.db_manager` and
-    `shared.control_plane.database.control_plane_db_manager` — whose pools
-    cache asyncpg connections bound to the loop in which they were first used.
-    When the next test starts in a new loop, the pool's pre-ping path tries to
-    drive the cached connection's old (now-closed) loop and fails with
-    `RuntimeError: Event loop is closed`. The function-scoped `test_db` /
-    `test_event_bus` fixtures already dispose their own engines, but the
-    module-level singletons survive across tests.
-
-    Discovering every `AsyncEngine` via `gc` avoids hard-coding the singleton
-    list (new agents/capabilities add their own as they appear).
+    pytest-asyncio gives each test a fresh event loop. Module-level
+    `DatabaseManager` singletons (`agents.requirement_manager.db.database.db_manager`,
+    `shared.control_plane.database.control_plane_db_manager`) cache asyncpg
+    connections bound to whichever loop first touched them, and the next
+    test's `pool_pre_ping` then crashes with
+    `RuntimeError: Event loop is closed`.
     """
-    yield
-
-    import gc
-
-    from sqlalchemy.ext.asyncio import AsyncEngine
-
-    for obj in gc.get_objects():
-        if not isinstance(obj, AsyncEngine):
-            continue
-        try:
-            await obj.dispose()
-        except Exception:
-            logger.debug("engine_dispose_failed", exc_info=True)
+    async with dispose_module_engines():
+        yield
 
 
 # ============ Database Fixtures ============
@@ -289,8 +288,9 @@ async def client(test_db, test_event_bus) -> AsyncGenerator[AsyncClient, None]:
 
     app.dependency_overrides[get_db] = override_get_db
 
-    # The `get_agent` factory used by ingest/feedback use cases moved to
-    # `api.dependencies` in the modularization work. Patch there.
+    # `api.dependencies.get_agent` is the canonical factory; the ingest and
+    # feedback routers re-bind that symbol via `from ..service import get_agent`
+    # at module import. Patching the canonical location reaches both call sites.
     with patch("agents.requirement_manager.api.dependencies.get_agent", return_value=test_agent), \
          patch("agents.requirement_manager.app.main.agent", test_agent):
 
@@ -557,7 +557,7 @@ async def traced_client(test_db, test_event_bus, tracer):
 
     _setup_otel_instrumentation(tracer)
 
-    # `get_agent` lives in api.dependencies (moved during modularization).
+    # `api.dependencies.get_agent` is the canonical factory; routers re-bind it.
     with patch("agents.requirement_manager.api.dependencies.get_agent", return_value=test_agent), \
          patch("agents.requirement_manager.app.main.agent", test_agent):
 
