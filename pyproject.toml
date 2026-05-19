@@ -96,6 +96,28 @@ files = [
     "shared/control_plane/domain/agent_run_lifecycle.py",
     "shared/control_plane/domain/lifecycle/__init__.py",
     "shared/control_plane/domain/lifecycle/agent_run_lifecycle.py",
+    # Per-agent ports (Protocol classes; abstract contracts only).
+    "agents/dev_agent/core/health_ports.py",
+    "agents/dev_agent/core/outbox_ports.py",
+    "agents/pjm_agent/core/alert_ports.py",
+    "agents/pjm_agent/core/card_ports.py",
+    "agents/pjm_agent/core/decomposition_ports.py",
+    "agents/pjm_agent/core/health_ports.py",
+    "agents/pjm_agent/core/outbox_ports.py",
+    "agents/qa_agent/core/card_ports.py",
+    "agents/qa_agent/core/health_ports.py",
+    "agents/qa_agent/core/outbox_ports.py",
+    "agents/requirement_manager/core/card_ports.py",
+    "agents/requirement_manager/core/feedback_ports.py",
+    "agents/requirement_manager/core/grpc_ports.py",
+    "agents/requirement_manager/core/health_ports.py",
+    "agents/requirement_manager/core/meeting_ports.py",
+    "agents/requirement_manager/core/message_ports.py",
+    "agents/requirement_manager/core/outbox_ports.py",
+    "agents/requirement_manager/core/question_ports.py",
+    "agents/requirement_manager/core/requirement_ports.py",
+    "agents/requirement_manager/core/skill_ports.py",
+    "agents/requirement_manager/core/webui_ports.py",
 ]
 # Pure ports / protocols / value-object helpers. No SQLAlchemy, no
 # FastAPI, no async LiteLLM clients in scope yet. `follow_imports =
