@@ -32,6 +32,26 @@ from agents.qa_agent.models.base import Base
 from agents.qa_agent.models.qa import QAAcceptanceResult, QAAcceptanceRun  # noqa: F401
 
 
+@pytest_asyncio.fixture(autouse=True)
+async def _dispose_module_engines_between_tests() -> AsyncGenerator[None, None]:
+    """Dispose every reachable AsyncEngine after each test to prevent
+    pytest-asyncio function-scoped loop bleed through module-level
+    DatabaseManager singletons."""
+    yield
+
+    import gc
+
+    from sqlalchemy.ext.asyncio import AsyncEngine
+
+    for obj in gc.get_objects():
+        if not isinstance(obj, AsyncEngine):
+            continue
+        try:
+            await obj.dispose()
+        except Exception:
+            pass
+
+
 @pytest_asyncio.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """
