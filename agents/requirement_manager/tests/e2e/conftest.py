@@ -211,8 +211,9 @@ async def client(test_db, test_event_bus) -> AsyncGenerator[AsyncClient, None]:
 
     app.dependency_overrides[get_db] = override_get_db
 
-    with patch("agents.requirement_manager.api.ingest.get_agent", return_value=test_agent), \
-         patch("agents.requirement_manager.api.feedback.get_agent", return_value=test_agent), \
+    # The `get_agent` factory used by ingest/feedback use cases moved to
+    # `api.dependencies` in the modularization work. Patch there.
+    with patch("agents.requirement_manager.api.dependencies.get_agent", return_value=test_agent), \
          patch("agents.requirement_manager.app.main.agent", test_agent):
 
         async with AsyncClient(
@@ -477,8 +478,8 @@ async def traced_client(test_db, test_event_bus, tracer):
 
     _setup_otel_instrumentation(tracer)
 
-    with patch("agents.requirement_manager.api.ingest.get_agent", return_value=test_agent), \
-         patch("agents.requirement_manager.api.feedback.get_agent", return_value=test_agent), \
+    # `get_agent` lives in api.dependencies (moved during modularization).
+    with patch("agents.requirement_manager.api.dependencies.get_agent", return_value=test_agent), \
          patch("agents.requirement_manager.app.main.agent", test_agent):
 
         async with AsyncClient(
