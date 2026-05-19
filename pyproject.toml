@@ -136,6 +136,24 @@ files = [
     "shared/control_plane/run_evidence_ports.py",
     "shared/control_plane/runtime_plugin_ports.py",
     "shared/control_plane/work_item_ports.py",
+    # Support-capability ports (sync, analysis, evolution).
+    "shared/capabilities/analysis/core/health_ports.py",
+    "shared/capabilities/analysis/core/outbox_ports.py",
+    "shared/capabilities/evolution/core/analysis_ports.py",
+    "shared/capabilities/evolution/core/control_plane_ports.py",
+    "shared/capabilities/evolution/core/health_ports.py",
+    "shared/capabilities/evolution/core/outbox_ports.py",
+    "shared/capabilities/evolution/core/seed_ports.py",
+    "shared/capabilities/sync/core/health_ports.py",
+    "shared/capabilities/sync/core/sync_ports.py",
+    # Gateway + orchestration ports.
+    # User-interaction gateway ports are excluded for now because the
+    # package __init__.py walks chat_ports.py and chat_ports has
+    # 5 missing annotations. Re-include after typing chat_ports.
+    "services/gateways/channel/core/outbox_ports.py",
+    "services/orchestration/coordinator/core/health_ports.py",
+    "services/orchestration/coordinator/core/outbox_ports.py",
+    "services/orchestration/coordinator/core/state_ports.py",
 ]
 # Pure ports / protocols / value-object helpers. No SQLAlchemy, no
 # FastAPI, no async LiteLLM clients in scope yet. `follow_imports =
