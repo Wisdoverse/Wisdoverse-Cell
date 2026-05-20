@@ -21,3 +21,7 @@ def test_infra_metrics_shim_reuses_observability_collectors() -> None:
         infra_metrics.OUTBOX_DISPATCH_EVENTS
         is observability_metrics.OUTBOX_DISPATCH_EVENTS
     )
+    assert (
+        infra_metrics.OUTBOX_PENDING_OLDEST_AGE_SECONDS
+        is observability_metrics.OUTBOX_PENDING_OLDEST_AGE_SECONDS
+    )

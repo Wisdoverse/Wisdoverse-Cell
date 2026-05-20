@@ -517,8 +517,9 @@ docker compose -f docker/compose/docker-compose.app.yml logs --tail=50 ai-core |
 
 **Symptoms**:
 - Prometheus alert: outbox lag warning or critical
-  (`wisdoverse-cell_outbox_dispatch_duration_seconds` flatlines or
-  spikes; total/published counters stop advancing).
+  (`wisdoverse-cell_outbox_pending_oldest_age_seconds` rises or
+  `wisdoverse-cell_outbox_dispatch_duration_seconds` flatlines/spikes while
+  total/published counters stop advancing).
 - Downstream consumers stop seeing events from one runtime.
 - `/status` for the runtime reports `dispatcher` health degraded with
   the last error type.
@@ -529,7 +530,7 @@ docker compose -f docker/compose/docker-compose.app.yml logs --tail=50 ai-core |
 ```bash
 # Step 1: Which runtime is lagging?
 curl -s -H "X-Internal-Key: $PM_API_KEY" http://localhost:9090/api/v1/query \
-  --data-urlencode 'query=wisdoverse-cell_outbox_dispatch_duration_seconds' | jq
+  --data-urlencode 'query=wisdoverse-cell_outbox_pending_oldest_age_seconds' | jq
 
 # Step 2: Look at the agent's /status for last error / last result.
 docker compose exec cell curl -s http://requirement-manager:8000/status | jq .plugins

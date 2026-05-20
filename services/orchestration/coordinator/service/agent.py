@@ -7,6 +7,7 @@ from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
 from shared.infra.llm_gateway import llm_gateway
 from shared.infra.scratchpad import Scratchpad
+from shared.observability.outbox import record_outbox_pending_age
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventMetadata, EventTypes
 from shared.utils.logger import get_logger
@@ -131,6 +132,7 @@ class CoordinatorAgent(BaseAgent):
             raise RuntimeError("coordinator_outbox_store_not_started")
 
         rows = await self._outbox_store.list_pending(limit=limit)
+        record_outbox_pending_age("coordinator", rows)
 
         published = 0
         failed = 0

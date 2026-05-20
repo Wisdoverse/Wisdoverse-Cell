@@ -127,6 +127,12 @@ OUTBOX_DISPATCH_ERRORS = Counter(
     ["runtime", "error_type"],
 )
 
+OUTBOX_PENDING_OLDEST_AGE_SECONDS = Gauge(
+    "wisdoverse-cell_outbox_pending_oldest_age_seconds",
+    "Age in seconds of the oldest pending outbox event observed by a runtime",
+    ["runtime"],
+)
+
 __all__ = [
     "EVENT_DLQ_LENGTH",
     "EVENT_DLQ_MESSAGES_TOTAL",
@@ -146,4 +152,5 @@ __all__ = [
     "OUTBOX_DISPATCH_DURATION_SECONDS",
     "OUTBOX_DISPATCH_ERRORS",
     "OUTBOX_DISPATCH_EVENTS",
+    "OUTBOX_PENDING_OLDEST_AGE_SECONDS",
 ]
