@@ -33,8 +33,8 @@ Closed Phase 1 audit gaps:
 | Phase 1 audit ID | Status |
 |------------------|--------|
 | H1 / P0-2 (single Alembic dir) | Design closure #154; physical cutover deferred |
-| H2 / P0-1 (repository compatibility facade) | Closed for SQL ownership and caller isolation: per-aggregate stores now own control-plane SQL, non-facade tests use store factory / ports, and `repository.py` is covered only by its compatibility facade test surface. Remaining follow-up is a deprecation horizon. |
-| H5 / P1-3 (ORM leak into business logic) | Closed for routes #135/#136, ApprovalGate #143, and Control Plane application/use-case returns across company, goal, work item, agent role, agent run, approval, decision, artifact, budget, audit timeline, and evolution proposal surfaces. Remaining follow-up is lower-level store/facade return cleanup and repository-facade deprecation. |
+| H2 / P0-1 (repository compatibility facade) | Closed: per-aggregate stores now own control-plane SQL, non-facade tests use store factory / ports, and the retired `repository.py` facade plus its compatibility tests have been deleted. |
+| H5 / P1-3 (ORM leak into business logic) | Closed for routes #135/#136, ApprovalGate #143, and Control Plane application/use-case returns across company, goal, work item, agent role, agent run, approval, decision, artifact, budget, audit timeline, and evolution proposal surfaces. Remaining follow-up is lower-level store return cleanup. |
 | H6 / P0-3 (no outbox metrics) | ✓ #128 + #129 (all 10 runtimes); shared cross-cutting metrics are now owned by `shared.observability.metrics` with `shared.infra.metrics` kept as a compatibility shim |
 | P0-4 (optional tracing) | Runtime tracing now installs a provider in non-production even without an exporter; production settings fail closed without `OTEL_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` |
 | H8 / P1-4 (no contract tests) | ✓ event-catalog tests #153 |
@@ -120,8 +120,8 @@ files added or restructured by PR #121 alone is in the low hundreds.
 `artifact_*`, `audit_timeline_*`, `decision_*`, `evolution_proposal_*`,
 `prompt_config_*`, `runtime_plugin_*`, `agent_operation_*`,
 `agent_registry_*`, `company_*`, `bootstrap_*`, `budget_guard_*`,
-`run_evidence_*`). The legacy `repository.py` is preserved as a compatibility
-seam but the per-aggregate stores now hold the authoritative SQL.
+`run_evidence_*`). The legacy `repository.py` compatibility facade has been
+retired; per-aggregate stores now hold the authoritative SQL.
 
 ### 2.3 Hexagonal Boundary in Shared Code
 

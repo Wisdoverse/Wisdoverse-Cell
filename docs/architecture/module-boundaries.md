@@ -52,8 +52,8 @@ When you add a new context, you must add a row to this document **and** to
 - Outbound dependencies: runtime agents (writes runs, artifacts, audit);
   LLM Gateway (budget usage); gateways (approvals consumption).
 - Boundary clarity: high (single owner); internal SQL ownership is now behind
-  per-aggregate stores. `repository.py` remains only as a compatibility
-  facade for older callers while new code uses store ports/factory adapters.
+  per-aggregate stores. The retired `repository.py` facade no longer exists;
+  callers use store ports/factory adapters.
 - Split fitness: must remain central. Do not extract.
 
 ### 2.2 Requirement Management
