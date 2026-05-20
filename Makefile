@@ -1,6 +1,6 @@
 # Wisdoverse Cell - Makefile
 
-.PHONY: all proto proto-python setup test test-public test-unit test-unit-full test-integration test-e2e test-python-full install dev openapi-snapshots migration-test typecheck split-deploy-dev split-deploy-qa split-deploy-pjm split-deploy-requirement
+.PHONY: all proto proto-python setup test test-public test-unit test-unit-full test-integration test-e2e test-python-full install dev openapi-snapshots migration-test typecheck python-dependency-audit split-deploy-dev split-deploy-qa split-deploy-pjm split-deploy-requirement
 
 PYTEST ?= python -m pytest
 RUST_GATEWAY_LOCAL_EVIDENCE_REPORT ?= .artifacts/rust-gateway-local-shadow-check.json
@@ -310,6 +310,9 @@ migration-test:
 # Requires: pip install -r requirements-dev.txt
 typecheck:
 	python -m mypy
+
+python-dependency-audit:
+	bash scripts/python_dependency_audit.sh
 
 # Split-deployment smoke — Stage 4 pre-condition #4 per
 # docs/architecture/migration-plan.md. Brings up infra + one runtime
