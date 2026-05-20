@@ -36,7 +36,7 @@ independently deployable agent services. The shape is:
 | Shared runtime + contracts | `shared/app/`, `shared/core/`, `shared/schemas/`, `shared/infra/` | `create_agent_app()`, plugin model, abstract ports, event payloads, LLM gateway, EventBus client, circuit breaker |
 | Shared integrations | `shared/integrations/feishu/`, `shared/integrations/wecom/`, `shared/integrations/...` | Platform adapters and reusable presentation builders |
 | Messaging | `shared/messaging/inbound/`, `shared/messaging/outbound/` | Inbound user-service path and outbound delivery |
-| Compatibility surfaces | `shared/services/`, root `skills/` | Deprecated re-exports for migration only |
+| Retired compatibility surfaces | `shared/services/`, root `skills/` | Removed; canonical imports are mandatory |
 
 Backend Python source: ~795 non-test `.py` files under
 `agents/`, `services/`, `shared/`.
@@ -227,19 +227,14 @@ abstraction, ID contract, HTTP error contract, outbox-as-publish path,
 `shared/services` retirement). This is the executable form of the boundary
 rules and currently passes on `main`.
 
-### 5.2 Active Compatibility Surfaces
+### 5.2 Retired Compatibility Surfaces
 
-- `shared/services/` — 11 modules; `__init__.py` re-exports only
-  `CircuitBreaker`, `LLMGateway`, and `LLMUsageData`. Most consumers are
-  compatibility tests (`shared/infra/tests/test_compat.py`,
-  `shared/integrations/tests/test_compat.py`). Real production traffic is
-  on canonical paths.
-- Root `skills/` — 7 files, re-exporting from
-  `agents/requirement_manager/skills/`. Active only for legacy test harness
-  compatibility.
+- `shared/services/` has been removed. Infra, integrations, and messaging tests
+  now import the canonical modules directly.
+- Root `skills/` has been removed. Requirement Manager skill tests now import
+  `agents.requirement_manager.skills.*` directly.
 
-These surfaces are documented as deprecated in `docs/overview/project-layout.md`.
-They are not yet retired.
+Architecture-boundary tests block both packages from being reintroduced.
 
 ### 5.3 Other Observed Issues
 
@@ -292,7 +287,7 @@ concrete file citations from §4 / §5.
 |---|---------|----------|----------|
 | M1 | `shared/control_plane/api.py` is 1783 LOC of thin handlers; no per-aggregate router split | Medium | `shared/control_plane/api.py` |
 | M2 | Domain layer is implicit; lifecycle helpers, ports, and use cases co-exist under `core/` without a separate `core/domain/` | Medium | `agents/<agent>/core/`, `shared/control_plane/agent_run_lifecycle.py` |
-| M3 | Compatibility surfaces still alive: `shared/services/*` (11 modules), root `skills/*` (7 files) | Medium | `shared/services/__init__.py`, `skills/__init__.py` |
+| M3 | Closed: compatibility surfaces `shared/services/*` and root `skills/*` have been retired | Low | `tests/unit/test_architecture_boundaries.py` |
 | M4 | Sync capability hosts OpenProject and Feishu Bitable in one runtime; sub-boundaries exist only inside `core/` | Medium | `shared/capabilities/sync/core/engine.py`, `shared/capabilities/sync/core/progress.py` |
 | M5 | Analysis can read source-domain tables; no explicit projection layer | Medium | `shared/capabilities/analysis/` (no projection module) |
 | M6 | Error response shape is uniform via `X-Error-Code` header but the body remains FastAPI `detail` string; no structured error envelope yet | Medium | `shared/api/errors.py:13-74` (56-code enum), `shared/middleware/error_handler.py:13-28` |
@@ -351,7 +346,7 @@ from §6 and align with the phases already drafted in
 | P2 | Define and adopt a per-runtime migration ownership story (separate Alembic directories or a per-runtime migration tool) | H1 closure; gate before any service extraction | Backend evolution plan Phase G |
 | P2 | Add a `users` / identity API boundary; route all writes through it | H9 closure | Backend evolution plan Phase E |
 | P2 | Add an explicit projection layer for Analysis | M5 closure | Backend evolution plan Phase C |
-| P3 | Retire `shared/services/*` and root `skills/*` once consumer migration is done | M3 closure | Backend evolution plan Phase F |
+| P3 | Keep retired `shared/services/*` and root `skills/*` from returning | M3 remains closed | Architecture-boundary tests |
 | P3 | Split Sync into two sub-capability runtimes (OpenProject and Feishu Bitable) once each side has its own outbox and repository | M4 closure | Backend evolution plan Phase D |
 | P3 | Split `shared/control_plane/api.py` (1783 LOC) into per-aggregate routers | M1 closure | cosmetic; do after P0 H2 work |
 

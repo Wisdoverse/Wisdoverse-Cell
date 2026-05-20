@@ -121,7 +121,6 @@ COPY --from=builder /opt/venv /opt/venv
 
 # Copy every agent and capability so the same image can play any role.
 COPY --chown=appuser:appgroup shared/   /app/shared/
-COPY --chown=appuser:appgroup skills/   /app/skills/
 COPY --chown=appuser:appgroup agents/   /app/agents/
 COPY --chown=appuser:appgroup services/ /app/services/
 COPY --chown=appuser:appgroup alembic.ini    /app/alembic.ini

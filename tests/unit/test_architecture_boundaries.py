@@ -303,16 +303,33 @@ def test_runtime_code_does_not_import_llm_provider_sdks_directly() -> None:
 
 
 def test_runtime_code_uses_canonical_shared_paths() -> None:
+    assert not Path("shared/services").exists()
     roots = [Path("agents"), Path("services"), Path("shared")]
     for root in roots:
         if not root.exists():
             continue
         for path in _python_files(root):
-            if path.parts[:2] == ("shared", "services"):
-                continue
             for module in _imported_modules(path):
                 assert not module.startswith("shared.services"), (
-                    f"{path} imports deprecated module {module}; use canonical shared paths"
+                    f"{path} imports retired module {module}; use canonical shared paths"
+                )
+
+
+def test_retired_root_skills_package_is_absent() -> None:
+    """Requirement Manager skills must be imported from their owning agent."""
+    assert not Path("skills").exists()
+
+    roots = [Path("agents"), Path("services"), Path("shared"), Path("tests")]
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in root.rglob("*.py"):
+            if path.name.endswith("_pb2.py") or path.name.endswith("_pb2_grpc.py"):
+                continue
+            for module in _imported_modules(path):
+                assert module != "skills" and not module.startswith("skills."), (
+                    f"{path} imports retired root skills module {module}; "
+                    "use agents.requirement_manager.skills"
                 )
 
 

@@ -4,7 +4,7 @@
 
 ## Verification
 
-- [ ] `python -m ruff check agents/ shared/ skills/ tests/`
+- [ ] `python -m ruff check agents/ shared/ tests/`
 - [ ] `python -m pytest -q`
 - [ ] `cargo fmt --manifest-path rust/Cargo.toml --check`
 - [ ] `make rust-gateway-test`

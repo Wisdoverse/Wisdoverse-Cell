@@ -67,7 +67,7 @@ These restate and extend `AGENTS.md` Part 3 rules. They are normative.
 5. `shared/core` owns abstract ports and protocols only.
 6. `shared/integrations` owns platform adapters.
 7. `shared/utils` must not contain business logic.
-8. `shared/services` is a compatibility surface only. New imports use canonical paths.
+8. Retired compatibility roots such as `shared/services` and root `skills` must not be reintroduced. Use canonical paths.
 9. Frontend route files must stay thin (Feature-Sliced Design; out of scope here).
 10. Frontend domain data belongs to `entities` (out of scope here).
 11. All cross-boundary contracts must be documented in `SPEC.md`, the API reference, or the Event Catalog.

@@ -93,7 +93,6 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
 COPY --chown=appuser:appgroup shared/ /app/shared/
-COPY --chown=appuser:appgroup skills/ /app/skills/
 COPY --chown=appuser:appgroup agents/requirement_manager/ /app/agents/requirement_manager/
 
 # =============================================================================

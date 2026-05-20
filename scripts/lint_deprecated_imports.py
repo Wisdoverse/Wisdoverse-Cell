@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""CI lint: Block new code from importing deprecated paths.
+"""CI lint: Block code from importing retired compatibility paths.
 
-Scans changed Python files for imports from deprecated module paths
-(shared.services.gateway, shared.services.channel_gateway, etc.)
-that should use the canonical paths instead.
+Scans changed Python files for imports from retired module paths
+(``shared.services.*`` and root ``skills.*``) that should use canonical
+paths instead.
 
 Exit code 0 = clean, 1 = violations found.
 """
@@ -11,8 +11,12 @@ import re
 import subprocess
 import sys
 
-# Deprecated import paths → canonical replacement
+# Retired import paths -> canonical replacement
 DEPRECATED_PATTERNS: list[tuple[str, str]] = [
+    (r"from\s+shared\.services(?:\.|\s|$)", "canonical shared.* paths"),
+    (r"import\s+shared\.services(?:\.|\s|$)", "canonical shared.* paths"),
+    (r"from\s+skills(?:\.|\s|$)", "agents.requirement_manager.skills"),
+    (r"import\s+skills(?:\.|\s|$)", "agents.requirement_manager.skills"),
     (r"from\s+shared\.services\.gateway\b", "shared.messaging.inbound"),
     (r"from\s+shared\.services\.channel_gateway\b", "shared.messaging.outbound"),
     (r"from\s+shared\.services\.feishu\b", "shared.integrations.feishu"),
@@ -32,27 +36,6 @@ DEPRECATED_PATTERNS: list[tuple[str, str]] = [
     (r"import\s+shared\.services\.circuit_breaker\b", "shared.infra.circuit_breaker"),
     (r"import\s+shared\.services\.agent_client\b", "shared.infra.agent_client"),
 ]
-
-# Paths that are allowed to use deprecated imports (compat stubs themselves)
-ALLOWLIST_DIRS = [
-    "shared/services/gateway/",
-    "shared/services/channel_gateway/",
-    "shared/services/feishu/",
-    "shared/services/wecom/",
-    "shared/services/openclaw/",
-    "shared/services/openproject/",
-    "shared/services/channels/",
-    "shared/services/circuit_breaker.py",
-    "shared/services/agent_client.py",
-    # Compat test files are allowed
-    "tests/test_compat",
-    "test_reexport",
-]
-
-
-def is_allowlisted(filepath: str) -> bool:
-    return any(allow in filepath for allow in ALLOWLIST_DIRS)
-
 
 def get_changed_files(target_branch: str | None = None) -> list[str]:
     """Get Python files changed vs target branch, or all tracked .py files."""
@@ -92,8 +75,6 @@ def main() -> int:
 
     total_violations = 0
     for filepath in files:
-        if is_allowlisted(filepath):
-            continue
         violations = scan_file(filepath)
         for line_no, line, canonical in violations:
             print(f"  {filepath}:{line_no}: {line}")
@@ -101,11 +82,11 @@ def main() -> int:
             total_violations += 1
 
     if total_violations > 0:
-        print(f"\n❌ {total_violations} deprecated import(s) found.")
-        print("Use canonical paths instead of shared.services.* for migrated modules.")
+        print(f"\n❌ {total_violations} retired compatibility import(s) found.")
+        print("Use canonical paths instead of shared.services.* or root skills.*.")
         return 1
 
-    print("✅ No deprecated imports found in changed files.")
+    print("✅ No retired compatibility imports found in changed files.")
     return 0
 
 

@@ -81,8 +81,8 @@ an item does not apply, write "n/a" with a one-line reason.
       `test_capabilities_do_not_cross_import_each_other` still pass).
 - [ ] No new direct `anthropic`/`openai`/etc. SDK imports outside
       `shared.infra.llm_gateway`.
-- [ ] No new module under `shared/services/*` or root `skills/*` —
-      compatibility surfaces only retire, not grow.
+- [ ] No module under retired compatibility roots `shared/services/*` or
+      root `skills/*`.
 
 ## 7. Observability
 

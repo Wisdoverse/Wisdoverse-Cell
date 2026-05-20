@@ -91,7 +91,7 @@ Core points:
 
 - Python: async I/O, Pydantic v2 (`model_dump_json()` / `model_validate_json()`), repository pattern.
 - Events: `Event(event_type="{domain}.{action}", source_agent="agent-id", ...)`; events are immutable and fire-and-forget.
-- Imports: use canonical paths only. Do not add new imports from deprecated `shared.services.*` paths.
+- Imports: use canonical paths only. Do not reintroduce retired `shared.services.*` or root `skills.*` paths.
 - Security: never log secrets, tokens, or PII.
 
 ```python
@@ -99,7 +99,7 @@ Core points:
 from shared.integrations.feishu import FeishuPlatformAdapter
 from shared.messaging.outbound.delivery_service import DeliveryService
 
-# Deprecated
+# Retired
 from shared.services.feishu import FeishuClient
 ```
 

@@ -11,10 +11,9 @@ from nats.js.errors import NotFoundError
 
 from shared import config as _config_mod
 from shared.infra import nats_event_bus as _infra_nats_mod
+from shared.infra.event_bus import EventBusProtocol
+from shared.infra.nats_event_bus import STREAM_NAME, SUBJECT_PREFIX, NATSEventBus
 from shared.schemas.event import Event
-from shared.services import nats_event_bus as _nats_mod
-from shared.services.event_bus import EventBusProtocol
-from shared.services.nats_event_bus import STREAM_NAME, SUBJECT_PREFIX, NATSEventBus
 
 
 @pytest.fixture
@@ -42,7 +41,7 @@ class TestEventBusProtocol:
         assert isinstance(NATSEventBus(nats_url="nats://localhost:4222"), EventBusProtocol)
 
     def test_redis_bus_satisfies_protocol(self):
-        from shared.services.event_bus import EventBus
+        from shared.infra.event_bus import EventBus
         assert isinstance(EventBus(), EventBusProtocol)
 
 
@@ -79,7 +78,7 @@ class TestNATSEventBusConnect:
         mock_js.find_stream_info_by_subject.side_effect = NotFoundError
         mock_nc.jetstream = MagicMock(return_value=mock_js)
 
-        with patch.object(_nats_mod.nats, "connect", return_value=mock_nc):
+        with patch.object(_infra_nats_mod.nats, "connect", return_value=mock_nc):
             await bus.connect()
 
         mock_js.add_stream.assert_awaited_once()
@@ -101,7 +100,7 @@ class TestNATSEventBusConnect:
         mock_js.find_stream_info_by_subject.side_effect = NotFoundError
         mock_nc.jetstream = MagicMock(return_value=mock_js)
 
-        with patch.object(_nats_mod.nats, "connect", return_value=mock_nc):
+        with patch.object(_infra_nats_mod.nats, "connect", return_value=mock_nc):
             await bus.connect()
 
         config = mock_js.add_stream.call_args[0][0]
@@ -114,7 +113,7 @@ class TestNATSEventBusConnect:
         mock_js.find_stream_info_by_subject.return_value = MagicMock()
         mock_nc.jetstream = MagicMock(return_value=mock_js)
 
-        with patch.object(_nats_mod.nats, "connect", return_value=mock_nc):
+        with patch.object(_infra_nats_mod.nats, "connect", return_value=mock_nc):
             await bus.connect()
 
         mock_js.add_stream.assert_not_awaited()
@@ -128,7 +127,7 @@ class TestNATSEventBusConnect:
         )
         mock_nc.jetstream = MagicMock(return_value=mock_js)
 
-        with patch.object(_nats_mod.nats, "connect", return_value=mock_nc):
+        with patch.object(_infra_nats_mod.nats, "connect", return_value=mock_nc):
             await bus.connect()
 
         mock_js.find_stream_name_by_subject.assert_awaited_once_with(
@@ -144,7 +143,7 @@ class TestNATSEventBusConnect:
         mock_js.find_stream_info_by_subject.side_effect = PermissionError("no auth")
         mock_nc.jetstream = MagicMock(return_value=mock_js)
 
-        with patch.object(_nats_mod.nats, "connect", return_value=mock_nc):
+        with patch.object(_infra_nats_mod.nats, "connect", return_value=mock_nc):
             with pytest.raises(PermissionError, match="no auth"):
                 await bus.connect()
 
@@ -156,7 +155,7 @@ class TestNATSEventBusConnect:
         mock_js.find_stream_info_by_subject.return_value = MagicMock()
         mock_nc.jetstream = MagicMock(return_value=mock_js)
 
-        with patch.object(_nats_mod.nats, "connect", return_value=mock_nc) as mock_connect:
+        with patch.object(_infra_nats_mod.nats, "connect", return_value=mock_nc) as mock_connect:
             await bus.connect()
 
         call_kwargs = mock_connect.call_args
@@ -169,7 +168,7 @@ class TestNATSEventBusConnect:
         mock_js.find_stream_info_by_subject.return_value = MagicMock()
         mock_nc.jetstream = MagicMock(return_value=mock_js)
 
-        with patch.object(_nats_mod.nats, "connect", return_value=mock_nc) as mock_connect:
+        with patch.object(_infra_nats_mod.nats, "connect", return_value=mock_nc) as mock_connect:
             await bus.connect()
 
         call_kwargs = mock_connect.call_args.kwargs
@@ -324,7 +323,7 @@ class TestNATSEventBusSubscribe:
         connected_bus._js.pull_subscribe = AsyncMock(return_value=mock_sub)
 
         events = []
-        with patch.object(_nats_mod.logger, "error") as log_error:
+        with patch.object(_infra_nats_mod.logger, "error") as log_error:
             with pytest.raises(asyncio.CancelledError):
                 async for evt in connected_bus.subscribe(["requirement.confirmed"]):
                     events.append(evt)
@@ -460,17 +459,17 @@ class TestNATSEventBusQueueLength:
 
 class TestEventBusFactory:
     def test_factory_creates_redis_by_default(self):
-        from shared.services.event_bus import EventBus, create_event_bus
+        from shared.infra.event_bus import EventBus, create_event_bus
 
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.event_bus_backend = "redis"
-            mock_settings.redis_url = "redis://localhost:6379/0"
+            mock_settings.redis_event_bus_url = "redis://localhost:6379/0"
 
             bus = create_event_bus()
             assert isinstance(bus, EventBus)
 
     def test_factory_creates_nats_when_configured(self):
-        from shared.services.event_bus import create_event_bus
+        from shared.infra.event_bus import create_event_bus
 
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.event_bus_backend = "nats"
@@ -485,7 +484,7 @@ class TestEventBusFactory:
             assert bus._stream_replicas == 1
 
     def test_factory_uses_configured_nats_consumer_name(self):
-        from shared.services.event_bus import create_event_bus
+        from shared.infra.event_bus import create_event_bus
 
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.event_bus_backend = "nats"
@@ -500,7 +499,7 @@ class TestEventBusFactory:
             assert bus._stream_replicas == 3
 
     def test_factory_override_backend_parameter(self):
-        from shared.services.event_bus import create_event_bus
+        from shared.infra.event_bus import create_event_bus
 
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.event_bus_backend = "redis"
@@ -515,7 +514,7 @@ class TestEventBusFactory:
             assert bus._stream_replicas == 2
 
     def test_factory_raises_on_unknown_backend(self):
-        from shared.services.event_bus import create_event_bus
+        from shared.infra.event_bus import create_event_bus
 
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.event_bus_backend = "kafka"
@@ -523,7 +522,7 @@ class TestEventBusFactory:
                 create_event_bus()
 
     def test_factory_normalizes_case_and_whitespace(self):
-        from shared.services.event_bus import create_event_bus
+        from shared.infra.event_bus import create_event_bus
 
         with patch.object(_config_mod, "settings") as mock_settings:
             mock_settings.nats_url = "nats://localhost:4222"

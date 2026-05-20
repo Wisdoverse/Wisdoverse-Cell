@@ -62,7 +62,7 @@ shared/                  # Reusable runtime, contracts, adapters, infra
 migrations/              # Single Alembic directory (19 versions)
 rust/gateway/            # Rust + Axum edge gateway (out of scope)
 frontend/                # Next.js operator console (out of scope)
-docker/, infra/, docs/, tests/, plugins/, skills/, scripts/, conftest.py, ...
+docker/, infra/, docs/, tests/, plugins/, scripts/, conftest.py, ...
 ```
 
 ### 1.2 Main Modules
@@ -184,7 +184,7 @@ impact, risk level, and recommended handling.
 | P2-1 | `shared/control_plane/api.py` is 1783 LOC of thin handlers; no per-aggregate router split. | `shared/control_plane/api.py` | Cognitive load; PR diffs noisy; new endpoints land in the wrong file by default. | Low | Split into per-aggregate routers under `shared/control_plane/api/` after facade retirement. Cosmetic, low-risk. |
 | P2-2 | Analysis capability can read source-domain tables directly. | `shared/capabilities/analysis/` (no projection module) | Reporting becomes implicit owner of other domains; refactors require analysis-side updates. | Medium | Introduce an explicit projection layer; let Analysis depend only on projection ports. |
 | P2-3 | Sync capability hosts OpenProject and Feishu Bitable inside one runtime; sub-boundaries exist only in `core/`. | `shared/capabilities/sync/core/engine.py`, `progress.py` | Independent scaling / failure isolation impossible. | Medium | Split into two sub-capability runtimes, each with its own outbox and repository; keep a compatibility orchestrator endpoint. |
-| P2-4 | Compatibility surfaces still alive: `shared/services/*` (11 modules), root `skills/*` (7 files). | `shared/services/__init__.py`, `skills/__init__.py` | New imports can reintroduce old coupling; package retirement stalled. | Medium | Migrate remaining consumers; retire both surfaces in one step each. |
+| P2-4 | Closed: retired `shared/services/*` and root `skills/*` compatibility surfaces have been removed. Tests and docs now use canonical paths, and architecture checks block reintroduction. | `shared/infra/tests/test_nats_event_bus.py`, `shared/db/tests/test_base_database_manager.py`, `tests/unit/test_architecture_boundaries.py` | New code has no compatibility import surface to couple to. | Low | Keep architecture tests blocking `shared/services` and root `skills` resurrection. |
 | P2-5 | gRPC artifacts split between `shared/grpc/server.py` (deprecated) and `agents/requirement_manager/grpc/server.py` (live). | `shared/grpc/`, `agents/requirement_manager/grpc/` | Two import paths for the same protocol; risk of accidental drift. | Low | Delete the deprecated entry once tests confirm no remaining consumers. |
 | P2-6 | No explicit unit-of-work seam; transactions are implicit via session context exit. | `agents/*/core/*_use_cases.py` patterns | Multi-aggregate writes share an implicit boundary; partial-failure recovery hard to reason about. | Medium | Introduce a `UnitOfWork` port; explicit `commit()` / `rollback()` in use cases that touch more than one aggregate or outbox. |
 | P2-7 | Configuration loads with `SecretStr` but no startup-time failing-closed check that production secrets are non-empty. | `shared/config.py:28,59,99-100` | Misconfigured production starts without surfacing the gap. | Medium | Add explicit fail-closed validation for required secrets when deployment marker indicates production. |
