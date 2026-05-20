@@ -184,7 +184,7 @@ that guide, it is called out explicitly.
 | Sync capability still hosts OpenProject and Feishu Bitable in one runtime | The sub-boundaries are split inside `core/`, but a single runtime makes targeted scaling and failure isolation impossible | `architecture.md` §3.1, `SPEC.md` §4.1.3 |
 | Each agent runtime still depends on shared Alembic migrations | A per-runtime migration story is required before any independent deployment | `backend-boundaries.md` §5 |
 | Cross-agent contract tests are thin | Architecture import tests are strong; provider/consumer event and HTTP contract tests are not yet routine | Section 8 below |
-| Observability lacks outbox-lag and DLQ alerting | Cross-cutting Prometheus metrics now have a canonical `shared.observability.metrics` boundary, but operator evidence for sustained outbox backlog and DLQ growth is still incomplete | Section 7 below |
+| Observability lacks outbox-lag and DLQ alerting | Cross-cutting Prometheus metrics now have a canonical `shared.observability.metrics` boundary with event queue and Redis DLQ collectors, but operator evidence for sustained outbox backlog age and alert coverage is still incomplete | Section 7 below |
 
 ---
 

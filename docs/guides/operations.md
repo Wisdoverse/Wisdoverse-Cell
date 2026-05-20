@@ -652,7 +652,10 @@ EventBus failure visibility:
 - Redis EventBus writes failed handler events and malformed payloads to
   `dlq.failed`; operators can inspect it with `get_dead_letter_count()` and
   `list_dead_letters()`. Malformed-payload DLQ records store payload length and
-  a SHA-256 fingerprint instead of raw event content.
+  a SHA-256 fingerprint instead of raw event content. Prometheus exports
+  `wisdoverse-cell_eventbus_dlq_messages_total`,
+  `wisdoverse-cell_eventbus_dlq_length`, and
+  `wisdoverse-cell_eventbus_queue_length_by_type`.
 - NATS deployments use JetStream redelivery and consumer stats instead of the
   Redis DLQ stream. Malformed NATS payload logs include payload length and a
   SHA-256 fingerprint, not raw event content.

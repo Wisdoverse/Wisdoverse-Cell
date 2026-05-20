@@ -582,7 +582,8 @@ docker compose exec postgres psql -U wisdoverse_cell -d wisdoverse_cell -c \
 **Severity**: SEV-2.
 
 **Symptoms**:
-- Prometheus counter `eventbus_dlq_failed_total` advancing.
+- Prometheus counter `wisdoverse-cell_eventbus_dlq_messages_total` advancing.
+- Prometheus gauge `wisdoverse-cell_eventbus_dlq_length` remains above zero.
 - Consumer group lag does not catch up.
 - Some agents stop reacting to upstream events.
 
