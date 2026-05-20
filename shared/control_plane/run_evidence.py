@@ -6,6 +6,7 @@ import hashlib
 import json
 from typing import Any
 
+from shared.control_plane.domain_records import artifact_record
 from shared.control_plane.models import Artifact, ArtifactType, AuditEvent
 from shared.control_plane.run_evidence_ports import ControlPlaneRunEvidenceStore
 from shared.schemas.event import EventTypes
@@ -39,7 +40,7 @@ async def create_run_evidence_artifact(
     error_category: str | None = None,
     error_message: str | None = None,
     generated_by: str = "control_plane",
-) -> Any:
+) -> Artifact:
     approvals = await repo.list_approvals(
         company_id=company_id,
         run_id=run_id,
@@ -88,7 +89,7 @@ async def create_run_evidence_artifact(
         "error_message": error_message,
     }
     content_hash = hash_evidence(evidence)
-    artifact = await repo.create_artifact(
+    artifact_row = await repo.create_artifact(
         Artifact(
             company_id=company_id,
             artifact_type=ArtifactType.RUN_WALKTHROUGH,
@@ -106,6 +107,7 @@ async def create_run_evidence_artifact(
             },
         )
     )
+    artifact = artifact_record(artifact_row)
     await repo.append_audit_event(
         AuditEvent(
             company_id=company_id,

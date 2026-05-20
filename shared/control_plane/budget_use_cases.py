@@ -6,11 +6,13 @@ from typing import Any
 from shared.schemas.event import EventTypes
 
 from .budget_ports import ControlPlaneBudgetStore
+from .domain_records import budget_policy_record, budget_usage_record
 from .models import (
     AuditEvent,
     BudgetPeriod,
     BudgetPolicy,
     BudgetScope,
+    BudgetUsage,
     CompanyContext,
 )
 
@@ -32,9 +34,9 @@ async def list_budget_policies(
     period: BudgetPeriod | str | None = None,
     status: str | None = None,
     limit: int = 100,
-) -> list[Any]:
+) -> list[BudgetPolicy]:
     """List budget policies for one company."""
-    return await store.list_budget_policies(
+    rows = await store.list_budget_policies(
         company_id=company_id,
         scope=scope,
         scope_id=scope_id,
@@ -42,6 +44,7 @@ async def list_budget_policies(
         status=status,
         limit=limit,
     )
+    return [budget_policy_record(row) for row in rows]
 
 
 async def get_budget_policy(
@@ -49,12 +52,12 @@ async def get_budget_policy(
     *,
     company_id: str,
     budget_id: str,
-) -> Any:
+) -> BudgetPolicy:
     """Return one budget policy in a company or raise not found."""
     row = await store.get_budget_policy(budget_id)
     if row is None or row.company_id != company_id:
         raise BudgetPolicyNotFoundError(budget_id)
-    return row
+    return budget_policy_record(row)
 
 
 async def create_budget_policy_with_audit(
@@ -62,7 +65,7 @@ async def create_budget_policy_with_audit(
     budget: BudgetPolicy,
     *,
     created_by: str,
-) -> Any:
+) -> BudgetPolicy:
     """Create a budget policy and record its audit event."""
     await _ensure_company(store, budget.company_id)
     if budget.status == "active":
@@ -95,7 +98,7 @@ async def create_budget_policy_with_audit(
             },
         )
     )
-    return row
+    return budget_policy_record(row)
 
 
 async def update_budget_policy_with_audit(
@@ -110,7 +113,7 @@ async def update_budget_policy_with_audit(
     metadata: dict[str, Any] | None = None,
     actor_id: str,
     changed_fields: list[str],
-) -> Any:
+) -> BudgetPolicy:
     """Update a budget policy and record its audit event."""
     existing = await store.get_budget_policy(budget_id)
     if existing is None or existing.company_id != company_id:
@@ -155,7 +158,7 @@ async def update_budget_policy_with_audit(
             },
         )
     )
-    return row
+    return budget_policy_record(row)
 
 
 async def list_budget_usage(
@@ -166,15 +169,16 @@ async def list_budget_usage(
     run_id: str | None = None,
     trace_id: str | None = None,
     limit: int = 50,
-) -> list[Any]:
+) -> list[BudgetUsage]:
     """List budget usage for one company."""
-    return await store.list_budget_usage(
+    rows = await store.list_budget_usage(
         company_id=company_id,
         budget_id=budget_id,
         run_id=run_id,
         trace_id=trace_id,
         limit=limit,
     )
+    return [budget_usage_record(row) for row in rows]
 
 
 async def _ensure_company(store: ControlPlaneBudgetStore, company_id: str) -> None:

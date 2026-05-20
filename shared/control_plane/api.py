@@ -55,6 +55,9 @@ from .agent_run_use_cases import (
 )
 from .agent_runner import AgentWakeupError
 from .approval_gate import ApprovalRequiredError
+from .approval_use_cases import (
+    list_approvals as list_approvals_from_store,
+)
 from .approval_use_cases import resolve_approval_and_sync_proposal
 from .artifact_use_cases import (
     ArtifactGoalNotFoundError,
@@ -1543,7 +1546,8 @@ def create_control_plane_router(
         stores: ControlPlaneStores = Depends(get_stores),
     ):
         store = stores.approvals
-        rows = await store.list_approvals(
+        rows = await list_approvals_from_store(
+            store,
             company_id=resolve_company(company_id),
             status=status,
             run_id=run_id,

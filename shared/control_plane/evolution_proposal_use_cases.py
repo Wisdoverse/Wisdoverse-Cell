@@ -6,6 +6,7 @@ from typing import Any
 from shared.schemas.event import EventTypes
 
 from .approval_gate import ApprovalGate
+from .domain_records import evolution_proposal_record
 from .evolution_proposal_ports import ControlPlaneEvolutionProposalStore
 from .models import (
     ApprovalCategory,
@@ -39,9 +40,9 @@ async def list_evolution_proposals(
     rollout_state: str | None = None,
     scope: str | None = None,
     limit: int = 100,
-) -> list[Any]:
+) -> list[EvolutionProposal]:
     """List evolution proposals for one company."""
-    return await store.list_evolution_proposals(
+    rows = await store.list_evolution_proposals(
         company_id=company_id,
         tier=tier,
         approval_state=approval_state,
@@ -49,6 +50,7 @@ async def list_evolution_proposals(
         scope=scope,
         limit=limit,
     )
+    return [evolution_proposal_record(row) for row in rows]
 
 
 async def get_evolution_proposal(
@@ -56,12 +58,12 @@ async def get_evolution_proposal(
     *,
     company_id: str,
     proposal_id: str,
-) -> Any:
+) -> EvolutionProposal:
     """Return one evolution proposal in a company or raise not found."""
     row = await store.get_evolution_proposal(proposal_id)
     if row is None or row.company_id != company_id:
         raise EvolutionProposalNotFoundError(proposal_id)
-    return row
+    return evolution_proposal_record(row)
 
 
 async def create_evolution_proposal_with_audit(
@@ -70,7 +72,7 @@ async def create_evolution_proposal_with_audit(
     *,
     approval_required: bool,
     proposed_by: str,
-) -> Any:
+) -> EvolutionProposal:
     """Create an evolution proposal and record its approval/audit side effects."""
     await _ensure_company(store, proposal.company_id)
 
@@ -126,7 +128,7 @@ async def create_evolution_proposal_with_audit(
             },
         )
     )
-    return row
+    return evolution_proposal_record(row)
 
 
 async def ensure_evolution_proposal_company(
@@ -152,7 +154,7 @@ async def record_evolution_proposal_with_audit(
     metadata: dict[str, Any],
     actor_id: str,
     trace_id: str | None,
-) -> Any:
+) -> EvolutionProposal:
     """Record an agent-originated evolution proposal and its audit event."""
     await _ensure_company(store, company_id)
     row = await store.create_evolution_proposal(
@@ -187,7 +189,7 @@ async def record_evolution_proposal_with_audit(
             },
         )
     )
-    return row
+    return evolution_proposal_record(row)
 
 
 async def update_evolution_proposal_status_with_audit(
@@ -199,7 +201,7 @@ async def update_evolution_proposal_status_with_audit(
     rollout_state: EvolutionRolloutState | str | None,
     approval_id: str | None,
     actor_id: str,
-) -> Any:
+) -> EvolutionProposal:
     """Update an evolution proposal status and record its audit event."""
     existing = await store.get_evolution_proposal(proposal_id)
     if existing is None or existing.company_id != company_id:
@@ -245,7 +247,7 @@ async def update_evolution_proposal_status_with_audit(
             },
         )
     )
-    return row
+    return evolution_proposal_record(row)
 
 
 async def _ensure_company(
