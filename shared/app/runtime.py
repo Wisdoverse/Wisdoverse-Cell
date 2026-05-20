@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from shared.config import settings
-from shared.infra.metrics import EVENT_PROCESSING_ERRORS
+from shared.observability.metrics import EVENT_PROCESSING_ERRORS
 from shared.schemas.agent import BaseAgent
 from shared.utils.logger import get_logger
 

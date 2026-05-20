@@ -47,7 +47,7 @@ class TestDevOutboxDispatcherPlugin:
         from agents.dev_agent.app.plugins.outbox_dispatcher import (
             DevOutboxDispatcherPlugin,
         )
-        from shared.infra.metrics import (
+        from shared.observability.metrics import (
             OUTBOX_DISPATCH_DURATION_SECONDS,
             OUTBOX_DISPATCH_EVENTS,
         )
@@ -89,7 +89,7 @@ class TestDevOutboxDispatcherPlugin:
         from agents.dev_agent.app.plugins.outbox_dispatcher import (
             DevOutboxDispatcherPlugin,
         )
-        from shared.infra.metrics import OUTBOX_DISPATCH_ERRORS
+        from shared.observability.metrics import OUTBOX_DISPATCH_ERRORS
 
         def _value(error_type: str) -> float:
             metric = OUTBOX_DISPATCH_ERRORS.labels(

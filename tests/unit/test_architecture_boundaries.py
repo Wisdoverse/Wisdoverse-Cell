@@ -316,6 +316,25 @@ def test_runtime_code_uses_canonical_shared_paths() -> None:
                 )
 
 
+def test_runtime_code_uses_observability_metrics_boundary() -> None:
+    """Cross-cutting metrics are observability concerns, not infra adapters."""
+    compatibility_path = Path("shared/infra/metrics.py")
+    roots = [Path("agents"), Path("services"), Path("shared")]
+    offenders: list[str] = []
+
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in _python_files(root):
+            if path == compatibility_path:
+                continue
+            for module in _imported_modules(path):
+                if module == "shared.infra.metrics":
+                    offenders.append(str(path))
+
+    assert offenders == []
+
+
 def test_app_entrypoints_use_runtime_public_started_property() -> None:
     roots = [
         Path("agents"),

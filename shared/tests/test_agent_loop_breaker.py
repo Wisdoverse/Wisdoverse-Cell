@@ -16,7 +16,7 @@ fakeredis_aioredis = fakeredis.aioredis
 
 from shared.infra.agent_loop_breaker import AgentLoopCircuitBreaker
 from shared.infra.circuit_breaker import CircuitState
-from shared.infra.metrics import (
+from shared.observability.metrics import (
     LOOP_BREAKER_NO_PROGRESS_ROUNDS,
     LOOP_BREAKER_STATE,
     LOOP_BREAKER_TRIPS_TOTAL,
