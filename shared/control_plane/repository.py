@@ -5,11 +5,13 @@ from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
+from .approval_store import SqlAlchemyControlPlaneApprovalStore
 from .artifact_store import SqlAlchemyControlPlaneArtifactStore
+from .budget_store import SqlAlchemyControlPlaneBudgetStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
 from .decision_store import SqlAlchemyControlPlaneDecisionStore
 from .goal_store import SqlAlchemyControlPlaneGoalStore
@@ -468,16 +470,14 @@ class ControlPlaneRepository:
         )
 
     async def request_approval(self, approval: ApprovalRequest) -> ApprovalRequestTable:
-        row = ApprovalRequestTable(**_model_values(approval))
-        self.session.add(row)
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneApprovalStore(
+            self.session
+        ).request_approval(approval)
 
     async def get_approval(self, approval_id: str) -> ApprovalRequestTable | None:
-        result = await self.session.execute(
-            select(ApprovalRequestTable).where(ApprovalRequestTable.approval_id == approval_id)
-        )
-        return result.scalar_one_or_none()
+        return await SqlAlchemyControlPlaneApprovalStore(
+            self.session
+        ).get_approval(approval_id)
 
     async def list_approvals(
         self,
@@ -488,19 +488,15 @@ class ControlPlaneRepository:
         trace_id: str | None = None,
         limit: int = 50,
     ) -> list[ApprovalRequestTable]:
-        query = select(ApprovalRequestTable).where(
-            ApprovalRequestTable.company_id == company_id
+        return await SqlAlchemyControlPlaneApprovalStore(
+            self.session
+        ).list_approvals(
+            company_id=company_id,
+            status=status,
+            run_id=run_id,
+            trace_id=trace_id,
+            limit=limit,
         )
-        if status:
-            query = query.where(ApprovalRequestTable.status == status)
-        if run_id:
-            query = query.where(ApprovalRequestTable.run_id == run_id)
-        if trace_id:
-            query = query.where(ApprovalRequestTable.trace_id == trace_id)
-        result = await self.session.execute(
-            query.order_by(ApprovalRequestTable.created_at.desc()).limit(limit)
-        )
-        return list(result.scalars().all())
 
     async def resolve_approval(
         self,
@@ -509,16 +505,13 @@ class ControlPlaneRepository:
         status: ApprovalStatus | str,
         resolved_by: str,
     ) -> ApprovalRequestTable | None:
-        row = await self.get_approval(approval_id)
-        if row is None:
-            return None
-        status_value = status.value if isinstance(status, Enum) else status
-        row.status = status_value
-        row.resolved_by = resolved_by
-        row.resolved_at = _now()
-        row.updated_at = _now()
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneApprovalStore(
+            self.session
+        ).resolve_approval(
+            approval_id,
+            status=status,
+            resolved_by=resolved_by,
+        )
 
     async def create_artifact(self, artifact: Artifact) -> ArtifactTable:
         return await SqlAlchemyControlPlaneArtifactStore(
@@ -556,16 +549,14 @@ class ControlPlaneRepository:
         )
 
     async def create_budget_policy(self, budget: BudgetPolicy) -> BudgetPolicyTable:
-        row = BudgetPolicyTable(**_model_values(budget))
-        self.session.add(row)
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneBudgetStore(
+            self.session
+        ).create_budget_policy(budget)
 
     async def get_budget_policy(self, budget_id: str) -> BudgetPolicyTable | None:
-        result = await self.session.execute(
-            select(BudgetPolicyTable).where(BudgetPolicyTable.budget_id == budget_id)
-        )
-        return result.scalar_one_or_none()
+        return await SqlAlchemyControlPlaneBudgetStore(
+            self.session
+        ).get_budget_policy(budget_id)
 
     async def list_budget_policies(
         self,
@@ -577,21 +568,16 @@ class ControlPlaneRepository:
         status: str | None = None,
         limit: int = 100,
     ) -> list[BudgetPolicyTable]:
-        query = select(BudgetPolicyTable).where(BudgetPolicyTable.company_id == company_id)
-        if scope:
-            scope_value = scope.value if isinstance(scope, Enum) else scope
-            query = query.where(BudgetPolicyTable.scope == scope_value)
-        if scope_id:
-            query = query.where(BudgetPolicyTable.scope_id == scope_id)
-        if period:
-            period_value = period.value if isinstance(period, Enum) else period
-            query = query.where(BudgetPolicyTable.period == period_value)
-        if status:
-            query = query.where(BudgetPolicyTable.status == status)
-        result = await self.session.execute(
-            query.order_by(BudgetPolicyTable.created_at.desc()).limit(limit)
+        return await SqlAlchemyControlPlaneBudgetStore(
+            self.session
+        ).list_budget_policies(
+            company_id=company_id,
+            scope=scope,
+            scope_id=scope_id,
+            period=period,
+            status=status,
+            limit=limit,
         )
-        return list(result.scalars().all())
 
     async def update_budget_policy(
         self,
@@ -603,22 +589,16 @@ class ControlPlaneRepository:
         model_allowlist: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> BudgetPolicyTable | None:
-        row = await self.get_budget_policy(budget_id)
-        if row is None:
-            return None
-        if limit_usd is not None:
-            row.limit_usd = limit_usd
-        if warning_threshold is not None:
-            row.warning_threshold = warning_threshold
-        if status is not None:
-            row.status = status
-        if model_allowlist is not None:
-            row.model_allowlist = _to_db_value(model_allowlist)
-        if metadata is not None:
-            row.metadata_json = _to_db_value(metadata)
-        row.updated_at = _now()
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneBudgetStore(
+            self.session
+        ).update_budget_policy(
+            budget_id,
+            limit_usd=limit_usd,
+            warning_threshold=warning_threshold,
+            status=status,
+            model_allowlist=model_allowlist,
+            metadata=metadata,
+        )
 
     async def get_active_budget_policy(
         self,
@@ -628,29 +608,19 @@ class ControlPlaneRepository:
         period: BudgetPeriod | str,
         scope_id: str | None = None,
     ) -> BudgetPolicyTable | None:
-        scope_value = scope.value if isinstance(scope, Enum) else scope
-        period_value = period.value if isinstance(period, Enum) else period
-        query = select(BudgetPolicyTable).where(
-            BudgetPolicyTable.company_id == company_id,
-            BudgetPolicyTable.scope == scope_value,
-            BudgetPolicyTable.period == period_value,
-            BudgetPolicyTable.status == "active",
+        return await SqlAlchemyControlPlaneBudgetStore(
+            self.session
+        ).get_active_budget_policy(
+            company_id=company_id,
+            scope=scope,
+            period=period,
+            scope_id=scope_id,
         )
-        if scope_id is None:
-            query = query.where(BudgetPolicyTable.scope_id.is_(None))
-        else:
-            query = query.where(BudgetPolicyTable.scope_id == scope_id)
-
-        result = await self.session.execute(
-            query.order_by(BudgetPolicyTable.created_at.desc()).limit(1)
-        )
-        return result.scalar_one_or_none()
 
     async def record_budget_usage(self, usage: BudgetUsage) -> BudgetUsageTable:
-        row = BudgetUsageTable(**_model_values(usage))
-        self.session.add(row)
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneBudgetStore(
+            self.session
+        ).record_budget_usage(usage)
 
     async def list_budget_usage(
         self,
@@ -661,25 +631,20 @@ class ControlPlaneRepository:
         trace_id: str | None = None,
         limit: int = 50,
     ) -> list[BudgetUsageTable]:
-        query = select(BudgetUsageTable).where(BudgetUsageTable.company_id == company_id)
-        if budget_id:
-            query = query.where(BudgetUsageTable.budget_id == budget_id)
-        if run_id:
-            query = query.where(BudgetUsageTable.run_id == run_id)
-        if trace_id:
-            query = query.where(BudgetUsageTable.trace_id == trace_id)
-        result = await self.session.execute(
-            query.order_by(BudgetUsageTable.created_at.desc()).limit(limit)
+        return await SqlAlchemyControlPlaneBudgetStore(
+            self.session
+        ).list_budget_usage(
+            company_id=company_id,
+            budget_id=budget_id,
+            run_id=run_id,
+            trace_id=trace_id,
+            limit=limit,
         )
-        return list(result.scalars().all())
 
     async def get_budget_usage_total(self, budget_id: str) -> float:
-        result = await self.session.execute(
-            select(func.coalesce(func.sum(BudgetUsageTable.cost_usd), 0.0)).where(
-                BudgetUsageTable.budget_id == budget_id
-            )
-        )
-        return float(result.scalar_one() or 0.0)
+        return await SqlAlchemyControlPlaneBudgetStore(
+            self.session
+        ).get_budget_usage_total(budget_id)
 
     async def append_audit_event(self, event: AuditEvent) -> AuditEventTable:
         if event.idempotency_key:
@@ -803,17 +768,10 @@ class ControlPlaneRepository:
         approval_state: str,
         rollout_state: str | None = None,
     ) -> EvolutionProposalTable | None:
-        result = await self.session.execute(
-            select(EvolutionProposalTable).where(
-                EvolutionProposalTable.approval_id == approval_id
-            )
+        return await SqlAlchemyControlPlaneApprovalStore(
+            self.session
+        ).update_evolution_proposal_approval_state_by_approval(
+            approval_id,
+            approval_state=approval_state,
+            rollout_state=rollout_state,
         )
-        row = result.scalar_one_or_none()
-        if row is None:
-            return None
-        row.approval_state = approval_state
-        if rollout_state is not None:
-            row.rollout_state = rollout_state
-        row.updated_at = _now()
-        await self.session.flush()
-        return row

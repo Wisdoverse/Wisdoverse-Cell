@@ -1,28 +1,39 @@
 """SQLAlchemy adapter for control-plane approval persistence."""
 from __future__ import annotations
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .approval_ports import ControlPlaneApprovalStore
+from .company_store import SqlAlchemyControlPlaneCompanyStore
 from .models import ApprovalRequest, ApprovalStatus, AuditEvent
-from .repository import ControlPlaneRepository
-from .tables import ApprovalRequestTable
+from .store_utils import model_values, now_utc
+from .tables import ApprovalRequestTable, AuditEventTable, EvolutionProposalTable
 
 
 class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
     """Session-scoped control-plane approval store."""
 
     def __init__(self, session: AsyncSession):
-        self._approvals = ControlPlaneRepository(session)
+        self._session = session
+        self._companies = SqlAlchemyControlPlaneCompanyStore(session)
 
     async def request_approval(
         self,
         approval: ApprovalRequest,
     ) -> ApprovalRequestTable:
-        return await self._approvals.request_approval(approval)
+        row = ApprovalRequestTable(**model_values(approval))
+        self._session.add(row)
+        await self._session.flush()
+        return row
 
     async def get_approval(self, approval_id: str) -> ApprovalRequestTable | None:
-        return await self._approvals.get_approval(approval_id)
+        result = await self._session.execute(
+            select(ApprovalRequestTable).where(
+                ApprovalRequestTable.approval_id == approval_id
+            )
+        )
+        return result.scalar_one_or_none()
 
     async def list_approvals(
         self,
@@ -33,13 +44,19 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
         trace_id: str | None = None,
         limit: int = 50,
     ) -> list[ApprovalRequestTable]:
-        return await self._approvals.list_approvals(
-            company_id=company_id,
-            status=status,
-            run_id=run_id,
-            trace_id=trace_id,
-            limit=limit,
+        query = select(ApprovalRequestTable).where(
+            ApprovalRequestTable.company_id == company_id
         )
+        if status:
+            query = query.where(ApprovalRequestTable.status == status)
+        if run_id:
+            query = query.where(ApprovalRequestTable.run_id == run_id)
+        if trace_id:
+            query = query.where(ApprovalRequestTable.trace_id == trace_id)
+        result = await self._session.execute(
+            query.order_by(ApprovalRequestTable.created_at.desc()).limit(limit)
+        )
+        return list(result.scalars().all())
 
     async def resolve_approval(
         self,
@@ -48,11 +65,17 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
         status: ApprovalStatus | str,
         resolved_by: str,
     ) -> ApprovalRequestTable | None:
-        return await self._approvals.resolve_approval(
-            approval_id,
-            status=status,
-            resolved_by=resolved_by,
-        )
+        row = await self.get_approval(approval_id)
+        if row is None:
+            return None
+        status_value = status.value if isinstance(status, ApprovalStatus) else status
+        row.status = status_value
+        row.resolved_by = resolved_by
+        now = now_utc()
+        row.resolved_at = now
+        row.updated_at = now
+        await self._session.flush()
+        return row
 
     async def update_evolution_proposal_approval_state_by_approval(
         self,
@@ -60,12 +83,21 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
         *,
         approval_state: str,
         rollout_state: str | None = None,
-    ):
-        return await self._approvals.update_evolution_proposal_approval_state_by_approval(
-            approval_id,
-            approval_state=approval_state,
-            rollout_state=rollout_state,
+    ) -> EvolutionProposalTable | None:
+        result = await self._session.execute(
+            select(EvolutionProposalTable).where(
+                EvolutionProposalTable.approval_id == approval_id
+            )
         )
+        row = result.scalar_one_or_none()
+        if row is None:
+            return None
+        row.approval_state = approval_state
+        if rollout_state is not None:
+            row.rollout_state = rollout_state
+        row.updated_at = now_utc()
+        await self._session.flush()
+        return row
 
-    async def append_audit_event(self, event: AuditEvent):
-        return await self._approvals.append_audit_event(event)
+    async def append_audit_event(self, event: AuditEvent) -> AuditEventTable:
+        return await self._companies.append_audit_event(event)
