@@ -1,19 +1,18 @@
-"""Repository layer for the shared control-plane ledger."""
+"""Compatibility repository facade for the shared control-plane ledger."""
 
-from datetime import UTC, datetime
-from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel
-from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .agent_registry_store import SqlAlchemyControlPlaneAgentRegistryStore
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from .approval_store import SqlAlchemyControlPlaneApprovalStore
 from .artifact_store import SqlAlchemyControlPlaneArtifactStore
+from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from .budget_store import SqlAlchemyControlPlaneBudgetStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
 from .decision_store import SqlAlchemyControlPlaneDecisionStore
+from .evolution_proposal_store import SqlAlchemyControlPlaneEvolutionProposalStore
 from .goal_store import SqlAlchemyControlPlaneGoalStore
 from .models import (
     AgentRole,
@@ -33,6 +32,7 @@ from .models import (
     Goal,
     WorkItem,
 )
+from .prompt_config_store import SqlAlchemyControlPlanePromptConfigStore
 from .tables import (
     AgentPromptConfigTable,
     AgentRoleTable,
@@ -49,29 +49,6 @@ from .tables import (
     WorkItemTable,
 )
 from .work_item_store import SqlAlchemyControlPlaneWorkItemStore
-
-
-def _now() -> datetime:
-    return datetime.now(UTC)
-
-
-def _to_db_value(value: Any) -> Any:
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, list):
-        return [_to_db_value(item) for item in value]
-    if isinstance(value, dict):
-        return {key: _to_db_value(item) for key, item in value.items()}
-    return value
-
-
-def _model_values(model: BaseModel) -> dict[str, Any]:
-    data = model.model_dump(mode="python")
-    normalized: dict[str, Any] = {}
-    for key, value in data.items():
-        db_key = "metadata_json" if key == "metadata" else key
-        normalized[db_key] = _to_db_value(value)
-    return normalized
 
 
 class ControlPlaneRepository:
@@ -158,10 +135,9 @@ class ControlPlaneRepository:
         )
 
     async def create_agent_role(self, role: AgentRole) -> AgentRoleTable:
-        row = AgentRoleTable(**_model_values(role))
-        self.session.add(row)
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneAgentRegistryStore(
+            self.session
+        ).create_agent_role(role)
 
     async def get_agent_role(
         self,
@@ -169,13 +145,12 @@ class ControlPlaneRepository:
         company_id: str,
         agent_id: str,
     ) -> AgentRoleTable | None:
-        result = await self.session.execute(
-            select(AgentRoleTable).where(
-                AgentRoleTable.company_id == company_id,
-                AgentRoleTable.agent_id == agent_id,
-            )
+        return await SqlAlchemyControlPlaneAgentRegistryStore(
+            self.session
+        ).get_agent_role(
+            company_id=company_id,
+            agent_id=agent_id,
         )
-        return result.scalar_one_or_none()
 
     async def list_agent_roles(
         self,
@@ -188,29 +163,17 @@ class ControlPlaneRepository:
         search: str | None = None,
         limit: int = 100,
     ) -> list[AgentRoleTable]:
-        query = select(AgentRoleTable).where(AgentRoleTable.company_id == company_id)
-        if status:
-            query = query.where(AgentRoleTable.status == status)
-        if agent_kind:
-            query = query.where(AgentRoleTable.agent_kind == agent_kind)
-        if interaction_mode:
-            query = query.where(AgentRoleTable.interaction_mode == interaction_mode)
-        if adapter_type:
-            query = query.where(AgentRoleTable.adapter_type == adapter_type)
-        if search:
-            pattern = f"%{search}%"
-            query = query.where(
-                or_(
-                    AgentRoleTable.agent_id.ilike(pattern),
-                    AgentRoleTable.display_name.ilike(pattern),
-                    AgentRoleTable.role.ilike(pattern),
-                    AgentRoleTable.title.ilike(pattern),
-                )
-            )
-        result = await self.session.execute(
-            query.order_by(AgentRoleTable.created_at.desc()).limit(limit)
+        return await SqlAlchemyControlPlaneAgentRegistryStore(
+            self.session
+        ).list_agent_roles(
+            company_id=company_id,
+            status=status,
+            agent_kind=agent_kind,
+            interaction_mode=interaction_mode,
+            adapter_type=adapter_type,
+            search=search,
+            limit=limit,
         )
-        return list(result.scalars().all())
 
     async def update_agent_role_status(
         self,
@@ -219,13 +182,13 @@ class ControlPlaneRepository:
         agent_id: str,
         status: str,
     ) -> AgentRoleTable | None:
-        row = await self.get_agent_role(company_id=company_id, agent_id=agent_id)
-        if row is None:
-            return None
-        row.status = status
-        row.updated_at = _now()
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneAgentRegistryStore(
+            self.session
+        ).update_agent_role_status(
+            company_id=company_id,
+            agent_id=agent_id,
+            status=status,
+        )
 
     async def update_agent_role(
         self,
@@ -234,16 +197,13 @@ class ControlPlaneRepository:
         agent_id: str,
         values: dict[str, Any],
     ) -> AgentRoleTable | None:
-        row = await self.get_agent_role(company_id=company_id, agent_id=agent_id)
-        if row is None:
-            return None
-
-        for key, value in values.items():
-            db_key = "metadata_json" if key == "metadata" else key
-            setattr(row, db_key, _to_db_value(value))
-        row.updated_at = _now()
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneAgentRegistryStore(
+            self.session
+        ).update_agent_role(
+            company_id=company_id,
+            agent_id=agent_id,
+            values=values,
+        )
 
     async def get_agent_prompt_config(
         self,
@@ -251,13 +211,12 @@ class ControlPlaneRepository:
         company_id: str,
         agent_id: str,
     ) -> AgentPromptConfigTable | None:
-        result = await self.session.execute(
-            select(AgentPromptConfigTable).where(
-                AgentPromptConfigTable.company_id == company_id,
-                AgentPromptConfigTable.agent_id == agent_id,
-            )
+        return await SqlAlchemyControlPlanePromptConfigStore(
+            self.session
+        ).get_agent_prompt_config(
+            company_id=company_id,
+            agent_id=agent_id,
         )
-        return result.scalar_one_or_none()
 
     async def upsert_agent_prompt_config(
         self,
@@ -268,27 +227,15 @@ class ControlPlaneRepository:
         updated_by: str,
         metadata: dict[str, Any] | None = None,
     ) -> AgentPromptConfigTable:
-        row = await self.get_agent_prompt_config(
+        return await SqlAlchemyControlPlanePromptConfigStore(
+            self.session
+        ).upsert_agent_prompt_config(
             company_id=company_id,
             agent_id=agent_id,
+            system_prompt=system_prompt,
+            updated_by=updated_by,
+            metadata=metadata,
         )
-        if row is None:
-            row = AgentPromptConfigTable(
-                company_id=company_id,
-                agent_id=agent_id,
-                system_prompt=system_prompt,
-                updated_by=updated_by,
-                metadata_json=_to_db_value(metadata or {}),
-            )
-            self.session.add(row)
-        else:
-            row.system_prompt = system_prompt
-            row.updated_by = updated_by
-            if metadata is not None:
-                row.metadata_json = _to_db_value(metadata)
-            row.updated_at = _now()
-        await self.session.flush()
-        return row
 
     async def create_work_item(self, work_item: WorkItem) -> WorkItemTable:
         return await SqlAlchemyControlPlaneWorkItemStore(
@@ -647,17 +594,9 @@ class ControlPlaneRepository:
         ).get_budget_usage_total(budget_id)
 
     async def append_audit_event(self, event: AuditEvent) -> AuditEventTable:
-        if event.idempotency_key:
-            existing = await self._get_audit_by_idempotency(
-                event.company_id, event.idempotency_key
-            )
-            if existing is not None:
-                return existing
-
-        row = AuditEventTable(**_model_values(event))
-        self.session.add(row)
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneAuditEventStore(
+            self.session
+        ).append_audit_event(event)
 
     async def list_audit_events(
         self,
@@ -669,48 +608,30 @@ class ControlPlaneRepository:
         target_id: str | None = None,
         limit: int = 100,
     ) -> list[AuditEventTable]:
-        query = select(AuditEventTable).where(AuditEventTable.company_id == company_id)
-        if trace_id:
-            query = query.where(AuditEventTable.trace_id == trace_id)
-        if run_id:
-            query = query.where(AuditEventTable.run_id == run_id)
-        if target_type:
-            query = query.where(AuditEventTable.target_type == target_type)
-        if target_id:
-            query = query.where(AuditEventTable.target_id == target_id)
-        result = await self.session.execute(
-            query.order_by(AuditEventTable.created_at.desc()).limit(limit)
+        return await SqlAlchemyControlPlaneAuditEventStore(
+            self.session
+        ).list_audit_events(
+            company_id=company_id,
+            trace_id=trace_id,
+            run_id=run_id,
+            target_type=target_type,
+            target_id=target_id,
+            limit=limit,
         )
-        return list(result.scalars().all())
-
-    async def _get_audit_by_idempotency(
-        self, company_id: str, idempotency_key: str
-    ) -> AuditEventTable | None:
-        result = await self.session.execute(
-            select(AuditEventTable).where(
-                AuditEventTable.company_id == company_id,
-                AuditEventTable.idempotency_key == idempotency_key,
-            )
-        )
-        return result.scalar_one_or_none()
 
     async def create_evolution_proposal(
         self, proposal: EvolutionProposal
     ) -> EvolutionProposalTable:
-        row = EvolutionProposalTable(**_model_values(proposal))
-        self.session.add(row)
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneEvolutionProposalStore(
+            self.session
+        ).create_evolution_proposal(proposal)
 
     async def get_evolution_proposal(
         self, proposal_id: str
     ) -> EvolutionProposalTable | None:
-        result = await self.session.execute(
-            select(EvolutionProposalTable).where(
-                EvolutionProposalTable.proposal_id == proposal_id
-            )
-        )
-        return result.scalar_one_or_none()
+        return await SqlAlchemyControlPlaneEvolutionProposalStore(
+            self.session
+        ).get_evolution_proposal(proposal_id)
 
     async def list_evolution_proposals(
         self,
@@ -722,23 +643,16 @@ class ControlPlaneRepository:
         scope: str | None = None,
         limit: int = 100,
     ) -> list[EvolutionProposalTable]:
-        query = select(EvolutionProposalTable).where(
-            EvolutionProposalTable.company_id == company_id
+        return await SqlAlchemyControlPlaneEvolutionProposalStore(
+            self.session
+        ).list_evolution_proposals(
+            company_id=company_id,
+            tier=tier,
+            approval_state=approval_state,
+            rollout_state=rollout_state,
+            scope=scope,
+            limit=limit,
         )
-        if tier:
-            query = query.where(EvolutionProposalTable.tier == tier)
-        if approval_state:
-            query = query.where(
-                EvolutionProposalTable.approval_state == approval_state
-            )
-        if rollout_state:
-            query = query.where(EvolutionProposalTable.rollout_state == rollout_state)
-        if scope:
-            query = query.where(EvolutionProposalTable.scope.ilike(f"%{scope}%"))
-        result = await self.session.execute(
-            query.order_by(EvolutionProposalTable.created_at.desc()).limit(limit)
-        )
-        return list(result.scalars().all())
 
     async def update_evolution_proposal_status(
         self,
@@ -748,18 +662,14 @@ class ControlPlaneRepository:
         rollout_state: str | None = None,
         approval_id: str | None = None,
     ) -> EvolutionProposalTable | None:
-        row = await self.get_evolution_proposal(proposal_id)
-        if row is None:
-            return None
-        if approval_state is not None:
-            row.approval_state = approval_state
-        if rollout_state is not None:
-            row.rollout_state = rollout_state
-        if approval_id is not None:
-            row.approval_id = approval_id
-        row.updated_at = _now()
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneEvolutionProposalStore(
+            self.session
+        ).update_evolution_proposal_status(
+            proposal_id,
+            approval_state=approval_state,
+            rollout_state=rollout_state,
+            approval_id=approval_id,
+        )
 
     async def update_evolution_proposal_approval_state_by_approval(
         self,
@@ -768,7 +678,7 @@ class ControlPlaneRepository:
         approval_state: str,
         rollout_state: str | None = None,
     ) -> EvolutionProposalTable | None:
-        return await SqlAlchemyControlPlaneApprovalStore(
+        return await SqlAlchemyControlPlaneEvolutionProposalStore(
             self.session
         ).update_evolution_proposal_approval_state_by_approval(
             approval_id,

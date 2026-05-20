@@ -2317,7 +2317,7 @@ def test_control_plane_agent_registry_api_delegates_to_use_cases() -> None:
 
     assert "class ControlPlaneAgentRegistryStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneAgentRegistryStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
     assert "create_agent_role_with_audit" in use_case_source
     assert "update_agent_role_with_audit" in use_case_source
     assert "update_agent_status_with_audit" in use_case_source
@@ -2553,7 +2553,7 @@ def test_control_plane_evolution_proposal_api_delegates_to_use_cases() -> None:
 
     assert "class ControlPlaneEvolutionProposalStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneEvolutionProposalStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
     assert "create_evolution_proposal_with_audit" in use_case_source
     assert "update_evolution_proposal_status_with_audit" in use_case_source
     assert "ApprovalGate(store)" in use_case_source
@@ -2649,7 +2649,7 @@ def test_control_plane_audit_timeline_api_delegates_to_use_cases() -> None:
 
     assert "class ControlPlaneAuditTimelineStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneAuditTimelineStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
     assert "build_timeline" in use_case_source
     assert "TimelineScopeRequiredError" in use_case_source
     assert "_list_run_scoped_decisions" in use_case_source
@@ -2685,7 +2685,7 @@ def test_control_plane_agent_operations_delegate_to_use_cases_and_ports() -> Non
 
     assert "class ControlPlaneAgentOperationStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneAgentOperationStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
     assert "wake_agent_definition" in use_case_source
     assert "run_heartbeat_scheduler_once" in use_case_source
     assert "ControlPlaneAgentRunner(store)" in use_case_source
@@ -2719,12 +2719,12 @@ def test_control_plane_agent_operations_delegate_to_use_cases_and_ports() -> Non
 
 
 def test_control_plane_repository_is_confined_to_store_adapters() -> None:
-    """Concrete ControlPlaneRepository access should stay behind store adapters."""
+    """Concrete ControlPlaneRepository access should stay in the compatibility facade."""
     allowed_control_plane_files = {Path("shared/control_plane/repository.py")}
     offenders: list[str] = []
 
     for path in _python_files(Path("shared/control_plane")):
-        if path in allowed_control_plane_files or path.name.endswith("_store.py"):
+        if path in allowed_control_plane_files:
             continue
         source = path.read_text()
         if "ControlPlaneRepository" in source:
@@ -2759,7 +2759,7 @@ def test_control_plane_runtime_plugin_delegates_to_use_cases_and_ports() -> None
     assert "ControlPlaneRunEvidenceStore" in port_source
     assert "class ControlPlaneRunEvidenceStore(Protocol)" in evidence_port_source
     assert "SqlAlchemyControlPlaneRuntimePluginStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
     assert "ensure_core_organization_role_agents" in adapter_source
     assert "ensure_core_runtime_agent_roles" in adapter_source
 
@@ -2795,7 +2795,7 @@ def test_control_plane_role_bootstrap_uses_store_port() -> None:
     assert "create_company_if_absent" in use_case_source
 
     assert "SqlAlchemyControlPlaneRoleBootstrapStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
     assert "session.begin_nested" in adapter_source
     assert "IntegrityError" in adapter_source
     assert "SqlAlchemyControlPlaneRoleBootstrapStore(self._session)" in (
@@ -2811,7 +2811,7 @@ def test_control_plane_prompt_config_uses_prompt_store_port() -> None:
 
     assert "class ControlPlanePromptConfigStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlanePromptConfigStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
     assert "ControlPlaneRepository" not in helper_source
     assert "ControlPlanePromptConfigStore" in helper_source
     assert "SqlAlchemyControlPlanePromptConfigStore(session)" in helper_source

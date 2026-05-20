@@ -51,12 +51,9 @@ When you add a new context, you must add a row to this document **and** to
   run-evidence APIs, budget enforcement, approval gates.
 - Outbound dependencies: runtime agents (writes runs, artifacts, audit);
   LLM Gateway (budget usage); gateways (approvals consumption).
-- Boundary clarity: high (single owner); internal seam not yet structurally
-  complete (`company_store.py`, `goal_store.py`, `work_item_store.py`,
-  `agent_run_store.py`, `decision_store.py`, `artifact_store.py`, and
-  `approval_store.py` own their SQL; `budget_store.py` owns budget
-  policy/usage SQL and `budget_guard_store.py` is repository-free, but
-  remaining store adapters still need P0-1 extraction work).
+- Boundary clarity: high (single owner); internal SQL ownership is now behind
+  per-aggregate stores. `repository.py` remains only as a compatibility
+  facade for older callers while new code uses store ports/factory adapters.
 - Split fitness: must remain central. Do not extract.
 
 ### 2.2 Requirement Management

@@ -16,7 +16,10 @@ PYTEST_PUBLIC_PATHS = \
 	tests/unit/test_rust_gateway_prod_shadow_preflight.py \
 	tests/unit/test_rust_gateway_prod_gate.py \
 	tests/unit/test_rust_gateway_contracts.py \
+	tests/control_plane/test_audit_event_store.py \
 	tests/control_plane/test_company_store.py \
+	tests/control_plane/test_agent_registry_store.py \
+	tests/control_plane/test_prompt_config_store.py \
 	tests/control_plane/test_goal_store.py \
 	tests/control_plane/test_work_item_store.py \
 	tests/control_plane/test_agent_run_store.py \
@@ -24,6 +27,8 @@ PYTEST_PUBLIC_PATHS = \
 	tests/control_plane/test_artifact_store.py \
 	tests/control_plane/test_approval_store.py \
 	tests/control_plane/test_budget_store.py \
+	tests/control_plane/test_evolution_proposal_store.py \
+	tests/control_plane/test_runtime_projection_stores.py \
 	tests/integration/test_runtime_error_contract.py \
 	agents/requirement_manager/tests/integrations/feishu \
 	shared/integrations/feishu/tests \

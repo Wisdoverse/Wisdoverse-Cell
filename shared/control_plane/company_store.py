@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from .company_ports import ControlPlaneCompanyStore
 from .models import AuditEvent, CompanyContext
 from .store_utils import model_values, now_utc, to_db_value
@@ -17,6 +18,7 @@ class SqlAlchemyControlPlaneCompanyStore(ControlPlaneCompanyStore):
 
     def __init__(self, session: AsyncSession):
         self._session = session
+        self._audits = SqlAlchemyControlPlaneAuditEventStore(session)
 
     async def create_company(self, company: CompanyContext) -> CompanyContextTable:
         row = CompanyContextTable(**model_values(company))
@@ -75,25 +77,4 @@ class SqlAlchemyControlPlaneCompanyStore(ControlPlaneCompanyStore):
         return row
 
     async def append_audit_event(self, event: AuditEvent) -> AuditEventTable:
-        if event.idempotency_key:
-            existing = await self._get_audit_by_idempotency(
-                event.company_id, event.idempotency_key
-            )
-            if existing is not None:
-                return existing
-
-        row = AuditEventTable(**model_values(event))
-        self._session.add(row)
-        await self._session.flush()
-        return row
-
-    async def _get_audit_by_idempotency(
-        self, company_id: str, idempotency_key: str
-    ) -> AuditEventTable | None:
-        result = await self._session.execute(
-            select(AuditEventTable).where(
-                AuditEventTable.company_id == company_id,
-                AuditEventTable.idempotency_key == idempotency_key,
-            )
-        )
-        return result.scalar_one_or_none()
+        return await self._audits.append_audit_event(event)
