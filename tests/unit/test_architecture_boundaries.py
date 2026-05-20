@@ -215,10 +215,10 @@ def test_services_and_shared_code_do_not_import_agent_internals() -> None:
 
 
 def test_only_control_plane_imports_control_plane_orm() -> None:
-    """ORM tables and the legacy monolith repository are private to the
+    """ORM tables are private to the
     persistence layer. Code outside `shared.control_plane.*` must consume the
     control plane through ports/stores, not by importing ORM rows or the
-    legacy `repository.ControlPlaneRepository` compatibility facade directly.
+    retired legacy repository module directly.
 
     Migration Plan §Stage 3 item 5 / Phase 1 audit P1-3 closure.
     """
@@ -2782,51 +2782,32 @@ def test_control_plane_agent_operations_delegate_to_use_cases_and_ports() -> Non
     assert "ControlPlaneRepository" not in evidence_source
 
 
-def test_control_plane_repository_is_confined_to_store_adapters() -> None:
-    """Concrete ControlPlaneRepository access should stay in the compatibility facade."""
-    allowed_control_plane_files = {Path("shared/control_plane/repository.py")}
+def test_control_plane_repository_facade_is_retired() -> None:
+    """The retired ControlPlaneRepository facade must not re-enter the codebase."""
+    retired_files = {
+        Path("shared/control_plane/repository.py"),
+        Path("tests/control_plane/test_repository.py"),
+    }
+    for path in retired_files:
+        assert not path.exists(), f"{path} should stay retired"
+
+    current_file = Path(__file__).resolve()
     offenders: list[str] = []
+    forbidden_fragments = (
+        "ControlPlaneRepository(",
+        "shared.control_plane.repository",
+    )
 
-    for path in _python_files(Path("shared/control_plane")):
-        if path in allowed_control_plane_files:
-            continue
-        source = path.read_text()
-        if "ControlPlaneRepository" in source:
-            offenders.append(str(path))
-
-    for root in (Path("agents"), Path("services"), Path("shared/capabilities")):
+    for root in (Path("agents"), Path("services"), Path("shared"), Path("tests")):
         if not root.exists():
             continue
-        for path in _python_files(root):
-            source = path.read_text()
-            if (
-                "ControlPlaneRepository(" in source
-                or "shared.control_plane.repository import ControlPlaneRepository"
-                in source
-            ):
-                offenders.append(str(path))
-
-    assert offenders == []
-
-
-def test_control_plane_repository_facade_tests_are_isolated() -> None:
-    """Repository facade coverage should not leak into unrelated tests."""
-    allowed_files = {
-        Path("tests/control_plane/test_repository.py"),
-        Path("tests/unit/test_architecture_boundaries.py"),
-    }
-    offenders: list[str] = []
-
-    for root in (Path("tests/control_plane"), Path("tests/unit")):
-        for path in _python_files(root):
-            if path in allowed_files:
+        for path in root.rglob("*.py"):
+            if path.resolve() == current_file:
+                continue
+            if path.name.endswith("_pb2.py") or path.name.endswith("_pb2_grpc.py"):
                 continue
             source = path.read_text()
-            if (
-                "ControlPlaneRepository(" in source
-                or "shared.control_plane.repository import ControlPlaneRepository"
-                in source
-            ):
+            if any(fragment in source for fragment in forbidden_fragments):
                 offenders.append(str(path))
 
     assert offenders == []
