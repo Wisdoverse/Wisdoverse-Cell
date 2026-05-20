@@ -6,6 +6,8 @@ from typing import Any
 
 from .agent_operation_ports import ControlPlaneAgentOperationStore
 from .agent_runner import AgentWakeupResult, ControlPlaneAgentRunner
+from .domain_records import agent_run_record
+from .models import AgentRun
 from .scheduler import AgentHeartbeatResult, ControlPlaneHeartbeatScheduler
 
 
@@ -21,7 +23,7 @@ class AgentOperationCompanyNotFoundError(Exception):
 class AgentWakeupUseCaseResult:
     """Result of waking a persisted agent definition."""
 
-    run: Any | None
+    run: AgentRun | None
     wakeup: AgentWakeupResult
 
 
@@ -49,8 +51,9 @@ async def wake_agent_definition(
         goal_id=goal_id,
         work_item_id=work_item_id,
     )
+    run_row = await store.get_agent_run(wakeup.run_id)
     return AgentWakeupUseCaseResult(
-        run=await store.get_agent_run(wakeup.run_id),
+        run=agent_run_record(run_row) if run_row is not None else None,
         wakeup=wakeup,
     )
 

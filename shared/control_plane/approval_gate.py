@@ -11,40 +11,8 @@ from shared.config import settings
 from .approval_ports import ControlPlaneApprovalStore
 from .approval_store import SqlAlchemyControlPlaneApprovalStore
 from .context import get_current_run_context
+from .domain_records import approval_request_record
 from .models import ApprovalCategory, ApprovalRequest, ApprovalStatus
-from .tables import ApprovalRequestTable
-
-
-def _table_to_approval_request(row: ApprovalRequestTable) -> ApprovalRequest:
-    """Convert a persisted ApprovalRequestTable row to the domain model.
-
-    Keeps the SQLAlchemy `*Table` class private to the persistence layer
-    and shields the application/domain layers from ORM coupling.
-    """
-    return ApprovalRequest(
-        approval_id=row.approval_id,
-        company_id=row.company_id,
-        category=ApprovalCategory(row.category),
-        status=ApprovalStatus(row.status),
-        requested_by=row.requested_by,
-        source_agent_id=row.source_agent_id,
-        proposed_action=row.proposed_action,
-        reason=row.reason,
-        risk=row.risk,
-        rollback_note=row.rollback_note,
-        affected_resources=list(row.affected_resources or []),
-        artifact_links=list(row.artifact_links or []),
-        run_id=row.run_id,
-        work_item_id=row.work_item_id,
-        goal_id=row.goal_id,
-        trace_id=row.trace_id,
-        resolved_by=row.resolved_by,
-        resolved_at=row.resolved_at,
-        expires_at=row.expires_at,
-        metadata=dict(row.metadata_json or {}),
-        created_at=row.created_at,
-        updated_at=row.updated_at,
-    )
 
 
 class ApprovalRequiredError(PermissionError):
@@ -100,7 +68,7 @@ class ApprovalGate:
                 trace_id=trace_id,
             )
         )
-        return _table_to_approval_request(row)
+        return approval_request_record(row)
 
     async def approve(self, approval_id: str, *, resolved_by: str) -> ApprovalDecision:
         row = await self._store.resolve_approval(

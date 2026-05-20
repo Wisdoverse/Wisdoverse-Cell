@@ -5,7 +5,28 @@ from shared.schemas.event import EventTypes
 
 from .approval_gate import ApprovalDecision, ApprovalGate
 from .approval_ports import ControlPlaneApprovalStore
-from .models import ApprovalStatus, AuditEvent, EvolutionRolloutState
+from .domain_records import approval_request_record
+from .models import ApprovalRequest, ApprovalStatus, AuditEvent, EvolutionRolloutState
+
+
+async def list_approvals(
+    store: ControlPlaneApprovalStore,
+    *,
+    company_id: str,
+    status: str | None = None,
+    run_id: str | None = None,
+    trace_id: str | None = None,
+    limit: int = 50,
+) -> list[ApprovalRequest]:
+    """List approval requests for one company."""
+    rows = await store.list_approvals(
+        company_id=company_id,
+        status=status,
+        run_id=run_id,
+        trace_id=trace_id,
+        limit=limit,
+    )
+    return [approval_request_record(row) for row in rows]
 
 
 async def resolve_approval_and_sync_proposal(

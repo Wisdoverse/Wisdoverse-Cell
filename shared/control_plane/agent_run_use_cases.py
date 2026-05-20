@@ -1,9 +1,9 @@
 """Application query use cases for control-plane agent runs."""
 from __future__ import annotations
 
-from typing import Any
-
 from .agent_run_ports import ControlPlaneAgentRunStore
+from .domain_records import agent_run_record
+from .models import AgentRun
 
 
 class AgentRunNotFoundError(Exception):
@@ -20,9 +20,9 @@ async def list_agent_runs(
     goal_id: str | None = None,
     work_item_id: str | None = None,
     limit: int = 50,
-) -> list[Any]:
+) -> list[AgentRun]:
     """List control-plane agent runs."""
-    return await store.list_agent_runs(
+    rows = await store.list_agent_runs(
         company_id=company_id,
         status=status,
         agent_id=agent_id,
@@ -31,15 +31,16 @@ async def list_agent_runs(
         work_item_id=work_item_id,
         limit=limit,
     )
+    return [agent_run_record(row) for row in rows]
 
 
 async def get_agent_run(
     store: ControlPlaneAgentRunStore,
     *,
     run_id: str,
-) -> Any:
+) -> AgentRun:
     """Return one control-plane agent run or raise not found."""
     row = await store.get_agent_run(run_id)
     if row is None:
         raise AgentRunNotFoundError(run_id)
-    return row
+    return agent_run_record(row)
