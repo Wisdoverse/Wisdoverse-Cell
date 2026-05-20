@@ -7,6 +7,7 @@ from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
 from shared.integrations.feishu.bitable import bitable_service
 from shared.integrations.openproject.client import get_op_client
+from shared.observability.outbox import record_outbox_pending_age
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventMetadata, EventTypes
 from shared.utils.logger import get_logger
@@ -222,6 +223,7 @@ class SyncModule(BaseAgent):
         persistence details.
         """
         rows = await self._outbox_store.list_pending(limit=limit)
+        record_outbox_pending_age("sync-module", rows)
 
         published = 0
         failed = 0

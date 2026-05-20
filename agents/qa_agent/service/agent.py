@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from shared.core import EventPublisher
 from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
+from shared.observability.outbox import record_outbox_pending_age
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventMetadata, EventTypes
 from shared.utils.logger import get_logger
@@ -231,6 +232,7 @@ class QAAgent(BaseAgent):
         admin operations do not need to know persistence details.
         """
         rows = await self._outbox_store.list_pending(limit=limit)
+        record_outbox_pending_age("qa-agent", rows)
 
         published = 0
         failed = 0

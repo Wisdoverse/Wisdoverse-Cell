@@ -9,6 +9,7 @@ from shared.core import EventPublisher, request_error
 from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
 from shared.infra.llm_gateway import LLMGateway
+from shared.observability.outbox import record_outbox_pending_age
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventMetadata, EventTypes
 from shared.utils.logger import get_logger
@@ -202,6 +203,7 @@ class DevAgent(BaseAgent):
             raise RuntimeError("dev_outbox_store_not_started")
 
         rows = await outbox_store.list_pending(limit=limit)
+        record_outbox_pending_age("dev-agent", rows)
 
         published = 0
         failed = 0

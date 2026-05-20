@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from shared.observability.outbox import record_outbox_pending_age
 from shared.schemas.event import Event, EventMetadata
 from shared.utils.logger import get_logger
 
@@ -41,6 +42,7 @@ class AnalysisOutboxDeliveryUseCase:
 
     async def publish_pending_events(self, limit: int = 100) -> dict[str, int]:
         rows = await self._outbox_store.list_pending(limit=limit)
+        record_outbox_pending_age("analysis-module", rows)
 
         published = 0
         failed = 0

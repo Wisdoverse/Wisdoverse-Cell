@@ -14,6 +14,7 @@ from shared.infra.event_bus import event_bus as default_event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
 from shared.messaging.outbound.core.registry import AdapterRegistry
 from shared.messaging.outbound.models.events import ChannelEventTypes
+from shared.observability.outbox import record_outbox_pending_age
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventMetadata
 from shared.utils.logger import get_logger
@@ -190,6 +191,7 @@ class ChannelGatewayAgent(BaseAgent):
             raise RuntimeError("channel_outbox_store_not_started")
 
         rows = await self._outbox_store.list_pending(limit=limit)
+        record_outbox_pending_age("channel-gateway", rows)
 
         published = 0
         failed = 0

@@ -648,6 +648,9 @@ Approval policy:
 
 EventBus failure visibility:
 
+- Runtime outbox dispatch exposes
+  `wisdoverse-cell_outbox_pending_oldest_age_seconds` by runtime so operators
+  can alert on the oldest unsent integration event before consumers go stale.
 - Redis EventBus exposes `get_pending_count(event_type, group)` for consumer lag.
 - Redis EventBus writes failed handler events and malformed payloads to
   `dlq.failed`; operators can inspect it with `get_dead_letter_count()` and

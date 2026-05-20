@@ -11,6 +11,7 @@ from shared.core import (
     OpenProjectWorkPackagePort,
     request_error,
 )
+from shared.observability.outbox import record_outbox_pending_age
 from shared.observability.privacy import hash_identifier
 from shared.schemas.event import Event, EventMetadata, EventTypes
 from shared.utils.logger import get_logger
@@ -93,6 +94,7 @@ class DecompositionOrchestrator:
         future admin endpoint, or standalone worker.
         """
         rows = await self._require_outbox_store().list_pending(limit=limit)
+        record_outbox_pending_age("pjm-agent", rows)
 
         published = 0
         failed = 0

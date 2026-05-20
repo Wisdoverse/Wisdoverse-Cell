@@ -11,6 +11,7 @@ from shared.integrations.feishu.bitable import bitable_service
 from shared.integrations.feishu.cards.tools import FeishuToolCardRenderer
 from shared.integrations.feishu.client import get_feishu_client
 from shared.integrations.openproject.client import get_op_client
+from shared.observability.outbox import record_outbox_pending_age
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventMetadata, EventTypes
 from shared.utils.logger import get_logger
@@ -170,6 +171,7 @@ class ChatAgent(BaseAgent):
     ) -> dict[str, int]:
         """Retry pending user-interaction gateway outbox events."""
         rows = await self._outbox_store.list_pending(limit=limit)
+        record_outbox_pending_age("chat-agent", rows)
 
         published = 0
         failed = 0

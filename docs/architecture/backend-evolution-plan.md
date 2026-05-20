@@ -184,7 +184,7 @@ that guide, it is called out explicitly.
 | Sync capability still hosts OpenProject and Feishu Bitable in one runtime | The sub-boundaries are split inside `core/`, but a single runtime makes targeted scaling and failure isolation impossible | `architecture.md` §3.1, `SPEC.md` §4.1.3 |
 | Each agent runtime still depends on shared Alembic migrations | A per-runtime migration story is required before any independent deployment | `backend-boundaries.md` §5 |
 | Cross-agent contract tests are thin | Architecture import tests are strong; provider/consumer event and HTTP contract tests are not yet routine | Section 8 below |
-| Observability lacks outbox-lag and DLQ alerting | Cross-cutting Prometheus metrics now have a canonical `shared.observability.metrics` boundary with event queue and Redis DLQ collectors, but operator evidence for sustained outbox backlog age and alert coverage is still incomplete | Section 7 below |
+| Observability lacks alert coverage for outbox lag and DLQ growth | Cross-cutting Prometheus metrics now have a canonical `shared.observability.metrics` boundary with event queue, Redis DLQ, and oldest pending outbox age collectors, but alert coverage is still incomplete | Section 7 below |
 
 ---
 
@@ -375,7 +375,7 @@ same rollout pattern.
    this plan) in the same PR.
 4. Verify with the stable backend regression and the focused subset for the
    touched agents.
-5. Watch the next two weeks of operator evidence (outbox lag, DLQ rate, run
+5. Watch the next two weeks of operator evidence (outbox age, DLQ rate, run
    evidence completeness) before retiring the previous surface.
 
 ### 10.2 Risk Register
@@ -383,7 +383,7 @@ same rollout pattern.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | Use-case refactors leak infrastructure imports back into `core/` | Medium | Use cases become hard to test in isolation, defeats the modularization | Architecture-boundary test must forbid adapter imports from `core/**` |
-| Outbox lag grows silently after phase B+ refactors | Medium | At-least-once delivery degrades to "best effort" without an alert | Phase 7 observability work must precede any cross-boundary use-case rewrite |
+| Outbox lag grows silently after phase B+ refactors | Medium | At-least-once delivery degrades to "best effort" without an alert | Keep `wisdoverse-cell_outbox_pending_oldest_age_seconds` on runtime dashboards and wire Phase 7 alert rules before any cross-boundary use-case rewrite |
 | Read-model projection becomes a hidden write owner | Medium | Analysis ends up co-owning source domains, repeating the gap we are closing | Phase C requires explicit projection schema review |
 | Service extraction starts before outbox + projection + migration story exists | High if attempted early | Premature split creates dual-write hazards and unrecoverable replay state | Do not start Phase H before A–G are landed |
 | Compatibility shim retirement breaks external consumers | Low (source-available, no SaaS) | Existing self-hosted deployments require migration runbook | Each shim retirement ships with a release note and an upgrade step in `docs/guides/operations.md` |

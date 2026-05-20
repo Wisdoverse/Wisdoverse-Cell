@@ -18,6 +18,7 @@ from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
 from shared.infra.llm_gateway import llm_gateway
 from shared.infra.notification import NotificationChannel, notification_service
+from shared.observability.outbox import record_outbox_pending_age
 from shared.observability.privacy import hash_identifier
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventMetadata, EventTypes
@@ -633,6 +634,7 @@ class RequirementManagerAgent(BaseAgent):
         persistence details.
         """
         rows = await self._outbox_store.list_pending(limit=limit)
+        record_outbox_pending_age("requirement-manager", rows)
 
         published = 0
         failed = 0
