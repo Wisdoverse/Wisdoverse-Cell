@@ -148,7 +148,10 @@ def _agent_runtime_status(
 
 
 def _approval_to_dict(row: object) -> dict[str, Any]:
-    metadata = row.metadata_json if isinstance(row.metadata_json, dict) else {}
+    raw_metadata = getattr(row, "metadata", None)
+    if raw_metadata is None:
+        raw_metadata = getattr(row, "metadata_json", None)
+    metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
     urgency = metadata.get("urgency")
     return {
         "id": row.approval_id,

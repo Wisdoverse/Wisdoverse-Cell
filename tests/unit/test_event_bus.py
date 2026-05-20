@@ -1,4 +1,4 @@
-"""Unit tests for shared.services.event_bus.EventBus (Redis Streams)."""
+"""Unit tests for shared.infra.event_bus.EventBus (Redis Streams)."""
 
 import hashlib
 from unittest.mock import AsyncMock, MagicMock, call, patch

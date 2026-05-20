@@ -88,7 +88,7 @@ This PR intentionally does not:
 - Change `/api/v1/control-plane/*` shape, the EventBus delivery model, or any
   external integration contract.
 - Retire the remaining compatibility surfaces under `shared/services/` or root
-  `skills/`.
+  `skills/` at the time; this has since been closed by the P2-4 retirement.
 
 ---
 
@@ -177,7 +177,7 @@ that guide, it is called out explicitly.
 | Gap | Why It Matters | Authoritative Reference |
 |-----|----------------|-------------------------|
 | Outbox tables share one database in the modular-monolith stage | Service extraction needs deployment evidence and a read-model strategy per runtime before this is broken apart | `backend-boundaries.md` §6 |
-| Compatibility layers under `shared/services/*` and root `skills/*` | New imports can reintroduce old coupling and stall future package retirement | `backend-boundaries.md` §6, `project-layout.md` §"Current Structure Assessment" |
+| Retired compatibility layers under `shared/services/*` and root `skills/*` | Closed: the compatibility packages have been removed and tests use canonical paths | `backend-boundaries.md` §6, `project-layout.md` §"Current Structure Assessment" |
 | Analysis can drift into source-table reads | Reporting code can become an implicit write owner of other domains | `backend-boundaries.md` §6 |
 | Error response contract tests are still thin | Runtime APIs now expose a structured envelope, but provider/consumer contract tests must prove clients can rely on it | `backend-boundaries.md` §6 |
 | `users` lacks a dedicated public user/profile API boundary | Identity data can become shared mutable state if unrelated modules write directly | `backend-boundaries.md` §6 |

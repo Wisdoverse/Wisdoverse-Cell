@@ -601,7 +601,7 @@ from shared.integrations.feishu import FeishuClient
 from shared.messaging.outbound.delivery_service import DeliveryService
 from shared.infra.agent_client import AgentClient
 
-# Wrong — deprecated paths blocked by CI
+# Wrong — retired paths blocked by CI
 from shared.services.feishu import FeishuClient
 ```
 
@@ -802,11 +802,11 @@ with patch.object(llm_mod.llm_gateway, "complete"):
     ...
 ```
 
-### Pitfall 4: Adding Imports from `shared.services.*` Deprecated Paths
+### Pitfall 4: Adding Imports from Retired Compatibility Paths
 
 **Symptom**: CI pipeline fails with `lint_deprecated_imports.py` error.
 
-**Cause**: The codebase is migrating away from `shared.services.*` to canonical paths under `shared.integrations.*`, `shared.messaging.*`, and `shared.infra.*`.
+**Cause**: The `shared.services.*` and root `skills.*` compatibility paths have been retired. Canonical paths live under `shared.integrations.*`, `shared.messaging.*`, `shared.infra.*`, and `agents.requirement_manager.skills.*`.
 
 **Fix**: Use the canonical paths:
 
@@ -817,6 +817,7 @@ with patch.object(llm_mod.llm_gateway, "complete"):
 | `shared.services.llm_gateway` | `shared.infra.llm_gateway` |
 | `shared.services.channel_gateway` | `shared.messaging.outbound` / `shared.messaging.inbound` |
 | `shared.services.agent_client` | `shared.infra.agent_client` |
+| `skills.*` | `agents.requirement_manager.skills.*` |
 
 ### Pitfall 5: Not Handling LLM Failures
 

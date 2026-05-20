@@ -73,7 +73,6 @@ shared/
   observability/              # Logging, tracing, metrics
   protocols/                  # Protocol definitions
   schemas/                    # Event, Agent, Error
-  services/                   # Deprecated compatibility shims only; do not add new imports here
   utils/                      # Shared utilities
   evolution/                  # Three-level self-evolution system (L1/L2/L3)
     collaboration/            # L3 Agent Teams collaboration optimization
@@ -149,7 +148,7 @@ user-facing product copy while an i18n path is being migrated.
 **Events**: `Event(event_id="evt_{ulid}", event_type="{domain}.{action}", source_agent, payload, schema_version="1.0")`
 - Immutable, fire-and-forget, use `trace_id`
 
-**Imports**: Use canonical paths (`shared.integrations.feishu`, `shared.messaging.outbound`, `shared.infra.agent_client`). Never add new imports from `shared.services.*` deprecated paths.
+**Imports**: Use canonical paths (`shared.integrations.feishu`, `shared.messaging.outbound`, `shared.infra.agent_client`). The retired `shared.services.*` and root `skills.*` compatibility paths must not be reintroduced.
 
 **Agents**: Inherit `BaseAgent`, implement `handle_event()`, `startup()`, `shutdown()`. Use `create_agent_app()` for FastAPI entry (see `shared/app/`). Scheduler jobs must call `runtime.agent` not `_raw_agent`.
 

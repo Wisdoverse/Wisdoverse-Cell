@@ -53,13 +53,10 @@ PYTEST_UNIT_FULL_ARGS = \
 	shared/capabilities/*/tests/unit \
 	services/*/*/tests/unit \
 	agents/*/tests/unit \
-	agents/*/*/tests/unit \
-	agents/requirement_manager/skills/tests/compat_root \
 	agents/requirement_manager/tests/integrations/feishu \
 	shared/integrations/feishu/tests \
 	shared/integrations/wecom/tests \
-	agents/requirement_manager/tests/test_grpc_servicer.py \
-	--ignore=agents/requirement_manager/skills/tests/compat_root/test_skills_integration.py
+	agents/requirement_manager/tests/test_grpc_servicer.py
 
 PYTEST_INTEGRATION_PATHS = \
 	tests/integration \
@@ -67,7 +64,6 @@ PYTEST_INTEGRATION_PATHS = \
 	shared/capabilities/*/tests/integration \
 	services/*/*/tests/integration \
 	agents/*/tests/integration \
-	agents/*/*/tests/integration \
 	shared/messaging/outbound/tests/integration
 
 PYTEST_E2E_PATHS = \

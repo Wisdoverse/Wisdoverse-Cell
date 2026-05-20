@@ -53,12 +53,6 @@ contribution documents.
 | `rust/gateway/` | Rust edge gateway |
 | `frontend/` | Next.js operator console |
 | `plugins/` | External plugin packages shipped with the repository |
-| `skills/` | Deprecated root compatibility stubs for requirements skills |
-
-`shared/services/` is a legacy compatibility surface. Existing files can remain
-until a planned migration removes them, but new imports should use canonical
-paths such as `shared.integrations.*`, `shared.messaging.*`, and
-`shared.infra.*`.
 
 ## Current Structure Assessment
 
@@ -70,11 +64,9 @@ have drifted and should be cleaned in phases:
 | `agents/` | Contains only real business runtime agents | Keep non-agent services and common capabilities out of this tree |
 | `agents/requirement_manager/` | Large business agent with `api/`, `app/`, `core/`, `db/`, `grpc/`, `integrations/`, `prompts/`, `skills/`, and devtools | Keep service-owned backend pieces here; move real UI to root `frontend/` and keep dev-only artifacts under `devtools/` |
 | `services/gateways/channel/` | Implemented channel gateway runtime | Keep gateway lifecycle and event dispatch here; reusable messaging primitives remain under `shared/messaging/outbound/`; not part of the default Compose topology yet |
-| `shared/services/` | Deprecated compatibility re-export layer | Do not add code; migrate consumers to canonical paths, then remove in a planned compatibility release |
 | `shared/integrations/` | Reusable platform adapters, clients, routers, and card builders | Keep platform primitives here; capability-owned Feishu gateway handlers belong under `agents/requirement_manager/integrations/feishu/` |
 | `shared/integrations/feishu/cards/` | Platform-level Feishu card builder plus shared Feishu presentation contracts | Keep `CardBuilder` and cross-capability Feishu card payload contracts here. These files must only build Feishu payloads and action values; workflow logic stays inside the owning capability |
 | `shared/grpc/server.py` | Deprecated compatibility entry point | Use `agents/requirement_manager/grpc/server.py` for the requirements gRPC runtime |
-| Root `skills/` | Deprecated compatibility re-export layer for requirements skills | Keep only while old imports are supported; new code should import `agents.requirement_manager.skills.*` |
 | `frontend/src/components/agents/` | Legacy agent detail UI location | Migrated to `frontend/src/widgets/agent-detail/`; do not add new agent surfaces under `components/agents` |
 | Tests | Mixed module-local tests and cross-cutting root tests | Keep module-local tests beside their service; use root `tests/` only for cross-module, protocol, e2e, and load tests |
 
@@ -85,10 +77,8 @@ have drifted and should be cleaned in phases:
 - `shared/` must not import from `agents/`. If shared code needs capability
   behavior, define a port or callback and let the capability inject the
   implementation.
-- New shared imports should use canonical paths. Do not add new imports from
-  `shared.services.*`.
-- Compatibility stubs should be thin re-exports with a deprecation docstring,
-  no business logic.
+- New shared imports should use canonical paths. Do not reintroduce retired
+  compatibility roots such as `shared.services.*` or root `skills.*`.
 - Business agents should keep runtime entry points in `app/`, API routers in
   `api/`, orchestration/business logic in `service/` or `core/`, persistence in
   `db/` and `models/`, and service-local tests in `tests/`.
@@ -102,8 +92,8 @@ have drifted and should be cleaned in phases:
 | 1 | Document ownership, ignore local-only artifacts, and stop new imports from legacy paths | Low |
 | 2 | Keep empty placeholders documented as Reserved, or implement the runtime before marking them Active | Low |
 | 3 | Move requirements-specific Feishu gateway handlers, recorder, and session behavior out of `shared/integrations/feishu/` | Done |
-| 4 | Collapse root `skills/` into compatibility-only tests and migrate remaining direct consumers | Medium |
-| 5 | Retire `shared/services/` after compatibility consumers are gone | Medium |
+| 4 | Retire root `skills/` and use `agents.requirement_manager.skills.*` directly | Done |
+| 5 | Retire `shared/services/` and use canonical shared paths directly | Done |
 | 6 | Split overgrown requirements-only UI/dev artifacts into root `frontend/` or explicit dev tooling; agent detail UI is already under FSD widgets | Medium |
 
 ## Operations And Verification

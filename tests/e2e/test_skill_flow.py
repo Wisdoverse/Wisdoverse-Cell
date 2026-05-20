@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from agents.requirement_manager.skills import ConfirmSkill, ListSkill, RejectSkill
 from shared.infra.skill import SkillContext, SkillError
 from shared.messaging.inbound import Platform, UnifiedCard, UnifiedMessage
-from skills import ConfirmSkill, ListSkill, RejectSkill
 
 
 def create_message(content: str, platform: Platform = Platform.FEISHU, chat_id: str = "chat_e2e_001") -> UnifiedMessage:
@@ -57,6 +57,12 @@ def mock_requirement():
     return req
 
 
+def create_mock_store():
+    store = MagicMock()
+    store.commit = AsyncMock()
+    return store
+
+
 class TestListSkillE2E:
     """E2E tests for ListSkill."""
 
@@ -65,7 +71,7 @@ class TestListSkillE2E:
         """Test complete flow: /list command with requirements."""
         # Setup mock repository
         mock_repo_class = MagicMock()
-        mock_repo = MagicMock()
+        mock_repo = create_mock_store()
         mock_repo.list_all = AsyncMock(return_value=([mock_requirement], 1))
         mock_repo_class.return_value = mock_repo
 
@@ -80,7 +86,7 @@ class TestListSkillE2E:
 
         # Execute skill with patched repository
         skill = ListSkill()
-        with patch("agents.requirement_manager.skills.list_requirements.RequirementRepository", mock_repo_class):
+        with patch("agents.requirement_manager.skills.list_requirements.build_requirement_skill_store", mock_repo_class):
             result = await skill.execute(context)
 
         # Verify result
@@ -92,7 +98,7 @@ class TestListSkillE2E:
     async def test_full_list_flow_empty(self, mock_db, mock_user):
         """Test complete flow: /list command with no requirements."""
         mock_repo_class = MagicMock()
-        mock_repo = MagicMock()
+        mock_repo = create_mock_store()
         mock_repo.list_all = AsyncMock(return_value=([], 0))
         mock_repo_class.return_value = mock_repo
 
@@ -105,7 +111,7 @@ class TestListSkillE2E:
         )
 
         skill = ListSkill()
-        with patch("agents.requirement_manager.skills.list_requirements.RequirementRepository", mock_repo_class):
+        with patch("agents.requirement_manager.skills.list_requirements.build_requirement_skill_store", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True
@@ -122,7 +128,7 @@ class TestConfirmSkillE2E:
         mock_requirement.status = "pending"
 
         mock_repo_class = MagicMock()
-        mock_repo = MagicMock()
+        mock_repo = create_mock_store()
         mock_repo.get_by_id = AsyncMock(return_value=mock_requirement)
         mock_repo.confirm = AsyncMock()
         mock_repo_class.return_value = mock_repo
@@ -136,7 +142,7 @@ class TestConfirmSkillE2E:
         )
 
         skill = ConfirmSkill()
-        with patch("agents.requirement_manager.skills.confirm_requirement.RequirementRepository", mock_repo_class):
+        with patch("agents.requirement_manager.skills.confirm_requirement.build_requirement_skill_store", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True
@@ -146,7 +152,7 @@ class TestConfirmSkillE2E:
     async def test_full_confirm_flow_not_found(self, mock_db, mock_user):
         """Test complete flow: /confirm command with non-existent requirement."""
         mock_repo_class = MagicMock()
-        mock_repo = MagicMock()
+        mock_repo = create_mock_store()
         mock_repo.get_by_id = AsyncMock(return_value=None)
         mock_repo_class.return_value = mock_repo
 
@@ -159,7 +165,7 @@ class TestConfirmSkillE2E:
         )
 
         skill = ConfirmSkill()
-        with patch("agents.requirement_manager.skills.confirm_requirement.RequirementRepository", mock_repo_class):
+        with patch("agents.requirement_manager.skills.confirm_requirement.build_requirement_skill_store", mock_repo_class):
             with pytest.raises(SkillError) as exc_info:
                 await skill.execute(context)
 
@@ -171,7 +177,7 @@ class TestConfirmSkillE2E:
         mock_requirement.status = "confirmed"  # Already confirmed
 
         mock_repo_class = MagicMock()
-        mock_repo = MagicMock()
+        mock_repo = create_mock_store()
         mock_repo.get_by_id = AsyncMock(return_value=mock_requirement)
         mock_repo_class.return_value = mock_repo
 
@@ -184,7 +190,7 @@ class TestConfirmSkillE2E:
         )
 
         skill = ConfirmSkill()
-        with patch("agents.requirement_manager.skills.confirm_requirement.RequirementRepository", mock_repo_class):
+        with patch("agents.requirement_manager.skills.confirm_requirement.build_requirement_skill_store", mock_repo_class):
             with pytest.raises(SkillError) as exc_info:
                 await skill.execute(context)
 
@@ -200,7 +206,7 @@ class TestRejectSkillE2E:
         mock_requirement.status = "pending"
 
         mock_repo_class = MagicMock()
-        mock_repo = MagicMock()
+        mock_repo = create_mock_store()
         mock_repo.get_by_id = AsyncMock(return_value=mock_requirement)
         mock_repo.reject = AsyncMock()
         mock_repo_class.return_value = mock_repo
@@ -217,7 +223,7 @@ class TestRejectSkillE2E:
         )
 
         skill = RejectSkill()
-        with patch("agents.requirement_manager.skills.reject_requirement.RequirementRepository", mock_repo_class):
+        with patch("agents.requirement_manager.skills.reject_requirement.build_requirement_skill_store", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True
@@ -232,7 +238,7 @@ class TestRejectSkillE2E:
         mock_requirement.status = "pending"
 
         mock_repo_class = MagicMock()
-        mock_repo = MagicMock()
+        mock_repo = create_mock_store()
         mock_repo.get_by_id = AsyncMock(return_value=mock_requirement)
         mock_repo.reject = AsyncMock()
         mock_repo_class.return_value = mock_repo
@@ -246,7 +252,7 @@ class TestRejectSkillE2E:
         )
 
         skill = RejectSkill()
-        with patch("agents.requirement_manager.skills.reject_requirement.RequirementRepository", mock_repo_class):
+        with patch("agents.requirement_manager.skills.reject_requirement.build_requirement_skill_store", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True
@@ -262,7 +268,7 @@ class TestSkillChainE2E:
         mock_requirement.status = "pending"
 
         mock_repo_class = MagicMock()
-        mock_repo = MagicMock()
+        mock_repo = create_mock_store()
         mock_repo.list_all = AsyncMock(return_value=([mock_requirement], 1))
         mock_repo.get_by_id = AsyncMock(return_value=mock_requirement)
         mock_repo.confirm = AsyncMock()
@@ -278,7 +284,7 @@ class TestSkillChainE2E:
         )
 
         list_skill = ListSkill()
-        with patch("agents.requirement_manager.skills.list_requirements.RequirementRepository", mock_repo_class):
+        with patch("agents.requirement_manager.skills.list_requirements.build_requirement_skill_store", mock_repo_class):
             list_result = await list_skill.execute(list_context)
 
         assert list_result.success is True
@@ -296,7 +302,7 @@ class TestSkillChainE2E:
         )
 
         confirm_skill = ConfirmSkill()
-        with patch("agents.requirement_manager.skills.confirm_requirement.RequirementRepository", mock_repo_class):
+        with patch("agents.requirement_manager.skills.confirm_requirement.build_requirement_skill_store", mock_repo_class):
             confirm_result = await confirm_skill.execute(confirm_context)
 
         assert confirm_result.success is True
@@ -312,7 +318,7 @@ class TestSkillChainE2E:
         ]
 
         mock_repo_class = MagicMock()
-        mock_repo = MagicMock()
+        mock_repo = create_mock_store()
         mock_repo_class.return_value = mock_repo
 
         # Page 1
@@ -327,7 +333,7 @@ class TestSkillChainE2E:
         )
 
         skill = ListSkill()
-        with patch("agents.requirement_manager.skills.list_requirements.RequirementRepository", mock_repo_class):
+        with patch("agents.requirement_manager.skills.list_requirements.build_requirement_skill_store", mock_repo_class):
             result1 = await skill.execute(context_page1)
 
         assert result1.success is True
@@ -343,7 +349,7 @@ class TestSkillChainE2E:
             db=mock_db,
         )
 
-        with patch("agents.requirement_manager.skills.list_requirements.RequirementRepository", mock_repo_class):
+        with patch("agents.requirement_manager.skills.list_requirements.build_requirement_skill_store", mock_repo_class):
             result2 = await skill.execute(context_page2)
 
         assert result2.success is True
@@ -363,7 +369,7 @@ class TestCrossPlatformE2E:
         mock_requirement.status = "pending"
 
         mock_repo_class = MagicMock()
-        mock_repo = MagicMock()
+        mock_repo = create_mock_store()
         mock_repo.list_all = AsyncMock(return_value=([mock_requirement], 1))
         mock_repo_class.return_value = mock_repo
 
@@ -376,7 +382,7 @@ class TestCrossPlatformE2E:
         )
 
         skill = ListSkill()
-        with patch("agents.requirement_manager.skills.list_requirements.RequirementRepository", mock_repo_class):
+        with patch("agents.requirement_manager.skills.list_requirements.build_requirement_skill_store", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True
@@ -393,7 +399,7 @@ class TestCrossPlatformE2E:
         mock_requirement.status = "pending"
 
         mock_repo_class = MagicMock()
-        mock_repo = MagicMock()
+        mock_repo = create_mock_store()
         mock_repo.list_all = AsyncMock(return_value=([mock_requirement], 1))
         mock_repo_class.return_value = mock_repo
 
@@ -406,7 +412,7 @@ class TestCrossPlatformE2E:
         )
 
         skill = ListSkill()
-        with patch("agents.requirement_manager.skills.list_requirements.RequirementRepository", mock_repo_class):
+        with patch("agents.requirement_manager.skills.list_requirements.build_requirement_skill_store", mock_repo_class):
             result = await skill.execute(context)
 
         assert result.success is True
