@@ -806,7 +806,11 @@ with patch.object(llm_mod.llm_gateway, "complete"):
 
 **Symptom**: CI pipeline fails with `lint_deprecated_imports.py` error.
 
-**Cause**: The `shared.services.*` and root `skills.*` compatibility paths have been retired. Canonical paths live under `shared.integrations.*`, `shared.messaging.*`, `shared.infra.*`, and `agents.requirement_manager.skills.*`.
+**Cause**: The `shared.services.*`, root `skills.*`, and `shared.grpc.server`
+compatibility paths have been retired. Canonical paths live under
+`shared.integrations.*`, `shared.messaging.*`, `shared.infra.*`,
+`agents.requirement_manager.skills.*`, and
+`agents.requirement_manager.grpc.server`.
 
 **Fix**: Use the canonical paths:
 
@@ -818,6 +822,7 @@ with patch.object(llm_mod.llm_gateway, "complete"):
 | `shared.services.channel_gateway` | `shared.messaging.outbound` / `shared.messaging.inbound` |
 | `shared.services.agent_client` | `shared.infra.agent_client` |
 | `skills.*` | `agents.requirement_manager.skills.*` |
+| `shared.grpc.server` | `agents.requirement_manager.grpc.server` |
 
 ### Pitfall 5: Not Handling LLM Failures
 

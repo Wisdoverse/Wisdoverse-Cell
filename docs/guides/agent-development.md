@@ -238,7 +238,8 @@ When adding or changing an agent:
 ## 10. Pre-Commit Checklist
 
 - Branch is not `main`.
-- No imports from retired `shared.services.*` or root `skills.*` paths.
+- No imports from retired `shared.services.*`, root `skills.*`, or
+  `shared.grpc.server` paths.
 - Agent IDs are kebab-case.
 - Runtime prompts are English-first.
 - Sensitive actions have human-in-the-loop approval where required.

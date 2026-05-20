@@ -36,7 +36,7 @@ independently deployable agent services. The shape is:
 | Shared runtime + contracts | `shared/app/`, `shared/core/`, `shared/schemas/`, `shared/infra/` | `create_agent_app()`, plugin model, abstract ports, event payloads, LLM gateway, EventBus client, circuit breaker |
 | Shared integrations | `shared/integrations/feishu/`, `shared/integrations/wecom/`, `shared/integrations/...` | Platform adapters and reusable presentation builders |
 | Messaging | `shared/messaging/inbound/`, `shared/messaging/outbound/` | Inbound user-service path and outbound delivery |
-| Retired compatibility surfaces | `shared/services/`, root `skills/` | Removed; canonical imports are mandatory |
+| Retired compatibility surfaces | `shared/services/`, root `skills/`, `shared.grpc.server` | Removed; canonical imports are mandatory |
 
 Backend Python source: ~795 non-test `.py` files under
 `agents/`, `services/`, `shared/`.
@@ -287,14 +287,14 @@ concrete file citations from §4 / §5.
 |---|---------|----------|----------|
 | M1 | `shared/control_plane/api.py` is 1783 LOC of thin handlers; no per-aggregate router split | Medium | `shared/control_plane/api.py` |
 | M2 | Domain layer is implicit; lifecycle helpers, ports, and use cases co-exist under `core/` without a separate `core/domain/` | Medium | `agents/<agent>/core/`, `shared/control_plane/agent_run_lifecycle.py` |
-| M3 | Closed: compatibility surfaces `shared/services/*` and root `skills/*` have been retired | Low | `tests/unit/test_architecture_boundaries.py` |
+| M3 | Closed: compatibility surfaces `shared/services/*`, root `skills/*`, and `shared.grpc.server` have been retired | Low | `tests/unit/test_architecture_boundaries.py` |
 | M4 | Sync capability hosts OpenProject and Feishu Bitable in one runtime; sub-boundaries exist only inside `core/` | Medium | `shared/capabilities/sync/core/engine.py`, `shared/capabilities/sync/core/progress.py` |
 | M5 | Analysis can read source-domain tables; no explicit projection layer | Medium | `shared/capabilities/analysis/` (no projection module) |
-| M6 | Error response shape is uniform via `X-Error-Code` header but the body remains FastAPI `detail` string; no structured error envelope yet | Medium | `shared/api/errors.py:13-74` (56-code enum), `shared/middleware/error_handler.py:13-28` |
+| M6 | Closed at the runtime baseline: `create_agent_app()` responses use the structured error envelope while preserving legacy `detail`; base contract tests cover auth, HTTPException, validation, and unexpected failures | Low | `shared/api/errors.py`, `shared/middleware/error_handler.py`, `tests/integration/test_runtime_error_contract.py` |
 | M7 | No per-agent OpenAPI snapshots; route inventory only documented via the `/api/v1` metadata endpoint | Low | `agents/requirement_manager/app/routes.py:9-25` |
 | M8 | Config: `pydantic-settings` with `SecretStr`, but no startup-time failing-closed validation that required secrets are non-empty | Low | `shared/config.py:28,59,99-100`; example checks only `nats_url` and `stream_replicas` |
 | M9 | No explicit unit-of-work seam; transactions managed implicitly per session context | Low | §H3 above; symptom-side rather than root |
-| M10 | gRPC artifacts split: `shared/grpc/server.py` is deprecated; live gRPC entry is `agents/requirement_manager/grpc/server.py` | Low | `docs/overview/project-layout.md` lists this |
+| M10 | Closed: the deprecated `shared/grpc/server.py` entry point has been removed; shared gRPC keeps protocol artifacts only | Low | `docs/overview/project-layout.md`, `tests/integration/test_grpc_server.py` |
 | M11 | `data/` directory contains local development state under git ignore; not a code problem but a contributor surface to keep clean | Low | `.gitignore`, `docs/overview/project-layout.md` |
 
 ---
@@ -346,7 +346,7 @@ from §6 and align with the phases already drafted in
 | P2 | Define and adopt a per-runtime migration ownership story (separate Alembic directories or a per-runtime migration tool) | H1 closure; gate before any service extraction | Backend evolution plan Phase G |
 | P2 | Add a `users` / identity API boundary; route all writes through it | H9 closure | Backend evolution plan Phase E |
 | P2 | Add an explicit projection layer for Analysis | M5 closure | Backend evolution plan Phase C |
-| P3 | Keep retired `shared/services/*` and root `skills/*` from returning | M3 remains closed | Architecture-boundary tests |
+| P3 | Keep retired `shared/services/*`, root `skills/*`, and `shared.grpc.server` from returning | M3 / M10 remain closed | Architecture-boundary tests |
 | P3 | Split Sync into two sub-capability runtimes (OpenProject and Feishu Bitable) once each side has its own outbox and repository | M4 closure | Backend evolution plan Phase D |
 | P3 | Split `shared/control_plane/api.py` (1783 LOC) into per-aggregate routers | M1 closure | cosmetic; do after P0 H2 work |
 

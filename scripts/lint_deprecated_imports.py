@@ -2,8 +2,8 @@
 """CI lint: Block code from importing retired compatibility paths.
 
 Scans changed Python files for imports from retired module paths
-(``shared.services.*`` and root ``skills.*``) that should use canonical
-paths instead.
+(``shared.services.*``, root ``skills.*``, and retired runtime entry points)
+that should use canonical paths instead.
 
 Exit code 0 = clean, 1 = violations found.
 """
@@ -17,6 +17,18 @@ DEPRECATED_PATTERNS: list[tuple[str, str]] = [
     (r"import\s+shared\.services(?:\.|\s|$)", "canonical shared.* paths"),
     (r"from\s+skills(?:\.|\s|$)", "agents.requirement_manager.skills"),
     (r"import\s+skills(?:\.|\s|$)", "agents.requirement_manager.skills"),
+    (
+        r"from\s+shared\.grpc\.server(?:\s|$)",
+        "agents.requirement_manager.grpc.server",
+    ),
+    (
+        r"from\s+shared\.grpc\s+import\s+.*\bserver\b",
+        "agents.requirement_manager.grpc.server",
+    ),
+    (
+        r"import\s+shared\.grpc\.server(?:\s|$)",
+        "agents.requirement_manager.grpc.server",
+    ),
     (r"from\s+shared\.services\.gateway\b", "shared.messaging.inbound"),
     (r"from\s+shared\.services\.channel_gateway\b", "shared.messaging.outbound"),
     (r"from\s+shared\.services\.feishu\b", "shared.integrations.feishu"),
@@ -83,7 +95,10 @@ def main() -> int:
 
     if total_violations > 0:
         print(f"\n❌ {total_violations} retired compatibility import(s) found.")
-        print("Use canonical paths instead of shared.services.* or root skills.*.")
+        print(
+            "Use canonical paths instead of shared.services.*, root skills.*, "
+            "or shared.grpc.server."
+        )
         return 1
 
     print("✅ No retired compatibility imports found in changed files.")

@@ -27,7 +27,7 @@ item does not apply, write "n/a" with a one-line reason.
 ## 2. Boundary Compliance
 
 - [ ] No new cross-agent direct imports. (`AGENTS.md` Part 3 rule 1.)
-- [ ] No imports from retired `shared.services.*` or root `skills.*` paths.
+- [ ] No imports from retired `shared.services.*`, root `skills.*`, or `shared.grpc.server` paths.
 - [ ] Domain layer does not import from infrastructure or interfaces.
 - [ ] `controller / handler` does not contain business rules.
 - [ ] `application service` is not a god service.

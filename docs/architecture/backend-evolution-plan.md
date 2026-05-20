@@ -42,7 +42,7 @@ Closed Phase 1 audit gaps:
 | M1 (1783-LOC api.py) | Per-aggregate router split #135/#136 not done; routes use factory instead (cleaner outcome) |
 | M2 (no domain layer) | Closed — every runtime has `core/domain/` with aggregate/value object |
 | M5 (Analysis source-table drift) | Documented; no current drift, no projection layer needed yet |
-| M6 (non-uniform error envelope) | Structured runtime envelope landed at the `create_agent_app()` boundary; consumer-facing contract tests still pending |
+| M6 (non-uniform error envelope) | Structured runtime envelope landed at the `create_agent_app()` boundary; base consumer contract tests now cover auth, HTTPException, validation, and unexpected failures. Route-specific consumer tests remain incremental. |
 
 Stage 4 pre-condition #4 (non-prod deployment) and Stage 5 items 3, 5
 require infrastructure or tooling decisions outside the scope of
@@ -177,9 +177,9 @@ that guide, it is called out explicitly.
 | Gap | Why It Matters | Authoritative Reference |
 |-----|----------------|-------------------------|
 | Outbox tables share one database in the modular-monolith stage | Service extraction needs deployment evidence and a read-model strategy per runtime before this is broken apart | `backend-boundaries.md` §6 |
-| Retired compatibility layers under `shared/services/*` and root `skills/*` | Closed: the compatibility packages have been removed and tests use canonical paths | `backend-boundaries.md` §6, `project-layout.md` §"Current Structure Assessment" |
+| Retired compatibility layers under `shared/services/*`, root `skills/*`, and `shared.grpc.server` | Closed: the compatibility packages and deprecated gRPC runtime entry point have been removed; tests use canonical paths | `backend-boundaries.md` §6, `project-layout.md` §"Current Structure Assessment" |
 | Analysis can drift into source-table reads | Reporting code can become an implicit write owner of other domains | `backend-boundaries.md` §6 |
-| Error response contract tests are still thin | Runtime APIs now expose a structured envelope, but provider/consumer contract tests must prove clients can rely on it | `backend-boundaries.md` §6 |
+| Error response contract tests are still uneven at route level | Runtime APIs expose a structured envelope and base consumer tests prove the shared failure modes, but route-specific provider/consumer tests are not yet routine | `backend-boundaries.md` §6 |
 | `users` lacks a dedicated public user/profile API boundary | Identity data can become shared mutable state if unrelated modules write directly | `backend-boundaries.md` §6 |
 | Agent `core/` mixes use cases with domain rules and lifecycle helpers | Without an explicit domain layer, ports and use cases pick up domain invariants and can leak into adapters | Section 5 below |
 | Sync capability still hosts OpenProject and Feishu Bitable in one runtime | The sub-boundaries are split inside `core/`, but a single runtime makes targeted scaling and failure isolation impossible | `architecture.md` §3.1, `SPEC.md` §4.1.3 |
