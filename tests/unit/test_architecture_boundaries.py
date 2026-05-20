@@ -2442,7 +2442,8 @@ def test_control_plane_work_item_api_delegates_to_use_cases() -> None:
 
     assert "class ControlPlaneWorkItemStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneWorkItemStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
+    assert "WorkItemTable" in adapter_source
     assert "create_work_item_with_audit" in use_case_source
     assert "update_work_item_status_with_audit" in use_case_source
     assert "append_audit_event" in use_case_source
