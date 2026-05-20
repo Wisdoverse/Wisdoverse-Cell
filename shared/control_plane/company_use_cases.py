@@ -6,6 +6,7 @@ from typing import Any
 from shared.schemas.event import EventTypes
 
 from .company_ports import ControlPlaneCompanyStore
+from .domain_records import company_record
 from .models import AuditEvent, CompanyContext
 
 
@@ -22,21 +23,22 @@ async def list_companies(
     *,
     search: str | None = None,
     limit: int = 100,
-) -> list[Any]:
+) -> list[CompanyContext]:
     """List control-plane companies."""
-    return await store.list_companies(search=search, limit=limit)
+    rows = await store.list_companies(search=search, limit=limit)
+    return [company_record(row) for row in rows]
 
 
 async def get_company(
     store: ControlPlaneCompanyStore,
     *,
     company_id: str,
-) -> Any:
+) -> CompanyContext:
     """Return one company or raise not found."""
     row = await store.get_company(company_id)
     if row is None:
         raise CompanyNotFoundError(company_id)
-    return row
+    return company_record(row)
 
 
 async def create_company_with_audit(
@@ -47,7 +49,7 @@ async def create_company_with_audit(
     mission: str,
     metadata: dict[str, Any],
     created_by: str,
-) -> Any:
+) -> CompanyContext:
     """Create a company context and record its audit event."""
     if company_id and await store.get_company(company_id) is not None:
         raise CompanyAlreadyExistsError(company_id)
@@ -74,7 +76,7 @@ async def create_company_with_audit(
             },
         )
     )
-    return row
+    return company_record(row)
 
 
 async def update_company_with_audit(
@@ -85,7 +87,7 @@ async def update_company_with_audit(
     mission: str | None,
     metadata: dict[str, Any] | None,
     actor_id: str,
-) -> Any:
+) -> CompanyContext:
     """Update a company context and record its audit event."""
     row = await store.update_company_context(
         company_id,
@@ -110,4 +112,4 @@ async def update_company_with_audit(
             },
         )
     )
-    return row
+    return company_record(row)

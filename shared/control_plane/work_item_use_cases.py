@@ -1,10 +1,9 @@
 """Application use cases for control-plane work items."""
 from __future__ import annotations
 
-from typing import Any
-
 from shared.schemas.event import EventTypes
 
+from .domain_records import work_item_record
 from .models import (
     AuditEvent,
     CompanyContext,
@@ -38,9 +37,9 @@ async def list_work_items(
     owner_user_id: str | None = None,
     search: str | None = None,
     limit: int = 100,
-) -> list[Any]:
+) -> list[WorkItem]:
     """List work items for one company."""
-    return await store.list_work_items(
+    rows = await store.list_work_items(
         company_id=company_id,
         status=status,
         priority=priority,
@@ -50,6 +49,7 @@ async def list_work_items(
         search=search,
         limit=limit,
     )
+    return [work_item_record(row) for row in rows]
 
 
 async def get_work_item(
@@ -57,12 +57,12 @@ async def get_work_item(
     *,
     company_id: str,
     work_item_id: str,
-) -> Any:
+) -> WorkItem:
     """Return one work item in a company or raise not found."""
     row = await store.get_work_item(work_item_id)
     if row is None or row.company_id != company_id:
         raise WorkItemNotFoundError(work_item_id)
-    return row
+    return work_item_record(row)
 
 
 async def create_work_item_with_audit(
@@ -70,7 +70,7 @@ async def create_work_item_with_audit(
     work_item: WorkItem,
     *,
     created_by: str,
-) -> Any:
+) -> WorkItem:
     """Create a work item, validate links, and record its audit event."""
     await _ensure_company(store, work_item.company_id)
     if work_item.goal_id:
@@ -103,7 +103,7 @@ async def create_work_item_with_audit(
             },
         )
     )
-    return row
+    return work_item_record(row)
 
 
 async def update_work_item_status_with_audit(
@@ -115,7 +115,7 @@ async def update_work_item_status_with_audit(
     owner_agent_id: str | None,
     owner_user_id: str | None,
     actor_id: str,
-) -> Any:
+) -> WorkItem:
     """Update a work-item status and record its audit event."""
     existing = await store.get_work_item(work_item_id)
     if existing is None or existing.company_id != company_id:
@@ -147,7 +147,7 @@ async def update_work_item_status_with_audit(
             },
         )
     )
-    return row
+    return work_item_record(row)
 
 
 def enum_value(value: WorkItemPriority | WorkItemStatus | str | None) -> str | None:

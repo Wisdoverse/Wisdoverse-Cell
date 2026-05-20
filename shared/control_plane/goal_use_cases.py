@@ -1,10 +1,9 @@
 """Application use cases for control-plane goals."""
 from __future__ import annotations
 
-from typing import Any
-
 from shared.schemas.event import EventTypes
 
+from .domain_records import goal_record
 from .goal_ports import ControlPlaneGoalStore
 from .models import AuditEvent, CompanyContext, Goal, GoalStatus
 
@@ -26,9 +25,9 @@ async def list_goals(
     owner_user_id: str | None = None,
     search: str | None = None,
     limit: int = 100,
-) -> list[Any]:
+) -> list[Goal]:
     """List goals for one company."""
-    return await store.list_goals(
+    rows = await store.list_goals(
         company_id=company_id,
         status=status,
         owner_agent_id=owner_agent_id,
@@ -36,6 +35,7 @@ async def list_goals(
         search=search,
         limit=limit,
     )
+    return [goal_record(row) for row in rows]
 
 
 async def get_goal(
@@ -43,12 +43,12 @@ async def get_goal(
     *,
     company_id: str,
     goal_id: str,
-) -> Any:
+) -> Goal:
     """Return one goal in a company or raise not found."""
     row = await store.get_goal(goal_id)
     if row is None or row.company_id != company_id:
         raise GoalNotFoundError(goal_id)
-    return row
+    return goal_record(row)
 
 
 async def create_goal_with_audit(
@@ -56,7 +56,7 @@ async def create_goal_with_audit(
     goal: Goal,
     *,
     created_by: str,
-) -> Any:
+) -> Goal:
     """Create a goal, validate parent linkage, and record its audit event."""
     await _ensure_company(store, goal.company_id)
     if goal.parent_goal_id:
@@ -82,7 +82,7 @@ async def create_goal_with_audit(
             },
         )
     )
-    return row
+    return goal_record(row)
 
 
 async def update_goal_status_with_audit(
@@ -93,7 +93,7 @@ async def update_goal_status_with_audit(
     status: GoalStatus | str,
     current_value: float | None,
     actor_id: str,
-) -> Any:
+) -> Goal:
     """Update a goal status and record its audit event."""
     existing = await store.get_goal(goal_id)
     if existing is None or existing.company_id != company_id:
@@ -122,7 +122,7 @@ async def update_goal_status_with_audit(
             },
         )
     )
-    return row
+    return goal_record(row)
 
 
 async def _ensure_company(store: ControlPlaneGoalStore, company_id: str) -> None:

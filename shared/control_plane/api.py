@@ -689,6 +689,9 @@ def _serialize(value: Any) -> Any:
 
 
 def _row_to_dict(row: Any) -> dict[str, Any]:
+    if isinstance(row, BaseModel):
+        return row.model_dump(mode="json")
+
     data: dict[str, Any] = {}
     for attr_ref in row.__mapper__.column_attrs:
         attr = attr_ref.key

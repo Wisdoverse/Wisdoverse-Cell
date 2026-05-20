@@ -2538,6 +2538,37 @@ def test_control_plane_artifact_api_delegates_to_use_cases() -> None:
     assert "validate_execution_links" not in function_source
 
 
+def test_control_plane_operator_use_cases_return_domain_records() -> None:
+    """Operator-facing use cases should not return ORM rows to callers."""
+    api_source = Path("shared/control_plane/api.py").read_text()
+    mapper_source = Path("shared/control_plane/domain_records.py").read_text()
+    use_case_files = {
+        "company": Path("shared/control_plane/company_use_cases.py"),
+        "goal": Path("shared/control_plane/goal_use_cases.py"),
+        "work_item": Path("shared/control_plane/work_item_use_cases.py"),
+        "decision": Path("shared/control_plane/decision_use_cases.py"),
+        "artifact": Path("shared/control_plane/artifact_use_cases.py"),
+    }
+
+    assert "def company_record(" in mapper_source
+    assert "def goal_record(" in mapper_source
+    assert "def work_item_record(" in mapper_source
+    assert "def decision_record(" in mapper_source
+    assert "def artifact_record(" in mapper_source
+    assert "metadata=dict(row.metadata_json or {})" in mapper_source
+
+    for aggregate_name, path in use_case_files.items():
+        source = path.read_text()
+        mapper_name = f"{aggregate_name}_record"
+        assert f"from .domain_records import {mapper_name}" in source
+        assert f"{mapper_name}(row)" in source
+        assert "metadata_json" not in source
+
+    row_to_dict_source = _function_source(api_source, "_row_to_dict")
+    assert "isinstance(row, BaseModel)" in row_to_dict_source
+    assert 'row.model_dump(mode="json")' in row_to_dict_source
+
+
 def test_control_plane_evolution_proposal_api_delegates_to_use_cases() -> None:
     """Control-plane evolution proposal routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
