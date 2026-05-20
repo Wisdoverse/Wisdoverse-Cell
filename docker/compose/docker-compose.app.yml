@@ -43,6 +43,9 @@ x-app-security-env: &app-security-env
   CONTROL_PLANE_LOCAL_ADAPTER_ENABLED: ${CONTROL_PLANE_LOCAL_ADAPTER_ENABLED:-false}
   CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST: ${CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST:-}
 
+x-otel-env: &otel-env
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-http://tempo:4317}
+
 services:
   # ===========================================================================
 # Requirement manager agent (HTTP + gRPC), using the ai-core runtime service id.
@@ -84,14 +87,13 @@ services:
       API_HOST: "0.0.0.0"
       API_PORT: "8000"
       # LLM
-      <<: [*llm-env, *app-security-env]
+      <<: [*llm-env, *app-security-env, *otel-env]
       # Application
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       # Tracing
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-http://tempo:4317}
       OTEL_SERVICE_NAME: ai-core
     networks:
       - frontend
@@ -250,7 +252,7 @@ services:
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
       FEISHU_BITABLE_APP_TOKEN: ${FEISHU_BITABLE_APP_TOKEN:-}
       FEISHU_BITABLE_TABLE_ID: ${FEISHU_BITABLE_TABLE_ID:-}
-      <<: *app-security-env
+      <<: [*app-security-env, *otel-env]
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
       OTEL_SERVICE_NAME: sync-module
@@ -306,7 +308,7 @@ services:
       FEISHU_PM_APP_TOKEN: ${FEISHU_PM_APP_TOKEN:-}
       FEISHU_PM_TASK_TABLE_ID: ${FEISHU_PM_TASK_TABLE_ID:-}
       FEISHU_REPORT_CHAT_ID: ${FEISHU_REPORT_CHAT_ID:-}
-      <<: [*llm-env, *app-security-env]
+      <<: [*llm-env, *app-security-env, *otel-env]
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
       OTEL_SERVICE_NAME: analysis-module
@@ -367,7 +369,7 @@ services:
       FEISHU_REPORT_CHAT_ID: ${FEISHU_REPORT_CHAT_ID:-}
       OPENPROJECT_URL: ${OPENPROJECT_URL:-}
       OPENPROJECT_API_KEY: ${OPENPROJECT_API_KEY:-}
-      <<: [*llm-env, *app-security-env]
+      <<: [*llm-env, *app-security-env, *otel-env]
       DECOMPOSE_PROJECT_IDS: ${DECOMPOSE_PROJECT_IDS:-}
       DECOMPOSE_NOTIFY_OPEN_ID: ${DECOMPOSE_NOTIFY_OPEN_ID:-}
       APP_ENV: ${APP_ENV:-development}
@@ -423,7 +425,7 @@ services:
       FEISHU_APP_ID: ${FEISHU_APP_ID:-}
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
       FEISHU_VERIFY_SIGNATURE: "false"
-      <<: [*llm-env, *app-security-env]
+      <<: [*llm-env, *app-security-env, *otel-env]
       OPENPROJECT_URL: ${OPENPROJECT_URL:-}
       OPENPROJECT_API_KEY: ${OPENPROJECT_API_KEY:-}
       FEISHU_BITABLE_APP_TOKEN: ${FEISHU_BITABLE_APP_TOKEN:-}
@@ -486,7 +488,7 @@ services:
       GITLAB_QA_TOKEN: ${GITLAB_QA_TOKEN:-}
       QA_FEISHU_WEBHOOK_URL: ${QA_FEISHU_WEBHOOK_URL:-}
       QA_HIGH_SEVERITY_CHECKS: ${QA_HIGH_SEVERITY_CHECKS:-}
-      <<: [*llm-env, *app-security-env]
+      <<: [*llm-env, *app-security-env, *otel-env]
       FEISHU_APP_ID: ${FEISHU_APP_ID:-}
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
       FEISHU_WEBHOOK_URL: ${FEISHU_WEBHOOK_URL:-}
@@ -540,7 +542,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "6"
-      <<: [*llm-env, *app-security-env]
+      <<: [*llm-env, *app-security-env, *otel-env]
       DEV_GITLAB_API_URL: ${GITLAB_API_URL:-}
       DEV_GITLAB_PROJECT_ID: ${GITLAB_PROJECT_ID:-0}
       DEV_GITLAB_TOKEN: ${GITLAB_DEV_TOKEN:-}
@@ -596,7 +598,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "7"
-      <<: [*llm-env, *app-security-env]
+      <<: [*llm-env, *app-security-env, *otel-env]
       EVOLUTION_ENABLED: ${EVOLUTION_ENABLED:-true}
       EVOLUTION_COLLABORATION_ENABLED: ${EVOLUTION_COLLABORATION_ENABLED:-false}
       APP_ENV: ${APP_ENV:-development}
