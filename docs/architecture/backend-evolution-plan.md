@@ -184,7 +184,7 @@ that guide, it is called out explicitly.
 | Sync capability still hosts OpenProject and Feishu Bitable in one runtime | The sub-boundaries are split inside `core/`, but a single runtime makes targeted scaling and failure isolation impossible | `architecture.md` §3.1, `SPEC.md` §4.1.3 |
 | Each agent runtime still depends on shared Alembic migrations | A per-runtime migration story is required before any independent deployment | `backend-boundaries.md` §5 |
 | Cross-agent contract tests are thin | Architecture import tests are strong; provider/consumer event and HTTP contract tests are not yet routine | Section 8 below |
-| Observability lacks alert coverage for outbox lag and DLQ growth | Cross-cutting Prometheus metrics now have a canonical `shared.observability.metrics` boundary with event queue, Redis DLQ, and oldest pending outbox age collectors, but alert coverage is still incomplete | Section 7 below |
+| Observability dashboard coverage for outbox lag and DLQ growth is still thin | Cross-cutting Prometheus metrics now have a canonical `shared.observability.metrics` boundary with event queue, Redis DLQ, and oldest pending outbox age collectors; Alertmanager rules now cover outbox backlog age and DLQ growth/retention, but dashboard coverage and production threshold tuning are still incomplete | Section 7 below |
 
 ---
 
@@ -295,9 +295,10 @@ Run evidence is already first-class via the control-plane ledger and the
 `ControlPlanePlugin`. The follow-up items target outbox delivery, queue
 health, and provider boundaries.
 
-1. Emit and dashboard outbox-lag metrics per agent (`<agent>_event_outbox`
-   pending count, oldest unsent age, dispatcher cycle duration).
-2. Emit and dashboard EventBus `dlq.failed` size and rate per consumer group.
+1. Dashboard outbox-lag metrics per runtime
+   (`wisdoverse-cell_outbox_pending_oldest_age_seconds`,
+   dispatcher cycle duration, and dispatch outcome counters).
+2. Dashboard EventBus `dlq.failed` size and rate per consumer group.
 3. Add structured log fields for `trace_id`, `agent_id`, `work_item_id`,
    `run_id`, and `approval_id` consistently on every cross-boundary log line.
 4. Expose health and readiness signals through `create_agent_app()` for every

@@ -374,3 +374,70 @@ def test_production_compose_requires_runtime_db_passwords() -> None:
         compose = compose_path.read_text(encoding="utf-8")
         for var_name in required_vars:
             assert f"${{{var_name}:?{var_name} is required}}" in compose
+
+
+def test_prometheus_rules_cover_outbox_and_dlq_failure_modes() -> None:
+    """P0-3 observability must alert on outbox lag and DLQ growth."""
+    prometheus = Path("docker/prometheus/prometheus.yml").read_text(encoding="utf-8")
+    observability_compose = Path(
+        "docker/compose/docker-compose.observability.yml"
+    ).read_text(encoding="utf-8")
+    application_rules = Path("docker/prometheus/rules/application.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "- /etc/prometheus/rules/*.yml" in prometheus
+    assert "../prometheus/rules:/etc/prometheus/rules:ro" in observability_compose
+
+    required_alerts = {
+        "OutboxBacklogAgeWarning": [
+            '{__name__="wisdoverse-cell_outbox_pending_oldest_age_seconds"} > 300',
+            "severity: warning",
+            "outbox-dispatcher-stuck-or-lagging",
+        ],
+        "OutboxBacklogAgeCritical": [
+            '{__name__="wisdoverse-cell_outbox_pending_oldest_age_seconds"} > 900',
+            "severity: critical",
+            "outbox-dispatcher-stuck-or-lagging",
+        ],
+        "EventBusDLQGrowth": [
+            'increase({__name__="wisdoverse-cell_eventbus_dlq_messages_total"}[5m])',
+            "severity: critical",
+            "dlq-growth-on-dlqfailed",
+        ],
+        "EventBusDLQNotEmpty": [
+            '{__name__="wisdoverse-cell_eventbus_dlq_length"} > 0',
+            "severity: warning",
+            "dlq-growth-on-dlqfailed",
+        ],
+    }
+    for alert_name, snippets in required_alerts.items():
+        block = _alert_rule_block(application_rules, alert_name)
+        for snippet in snippets:
+            assert snippet in block, f"{alert_name} missing {snippet}"
+
+
+def test_prometheus_rules_escape_hyphenated_metric_names() -> None:
+    """PromQL selectors for ``wisdoverse-cell_*`` metrics must be parseable."""
+    application_rules = Path("docker/prometheus/rules/application.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert '{__name__="wisdoverse-cell_' in application_rules
+    forbidden_plain_selectors = [
+        "expr: wisdoverse-cell_",
+        "rate(wisdoverse-cell_",
+        "increase(wisdoverse-cell_",
+        "sum(wisdoverse-cell_",
+    ]
+    for selector in forbidden_plain_selectors:
+        assert selector not in application_rules
+
+
+def _alert_rule_block(rules: str, alert_name: str) -> str:
+    marker = f"      - alert: {alert_name}"
+    start = rules.index(marker)
+    next_alert = rules.find("\n      - alert: ", start + len(marker))
+    if next_alert == -1:
+        return rules[start:]
+    return rules[start:next_alert]

@@ -99,11 +99,15 @@ Mirrors the senior-architect brief's 10-item observability list.
    - `http_request_duration_seconds` (histogram) per route + method +
      status.
    - `http_request_errors_total` (counter) per route + error code.
-   - `event_outbox_pending_count` (gauge) per runtime + outbox.
-   - `event_outbox_oldest_unsent_age_seconds` (gauge) per outbox.
-   - `event_outbox_dispatcher_duration_seconds` (histogram) per
+   - `wisdoverse-cell_outbox_dispatch_events_total` (counter) per runtime
+     and outcome.
+   - `wisdoverse-cell_outbox_pending_oldest_age_seconds` (gauge) per
+     runtime.
+   - `wisdoverse-cell_outbox_dispatch_duration_seconds` (histogram) per
      dispatcher cycle.
-   - `eventbus_dlq_failed_total` (counter) per consumer group.
+   - `wisdoverse-cell_eventbus_dlq_messages_total` (counter) per agent and
+     failure stage.
+   - `wisdoverse-cell_eventbus_dlq_length` (gauge).
    - `external_call_duration_seconds` (histogram) per integration +
      operation.
    - `llm_request_tokens_total` (counter) per model + direction.
@@ -123,9 +127,10 @@ These are the minimum alerts. Tune thresholds per environment in
 
 | Alert | Condition | Severity |
 |-------|-----------|----------|
-| Outbox-lag warning | `event_outbox_oldest_unsent_age_seconds` > 60 s for 5 min | Warning |
-| Outbox-lag critical | > 5 min for 5 min | Critical |
-| DLQ growing | `eventbus_dlq_failed_total` rate > 0 over 5 min | Critical |
+| Outbox-lag warning | `{__name__="wisdoverse-cell_outbox_pending_oldest_age_seconds"} > 300` for 5 min | Warning |
+| Outbox-lag critical | `{__name__="wisdoverse-cell_outbox_pending_oldest_age_seconds"} > 900` for 2 min | Critical |
+| DLQ growing | `increase({__name__="wisdoverse-cell_eventbus_dlq_messages_total"}[5m]) > 0` | Critical |
+| DLQ not empty | `{__name__="wisdoverse-cell_eventbus_dlq_length"} > 0` for 10 min | Warning |
 | Route error spike | per-route 5xx rate > 1% over 10 min | Warning |
 | LLM budget breach | budget usage > 90% of period | Warning |
 | LLM budget hard breach | budget usage > 100% of period | Critical |

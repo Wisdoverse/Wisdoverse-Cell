@@ -31,9 +31,13 @@ groups:
 
       - record: job:llm_error_rate:ratio_5m
         expr: >
-          sum by (job) (rate(wisdoverse-cell_llm_requests_total{success="false"}[5m]))
+          sum by (job) (
+            rate({__name__="wisdoverse-cell_llm_requests_total",success="false"}[5m])
+          )
           /
-          sum by (job) (rate(wisdoverse-cell_llm_requests_total[5m]))
+          sum by (job) (
+            rate({__name__="wisdoverse-cell_llm_requests_total"}[5m])
+          )
 
   # ---------------------------------------------------------------------------
   # SLO Alerts — Latency & Error Budget
@@ -174,7 +178,7 @@ groups:
 
       # -- LLM Daily Cost Over Budget -----------------------------------------
       - alert: LLMDailyBudgetExceeded
-        expr: wisdoverse-cell_llm_daily_cost_dollars > 100
+        expr: '{__name__="wisdoverse-cell_llm_daily_cost_dollars"} > 100'
         for: 1m
         labels:
           severity: critical
@@ -190,7 +194,7 @@ groups:
 
       # -- LLM Daily Cost Warning (> 80% budget) -----------------------------
       - alert: LLMDailyBudgetWarning
-        expr: wisdoverse-cell_llm_daily_cost_dollars > 80
+        expr: '{__name__="wisdoverse-cell_llm_daily_cost_dollars"} > 80'
         for: 5m
         labels:
           severity: warning
@@ -205,7 +209,11 @@ groups:
 
       # -- LLM Response Latency High -----------------------------------------
       - alert: LLMResponseLatencyHigh
-        expr: histogram_quantile(0.95, rate(wisdoverse-cell_llm_request_duration_seconds_bucket[5m])) > 30
+        expr: >
+          histogram_quantile(
+            0.95,
+            rate({__name__="wisdoverse-cell_llm_request_duration_seconds_bucket"}[5m])
+          ) > 30
         for: 5m
         labels:
           severity: warning
@@ -225,7 +233,7 @@ groups:
     rules:
       # -- Tool Call Loop Detection -------------------------------------------
       - alert: ToolCallLoopDetected
-        expr: rate(wisdoverse-cell_chat_tool_calls_total[5m]) > 50
+        expr: 'rate({__name__="wisdoverse-cell_chat_tool_calls_total"}[5m]) > 50'
         for: 2m
         labels:
           severity: critical
@@ -241,7 +249,7 @@ groups:
 
       # -- Tool Call Elevated Rate (warning) ----------------------------------
       - alert: ToolCallRateElevated
-        expr: rate(wisdoverse-cell_chat_tool_calls_total[5m]) > 20
+        expr: 'rate({__name__="wisdoverse-cell_chat_tool_calls_total"}[5m]) > 20'
         for: 5m
         labels:
           severity: warning
@@ -261,7 +269,7 @@ groups:
     rules:
       # -- Event Queue Backlog Critical ---------------------------------------
       - alert: EventQueueBacklogCritical
-        expr: wisdoverse-cell_eventbus_queue_length > 5000
+        expr: '{__name__="wisdoverse-cell_eventbus_queue_length"} > 5000'
         for: 5m
         labels:
           severity: critical
@@ -276,7 +284,7 @@ groups:
 
       # -- Event Queue Backlog Warning ----------------------------------------
       - alert: EventQueueBacklogWarning
-        expr: wisdoverse-cell_eventbus_queue_length > 1000
+        expr: '{__name__="wisdoverse-cell_eventbus_queue_length"} > 1000'
         for: 10m
         labels:
           severity: warning
@@ -291,7 +299,8 @@ groups:
 
       # -- Event Processing Errors --------------------------------------------
       - alert: EventProcessingErrors
-        expr: increase(wisdoverse-cell_eventbus_processing_errors_total[5m]) > 10
+        expr: >
+          increase({__name__="wisdoverse-cell_eventbus_processing_errors_total"}[5m]) > 10
         for: 5m
         labels:
           severity: warning
@@ -303,3 +312,69 @@ groups:
             {{ $value | printf "%.0f" }} event processing errors in the last
             5 minutes. Check dead-letter queue and consumer logs.
           runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/event-processing-errors"
+
+      # -- Runtime Outbox Backlog Age Warning --------------------------------
+      - alert: OutboxBacklogAgeWarning
+        expr: '{__name__="wisdoverse-cell_outbox_pending_oldest_age_seconds"} > 300'
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: eventbus
+        annotations:
+          summary: "{{ $labels.runtime }} outbox oldest pending event > 5 minutes"
+          description: >-
+            Runtime {{ $labels.runtime }} has an outbox event pending for
+            {{ $value | humanizeDuration }}. Downstream consumers may see stale
+            state if dispatch does not recover.
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/outbox-dispatcher-stuck-or-lagging"
+
+      # -- Runtime Outbox Backlog Age Critical -------------------------------
+      - alert: OutboxBacklogAgeCritical
+        expr: '{__name__="wisdoverse-cell_outbox_pending_oldest_age_seconds"} > 900'
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          domain: eventbus
+        annotations:
+          summary: "{{ $labels.runtime }} outbox oldest pending event > 15 minutes"
+          description: >-
+            Runtime {{ $labels.runtime }} has an outbox event pending for
+            {{ $value | humanizeDuration }}. At-least-once integration delivery
+            is degraded and operator intervention is required.
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/outbox-dispatcher-stuck-or-lagging"
+
+      # -- Event Bus DLQ Growth ----------------------------------------------
+      - alert: EventBusDLQGrowth
+        expr: >
+          sum by (agent_id, failure_stage) (
+            increase({__name__="wisdoverse-cell_eventbus_dlq_messages_total"}[5m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          domain: eventbus
+        annotations:
+          summary: "EventBus DLQ is receiving failed events"
+          description: >-
+            {{ $value | printf "%.0f" }} events entered the EventBus DLQ in
+            the last 5 minutes for agent={{ $labels.agent_id }},
+            failure_stage={{ $labels.failure_stage }}.
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/dlq-growth-on-dlqfailed"
+
+      # -- Event Bus DLQ Not Empty -------------------------------------------
+      - alert: EventBusDLQNotEmpty
+        expr: '{__name__="wisdoverse-cell_eventbus_dlq_length"} > 0'
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+          domain: eventbus
+        annotations:
+          summary: "EventBus DLQ contains unreplayed events"
+          description: >-
+            EventBus DLQ currently has {{ $value | printf "%.0f" }} entries.
+            Inspect and replay or discard poisoned messages.
+          runbook_url: "https://github.com/Wisdoverse/Wisdoverse-Cell/blob/main/docs/guides/incident-response.md#/dlq-growth-on-dlqfailed"
