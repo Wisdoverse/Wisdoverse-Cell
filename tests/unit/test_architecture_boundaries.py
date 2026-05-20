@@ -218,7 +218,7 @@ def test_only_control_plane_imports_control_plane_orm() -> None:
     """ORM tables and the legacy monolith repository are private to the
     persistence layer. Code outside `shared.control_plane.*` must consume the
     control plane through ports/stores, not by importing ORM rows or the
-    902-LOC `repository.ControlPlaneRepository` god-class directly.
+    legacy `repository.ControlPlaneRepository` compatibility facade directly.
 
     Migration Plan §Stage 3 item 5 / Phase 1 audit P1-3 closure.
     """
@@ -2371,7 +2371,8 @@ def test_control_plane_company_api_delegates_to_use_cases() -> None:
 
     assert "class ControlPlaneCompanyStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneCompanyStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
+    assert "CompanyContextTable" in adapter_source
     assert "create_company_with_audit" in use_case_source
     assert "update_company_with_audit" in use_case_source
     assert "append_audit_event" in use_case_source

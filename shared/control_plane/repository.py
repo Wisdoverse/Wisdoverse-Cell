@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .company_store import SqlAlchemyControlPlaneCompanyStore
 from .domain.agent_run_lifecycle import TERMINAL_STATUSES as AGENT_RUN_TERMINAL_STATUSES
 from .models import (
     AgentRole,
@@ -74,16 +75,14 @@ class ControlPlaneRepository:
         self.session = session
 
     async def create_company(self, company: CompanyContext) -> CompanyContextTable:
-        row = CompanyContextTable(**_model_values(company))
-        self.session.add(row)
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneCompanyStore(self.session).create_company(
+            company
+        )
 
     async def get_company(self, company_id: str) -> CompanyContextTable | None:
-        result = await self.session.execute(
-            select(CompanyContextTable).where(CompanyContextTable.company_id == company_id)
+        return await SqlAlchemyControlPlaneCompanyStore(self.session).get_company(
+            company_id
         )
-        return result.scalar_one_or_none()
 
     async def list_companies(
         self,
@@ -91,20 +90,9 @@ class ControlPlaneRepository:
         search: str | None = None,
         limit: int = 100,
     ) -> list[CompanyContextTable]:
-        query = select(CompanyContextTable)
-        if search:
-            pattern = f"%{search}%"
-            query = query.where(
-                or_(
-                    CompanyContextTable.company_id.ilike(pattern),
-                    CompanyContextTable.name.ilike(pattern),
-                    CompanyContextTable.mission.ilike(pattern),
-                )
-            )
-        result = await self.session.execute(
-            query.order_by(CompanyContextTable.created_at.desc()).limit(limit)
-        )
-        return list(result.scalars().all())
+        return await SqlAlchemyControlPlaneCompanyStore(
+            self.session
+        ).list_companies(search=search, limit=limit)
 
     async def update_company_context(
         self,
@@ -114,18 +102,14 @@ class ControlPlaneRepository:
         mission: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> CompanyContextTable | None:
-        row = await self.get_company(company_id)
-        if row is None:
-            return None
-        if name is not None:
-            row.name = name
-        if mission is not None:
-            row.mission = mission
-        if metadata is not None:
-            row.metadata_json = _to_db_value(metadata)
-        row.updated_at = _now()
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneCompanyStore(
+            self.session
+        ).update_company_context(
+            company_id,
+            name=name,
+            mission=mission,
+            metadata=metadata,
+        )
 
     async def create_goal(self, goal: Goal) -> GoalTable:
         row = GoalTable(**_model_values(goal))
