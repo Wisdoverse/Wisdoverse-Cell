@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
+from .decision_store import SqlAlchemyControlPlaneDecisionStore
 from .goal_store import SqlAlchemyControlPlaneGoalStore
 from .models import (
     AgentRole,
@@ -416,16 +417,14 @@ class ControlPlaneRepository:
         )
 
     async def create_decision(self, decision: Decision) -> DecisionTable:
-        row = DecisionTable(**_model_values(decision))
-        self.session.add(row)
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneDecisionStore(
+            self.session
+        ).create_decision(decision)
 
     async def get_decision(self, decision_id: str) -> DecisionTable | None:
-        result = await self.session.execute(
-            select(DecisionTable).where(DecisionTable.decision_id == decision_id)
-        )
-        return result.scalar_one_or_none()
+        return await SqlAlchemyControlPlaneDecisionStore(
+            self.session
+        ).get_decision(decision_id)
 
     async def list_decisions(
         self,
@@ -438,21 +437,17 @@ class ControlPlaneRepository:
         work_item_id: str | None = None,
         limit: int = 50,
     ) -> list[DecisionTable]:
-        query = select(DecisionTable).where(DecisionTable.company_id == company_id)
-        if status:
-            query = query.where(DecisionTable.status == status)
-        if run_id:
-            query = query.where(DecisionTable.run_id == run_id)
-        elif run_ids:
-            query = query.where(DecisionTable.run_id.in_(run_ids))
-        if goal_id:
-            query = query.where(DecisionTable.goal_id == goal_id)
-        if work_item_id:
-            query = query.where(DecisionTable.work_item_id == work_item_id)
-        result = await self.session.execute(
-            query.order_by(DecisionTable.created_at.desc()).limit(limit)
+        return await SqlAlchemyControlPlaneDecisionStore(
+            self.session
+        ).list_decisions(
+            company_id=company_id,
+            status=status,
+            run_id=run_id,
+            run_ids=run_ids,
+            goal_id=goal_id,
+            work_item_id=work_item_id,
+            limit=limit,
         )
-        return list(result.scalars().all())
 
     async def update_decision_status(
         self,
@@ -462,17 +457,14 @@ class ControlPlaneRepository:
         selected_option: str | None = None,
         decided_by: str | None = None,
     ) -> DecisionTable | None:
-        row = await self.get_decision(decision_id)
-        if row is None:
-            return None
-        row.status = status
-        if selected_option is not None:
-            row.selected_option = selected_option
-        if decided_by is not None:
-            row.decided_by = decided_by
-        row.updated_at = _now()
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneDecisionStore(
+            self.session
+        ).update_decision_status(
+            decision_id,
+            status=status,
+            selected_option=selected_option,
+            decided_by=decided_by,
+        )
 
     async def request_approval(self, approval: ApprovalRequest) -> ApprovalRequestTable:
         row = ApprovalRequestTable(**_model_values(approval))

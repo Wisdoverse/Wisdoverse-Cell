@@ -2479,7 +2479,8 @@ def test_control_plane_decision_api_delegates_to_use_cases() -> None:
 
     assert "class ControlPlaneDecisionStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneDecisionStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "DecisionTable" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
     assert "create_decision_with_audit" in use_case_source
     assert "update_decision_status_with_audit" in use_case_source
     assert "append_audit_event" in use_case_source
