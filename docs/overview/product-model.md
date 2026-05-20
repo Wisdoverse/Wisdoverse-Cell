@@ -39,7 +39,7 @@ Cell applies that model to its own stack and company-operating thesis.
 |--------|---------|------------------|
 | Company | Top-level operating context | Wisdoverse Cell deployment and tenant boundary |
 | Mission | Long-term operating direction | README vision and PRD goals |
-| Goal | Measurable business objective | `ControlPlaneRepository` goal ledger and `/api/v1/control-plane/goals` |
+| Goal | Measurable business objective | Control-plane goal store and `/api/v1/control-plane/goals` |
 | Agent Role | Organization role, interaction mode, context sources, scope, policy, adapter, and budget | `AgentRole` records with `agent_kind`, `interaction_mode`, `context_sources`, frontend-created agents, adapter registry |
 | Work Item | Durable unit of work | Control-plane work-item ledger, OpenProject work package, Feishu task/card, PRD item |
 | Agent Run | One execution attempt with state, tools, logs, and cost | `ControlPlanePlugin`, `AgentRun`, wakeup runner, EventBus traces, QA checks |

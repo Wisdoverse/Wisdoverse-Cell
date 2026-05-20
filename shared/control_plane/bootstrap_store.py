@@ -6,9 +6,11 @@ from typing import Any
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .agent_registry_store import SqlAlchemyControlPlaneAgentRegistryStore
+from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from .bootstrap_ports import ControlPlaneRoleBootstrapStore
+from .company_store import SqlAlchemyControlPlaneCompanyStore
 from .models import AgentRole, AuditEvent, CompanyContext
-from .repository import ControlPlaneRepository
 
 
 class SqlAlchemyControlPlaneRoleBootstrapStore(ControlPlaneRoleBootstrapStore):
@@ -16,15 +18,17 @@ class SqlAlchemyControlPlaneRoleBootstrapStore(ControlPlaneRoleBootstrapStore):
 
     def __init__(self, session: AsyncSession):
         self._session = session
-        self._roles = ControlPlaneRepository(session)
+        self._companies = SqlAlchemyControlPlaneCompanyStore(session)
+        self._roles = SqlAlchemyControlPlaneAgentRegistryStore(session)
+        self._audits = SqlAlchemyControlPlaneAuditEventStore(session)
 
     async def get_company(self, company_id: str) -> Any | None:
-        return await self._roles.get_company(company_id)
+        return await self._companies.get_company(company_id)
 
     async def create_company_if_absent(self, company: CompanyContext) -> Any | None:
         try:
             async with self._session.begin_nested():
-                return await self._roles.create_company(company)
+                return await self._companies.create_company(company)
         except IntegrityError:
             return None
 
@@ -47,4 +51,4 @@ class SqlAlchemyControlPlaneRoleBootstrapStore(ControlPlaneRoleBootstrapStore):
             return None
 
     async def append_audit_event(self, event: AuditEvent) -> Any:
-        return await self._roles.append_audit_event(event)
+        return await self._audits.append_audit_event(event)
