@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 from shared.app.runtime import HealthCheckResult, RuntimePlugin
 from shared.config import settings
-from shared.infra.metrics import EVENT_QUEUE_LENGTH
+from shared.observability.metrics import EVENT_QUEUE_LENGTH
 from shared.utils.logger import get_logger
 
 logger = get_logger("plugin.infra-health")

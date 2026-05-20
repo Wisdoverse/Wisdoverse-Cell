@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from typing import Optional
 
 from shared.infra.circuit_breaker import CircuitState
-from shared.infra.metrics import (
+from shared.observability.metrics import (
     LOOP_BREAKER_NO_PROGRESS_ROUNDS,
     LOOP_BREAKER_OUTPUT_DECLINE_RATIO,
     LOOP_BREAKER_STATE,

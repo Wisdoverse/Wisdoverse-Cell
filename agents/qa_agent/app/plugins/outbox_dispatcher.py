@@ -4,7 +4,7 @@ import asyncio
 import time
 
 from shared.app.runtime import HealthCheckResult, RuntimePlugin
-from shared.infra.metrics import (
+from shared.observability.metrics import (
     OUTBOX_DISPATCH_DURATION_SECONDS,
     OUTBOX_DISPATCH_ERRORS,
     OUTBOX_DISPATCH_EVENTS,

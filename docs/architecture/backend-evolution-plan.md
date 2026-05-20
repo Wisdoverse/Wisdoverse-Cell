@@ -35,7 +35,7 @@ Closed Phase 1 audit gaps:
 | H1 / P0-2 (single Alembic dir) | Design closure #154; physical cutover deferred |
 | H2 / P0-1 (902-LOC repository monolith) | Reduced via per-aggregate stores + factory #134/#135/#136 |
 | H5 / P1-3 (ORM leak into business logic) | Closed for routes #135/#136 and ApprovalGate #143 |
-| H6 / P0-3 (no outbox metrics) | ✓ #128 + #129 (all 10 runtimes) |
+| H6 / P0-3 (no outbox metrics) | ✓ #128 + #129 (all 10 runtimes); shared cross-cutting metrics are now owned by `shared.observability.metrics` with `shared.infra.metrics` kept as a compatibility shim |
 | H8 / P1-4 (no contract tests) | ✓ event-catalog tests #153 |
 | H9 / P1-5 (no Identity boundary) | Closed at design layer #142 |
 | M1 (1783-LOC api.py) | Per-aggregate router split #135/#136 not done; routes use factory instead (cleaner outcome) |
@@ -184,7 +184,7 @@ that guide, it is called out explicitly.
 | Sync capability still hosts OpenProject and Feishu Bitable in one runtime | The sub-boundaries are split inside `core/`, but a single runtime makes targeted scaling and failure isolation impossible | `architecture.md` §3.1, `SPEC.md` §4.1.3 |
 | Each agent runtime still depends on shared Alembic migrations | A per-runtime migration story is required before any independent deployment | `backend-boundaries.md` §5 |
 | Cross-agent contract tests are thin | Architecture import tests are strong; provider/consumer event and HTTP contract tests are not yet routine | Section 8 below |
-| Observability lacks outbox-lag and DLQ alerting | At-least-once delivery is documented, but operator evidence for sustained outbox backlog is incomplete | Section 7 below |
+| Observability lacks outbox-lag and DLQ alerting | Cross-cutting Prometheus metrics now have a canonical `shared.observability.metrics` boundary, but operator evidence for sustained outbox backlog and DLQ growth is still incomplete | Section 7 below |
 
 ---
 

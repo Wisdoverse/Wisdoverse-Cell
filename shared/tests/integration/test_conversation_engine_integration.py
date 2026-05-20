@@ -20,7 +20,7 @@ from shared.infra.conversation_engine import (
     StopReason,
 )
 from shared.infra.llm_errors import ContentSizeError
-from shared.infra.metrics import LLM_ERROR_TOTAL, LLM_FALLBACK_TOTAL
+from shared.observability.metrics import LLM_ERROR_TOTAL, LLM_FALLBACK_TOTAL
 
 
 def _mock_response(text="OK", stop_reason="end_turn", tool_use_blocks=None):
