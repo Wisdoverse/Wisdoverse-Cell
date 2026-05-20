@@ -449,6 +449,12 @@ Start it with:
 make monitoring-up
 ```
 
+Production Python runtimes fail closed unless `OTEL_ENDPOINT` or the standard
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set. The production Compose stack defaults
+`OTEL_ENDPOINT` to `http://tempo:4317` through
+`docker/compose/docker-compose.app.yml`; use an external collector endpoint when
+Tempo is not part of the deployment.
+
 Critical signals:
 
 | Signal | Target |

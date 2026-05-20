@@ -36,6 +36,7 @@ Closed Phase 1 audit gaps:
 | H2 / P0-1 (902-LOC repository monolith) | Reduced via per-aggregate stores + factory #134/#135/#136 |
 | H5 / P1-3 (ORM leak into business logic) | Closed for routes #135/#136 and ApprovalGate #143 |
 | H6 / P0-3 (no outbox metrics) | ✓ #128 + #129 (all 10 runtimes); shared cross-cutting metrics are now owned by `shared.observability.metrics` with `shared.infra.metrics` kept as a compatibility shim |
+| P0-4 (optional tracing) | Runtime tracing now installs a provider in non-production even without an exporter; production settings fail closed without `OTEL_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` |
 | H8 / P1-4 (no contract tests) | ✓ event-catalog tests #153 |
 | H9 / P1-5 (no Identity boundary) | Closed at design layer #142 |
 | M1 (1783-LOC api.py) | Per-aggregate router split #135/#136 not done; routes use factory instead (cleaner outcome) |

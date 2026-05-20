@@ -11,6 +11,7 @@ PYTEST_PUBLIC_PATHS = \
 	tests/unit/test_config_secrets.py \
 	tests/unit/test_docker_contracts.py \
 	tests/unit/test_middleware.py \
+	tests/unit/test_tracing.py \
 	tests/unit/test_rust_python_migration_audit.py \
 	tests/unit/test_rust_gateway_prod_shadow_preflight.py \
 	tests/unit/test_rust_gateway_prod_gate.py \

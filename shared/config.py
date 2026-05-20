@@ -240,7 +240,13 @@ class Settings(BaseSettings):
 
     # ============ OpenTelemetry Configuration ============
     otel_endpoint: str = ""
+    otel_exporter_otlp_endpoint: str = ""
     otel_service_name: str = "ai-core"
+
+    @property
+    def resolved_otel_endpoint(self) -> str:
+        """Resolve the repo alias or the standard OTLP exporter endpoint."""
+        return self.otel_endpoint.strip() or self.otel_exporter_otlp_endpoint.strip()
 
     # ============ MCP Protocol Configuration ============
     mcp_enabled: bool = False
@@ -398,6 +404,8 @@ class Settings(BaseSettings):
             missing.append("INTERNAL_SERVICE_KEY")
         if not self.internal_transport_protection:
             missing.append("INTERNAL_TRANSPORT_PROTECTION")
+        if not self.resolved_otel_endpoint:
+            missing.append("OTEL_ENDPOINT or OTEL_EXPORTER_OTLP_ENDPOINT")
         if not self.control_plane_enabled:
             missing.append("CONTROL_PLANE_ENABLED")
         if not self.control_plane_approval_enforced:

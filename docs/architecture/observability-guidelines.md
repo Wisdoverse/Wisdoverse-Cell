@@ -84,9 +84,13 @@ Mirrors the senior-architect brief's 10-item observability list.
    (c) outbound LLM gateway calls.
 3. Spans carry attributes: `runtime.id`, `route.name`, `event.type`,
    `aggregate.id`, `error.code` (when failed).
-4. OpenTelemetry is always-on; a no-op exporter is the fallback when
-   `settings.otel_endpoint` is unset.
-5. Sampling defaults to 100% for non-prod and a documented ratio (e.g.,
+4. OpenTelemetry is always-on through `create_agent_app()`. Non-production
+   runtimes without an exporter endpoint install a no-export `TracerProvider`
+   so trace context and instrumentation stay active.
+5. Production-like runtimes must provide `OTEL_ENDPOINT` or the standard
+   `OTEL_EXPORTER_OTLP_ENDPOINT`; startup configuration fails closed when both
+   are empty.
+6. Sampling defaults to 100% for non-prod and a documented ratio (e.g.,
    10%) for prod; documented in `operations.md`.
 
 ---

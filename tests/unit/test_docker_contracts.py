@@ -376,6 +376,21 @@ def test_production_compose_requires_runtime_db_passwords() -> None:
             assert f"${{{var_name}:?{var_name} is required}}" in compose
 
 
+def test_split_python_runtimes_share_otel_endpoint_contract() -> None:
+    """Every Python runtime needs an OTLP endpoint before service extraction."""
+    compose = Path("docker/compose/docker-compose.app.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "x-otel-env: &otel-env" in compose
+    assert "OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-http://tempo:4317}" in compose
+
+    for service_name in PYTHON_RUNTIME_ROLES:
+        block = _compose_service_block(compose, service_name)
+        assert "*otel-env" in block, f"{service_name} does not merge the OTEL env"
+        assert f"OTEL_SERVICE_NAME: {service_name}" in block
+
+
 def test_prometheus_rules_cover_outbox_and_dlq_failure_modes() -> None:
     """P0-3 observability must alert on outbox lag and DLQ growth."""
     prometheus = Path("docker/prometheus/prometheus.yml").read_text(encoding="utf-8")

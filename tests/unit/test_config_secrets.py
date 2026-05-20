@@ -200,6 +200,27 @@ class TestEnvFileContract:
         assert settings.postgres_password.get_secret_value() == "pg-secret"
         assert not hasattr(settings, "compose_project_name")
 
+    def test_standard_otlp_endpoint_env_is_supported(self, monkeypatch):
+        from shared.config import Settings
+
+        monkeypatch.delenv("OTEL_ENDPOINT", raising=False)
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://tempo:4317")
+
+        settings = Settings(_env_file=None)
+
+        assert settings.otel_exporter_otlp_endpoint == "http://tempo:4317"
+        assert settings.resolved_otel_endpoint == "http://tempo:4317"
+
+    def test_repo_otel_endpoint_alias_takes_precedence(self, monkeypatch):
+        from shared.config import Settings
+
+        monkeypatch.setenv("OTEL_ENDPOINT", "http://otel-collector:4317")
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://tempo:4317")
+
+        settings = Settings(_env_file=None)
+
+        assert settings.resolved_otel_endpoint == "http://otel-collector:4317"
+
 
 class TestNonSecretFieldsUnchanged:
     """pm_api_key and internal_service_key stay as plain str."""
@@ -252,6 +273,7 @@ class TestProductionSecretValidation:
             pm_api_key="pm-key",
             internal_service_key="internal-key",
             internal_transport_protection="trusted_private_network",
+            otel_endpoint="http://tempo:4317",
             control_plane_enabled=True,
             control_plane_approval_enforced=True,
             a2a_jwt_secret="a2a-secret",
@@ -312,6 +334,7 @@ class TestProductionSecretValidation:
             pm_api_key="pm-key",
             internal_service_key="internal-key",
             internal_transport_protection="trusted_private_network",
+            otel_endpoint="http://tempo:4317",
             control_plane_enabled=True,
             control_plane_approval_enforced=True,
             a2a_jwt_secret="a2a-secret",
@@ -337,11 +360,31 @@ class TestProductionSecretValidation:
             pm_api_key="pm-key",
             internal_service_key="internal-key",
             internal_transport_protection="service_mesh",
+            otel_exporter_otlp_endpoint="http://tempo:4317",
             control_plane_enabled=True,
             control_plane_approval_enforced=True,
             a2a_jwt_secret="a2a-secret",
         )
         assert settings.litellm_api_base == "https://litellm.internal/v1"
+
+    def test_production_rejects_missing_otel_endpoint(self):
+        from shared.config import Settings
+
+        with pytest.raises(ValidationError, match="OTEL_ENDPOINT"):
+            Settings(
+                _env_file=None,
+                app_env="production",
+                postgres_password="pg-secret",
+                redis_password="redis-secret",
+                anthropic_api_key="llm-secret",
+                secret_key="secret-key",
+                pm_api_key="pm-key",
+                internal_service_key="internal-key",
+                internal_transport_protection="trusted_private_network",
+                control_plane_enabled=True,
+                control_plane_approval_enforced=True,
+                a2a_jwt_secret="a2a-secret",
+            )
 
     def test_production_rejects_selected_openai_model_without_openai_key(self):
         from shared.config import Settings

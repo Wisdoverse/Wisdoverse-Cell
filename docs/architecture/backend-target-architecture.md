@@ -161,7 +161,7 @@ impact, risk level, and recommended handling.
 | P0-1 | `shared/control_plane/repository.py` is 902 LOC and remains the active query layer. Per-aggregate `*_store.py` files delegate into it instead of owning persistence. | `shared/control_plane/repository.py`, all `shared/control_plane/*_store.py` | Every control-plane aggregate touches the same monolith; regressions cascade; future split impossible without disentangling. | High | Move per-aggregate SQL from the central repository into the matching store; reduce repository to a thin facade with a deprecation horizon. |
 | P0-2 | Single Alembic directory holds 19 migrations for every runtime; per-runtime ownership impossible. | `migrations/versions/` | Blocks Phase 4 service-boundary evolution; any agent extraction requires global migration coordination. | High | Plan and adopt per-runtime migration ownership (separate Alembic dirs or a per-runtime migration tool) before service extraction starts. |
 | P0-3 | Shared Prometheus metrics now live at the `shared.observability.metrics` boundary and cover LLM cost/tokens, event loop errors, loop breaker state, event queue length by stream, Redis DLQ length/rate, outbox dispatcher totals/duration/errors, and oldest pending outbox age per runtime. Alert rules now cover outbox backlog age and DLQ growth/retention. Remaining gap: dashboard panels and threshold tuning need production evidence. | `shared/observability/metrics.py`, `shared/observability/outbox.py`, `shared/infra/event_bus.py`, `docker/prometheus/rules/application.yml`, runtime outbox dispatch use cases, `shared/infra/metrics.py` compatibility shim | Operators have a canonical metrics and alerting boundary for sustained DLQ growth, stream backlog, and outbox backlog age before service extraction. | Low | Keep new metric definitions under `shared.observability.metrics`; add dashboard panels and tune thresholds from production evidence. |
-| P0-4 | OpenTelemetry tracing is optional and gated on `settings.otel_endpoint`. Production may run without distributed traces. | `shared/observability/tracing.py:22-56` | Cross-runtime root-cause investigation impossible without traces. | High | Make tracing always-on with a no-op exporter fallback; require OTel endpoint in production-like deployments. |
+| P0-4 | OpenTelemetry tracing now installs a runtime `TracerProvider` even when non-production lacks an exporter, and production settings fail closed without `OTEL_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT`. Remaining gap: sampling policy and trace dashboard evidence need production tuning. | `shared/observability/tracing.py`, `shared/config.py`, `docker/compose/docker-compose.app.yml` | Cross-runtime traces have a mandatory bootstrap contract before service extraction; non-prod keeps trace context without requiring a collector. | Low | Keep tracing initialized through `create_agent_app()`; add sampling policy and dashboard evidence during production hardening. |
 | P0-5 | Runtime error responses now use the shared structured envelope at the `create_agent_app()` boundary, but consumer contract tests still need to prove the rollout across API clients. | `shared/api/errors.py`, `shared/middleware/error_handler.py`, `shared/app/factory.py` | Operators have a consistent runtime body/header shape; remaining risk is untested client assumptions and direct-router test harness drift. | Medium | Add provider/consumer tests for the envelope and keep the legacy `detail` field until clients have migrated. |
 
 ### 2.2 P1 — High Priority
@@ -605,9 +605,9 @@ The brief's 10-item observability list maps to the following minimum bar.
 
 Implementation choice (recommend committing to it in Stage 0):
 
-- **Tracing**: OpenTelemetry traces always-on with a no-op exporter
-  fallback; OTLP exporter in production. `shared/observability/tracing.py`
-  already supports it.
+- **Tracing**: OpenTelemetry traces always-on with a no-export fallback in
+  non-production; production settings require `OTEL_ENDPOINT` or
+  `OTEL_EXPORTER_OTLP_ENDPOINT`.
 - **Metrics**: Prometheus exposition via a FastAPI `/metrics` endpoint on
   every agent and gateway (gated by an internal auth key); future OTel
   metrics pipeline once Prometheus baseline is stable.
