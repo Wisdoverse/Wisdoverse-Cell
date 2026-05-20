@@ -9,7 +9,7 @@ from shared.control_plane.bootstrap import (
 )
 from shared.control_plane.bootstrap_store import SqlAlchemyControlPlaneRoleBootstrapStore
 from shared.control_plane.models import AgentKind
-from shared.control_plane.repository import ControlPlaneRepository
+from shared.control_plane.store_factory import ControlPlaneStores
 from shared.schemas.event import EventTypes
 
 CORE_ROLE_AGENT_IDS = {"ceo", "cto", "cpo", "coo"}
@@ -31,7 +31,7 @@ CORE_RUNTIME_AGENT_IDS = {
 async def test_bootstrap_creates_core_organization_role_agents(
     db_session: AsyncSession,
 ):
-    repo = ControlPlaneRepository(db_session)
+    stores = ControlPlaneStores(db_session)
     store = SqlAlchemyControlPlaneRoleBootstrapStore(db_session)
 
     created = await ensure_core_organization_role_agents(
@@ -40,13 +40,13 @@ async def test_bootstrap_creates_core_organization_role_agents(
         created_by="test-bootstrap",
     )
 
-    rows = await repo.list_agent_roles(
+    rows = await stores.agent_registry.list_agent_roles(
         company_id="cmp_bootstrap",
         agent_kind=AgentKind.ORGANIZATION_ROLE,
         limit=20,
     )
     roles_by_id = {row.agent_id: row for row in rows}
-    audits = await repo.list_audit_events(
+    audits = await stores.audit_events.list_audit_events(
         company_id="cmp_bootstrap",
         target_type="agent_role",
         limit=20,
@@ -82,7 +82,7 @@ async def test_bootstrap_creates_core_organization_role_agents(
 
 @pytest.mark.asyncio
 async def test_bootstrap_is_idempotent(db_session: AsyncSession):
-    repo = ControlPlaneRepository(db_session)
+    stores = ControlPlaneStores(db_session)
     store = SqlAlchemyControlPlaneRoleBootstrapStore(db_session)
 
     first_created = await ensure_core_organization_role_agents(
@@ -94,12 +94,12 @@ async def test_bootstrap_is_idempotent(db_session: AsyncSession):
         company_id="cmp_bootstrap_idempotent",
     )
 
-    rows = await repo.list_agent_roles(
+    rows = await stores.agent_registry.list_agent_roles(
         company_id="cmp_bootstrap_idempotent",
         agent_kind=AgentKind.ORGANIZATION_ROLE,
         limit=20,
     )
-    audits = await repo.list_audit_events(
+    audits = await stores.audit_events.list_audit_events(
         company_id="cmp_bootstrap_idempotent",
         target_type="agent_role",
         limit=20,
@@ -116,7 +116,7 @@ async def test_bootstrap_is_idempotent(db_session: AsyncSession):
 async def test_bootstrap_creates_configurable_runtime_agent_roles(
     db_session: AsyncSession,
 ):
-    repo = ControlPlaneRepository(db_session)
+    stores = ControlPlaneStores(db_session)
     store = SqlAlchemyControlPlaneRoleBootstrapStore(db_session)
 
     created = await ensure_core_runtime_agent_roles(
@@ -125,7 +125,7 @@ async def test_bootstrap_creates_configurable_runtime_agent_roles(
         created_by="test-runtime-bootstrap",
     )
 
-    rows = await repo.list_agent_roles(
+    rows = await stores.agent_registry.list_agent_roles(
         company_id="cmp_runtime_bootstrap",
         limit=50,
     )
@@ -134,7 +134,7 @@ async def test_bootstrap_creates_configurable_runtime_agent_roles(
         for row in rows
         if row.metadata_json.get("seed_source") == "core_runtime_modules"
     }
-    audits = await repo.list_audit_events(
+    audits = await stores.audit_events.list_audit_events(
         company_id="cmp_runtime_bootstrap",
         target_type="agent_role",
         limit=50,
@@ -169,7 +169,7 @@ async def test_bootstrap_creates_configurable_runtime_agent_roles(
 
 @pytest.mark.asyncio
 async def test_runtime_agent_bootstrap_is_idempotent(db_session: AsyncSession):
-    repo = ControlPlaneRepository(db_session)
+    stores = ControlPlaneStores(db_session)
     store = SqlAlchemyControlPlaneRoleBootstrapStore(db_session)
 
     first_created = await ensure_core_runtime_agent_roles(
@@ -181,11 +181,11 @@ async def test_runtime_agent_bootstrap_is_idempotent(db_session: AsyncSession):
         company_id="cmp_runtime_bootstrap_idempotent",
     )
 
-    rows = await repo.list_agent_roles(
+    rows = await stores.agent_registry.list_agent_roles(
         company_id="cmp_runtime_bootstrap_idempotent",
         limit=50,
     )
-    audits = await repo.list_audit_events(
+    audits = await stores.audit_events.list_audit_events(
         company_id="cmp_runtime_bootstrap_idempotent",
         target_type="agent_role",
         limit=50,

@@ -18,6 +18,7 @@ from shared.control_plane.agent_registry_store import (
 from shared.control_plane.agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from shared.control_plane.approval_store import SqlAlchemyControlPlaneApprovalStore
 from shared.control_plane.artifact_store import SqlAlchemyControlPlaneArtifactStore
+from shared.control_plane.audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from shared.control_plane.audit_timeline_store import (
     SqlAlchemyControlPlaneAuditTimelineStore,
 )
@@ -80,6 +81,11 @@ def test_approvals_returns_approval_store():
 def test_artifacts_returns_artifact_store():
     stores, _ = _factory()
     assert isinstance(stores.artifacts, SqlAlchemyControlPlaneArtifactStore)
+
+
+def test_audit_events_returns_audit_event_store():
+    stores, _ = _factory()
+    assert isinstance(stores.audit_events, SqlAlchemyControlPlaneAuditEventStore)
 
 
 def test_audit_timeline_returns_audit_timeline_store():

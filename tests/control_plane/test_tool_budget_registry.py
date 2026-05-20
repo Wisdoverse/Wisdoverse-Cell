@@ -17,7 +17,7 @@ from shared.control_plane.models import (
     BudgetScope,
     CompanyContext,
 )
-from shared.control_plane.repository import ControlPlaneRepository
+from shared.control_plane.store_factory import ControlPlaneStores
 from shared.infra.tool_registry import ToolContext, ToolResult, build_tool
 
 
@@ -34,11 +34,11 @@ def _session_provider(db_session: AsyncSession):
 async def test_expensive_tool_merges_cost_into_agent_run(
     db_session: AsyncSession,
 ):
-    repo = ControlPlaneRepository(db_session)
-    company = await repo.create_company(
+    stores = ControlPlaneStores(db_session)
+    company = await stores.companies.create_company(
         CompanyContext(company_id="cmp_tool_cost", name="Tool Cost Test")
     )
-    run = await repo.create_agent_run(
+    run = await stores.agent_runs.create_agent_run(
         AgentRun(
             company_id=company.company_id,
             agent_id="dev-agent",
@@ -68,7 +68,7 @@ async def test_expensive_tool_merges_cost_into_agent_run(
         ),
     )
 
-    updated = await repo.get_agent_run(run.run_id)
+    updated = await stores.agent_runs.get_agent_run(run.run_id)
     assert result.success is True
     assert updated is not None
     assert updated.cost_usd == pytest.approx(1.25)
@@ -83,11 +83,11 @@ async def test_expensive_tool_budget_blocks_before_handler(
         "shared.infra.tool_registry.settings.control_plane_tool_budget_enforced",
         True,
     )
-    repo = ControlPlaneRepository(db_session)
-    company = await repo.create_company(
+    stores = ControlPlaneStores(db_session)
+    company = await stores.companies.create_company(
         CompanyContext(company_id="cmp_tool_block", name="Tool Block Test")
     )
-    await repo.create_budget_policy(
+    await stores.budgets.create_budget_policy(
         BudgetPolicy(
             company_id=company.company_id,
             scope=BudgetScope.AGENT,
@@ -96,7 +96,7 @@ async def test_expensive_tool_budget_blocks_before_handler(
             limit_usd=0.5,
         )
     )
-    run = await repo.create_agent_run(
+    run = await stores.agent_runs.create_agent_run(
         AgentRun(
             company_id=company.company_id,
             agent_id="dev-agent",
@@ -129,7 +129,7 @@ async def test_expensive_tool_budget_blocks_before_handler(
             ),
         )
 
-    updated = await repo.get_agent_run(run.run_id)
+    updated = await stores.agent_runs.get_agent_run(run.run_id)
     assert calls == 0
     assert updated is not None
     assert updated.cost_usd == pytest.approx(0.0)
@@ -144,8 +144,8 @@ async def test_destructive_tool_requires_approved_control_plane_approval(
         "shared.infra.tool_registry.settings.control_plane_approval_enforced",
         True,
     )
-    repo = ControlPlaneRepository(db_session)
-    company = await repo.create_company(
+    stores = ControlPlaneStores(db_session)
+    company = await stores.companies.create_company(
         CompanyContext(company_id="cmp_tool_approval", name="Tool Approval Test")
     )
     calls = 0
@@ -170,7 +170,7 @@ async def test_destructive_tool_requires_approved_control_plane_approval(
     with pytest.raises(ApprovalRequiredError, match="control_plane_approval_required"):
         await tool.execute({}, context)
 
-    approval = await ApprovalGate(repo).request_approval(
+    approval = await ApprovalGate(stores.approvals).request_approval(
         company_id=company.company_id,
         category=ApprovalCategory.TECHNICAL,
         requested_by="agent:dev-agent",
@@ -181,7 +181,10 @@ async def test_destructive_tool_requires_approved_control_plane_approval(
         rollback_note="Cancel workflow or revert deployment",
         affected_resources=["agentforge:workflow", "production"],
     )
-    await ApprovalGate(repo).approve(approval.approval_id, resolved_by="human:cto")
+    await ApprovalGate(stores.approvals).approve(
+        approval.approval_id,
+        resolved_by="human:cto",
+    )
 
     result = await tool.execute(
         {},
@@ -201,11 +204,11 @@ async def test_expensive_tool_records_budget_usage_when_allowed(
         "shared.infra.tool_registry.settings.control_plane_tool_budget_enforced",
         True,
     )
-    repo = ControlPlaneRepository(db_session)
-    company = await repo.create_company(
+    stores = ControlPlaneStores(db_session)
+    company = await stores.companies.create_company(
         CompanyContext(company_id="cmp_tool_allowed", name="Tool Allowed Test")
     )
-    budget = await repo.create_budget_policy(
+    budget = await stores.budgets.create_budget_policy(
         BudgetPolicy(
             company_id=company.company_id,
             scope=BudgetScope.AGENT,
@@ -214,7 +217,7 @@ async def test_expensive_tool_records_budget_usage_when_allowed(
             limit_usd=5.0,
         )
     )
-    run = await repo.create_agent_run(
+    run = await stores.agent_runs.create_agent_run(
         AgentRun(
             company_id=company.company_id,
             agent_id="dev-agent",
@@ -250,10 +253,12 @@ async def test_expensive_tool_records_budget_usage_when_allowed(
         ),
     )
 
-    updated = await repo.get_agent_run(run.run_id)
+    updated = await stores.agent_runs.get_agent_run(run.run_id)
     assert updated is not None
     assert updated.cost_usd == pytest.approx(0.75)
-    assert await repo.get_budget_usage_total(budget.budget_id) == pytest.approx(0.75)
+    assert await stores.budgets.get_budget_usage_total(budget.budget_id) == pytest.approx(
+        0.75
+    )
     publish_budget.assert_awaited_once()
     publish_kwargs = publish_budget.await_args.kwargs
     assert publish_kwargs["company_id"] == company.company_id

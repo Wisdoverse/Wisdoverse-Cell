@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
     from .approval_store import SqlAlchemyControlPlaneApprovalStore
     from .artifact_store import SqlAlchemyControlPlaneArtifactStore
+    from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
     from .audit_timeline_store import SqlAlchemyControlPlaneAuditTimelineStore
     from .budget_store import SqlAlchemyControlPlaneBudgetStore
     from .company_store import SqlAlchemyControlPlaneCompanyStore
@@ -99,6 +100,12 @@ class ControlPlaneStores:
         from .artifact_store import SqlAlchemyControlPlaneArtifactStore
 
         return SqlAlchemyControlPlaneArtifactStore(self._session)
+
+    @property
+    def audit_events(self) -> "SqlAlchemyControlPlaneAuditEventStore":
+        from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
+
+        return SqlAlchemyControlPlaneAuditEventStore(self._session)
 
     @property
     def audit_timeline(self) -> "SqlAlchemyControlPlaneAuditTimelineStore":

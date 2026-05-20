@@ -3,6 +3,7 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.control_plane.audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from shared.control_plane.evolution_proposal_store import (
     SqlAlchemyControlPlaneEvolutionProposalStore,
 )
@@ -10,7 +11,6 @@ from shared.control_plane.evolution_proposal_use_cases import (
     record_evolution_proposal_with_audit,
 )
 from shared.control_plane.models import ApprovalStatus, EvolutionTier
-from shared.control_plane.repository import ControlPlaneRepository
 from shared.schemas.event import EventTypes
 
 
@@ -35,10 +35,10 @@ async def test_record_evolution_proposal_with_audit_preserves_agent_context(
         trace_id="trace-evolution-proposal",
     )
 
-    repo = ControlPlaneRepository(db_session)
-    company = await repo.get_company("cmp_agent_evolution")
-    proposal = await repo.get_evolution_proposal(row.proposal_id)
-    audit_events = await repo.list_audit_events(
+    audits = SqlAlchemyControlPlaneAuditEventStore(db_session)
+    company = await store.get_company("cmp_agent_evolution")
+    proposal = await store.get_evolution_proposal(row.proposal_id)
+    audit_events = await audits.list_audit_events(
         company_id="cmp_agent_evolution",
         trace_id="trace-evolution-proposal",
         target_type="evolution_proposal",

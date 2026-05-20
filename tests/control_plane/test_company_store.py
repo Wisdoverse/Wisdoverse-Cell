@@ -3,9 +3,9 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.control_plane.audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from shared.control_plane.company_store import SqlAlchemyControlPlaneCompanyStore
 from shared.control_plane.models import AuditEvent, CompanyContext
-from shared.control_plane.repository import ControlPlaneRepository
 from shared.schemas.event import EventTypes
 
 
@@ -37,7 +37,7 @@ async def test_company_store_owns_company_queries(db_session: AsyncSession) -> N
 @pytest.mark.asyncio
 async def test_company_store_records_audit_events(db_session: AsyncSession) -> None:
     store = SqlAlchemyControlPlaneCompanyStore(db_session)
-    repo = ControlPlaneRepository(db_session)
+    audits = SqlAlchemyControlPlaneAuditEventStore(db_session)
 
     await store.create_company(
         CompanyContext(company_id="cmp_company_store", name="Wisdoverse Cell")
@@ -66,7 +66,7 @@ async def test_company_store_records_audit_events(db_session: AsyncSession) -> N
             detail={"source": "duplicate"},
         )
     )
-    rows = await repo.list_audit_events(company_id="cmp_company_store")
+    rows = await audits.list_audit_events(company_id="cmp_company_store")
 
     assert event.company_id == "cmp_company_store"
     assert duplicate.audit_event_id == event.audit_event_id

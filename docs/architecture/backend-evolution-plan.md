@@ -33,7 +33,7 @@ Closed Phase 1 audit gaps:
 | Phase 1 audit ID | Status |
 |------------------|--------|
 | H1 / P0-2 (single Alembic dir) | Design closure #154; physical cutover deferred |
-| H2 / P0-1 (repository compatibility facade) | Closed for SQL ownership: per-aggregate stores now own control-plane SQL and `repository.py` is a compatibility facade only. Remaining follow-up is facade deprecation and repository-based caller migration. |
+| H2 / P0-1 (repository compatibility facade) | Closed for SQL ownership and caller isolation: per-aggregate stores now own control-plane SQL, non-facade tests use store factory / ports, and `repository.py` is covered only by its compatibility facade test surface. Remaining follow-up is a deprecation horizon. |
 | H5 / P1-3 (ORM leak into business logic) | Closed for routes #135/#136 and ApprovalGate #143 |
 | H6 / P0-3 (no outbox metrics) | ✓ #128 + #129 (all 10 runtimes); shared cross-cutting metrics are now owned by `shared.observability.metrics` with `shared.infra.metrics` kept as a compatibility shim |
 | P0-4 (optional tracing) | Runtime tracing now installs a provider in non-production even without an exporter; production settings fail closed without `OTEL_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` |
