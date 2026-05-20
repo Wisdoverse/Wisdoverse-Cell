@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from starlette.requests import Request
 
 from shared import middleware as _middleware_mod
-from shared.api import ApiErrorCode
+from shared.api import ERROR_CODE_HEADER, TRACE_ID_HEADER, ApiErrorCode
 from shared.middleware import internal_auth as _internal_auth_mod
 
 
@@ -64,8 +64,15 @@ def test_api_key_invalid():
         mock_settings.pm_api_key = "test-key"
         app = _make_app()
         client = TestClient(app)
-        resp = client.get("/test", headers={"X-API-Key": "wrong-key"})
+        resp = client.get(
+            "/test",
+            headers={"X-API-Key": "wrong-key", "X-Trace-ID": "trace-api-key"},
+        )
         assert resp.status_code == 401
+        assert resp.headers[ERROR_CODE_HEADER] == ApiErrorCode.API_KEY_INVALID_OR_MISSING.value
+        assert resp.headers[TRACE_ID_HEADER] == "trace-api-key"
+        assert resp.json()["detail"] == "Invalid or missing API key"
+        assert resp.json()["code"] == ApiErrorCode.API_KEY_INVALID_OR_MISSING.value
 
 
 def test_api_key_missing():
@@ -75,6 +82,10 @@ def test_api_key_missing():
         client = TestClient(app)
         resp = client.get("/test")
         assert resp.status_code == 401
+        assert resp.headers[ERROR_CODE_HEADER] == ApiErrorCode.API_KEY_INVALID_OR_MISSING.value
+        assert resp.headers[TRACE_ID_HEADER]
+        assert resp.json()["detail"] == "Invalid or missing API key"
+        assert resp.json()["code"] == ApiErrorCode.API_KEY_INVALID_OR_MISSING.value
 
 
 def test_api_key_skip_health():
@@ -151,6 +162,12 @@ def test_api_key_empty_fails_closed_in_production():
         client = TestClient(app)
         resp = client.get("/test")
         assert resp.status_code == 503
+        assert (
+            resp.headers[ERROR_CODE_HEADER]
+            == ApiErrorCode.API_KEY_AUTH_NOT_CONFIGURED.value
+        )
+        assert resp.json()["detail"] == "API key authentication is not configured"
+        assert resp.json()["code"] == ApiErrorCode.API_KEY_AUTH_NOT_CONFIGURED.value
 
 
 def test_api_key_empty_still_skips_health_in_production():

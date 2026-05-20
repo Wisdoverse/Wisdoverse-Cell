@@ -2,7 +2,13 @@
 
 from .errors import (
     ERROR_CODE_HEADER,
+    TRACE_ID_HEADER,
     ApiErrorCode,
+    error_content,
+    error_headers,
+    error_response,
+    http_exception_error_response,
+    internal_error_response,
     raise_a2a_auth_invalid_token,
     raise_a2a_auth_missing_or_invalid,
     raise_a2a_auth_token_expired,
@@ -60,11 +66,19 @@ from .errors import (
     raise_wecom_missing_encrypted_payload,
     raise_wecom_missing_message_type,
     raise_wecom_security_not_configured,
+    trace_id_from_request,
+    validation_error_response,
 )
 
 __all__ = [
     "ERROR_CODE_HEADER",
+    "TRACE_ID_HEADER",
     "ApiErrorCode",
+    "error_content",
+    "error_headers",
+    "error_response",
+    "http_exception_error_response",
+    "internal_error_response",
     "raise_a2a_auth_invalid_token",
     "raise_a2a_auth_missing_or_invalid",
     "raise_a2a_auth_token_expired",
@@ -122,4 +136,6 @@ __all__ = [
     "raise_question_not_found",
     "raise_requirement_not_found",
     "raise_session_not_found",
+    "trace_id_from_request",
+    "validation_error_response",
 ]

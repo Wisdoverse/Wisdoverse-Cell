@@ -41,7 +41,7 @@ Closed Phase 1 audit gaps:
 | M1 (1783-LOC api.py) | Per-aggregate router split #135/#136 not done; routes use factory instead (cleaner outcome) |
 | M2 (no domain layer) | Closed — every runtime has `core/domain/` with aggregate/value object |
 | M5 (Analysis source-table drift) | Documented; no current drift, no projection layer needed yet |
-| M6 (non-uniform error envelope) | Foundation laid in `api-guidelines.md`; full rollout still pending |
+| M6 (non-uniform error envelope) | Structured runtime envelope landed at the `create_agent_app()` boundary; consumer-facing contract tests still pending |
 
 Stage 4 pre-condition #4 (non-prod deployment) and Stage 5 items 3, 5
 require infrastructure or tooling decisions outside the scope of
@@ -178,7 +178,7 @@ that guide, it is called out explicitly.
 | Outbox tables share one database in the modular-monolith stage | Service extraction needs deployment evidence and a read-model strategy per runtime before this is broken apart | `backend-boundaries.md` §6 |
 | Compatibility layers under `shared/services/*` and root `skills/*` | New imports can reintroduce old coupling and stall future package retirement | `backend-boundaries.md` §6, `project-layout.md` §"Current Structure Assessment" |
 | Analysis can drift into source-table reads | Reporting code can become an implicit write owner of other domains | `backend-boundaries.md` §6 |
-| Error response shape is not uniform across agent APIs | Operators and clients must parse inconsistent error bodies; `X-Error-Code` is only on Requirement APIs | `backend-boundaries.md` §6 |
+| Error response contract tests are still thin | Runtime APIs now expose a structured envelope, but provider/consumer contract tests must prove clients can rely on it | `backend-boundaries.md` §6 |
 | `users` lacks a dedicated public user/profile API boundary | Identity data can become shared mutable state if unrelated modules write directly | `backend-boundaries.md` §6 |
 | Agent `core/` mixes use cases with domain rules and lifecycle helpers | Without an explicit domain layer, ports and use cases pick up domain invariants and can leak into adapters | Section 5 below |
 | Sync capability still hosts OpenProject and Feishu Bitable in one runtime | The sub-boundaries are split inside `core/`, but a single runtime makes targeted scaling and failure isolation impossible | `architecture.md` §3.1, `SPEC.md` §4.1.3 |
@@ -196,7 +196,7 @@ are part of PR #121.
 
 | Phase | Goal | Exit Criteria |
 |-------|------|---------------|
-| Phase A — Uniform Error Contract | Extend the `X-Error-Code` header and structured error model from Requirement APIs to PJM, QA, Dev, gateways, and capability modules | All agent APIs return `X-Error-Code`; structured error body is documented in `docs/guides/api-reference.md`; consumer tests assert classification |
+| Phase A — Uniform Error Contract | Extend the `X-Error-Code` header and structured error model from Requirement APIs to PJM, QA, Dev, gateways, and capability modules | Runtime envelope is implemented through `create_agent_app()`; remaining exit criteria are consumer tests that assert classification and OpenAPI/API-reference alignment |
 | Phase B — Domain Layer Per Agent | Introduce an explicit `core/domain/` layer per agent for invariants, value objects, and aggregates separate from `*_use_cases.py` | `core/` no longer mixes lifecycle math with orchestration; architecture tests block use-case modules from importing adapters |
 | Phase C — Read-Model / Projection Boundary | Add an explicit projection layer that Analysis and reporting consume, instead of source tables | Analysis module imports only projection ports; backend-boundaries gap closed |
 | Phase D — Sync Sub-Capability Split | Promote OpenProject sync and Feishu Bitable sync to two distinct capability runtimes (still under `shared/capabilities/sync/` package roots, but separately deployable) | Each sub-capability has its own outbox, repository module, and runtime plugin; compatibility endpoint orchestrates both |

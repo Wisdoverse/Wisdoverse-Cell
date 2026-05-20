@@ -12,6 +12,7 @@ import structlog
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from shared.api import ApiErrorCode, error_response
 from shared.config import settings
 from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
@@ -21,6 +22,18 @@ logger = get_logger("middleware")
 
 def _is_production() -> bool:
     return settings.app_env.lower() in {"production", "prod"}
+
+
+def _resolve_trace_id(request: Request) -> str:
+    return (
+        request.headers.get("X-Trace-ID")
+        or request.headers.get("X-Request-ID")
+        or uuid.uuid4().hex
+    )
+
+
+def _request_id_headers(request: Request, trace_id: str) -> dict[str, str]:
+    return {"X-Request-ID": request.headers.get("X-Request-ID", trace_id)}
 
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
@@ -50,10 +63,13 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
                 if not APIKeyMiddleware._auth_misconfigured_logged:
                     logger.error("api_key_auth_misconfigured", reason="pm_api_key is empty")
                     APIKeyMiddleware._auth_misconfigured_logged = True
-                return Response(
-                    content='{"detail":"API key authentication is not configured"}',
+                trace_id = _resolve_trace_id(request)
+                return error_response(
                     status_code=503,
-                    media_type="application/json",
+                    code=ApiErrorCode.API_KEY_AUTH_NOT_CONFIGURED,
+                    message="API key authentication is not configured",
+                    trace_id=trace_id,
+                    headers=_request_id_headers(request, trace_id),
                 )
             if not APIKeyMiddleware._auth_disabled_logged:
                 logger.warning(
@@ -71,10 +87,13 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
                     request.client.host if request.client else "unknown"
                 ),
             )
-            return Response(
-                content='{"detail":"Invalid or missing API key"}',
+            trace_id = _resolve_trace_id(request)
+            return error_response(
                 status_code=401,
-                media_type="application/json",
+                code=ApiErrorCode.API_KEY_INVALID_OR_MISSING,
+                message="Invalid or missing API key",
+                trace_id=trace_id,
+                headers=_request_id_headers(request, trace_id),
             )
 
         return await call_next(request)
