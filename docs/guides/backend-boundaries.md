@@ -75,9 +75,9 @@ stable before any additional service extraction.
   webhooks or internal runtime endpoints.
 - HTTP route handlers should stay thin: request validation, auth/dependency
   injection, DTO conversion, error mapping, and response shaping only.
-- Compatibility error codes use the `X-Error-Code` response header while
-  preserving existing FastAPI `detail` strings until clients migrate to a
-  structured error body.
+- Runtime APIs created through `create_agent_app()` return `X-Error-Code`,
+  `X-Trace-ID`, and a structured error body while preserving the legacy
+  FastAPI `detail` field until clients migrate.
 - Application services own use-case orchestration, transaction boundaries,
   idempotency, feedback learning, external side effects, and EventBus
   publication.
@@ -114,4 +114,4 @@ stable before any additional service extraction.
 | Requirement events, PJM decomposition API events, QA acceptance events, Sync lifecycle/decomposition handoff events, user-interaction sync trigger commands, PJM service notifications, Dev result-collection callback events, channel gateway events, analysis report/risk/quality events, coordinator dispatch/handoff events, and evolution proposal events now use durable outboxes and runtime dispatchers | Event delivery is retryable, but the outbox tables still share one database in the modular-monolith stage | Keep service extraction blocked until each runtime has deployment evidence and read-model/projection strategy |
 | Some compatibility layers remain under `shared/services` and root `skills/` | New imports can reintroduce old coupling | Keep architecture tests blocking new runtime imports and retire shims when callers are gone |
 | Analysis can drift into source-table reads | Reporting code can become implicit owner of other domains | Define read-only projections before expanding analytics |
-| Error response shape is not yet uniform across all agent APIs | Operators and clients must parse inconsistent errors | Expand the compatibility `X-Error-Code` contract beyond Requirement APIs, then introduce versioned structured error bodies |
+| Error response shape is now standardized at the `create_agent_app()` boundary, but direct router harnesses and consumer contract tests still lag | Operators and clients can rely on the runtime envelope, but contract drift can still slip through direct router tests | Add consumer-facing API contract tests and remove direct-router expectations that only assert FastAPI's legacy `detail` body |

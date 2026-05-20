@@ -19,8 +19,10 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from shared.config import settings
 from shared.middleware.internal_auth import verify_internal_key
@@ -151,6 +153,16 @@ def create_agent_app(
         redoc_url=None,
     )
     app.state.runtime = runtime
+
+    from shared.middleware.error_handler import (
+        global_exception_handler,
+        http_exception_handler,
+        validation_exception_handler,
+    )
+
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(Exception, global_exception_handler)
 
     # ── Middleware (outermost first, each added independently) ──
     try:

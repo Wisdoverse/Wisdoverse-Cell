@@ -55,9 +55,7 @@ jobs:
       - name: Mypy (scoped per pyproject.toml)
         run: make typecheck
       - name: Python dependency audit
-        run: |
-          pip-audit -r requirements.txt
-          pip-audit -r requirements-lock.txt
+        run: make python-dependency-audit
       - name: Python tests
         run: make test-public
 

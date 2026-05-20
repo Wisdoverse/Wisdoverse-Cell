@@ -1,16 +1,23 @@
 """Shared API error helpers.
 
-The first compatibility contract keeps FastAPI's existing ``detail`` string
-shape while adding a stable machine-readable error code header.
+The compatibility contract keeps FastAPI's existing ``detail`` field while
+adding the structured ``code`` / ``message`` / ``trace_id`` envelope expected
+by the backend API guidelines.
 """
 
 import re
 from enum import StrEnum
-from typing import NoReturn
+from typing import Any, NoReturn
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from shared.schemas.error import ErrorResponse
 
 ERROR_CODE_HEADER = "X-Error-Code"
+TRACE_ID_HEADER = "X-Trace-ID"
 _ERROR_CODE_FRAGMENT_RE = re.compile(r"[^a-z0-9_.-]+")
 
 
@@ -28,10 +35,14 @@ class ApiErrorCode(StrEnum):
     ANALYSIS_DAILY_REPORT_FAILED = "analysis.daily_report_failed"
     ANALYSIS_RISK_CHECK_FAILED = "analysis.risk_check_failed"
     ANALYSIS_WEEKLY_REPORT_FAILED = "analysis.weekly_report_failed"
+    API_KEY_AUTH_NOT_CONFIGURED = "api_key.auth.not_configured"
+    API_KEY_INVALID_OR_MISSING = "api_key.auth.invalid_or_missing"
     DEV_AGENT_NOT_READY = "dev.agent_not_ready"
     DSAR_APPROVAL_REQUIRED = "dsar.approval_required"
     FEISHU_INVALID_JSON = "feishu.invalid_json"
     FEISHU_INVALID_SIGNATURE = "feishu.invalid_signature"
+    HTTP_ERROR = "http.error"
+    INTERNAL_ERROR = "internal.error"
     FEISHU_SIGNATURE_KEY_NOT_CONFIGURED = "feishu.signature_key_not_configured"
     INTERNAL_AUTH_NOT_CONFIGURED = "internal_auth.not_configured"
     INTERNAL_AUTH_UNAUTHORIZED = "internal_auth.unauthorized"
@@ -69,9 +80,137 @@ class ApiErrorCode(StrEnum):
     QA_RUN_NOT_FOUND = "qa.run_not_found"
     QA_RUN_TIMEOUT = "qa.run_timeout"
     QA_STATS_FAILED = "qa.stats_failed"
+    REQUEST_VALIDATION_FAILED = "request.validation_failed"
     REQUIREMENT_NOT_FOUND = "requirement.not_found"
     QUESTION_NOT_FOUND = "question.not_found"
     SESSION_NOT_FOUND = "session.not_found"
+
+
+def _code_value(code: ApiErrorCode | str) -> str:
+    return code.value if isinstance(code, ApiErrorCode) else code
+
+
+def _header_lookup(headers: dict[str, str] | None, name: str) -> str | None:
+    if not headers:
+        return None
+    for key, value in headers.items():
+        if key.lower() == name.lower():
+            return value
+    return None
+
+
+def trace_id_from_request(request: Request) -> str:
+    """Return the trace id already attached by middleware or an inbound header."""
+    return str(
+        getattr(request.state, "trace_id", "")
+        or request.headers.get(TRACE_ID_HEADER)
+        or request.headers.get("X-Request-ID")
+        or ""
+    )
+
+
+def error_headers(
+    *,
+    code: ApiErrorCode | str,
+    trace_id: str = "",
+    headers: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Build response headers for the API error compatibility contract."""
+    response_headers = dict(headers or {})
+    response_headers[ERROR_CODE_HEADER] = _code_value(code)
+    if trace_id:
+        response_headers[TRACE_ID_HEADER] = trace_id
+    return response_headers
+
+
+def error_content(
+    *,
+    code: ApiErrorCode | str,
+    message: str,
+    trace_id: str = "",
+    details: dict[str, Any] | None = None,
+    detail: Any | None = None,
+) -> dict[str, Any]:
+    """Build a structured error body while preserving FastAPI's legacy detail."""
+    error = ErrorResponse(
+        code=_code_value(code),
+        message=message,
+        trace_id=trace_id,
+        details=details,
+    )
+    content = error.model_dump()
+    if detail is not None:
+        content["detail"] = jsonable_encoder(detail)
+    return jsonable_encoder(content)
+
+
+def error_response(
+    *,
+    status_code: int,
+    code: ApiErrorCode | str,
+    message: str,
+    trace_id: str = "",
+    details: dict[str, Any] | None = None,
+    detail: Any | None = None,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
+    """Create a JSONResponse following the shared API error envelope."""
+    return JSONResponse(
+        status_code=status_code,
+        content=error_content(
+            code=code,
+            message=message,
+            trace_id=trace_id,
+            details=details,
+            detail=detail if detail is not None else message,
+        ),
+        headers=error_headers(code=code, trace_id=trace_id, headers=headers),
+    )
+
+
+def http_exception_error_response(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Translate FastAPI HTTPException into the shared API error envelope."""
+    code = _header_lookup(exc.headers, ERROR_CODE_HEADER) or ApiErrorCode.HTTP_ERROR.value
+    trace_id = trace_id_from_request(request)
+    detail = exc.detail
+    message = detail if isinstance(detail, str) else "HTTP error"
+    return error_response(
+        status_code=exc.status_code,
+        code=code,
+        message=message,
+        trace_id=trace_id,
+        detail=detail,
+        headers=exc.headers,
+    )
+
+
+def validation_error_response(
+    *,
+    request: Request,
+    errors: list[Any],
+) -> JSONResponse:
+    """Translate request validation failures into the shared API error envelope."""
+    trace_id = trace_id_from_request(request)
+    return error_response(
+        status_code=422,
+        code=ApiErrorCode.REQUEST_VALIDATION_FAILED,
+        message="Request validation failed",
+        trace_id=trace_id,
+        details={"errors": jsonable_encoder(errors)},
+        detail=errors,
+    )
+
+
+def internal_error_response(request: Request) -> JSONResponse:
+    """Return the shared envelope for unexpected server errors."""
+    trace_id = trace_id_from_request(request)
+    return error_response(
+        status_code=500,
+        code=ApiErrorCode.INTERNAL_ERROR,
+        message="Internal service error. Please try again later.",
+        trace_id=trace_id,
+        detail="Internal service error. Please try again later.",
+    )
 
 
 def raise_api_error(
@@ -82,12 +221,10 @@ def raise_api_error(
     headers: dict[str, str] | None = None,
 ) -> NoReturn:
     """Raise a FastAPI HTTPException with a stable error-code header."""
-    response_headers = dict(headers or {})
-    response_headers[ERROR_CODE_HEADER] = code.value if isinstance(code, ApiErrorCode) else code
     raise HTTPException(
         status_code=status_code,
         detail=message,
-        headers=response_headers,
+        headers=error_headers(code=code, headers=headers),
     )
 
 

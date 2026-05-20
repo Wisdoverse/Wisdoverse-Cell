@@ -1,13 +1,34 @@
-"""Global exception handler using unified ErrorResponse format."""
-
+"""FastAPI exception handlers for the shared API error contract."""
 
 from fastapi import Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from shared.schemas.error import ErrorResponse
+from shared.api import (
+    http_exception_error_response,
+    internal_error_response,
+    validation_error_response,
+)
 from shared.utils.logger import get_logger
 
 logger = get_logger("error_handler")
+
+
+async def http_exception_handler(
+    request: Request,
+    exc: StarletteHTTPException,
+) -> JSONResponse:
+    """Return HTTPException responses using the shared structured envelope."""
+    return http_exception_error_response(request, exc)
+
+
+async def validation_exception_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    """Return validation failures using the shared structured envelope."""
+    return validation_error_response(request=request, errors=exc.errors())
 
 
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -20,9 +41,4 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         path=request.url.path,
         trace_id=trace_id,
     )
-    error = ErrorResponse(
-        code="INTERNAL_ERROR",
-        message="Internal service error. Please try again later.",
-        trace_id=trace_id,
-    )
-    return JSONResponse(status_code=500, content=error.model_dump())
+    return internal_error_response(request)

@@ -1,6 +1,6 @@
 # Wisdoverse Cell API Reference
 
-Last updated: 2026-05-04
+Last updated: 2026-05-20
 
 This page documents the current HTTP surface at a contract level. English is
 the primary language for API descriptions. Response examples may include
@@ -61,25 +61,27 @@ Example request:
 
 ## Error Shape
 
-FastAPI routes may return the standard `HTTPException` shape:
+Services created through `create_agent_app()` return the shared structured
+error envelope for `HTTPException`, request-validation failures, API-key
+middleware failures, and unexpected server errors. The legacy FastAPI `detail`
+field is still present while clients migrate.
 
 ```json
 {
-  "detail": "resource not found"
+  "code": "requirement.not_found",
+  "message": "Requirement not found",
+  "trace_id": "trace_...",
+  "timestamp": "2026-05-20T08:07:13+00:00",
+  "details": null,
+  "detail": "Requirement not found"
 }
 ```
 
-Shared error middleware may wrap errors as:
-
-```json
-{
-  "error": {
-    "code": "NOT_FOUND",
-    "message": "resource not found",
-    "trace_id": "trace_..."
-  }
-}
-```
+Every error response carries `X-Error-Code` and `X-Trace-ID`. Known
+application errors use the namespaced values in `shared/api/errors.py`.
+Unclassified `HTTPException` responses use `http.error`; unhandled server
+errors use `internal.error`; validation failures use
+`request.validation_failed` with `details.errors` populated.
 
 Common status codes:
 
