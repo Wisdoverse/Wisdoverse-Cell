@@ -44,6 +44,7 @@ from .tables import (
     GoalTable,
     WorkItemTable,
 )
+from .work_item_store import SqlAlchemyControlPlaneWorkItemStore
 
 
 def _now() -> datetime:
@@ -286,16 +287,14 @@ class ControlPlaneRepository:
         return row
 
     async def create_work_item(self, work_item: WorkItem) -> WorkItemTable:
-        row = WorkItemTable(**_model_values(work_item))
-        self.session.add(row)
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneWorkItemStore(
+            self.session
+        ).create_work_item(work_item)
 
     async def get_work_item(self, work_item_id: str) -> WorkItemTable | None:
-        result = await self.session.execute(
-            select(WorkItemTable).where(WorkItemTable.work_item_id == work_item_id)
-        )
-        return result.scalar_one_or_none()
+        return await SqlAlchemyControlPlaneWorkItemStore(
+            self.session
+        ).get_work_item(work_item_id)
 
     async def list_work_items(
         self,
@@ -309,30 +308,18 @@ class ControlPlaneRepository:
         search: str | None = None,
         limit: int = 100,
     ) -> list[WorkItemTable]:
-        query = select(WorkItemTable).where(WorkItemTable.company_id == company_id)
-        if status:
-            query = query.where(WorkItemTable.status == status)
-        if priority:
-            query = query.where(WorkItemTable.priority == priority)
-        if goal_id:
-            query = query.where(WorkItemTable.goal_id == goal_id)
-        if owner_agent_id:
-            query = query.where(WorkItemTable.owner_agent_id == owner_agent_id)
-        if owner_user_id:
-            query = query.where(WorkItemTable.owner_user_id == owner_user_id)
-        if search:
-            pattern = f"%{search}%"
-            query = query.where(
-                or_(
-                    WorkItemTable.title.ilike(pattern),
-                    WorkItemTable.description.ilike(pattern),
-                    WorkItemTable.external_ref.ilike(pattern),
-                )
-            )
-        result = await self.session.execute(
-            query.order_by(WorkItemTable.created_at.desc()).limit(limit)
+        return await SqlAlchemyControlPlaneWorkItemStore(
+            self.session
+        ).list_work_items(
+            company_id=company_id,
+            status=status,
+            priority=priority,
+            goal_id=goal_id,
+            owner_agent_id=owner_agent_id,
+            owner_user_id=owner_user_id,
+            search=search,
+            limit=limit,
         )
-        return list(result.scalars().all())
 
     async def update_work_item_status(
         self,
@@ -342,17 +329,14 @@ class ControlPlaneRepository:
         owner_agent_id: str | None = None,
         owner_user_id: str | None = None,
     ) -> WorkItemTable | None:
-        row = await self.get_work_item(work_item_id)
-        if row is None:
-            return None
-        row.status = status
-        if owner_agent_id is not None:
-            row.owner_agent_id = owner_agent_id
-        if owner_user_id is not None:
-            row.owner_user_id = owner_user_id
-        row.updated_at = _now()
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneWorkItemStore(
+            self.session
+        ).update_work_item_status(
+            work_item_id,
+            status=status,
+            owner_agent_id=owner_agent_id,
+            owner_user_id=owner_user_id,
+        )
 
     async def create_agent_run(self, run: AgentRun) -> AgentRunTable:
         row = AgentRunTable(**_model_values(run))
