@@ -323,6 +323,31 @@ async def test_publish_dlq_writes_observable_failed_event(bus, mock_redis):
 
 
 @pytest.mark.asyncio
+async def test_publish_dlq_updates_dead_letter_metrics(bus, mock_redis):
+    event = _make_event()
+    mock_redis.xlen = AsyncMock(return_value=7)
+
+    with patch.object(_event_bus_mod, "EVENT_DLQ_MESSAGES_TOTAL") as dlq_total, \
+         patch.object(_event_bus_mod, "EVENT_DLQ_LENGTH") as dlq_length, \
+         patch.object(_event_bus_mod, "EVENT_QUEUE_LENGTH_BY_TYPE") as queue_length:
+        dlq_counter = MagicMock()
+        dlq_total.labels.return_value = dlq_counter
+        queue_gauge = MagicMock()
+        queue_length.labels.return_value = queue_gauge
+
+        await bus.publish_dlq(event, "handler exploded", "analysis-module")
+
+    dlq_total.labels.assert_called_once_with(
+        failure_stage="handler",
+        agent_id="analysis-module",
+    )
+    dlq_counter.inc.assert_called_once_with()
+    dlq_length.set.assert_called_once_with(7)
+    queue_length.labels.assert_called_once_with(event_type="dlq.failed")
+    queue_gauge.set.assert_called_once_with(7)
+
+
+@pytest.mark.asyncio
 async def test_publish_raw_dlq_writes_validation_failure(bus, mock_redis):
     await bus.publish_raw_dlq(
         raw_event_data="{bad-json",
@@ -345,6 +370,34 @@ async def test_publish_raw_dlq_writes_validation_failure(bus, mock_redis):
 
 
 @pytest.mark.asyncio
+async def test_publish_raw_dlq_updates_validation_metrics(bus, mock_redis):
+    mock_redis.xlen = AsyncMock(return_value=3)
+
+    with patch.object(_event_bus_mod, "EVENT_DLQ_MESSAGES_TOTAL") as dlq_total, \
+         patch.object(_event_bus_mod, "EVENT_DLQ_LENGTH") as dlq_length, \
+         patch.object(_event_bus_mod, "EVENT_QUEUE_LENGTH_BY_TYPE") as queue_length:
+        dlq_counter = MagicMock()
+        dlq_total.labels.return_value = dlq_counter
+        queue_gauge = MagicMock()
+        queue_length.labels.return_value = queue_gauge
+
+        await bus.publish_raw_dlq(
+            raw_event_data="{bad-json",
+            error="validation failed",
+            agent_id="requirement-manager",
+        )
+
+    dlq_total.labels.assert_called_once_with(
+        failure_stage="validation",
+        agent_id="requirement-manager",
+    )
+    dlq_counter.inc.assert_called_once_with()
+    dlq_length.set.assert_called_once_with(3)
+    queue_length.labels.assert_called_once_with(event_type="dlq.failed")
+    queue_gauge.set.assert_called_once_with(3)
+
+
+@pytest.mark.asyncio
 async def test_get_dead_letter_count_uses_dlq_stream(bus, mock_redis):
     mock_redis.xlen = AsyncMock(return_value=2)
 
@@ -352,6 +405,23 @@ async def test_get_dead_letter_count_uses_dlq_stream(bus, mock_redis):
 
     assert result == 2
     mock_redis.xlen.assert_awaited_once_with("wisdoverse-cell:events:dlq.failed")
+
+
+@pytest.mark.asyncio
+async def test_get_dead_letter_count_updates_length_metrics(bus, mock_redis):
+    mock_redis.xlen = AsyncMock(return_value=2)
+
+    with patch.object(_event_bus_mod, "EVENT_DLQ_LENGTH") as dlq_length, \
+         patch.object(_event_bus_mod, "EVENT_QUEUE_LENGTH_BY_TYPE") as queue_length:
+        queue_gauge = MagicMock()
+        queue_length.labels.return_value = queue_gauge
+
+        result = await bus.get_dead_letter_count()
+
+    assert result == 2
+    dlq_length.set.assert_called_once_with(2)
+    queue_length.labels.assert_called_once_with(event_type="dlq.failed")
+    queue_gauge.set.assert_called_once_with(2)
 
 
 @pytest.mark.asyncio
@@ -369,6 +439,32 @@ async def test_get_all_queue_lengths_ignores_idempotency_keys(bus, mock_redis):
 
     assert result == {"sync.completed": 3}
     mock_redis.xlen.assert_awaited_once_with("wisdoverse-cell:events:sync.completed")
+
+
+@pytest.mark.asyncio
+async def test_get_all_queue_lengths_updates_per_stream_metrics(bus, mock_redis):
+    mock_redis.scan_iter = _async_scan(
+        [
+            "wisdoverse-cell:events:sync.completed",
+            "wisdoverse-cell:events:dlq.failed",
+        ]
+    )
+    mock_redis.xlen = AsyncMock(side_effect=[5, 2])
+
+    with patch.object(_event_bus_mod, "EVENT_DLQ_LENGTH") as dlq_length, \
+         patch.object(_event_bus_mod, "EVENT_QUEUE_LENGTH_BY_TYPE") as queue_length:
+        queue_gauge = MagicMock()
+        queue_length.labels.return_value = queue_gauge
+
+        result = await bus.get_all_queue_lengths()
+
+    assert result == {"sync.completed": 5, "dlq.failed": 2}
+    assert queue_length.labels.call_args_list == [
+        call(event_type="sync.completed"),
+        call(event_type="dlq.failed"),
+    ]
+    assert queue_gauge.set.call_args_list == [call(5), call(2)]
+    dlq_length.set.assert_called_once_with(2)
 
 
 @pytest.mark.asyncio

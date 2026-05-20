@@ -20,6 +20,7 @@ from nats.js.api import (
 )
 from nats.js.errors import NotFoundError
 
+from shared.observability.metrics import EVENT_DLQ_LENGTH
 from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
@@ -295,6 +296,7 @@ class NATSEventBus:
 
     async def get_dead_letter_count(self) -> int:
         """NATS uses native redelivery; no Redis-style DLQ stream is exposed."""
+        EVENT_DLQ_LENGTH.set(0)
         return 0
 
     async def list_dead_letters(self, limit: int = 50) -> list[Event]:

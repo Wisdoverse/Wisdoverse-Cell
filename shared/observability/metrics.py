@@ -15,10 +15,27 @@ EVENT_QUEUE_LENGTH = Gauge(
     "Current total event queue length across all streams",
 )
 
+EVENT_QUEUE_LENGTH_BY_TYPE = Gauge(
+    "wisdoverse-cell_eventbus_queue_length_by_type",
+    "Current event queue length by stream event type",
+    ["event_type"],
+)
+
 EVENT_PROCESSING_ERRORS = Counter(
     "wisdoverse-cell_eventbus_processing_errors_total",
     "Total event handler failures in the runtime event loop",
     ["agent_id", "event_type"],
+)
+
+EVENT_DLQ_MESSAGES_TOTAL = Counter(
+    "wisdoverse-cell_eventbus_dlq_messages_total",
+    "Total events written to the event bus dead-letter queue",
+    ["failure_stage", "agent_id"],
+)
+
+EVENT_DLQ_LENGTH = Gauge(
+    "wisdoverse-cell_eventbus_dlq_length",
+    "Current event bus dead-letter queue length",
 )
 
 # LLM Gateway
@@ -111,8 +128,11 @@ OUTBOX_DISPATCH_ERRORS = Counter(
 )
 
 __all__ = [
+    "EVENT_DLQ_LENGTH",
+    "EVENT_DLQ_MESSAGES_TOTAL",
     "EVENT_PROCESSING_ERRORS",
     "EVENT_QUEUE_LENGTH",
+    "EVENT_QUEUE_LENGTH_BY_TYPE",
     "LLM_COST_DOLLARS_TOTAL",
     "LLM_DAILY_COST_DOLLARS",
     "LLM_ERROR_TOTAL",

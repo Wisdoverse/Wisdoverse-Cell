@@ -35,6 +35,11 @@ import redis.asyncio as redis
 from pydantic import ValidationError
 
 from ..config import settings
+from ..observability.metrics import (
+    EVENT_DLQ_LENGTH,
+    EVENT_DLQ_MESSAGES_TOTAL,
+    EVENT_QUEUE_LENGTH_BY_TYPE,
+)
 from ..schemas.event import Event, EventTypes
 from ..utils.logger import get_logger
 
@@ -124,6 +129,43 @@ class EventBus:
 
     def _processing_event_key(self, group: str, event_id: str) -> str:
         return f"{self.queue_prefix}:processing:{group}:{event_id}"
+
+    @staticmethod
+    def _record_queue_length(event_type: str, length: int) -> None:
+        """Best-effort queue length metric update."""
+        try:
+            EVENT_QUEUE_LENGTH_BY_TYPE.labels(event_type=event_type).set(length)
+            if event_type == EventTypes.DLQ_FAILED:
+                EVENT_DLQ_LENGTH.set(length)
+        except Exception as exc:
+            logger.debug(
+                "event_queue_length_metric_failed",
+                event_type=event_type,
+                error=str(exc),
+            )
+
+    async def _record_dlq_write_metrics(
+        self,
+        *,
+        stream_key: str,
+        failure_stage: str,
+        agent_id: str,
+    ) -> None:
+        """Best-effort DLQ metric update after a successful DLQ write."""
+        try:
+            EVENT_DLQ_MESSAGES_TOTAL.labels(
+                failure_stage=failure_stage,
+                agent_id=agent_id,
+            ).inc()
+            length = await self._redis.xlen(stream_key)
+            self._record_queue_length(EventTypes.DLQ_FAILED, length)
+        except Exception as exc:
+            logger.debug(
+                "event_dlq_metric_failed",
+                failure_stage=failure_stage,
+                agent_id=agent_id,
+                error=str(exc),
+            )
 
     @staticmethod
     def _consumer_name() -> str:
@@ -453,10 +495,13 @@ class EventBus:
         """Return stream length for an event type."""
         await self.connect()
         stream_key = self._get_stream_key(event_type)
+        length = 0
         try:
-            return await self._redis.xlen(stream_key)
+            length = await self._redis.xlen(stream_key)
         except Exception:
-            return 0
+            length = 0
+        self._record_queue_length(event_type, length)
+        return length
 
     async def get_all_queue_lengths(self) -> dict[str, int]:
         """Return stream lengths for all event types."""
@@ -478,6 +523,7 @@ class EventBus:
             except Exception:
                 length = 0
             result[event_type] = length
+            self._record_queue_length(event_type, length)
 
         return result
 
@@ -502,6 +548,11 @@ class EventBus:
             key = self._get_stream_key(EventTypes.DLQ_FAILED)
             await self._redis.xadd(
                 key, {"data": dlq_event.model_dump_json()}, maxlen=10_000,
+            )
+            await self._record_dlq_write_metrics(
+                stream_key=key,
+                failure_stage="handler",
+                agent_id=agent_id,
             )
             logger.info(
                 "dlq_event_published",
@@ -546,6 +597,11 @@ class EventBus:
             await self._redis.xadd(
                 key, {"data": dlq_event.model_dump_json()}, maxlen=10_000,
             )
+            await self._record_dlq_write_metrics(
+                stream_key=key,
+                failure_stage="validation",
+                agent_id=agent_id,
+            )
             logger.info(
                 "dlq_raw_event_published",
                 failure_stage="validation",
@@ -561,10 +617,13 @@ class EventBus:
     async def get_dead_letter_count(self) -> int:
         """Return count of events in the dead letter queue stream."""
         await self.connect()
+        count = 0
         try:
-            return await self._redis.xlen(self._get_stream_key(EventTypes.DLQ_FAILED))
+            count = await self._redis.xlen(self._get_stream_key(EventTypes.DLQ_FAILED))
         except Exception:
-            return 0
+            count = 0
+        self._record_queue_length(EventTypes.DLQ_FAILED, count)
+        return count
 
     async def list_dead_letters(self, limit: int = 50) -> list[Event]:
         """Return recent dead letter events, newest first."""

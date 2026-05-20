@@ -10,6 +10,7 @@ import pytest
 from nats.js.errors import NotFoundError
 
 from shared import config as _config_mod
+from shared.infra import nats_event_bus as _infra_nats_mod
 from shared.schemas.event import Event
 from shared.services import nats_event_bus as _nats_mod
 from shared.services.event_bus import EventBusProtocol
@@ -442,6 +443,14 @@ class TestNATSEventBusQueueLength:
 
         result = await connected_bus.get_all_queue_lengths()
         assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_get_dead_letter_count_sets_zero_dlq_length(self, bus):
+        with patch.object(_infra_nats_mod, "EVENT_DLQ_LENGTH") as dlq_length:
+            result = await bus.get_dead_letter_count()
+
+        assert result == 0
+        dlq_length.set.assert_called_once_with(0)
 
 
 # =============================================================================
