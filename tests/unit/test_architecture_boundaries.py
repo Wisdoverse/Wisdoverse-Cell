@@ -2270,7 +2270,8 @@ def test_control_plane_approval_gate_uses_approval_store_port() -> None:
 
     assert "class ControlPlaneApprovalStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneApprovalStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "ApprovalRequestTable" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
     assert "ControlPlaneRepository" not in gate_source
     assert "ControlPlaneApprovalStore" in gate_source
     assert "SqlAlchemyControlPlaneApprovalStore(session)" in gate_source
@@ -2589,7 +2590,9 @@ def test_control_plane_budget_api_delegates_to_use_cases() -> None:
 
     assert "class ControlPlaneBudgetStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneBudgetStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "BudgetPolicyTable" in adapter_source
+    assert "BudgetUsageTable" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
     assert "create_budget_policy_with_audit" in use_case_source
     assert "update_budget_policy_with_audit" in use_case_source
     assert "append_audit_event" in use_case_source
@@ -2624,7 +2627,9 @@ def test_control_plane_budget_guard_uses_budget_store_port() -> None:
 
     assert "class ControlPlaneBudgetGuardStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneBudgetGuardStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "SqlAlchemyControlPlaneBudgetStore" in adapter_source
+    assert "SqlAlchemyControlPlaneAgentRunStore" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
     assert "ControlPlaneBudgetGuardStore" in guard_source
     assert "ControlPlaneRepository" not in guard_source
 

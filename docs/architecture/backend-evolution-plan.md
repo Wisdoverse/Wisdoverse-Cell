@@ -33,7 +33,7 @@ Closed Phase 1 audit gaps:
 | Phase 1 audit ID | Status |
 |------------------|--------|
 | H1 / P0-2 (single Alembic dir) | Design closure #154; physical cutover deferred |
-| H2 / P0-1 (repository compatibility facade) | Reduced via per-aggregate stores + factory #134/#135/#136; `company_store.py` now owns company/audit SQL directly, `goal_store.py` owns goal SQL directly, `work_item_store.py` owns work-item SQL directly, `agent_run_store.py` owns agent-run SQL directly, `decision_store.py` owns decision SQL directly, and `artifact_store.py` owns artifact SQL directly while remaining stores are still being extracted |
+| H2 / P0-1 (repository compatibility facade) | Reduced via per-aggregate stores + factory #134/#135/#136; `company_store.py` now owns company/audit SQL directly, `goal_store.py` owns goal SQL directly, `work_item_store.py` owns work-item SQL directly, `agent_run_store.py` owns agent-run SQL directly, `decision_store.py` owns decision SQL directly, `artifact_store.py` owns artifact SQL directly, `approval_store.py` owns approval SQL plus proposal approval-state sync SQL directly, `budget_store.py` owns budget policy/usage SQL directly, and `budget_guard_store.py` is repository-free while remaining stores are still being extracted |
 | H5 / P1-3 (ORM leak into business logic) | Closed for routes #135/#136 and ApprovalGate #143 |
 | H6 / P0-3 (no outbox metrics) | ✓ #128 + #129 (all 10 runtimes); shared cross-cutting metrics are now owned by `shared.observability.metrics` with `shared.infra.metrics` kept as a compatibility shim |
 | P0-4 (optional tracing) | Runtime tracing now installs a provider in non-production even without an exporter; production settings fail closed without `OTEL_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` |

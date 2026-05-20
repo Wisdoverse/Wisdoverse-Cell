@@ -5,16 +5,18 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from .budget_guard_ports import ControlPlaneBudgetGuardStore
+from .budget_store import SqlAlchemyControlPlaneBudgetStore
 from .models import BudgetPeriod, BudgetScope, BudgetUsage
-from .repository import ControlPlaneRepository
 
 
 class SqlAlchemyControlPlaneBudgetGuardStore(ControlPlaneBudgetGuardStore):
     """Session-scoped budget guard store."""
 
     def __init__(self, session: AsyncSession):
-        self._budgets = ControlPlaneRepository(session)
+        self._runs = SqlAlchemyControlPlaneAgentRunStore(session)
+        self._budgets = SqlAlchemyControlPlaneBudgetStore(session)
 
     async def get_active_budget_policy(
         self,
@@ -45,7 +47,7 @@ class SqlAlchemyControlPlaneBudgetGuardStore(ControlPlaneBudgetGuardStore):
         input_tokens: int | None = None,
         output_tokens: int | None = None,
     ) -> Any | None:
-        return await self._budgets.add_agent_run_usage(
+        return await self._runs.add_agent_run_usage(
             run_id,
             cost_usd=cost_usd,
             input_tokens=input_tokens or 0,
