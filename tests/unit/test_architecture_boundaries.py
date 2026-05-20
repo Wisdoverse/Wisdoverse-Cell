@@ -2351,7 +2351,8 @@ def test_control_plane_run_api_delegates_to_query_use_cases() -> None:
 
     assert "class ControlPlaneAgentRunStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneAgentRunStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
+    assert "AgentRunTable" in adapter_source
     assert "list_agent_runs" in use_case_source
     assert "get_agent_run" in use_case_source
 

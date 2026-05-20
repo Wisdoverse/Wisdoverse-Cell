@@ -19,6 +19,7 @@ PYTEST_PUBLIC_PATHS = \
 	tests/control_plane/test_company_store.py \
 	tests/control_plane/test_goal_store.py \
 	tests/control_plane/test_work_item_store.py \
+	tests/control_plane/test_agent_run_store.py \
 	tests/integration/test_runtime_error_contract.py \
 	agents/requirement_manager/tests/integrations/feishu \
 	shared/integrations/feishu/tests \
