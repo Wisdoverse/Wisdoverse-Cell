@@ -1,6 +1,6 @@
 # Module Boundaries
 
-Last updated: 2026-05-18
+Last updated: 2026-05-20
 
 Status: Foundation document.
 
@@ -52,8 +52,8 @@ When you add a new context, you must add a row to this document **and** to
 - Outbound dependencies: runtime agents (writes runs, artifacts, audit);
   LLM Gateway (budget usage); gateways (approvals consumption).
 - Boundary clarity: high (single owner); internal seam not yet structurally
-  complete (`company_store.py` owns its SQL, but remaining store adapters still
-  need P0-1 extraction work).
+  complete (`company_store.py` and `goal_store.py` own their SQL, but remaining
+  store adapters still need P0-1 extraction work).
 - Split fitness: must remain central. Do not extract.
 
 ### 2.2 Requirement Management

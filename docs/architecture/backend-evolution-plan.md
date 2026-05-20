@@ -1,6 +1,6 @@
 # Backend Evolution Follow-Up Plan
 
-Last updated: 2026-05-18 (refreshed after Stages 0–3 landed)
+Last updated: 2026-05-20 (refreshed after Stages 0–3 landed)
 
 Status: Forward-looking plan. The plan below was originally drafted after
 PR #121 modularized service boundaries. Since then, Stages 0–3 of the
@@ -33,7 +33,7 @@ Closed Phase 1 audit gaps:
 | Phase 1 audit ID | Status |
 |------------------|--------|
 | H1 / P0-2 (single Alembic dir) | Design closure #154; physical cutover deferred |
-| H2 / P0-1 (repository compatibility facade) | Reduced via per-aggregate stores + factory #134/#135/#136; `company_store.py` now owns company/audit SQL directly while remaining stores are still being extracted |
+| H2 / P0-1 (repository compatibility facade) | Reduced via per-aggregate stores + factory #134/#135/#136; `company_store.py` now owns company/audit SQL directly and `goal_store.py` owns goal SQL directly while remaining stores are still being extracted |
 | H5 / P1-3 (ORM leak into business logic) | Closed for routes #135/#136 and ApprovalGate #143 |
 | H6 / P0-3 (no outbox metrics) | ✓ #128 + #129 (all 10 runtimes); shared cross-cutting metrics are now owned by `shared.observability.metrics` with `shared.infra.metrics` kept as a compatibility shim |
 | P0-4 (optional tracing) | Runtime tracing now installs a provider in non-production even without an exporter; production settings fail closed without `OTEL_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` |

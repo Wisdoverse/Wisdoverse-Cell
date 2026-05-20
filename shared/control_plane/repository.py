@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .company_store import SqlAlchemyControlPlaneCompanyStore
 from .domain.agent_run_lifecycle import TERMINAL_STATUSES as AGENT_RUN_TERMINAL_STATUSES
+from .goal_store import SqlAlchemyControlPlaneGoalStore
 from .models import (
     AgentRole,
     AgentRun,
@@ -112,14 +113,10 @@ class ControlPlaneRepository:
         )
 
     async def create_goal(self, goal: Goal) -> GoalTable:
-        row = GoalTable(**_model_values(goal))
-        self.session.add(row)
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneGoalStore(self.session).create_goal(goal)
 
     async def get_goal(self, goal_id: str) -> GoalTable | None:
-        result = await self.session.execute(select(GoalTable).where(GoalTable.goal_id == goal_id))
-        return result.scalar_one_or_none()
+        return await SqlAlchemyControlPlaneGoalStore(self.session).get_goal(goal_id)
 
     async def list_goals(
         self,
@@ -131,26 +128,14 @@ class ControlPlaneRepository:
         search: str | None = None,
         limit: int = 100,
     ) -> list[GoalTable]:
-        query = select(GoalTable).where(GoalTable.company_id == company_id)
-        if status:
-            query = query.where(GoalTable.status == status)
-        if owner_agent_id:
-            query = query.where(GoalTable.owner_agent_id == owner_agent_id)
-        if owner_user_id:
-            query = query.where(GoalTable.owner_user_id == owner_user_id)
-        if search:
-            pattern = f"%{search}%"
-            query = query.where(
-                or_(
-                    GoalTable.title.ilike(pattern),
-                    GoalTable.description.ilike(pattern),
-                    GoalTable.success_metric.ilike(pattern),
-                )
-            )
-        result = await self.session.execute(
-            query.order_by(GoalTable.created_at.desc()).limit(limit)
+        return await SqlAlchemyControlPlaneGoalStore(self.session).list_goals(
+            company_id=company_id,
+            status=status,
+            owner_agent_id=owner_agent_id,
+            owner_user_id=owner_user_id,
+            search=search,
+            limit=limit,
         )
-        return list(result.scalars().all())
 
     async def update_goal_status(
         self,
@@ -159,15 +144,13 @@ class ControlPlaneRepository:
         status: str,
         current_value: float | None = None,
     ) -> GoalTable | None:
-        row = await self.get_goal(goal_id)
-        if row is None:
-            return None
-        row.status = status
-        if current_value is not None:
-            row.current_value = current_value
-        row.updated_at = _now()
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneGoalStore(
+            self.session
+        ).update_goal_status(
+            goal_id,
+            status=status,
+            current_value=current_value,
+        )
 
     async def create_agent_role(self, role: AgentRole) -> AgentRoleTable:
         row = AgentRoleTable(**_model_values(role))

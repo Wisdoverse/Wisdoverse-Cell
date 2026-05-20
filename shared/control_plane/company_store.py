@@ -1,40 +1,15 @@
 """SQLAlchemy adapter for control-plane company context persistence."""
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .company_ports import ControlPlaneCompanyStore
 from .models import AuditEvent, CompanyContext
+from .store_utils import model_values, now_utc, to_db_value
 from .tables import AuditEventTable, CompanyContextTable
-
-
-def _now() -> datetime:
-    return datetime.now(UTC)
-
-
-def _to_db_value(value: Any) -> Any:
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, list):
-        return [_to_db_value(item) for item in value]
-    if isinstance(value, dict):
-        return {key: _to_db_value(item) for key, item in value.items()}
-    return value
-
-
-def _model_values(model: BaseModel) -> dict[str, Any]:
-    data = model.model_dump(mode="python")
-    normalized: dict[str, Any] = {}
-    for key, value in data.items():
-        db_key = "metadata_json" if key == "metadata" else key
-        normalized[db_key] = _to_db_value(value)
-    return normalized
 
 
 class SqlAlchemyControlPlaneCompanyStore(ControlPlaneCompanyStore):
@@ -44,7 +19,7 @@ class SqlAlchemyControlPlaneCompanyStore(ControlPlaneCompanyStore):
         self._session = session
 
     async def create_company(self, company: CompanyContext) -> CompanyContextTable:
-        row = CompanyContextTable(**_model_values(company))
+        row = CompanyContextTable(**model_values(company))
         self._session.add(row)
         await self._session.flush()
         return row
@@ -94,13 +69,31 @@ class SqlAlchemyControlPlaneCompanyStore(ControlPlaneCompanyStore):
         if mission is not None:
             row.mission = mission
         if metadata is not None:
-            row.metadata_json = _to_db_value(metadata)
-        row.updated_at = _now()
+            row.metadata_json = to_db_value(metadata)
+        row.updated_at = now_utc()
         await self._session.flush()
         return row
 
     async def append_audit_event(self, event: AuditEvent) -> AuditEventTable:
-        row = AuditEventTable(**_model_values(event))
+        if event.idempotency_key:
+            existing = await self._get_audit_by_idempotency(
+                event.company_id, event.idempotency_key
+            )
+            if existing is not None:
+                return existing
+
+        row = AuditEventTable(**model_values(event))
         self._session.add(row)
         await self._session.flush()
         return row
+
+    async def _get_audit_by_idempotency(
+        self, company_id: str, idempotency_key: str
+    ) -> AuditEventTable | None:
+        result = await self._session.execute(
+            select(AuditEventTable).where(
+                AuditEventTable.company_id == company_id,
+                AuditEventTable.idempotency_key == idempotency_key,
+            )
+        )
+        return result.scalar_one_or_none()

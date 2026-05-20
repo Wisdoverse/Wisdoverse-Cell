@@ -50,10 +50,25 @@ async def test_company_store_records_audit_events(db_session: AsyncSession) -> N
             target_id="cmp_company_store",
             actor_type="user",
             actor_id="test",
+            idempotency_key="cmp_company_store:updated",
             detail={"source": "company-store"},
+        )
+    )
+    duplicate = await store.append_audit_event(
+        AuditEvent(
+            company_id="cmp_company_store",
+            action=EventTypes.COMPANY_UPDATED,
+            target_type="company",
+            target_id="cmp_company_store",
+            actor_type="user",
+            actor_id="test",
+            idempotency_key="cmp_company_store:updated",
+            detail={"source": "duplicate"},
         )
     )
     rows = await repo.list_audit_events(company_id="cmp_company_store")
 
     assert event.company_id == "cmp_company_store"
+    assert duplicate.audit_event_id == event.audit_event_id
+    assert len(rows) == 1
     assert rows[0].detail["source"] == "company-store"
