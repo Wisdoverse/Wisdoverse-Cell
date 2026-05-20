@@ -5,10 +5,11 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .company_store import SqlAlchemyControlPlaneCompanyStore
+from .domain_records import goal_record
 from .goal_ports import ControlPlaneGoalStore
 from .models import AuditEvent, CompanyContext, Goal
 from .store_utils import model_values, now_utc
-from .tables import AuditEventTable, CompanyContextTable, GoalTable
+from .tables import GoalTable
 
 
 class SqlAlchemyControlPlaneGoalStore(ControlPlaneGoalStore):
@@ -18,19 +19,23 @@ class SqlAlchemyControlPlaneGoalStore(ControlPlaneGoalStore):
         self._session = session
         self._companies = SqlAlchemyControlPlaneCompanyStore(session)
 
-    async def create_company(self, company: CompanyContext) -> CompanyContextTable:
+    async def create_company(self, company: CompanyContext) -> CompanyContext:
         return await self._companies.create_company(company)
 
-    async def get_company(self, company_id: str) -> CompanyContextTable | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
-    async def create_goal(self, goal: Goal) -> GoalTable:
+    async def create_goal(self, goal: Goal) -> Goal:
         row = GoalTable(**model_values(goal))
         self._session.add(row)
         await self._session.flush()
-        return row
+        return goal_record(row)
 
-    async def get_goal(self, goal_id: str) -> GoalTable | None:
+    async def get_goal(self, goal_id: str) -> Goal | None:
+        row = await self._get_goal_row(goal_id)
+        return goal_record(row) if row is not None else None
+
+    async def _get_goal_row(self, goal_id: str) -> GoalTable | None:
         result = await self._session.execute(
             select(GoalTable).where(GoalTable.goal_id == goal_id)
         )
@@ -45,7 +50,7 @@ class SqlAlchemyControlPlaneGoalStore(ControlPlaneGoalStore):
         owner_user_id: str | None = None,
         search: str | None = None,
         limit: int = 100,
-    ) -> list[GoalTable]:
+    ) -> list[Goal]:
         query = select(GoalTable).where(GoalTable.company_id == company_id)
         if status:
             query = query.where(GoalTable.status == status)
@@ -65,7 +70,7 @@ class SqlAlchemyControlPlaneGoalStore(ControlPlaneGoalStore):
         result = await self._session.execute(
             query.order_by(GoalTable.created_at.desc()).limit(limit)
         )
-        return list(result.scalars().all())
+        return [goal_record(row) for row in result.scalars().all()]
 
     async def update_goal_status(
         self,
@@ -73,8 +78,8 @@ class SqlAlchemyControlPlaneGoalStore(ControlPlaneGoalStore):
         *,
         status: str,
         current_value: float | None = None,
-    ) -> GoalTable | None:
-        row = await self.get_goal(goal_id)
+    ) -> Goal | None:
+        row = await self._get_goal_row(goal_id)
         if row is None:
             return None
         row.status = status
@@ -82,7 +87,7 @@ class SqlAlchemyControlPlaneGoalStore(ControlPlaneGoalStore):
             row.current_value = current_value
         row.updated_at = now_utc()
         await self._session.flush()
-        return row
+        return goal_record(row)
 
-    async def append_audit_event(self, event: AuditEvent) -> AuditEventTable:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         return await self._companies.append_audit_event(event)

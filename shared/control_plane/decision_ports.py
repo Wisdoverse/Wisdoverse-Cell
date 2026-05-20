@@ -1,33 +1,33 @@
 """Ports for control-plane decision persistence."""
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Protocol
 
-from .models import AuditEvent, CompanyContext, Decision
+from .models import AgentRun, AuditEvent, CompanyContext, Decision, Goal, WorkItem
 
 
 class ControlPlaneDecisionStore(Protocol):
     """Persistence operations required by decision use cases."""
 
-    async def create_company(self, company: CompanyContext) -> Any:
+    async def create_company(self, company: CompanyContext) -> CompanyContext:
         """Create a control-plane company context."""
 
-    async def get_company(self, company_id: str) -> Any | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
         """Return a company context if it exists."""
 
-    async def get_agent_run(self, run_id: str) -> Any | None:
+    async def get_agent_run(self, run_id: str) -> AgentRun | None:
         """Return one agent run for linkage validation."""
 
-    async def get_goal(self, goal_id: str) -> Any | None:
+    async def get_goal(self, goal_id: str) -> Goal | None:
         """Return one goal for linkage validation."""
 
-    async def get_work_item(self, work_item_id: str) -> Any | None:
+    async def get_work_item(self, work_item_id: str) -> WorkItem | None:
         """Return one work item for linkage validation."""
 
-    async def create_decision(self, decision: Decision) -> Any:
+    async def create_decision(self, decision: Decision) -> Decision:
         """Create a decision."""
 
-    async def get_decision(self, decision_id: str) -> Any | None:
+    async def get_decision(self, decision_id: str) -> Decision | None:
         """Return one decision."""
 
     async def list_decisions(
@@ -39,7 +39,7 @@ class ControlPlaneDecisionStore(Protocol):
         goal_id: str | None = None,
         work_item_id: str | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[Decision]:
         """Return decisions for one company."""
 
     async def update_decision_status(
@@ -49,8 +49,8 @@ class ControlPlaneDecisionStore(Protocol):
         status: str,
         selected_option: str | None = None,
         decided_by: str | None = None,
-    ) -> Any | None:
+    ) -> Decision | None:
         """Update one decision status."""
 
-    async def append_audit_event(self, event: AuditEvent) -> Any:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         """Append a control-plane audit event."""

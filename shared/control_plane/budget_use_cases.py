@@ -6,7 +6,6 @@ from typing import Any
 from shared.schemas.event import EventTypes
 
 from .budget_ports import ControlPlaneBudgetStore
-from .domain_records import budget_policy_record, budget_usage_record
 from .models import (
     AuditEvent,
     BudgetPeriod,
@@ -36,7 +35,7 @@ async def list_budget_policies(
     limit: int = 100,
 ) -> list[BudgetPolicy]:
     """List budget policies for one company."""
-    rows = await store.list_budget_policies(
+    return await store.list_budget_policies(
         company_id=company_id,
         scope=scope,
         scope_id=scope_id,
@@ -44,7 +43,6 @@ async def list_budget_policies(
         status=status,
         limit=limit,
     )
-    return [budget_policy_record(row) for row in rows]
 
 
 async def get_budget_policy(
@@ -54,10 +52,10 @@ async def get_budget_policy(
     budget_id: str,
 ) -> BudgetPolicy:
     """Return one budget policy in a company or raise not found."""
-    row = await store.get_budget_policy(budget_id)
-    if row is None or row.company_id != company_id:
+    policy = await store.get_budget_policy(budget_id)
+    if policy is None or policy.company_id != company_id:
         raise BudgetPolicyNotFoundError(budget_id)
-    return budget_policy_record(row)
+    return policy
 
 
 async def create_budget_policy_with_audit(
@@ -77,28 +75,28 @@ async def create_budget_policy_with_audit(
             period=budget.period,
         )
 
-    row = await store.create_budget_policy(budget)
+    created = await store.create_budget_policy(budget)
     await store.append_audit_event(
         AuditEvent(
             company_id=budget.company_id,
             action=EventTypes.BUDGET_POLICY_CREATED,
             target_type="budget_policy",
-            target_id=row.budget_id,
+            target_id=created.budget_id,
             actor_type="user",
             actor_id=created_by,
             detail={
-                "budget_id": row.budget_id,
-                "scope": row.scope,
-                "scope_id": row.scope_id,
-                "period": row.period,
-                "limit_usd": row.limit_usd,
-                "warning_threshold": row.warning_threshold,
-                "status": row.status,
-                "model_allowlist": row.model_allowlist,
+                "budget_id": created.budget_id,
+                "scope": created.scope,
+                "scope_id": created.scope_id,
+                "period": created.period,
+                "limit_usd": created.limit_usd,
+                "warning_threshold": created.warning_threshold,
+                "status": created.status,
+                "model_allowlist": created.model_allowlist,
             },
         )
     )
-    return budget_policy_record(row)
+    return created
 
 
 async def update_budget_policy_with_audit(
@@ -129,7 +127,7 @@ async def update_budget_policy_with_audit(
             current_budget_id=budget_id,
         )
 
-    row = await store.update_budget_policy(
+    updated = await store.update_budget_policy(
         budget_id,
         limit_usd=limit_usd,
         warning_threshold=warning_threshold,
@@ -137,7 +135,7 @@ async def update_budget_policy_with_audit(
         model_allowlist=model_allowlist,
         metadata=metadata,
     )
-    if row is None:
+    if updated is None:
         raise BudgetPolicyNotFoundError(budget_id)
 
     await store.append_audit_event(
@@ -145,20 +143,20 @@ async def update_budget_policy_with_audit(
             company_id=company_id,
             action=EventTypes.BUDGET_POLICY_UPDATED,
             target_type="budget_policy",
-            target_id=row.budget_id,
+            target_id=updated.budget_id,
             actor_type="user",
             actor_id=actor_id,
             detail={
-                "budget_id": row.budget_id,
-                "scope": row.scope,
-                "scope_id": row.scope_id,
-                "period": row.period,
-                "status": row.status,
+                "budget_id": updated.budget_id,
+                "scope": updated.scope,
+                "scope_id": updated.scope_id,
+                "period": updated.period,
+                "status": updated.status,
                 "changed_fields": sorted(changed_fields),
             },
         )
     )
-    return budget_policy_record(row)
+    return updated
 
 
 async def list_budget_usage(
@@ -171,14 +169,13 @@ async def list_budget_usage(
     limit: int = 50,
 ) -> list[BudgetUsage]:
     """List budget usage for one company."""
-    rows = await store.list_budget_usage(
+    return await store.list_budget_usage(
         company_id=company_id,
         budget_id=budget_id,
         run_id=run_id,
         trace_id=trace_id,
         limit=limit,
     )
-    return [budget_usage_record(row) for row in rows]
 
 
 async def _ensure_company(store: ControlPlaneBudgetStore, company_id: str) -> None:

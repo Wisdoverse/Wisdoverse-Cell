@@ -61,7 +61,8 @@ async def test_bootstrap_creates_core_organization_role_agents(
         assert row.adapter_type == "builtin"
         assert row.status == "active"
         assert row.created_by == "test-bootstrap"
-        assert row.metadata_json["business_agent"] is True
+        assert row.metadata["business_agent"] is True
+        assert not hasattr(row, "metadata_json")
         assert row.context_sources[:2] == ["control_plane", "operator_console"]
         assert row.capabilities
         assert row.responsibilities
@@ -132,7 +133,7 @@ async def test_bootstrap_creates_configurable_runtime_agent_roles(
     runtime_rows = {
         row.agent_id: row
         for row in rows
-        if row.metadata_json.get("seed_source") == "core_runtime_modules"
+        if row.metadata.get("seed_source") == "core_runtime_modules"
     }
     audits = await stores.audit_events.list_audit_events(
         company_id="cmp_runtime_bootstrap",
@@ -151,7 +152,8 @@ async def test_bootstrap_creates_configurable_runtime_agent_roles(
     assert requirement_manager.adapter_type == "builtin"
     assert requirement_manager.adapter_config["execution_mode"] == "runtime_module"
     assert requirement_manager.adapter_config["package_path"] == "agents.requirement_manager"
-    assert requirement_manager.metadata_json["business_agent"] is True
+    assert requirement_manager.metadata["business_agent"] is True
+    assert not hasattr(requirement_manager, "metadata_json")
     assert requirement_manager.context_sources == [
         "feishu",
         "manual_upload",

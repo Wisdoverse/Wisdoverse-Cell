@@ -1,7 +1,9 @@
 """Ports for control-plane run evidence artifact creation."""
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Protocol
+
+from .models import ApprovalRequest, Artifact, AuditEvent, BudgetUsage
 
 
 class ControlPlaneRunEvidenceStore(Protocol):
@@ -13,7 +15,7 @@ class ControlPlaneRunEvidenceStore(Protocol):
         company_id: str,
         run_id: str | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[ApprovalRequest]:
         """Return approvals linked to one run."""
 
     async def list_budget_usage(
@@ -22,7 +24,7 @@ class ControlPlaneRunEvidenceStore(Protocol):
         company_id: str,
         run_id: str | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[BudgetUsage]:
         """Return budget usage linked to one run."""
 
     async def list_audit_events(
@@ -31,11 +33,11 @@ class ControlPlaneRunEvidenceStore(Protocol):
         company_id: str,
         run_id: str | None = None,
         limit: int = 100,
-    ) -> list[Any]:
+    ) -> list[AuditEvent]:
         """Return audit events linked to one run."""
 
-    async def create_artifact(self, artifact: Any) -> Any:
+    async def create_artifact(self, artifact: Artifact) -> Artifact:
         """Create an artifact."""
 
-    async def append_audit_event(self, event: Any) -> Any:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         """Append an audit event."""

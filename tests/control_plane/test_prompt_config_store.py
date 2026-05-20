@@ -48,7 +48,9 @@ async def test_prompt_config_store_upserts_prompt_without_losing_metadata(
     )
 
     assert role is not None
-    assert created.metadata_json == {"source": "initial"}
+    assert created.metadata == {"source": "initial"}
+    assert not hasattr(created, "metadata_json")
     assert updated.system_prompt == "Extract requirements and risks."
     assert updated.updated_by == "human:cpo"
-    assert updated.metadata_json == {"source": "initial"}
+    assert updated.metadata == {"source": "initial"}
+    assert not hasattr(updated, "metadata_json")

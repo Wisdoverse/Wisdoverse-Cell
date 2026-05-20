@@ -16,7 +16,7 @@ from .bootstrap import (
 from .bootstrap_store import SqlAlchemyControlPlaneRoleBootstrapStore
 from .budget_store import SqlAlchemyControlPlaneBudgetStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
-from .models import AgentRun, AuditEvent, CompanyContext
+from .models import AgentRun, ApprovalRequest, Artifact, AuditEvent, BudgetUsage, CompanyContext
 from .runtime_plugin_ports import ControlPlaneRuntimePluginStore
 
 
@@ -32,13 +32,13 @@ class SqlAlchemyControlPlaneRuntimePluginStore(ControlPlaneRuntimePluginStore):
         self._artifacts = SqlAlchemyControlPlaneArtifactStore(session)
         self._audits = SqlAlchemyControlPlaneAuditEventStore(session)
 
-    async def get_company(self, company_id: str) -> Any | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
-    async def create_company(self, company: CompanyContext) -> Any:
+    async def create_company(self, company: CompanyContext) -> CompanyContext:
         return await self._companies.create_company(company)
 
-    async def create_agent_run(self, run: AgentRun) -> Any:
+    async def create_agent_run(self, run: AgentRun) -> AgentRun:
         return await self._agent_runs.create_agent_run(run)
 
     async def update_agent_run_status(
@@ -46,7 +46,7 @@ class SqlAlchemyControlPlaneRuntimePluginStore(ControlPlaneRuntimePluginStore):
         run_id: str,
         status: Any,
         **values: Any,
-    ) -> Any | None:
+    ) -> AgentRun | None:
         return await self._agent_runs.update_agent_run_status(
             run_id,
             status,
@@ -59,7 +59,7 @@ class SqlAlchemyControlPlaneRuntimePluginStore(ControlPlaneRuntimePluginStore):
         company_id: str,
         run_id: str | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[ApprovalRequest]:
         return await self._approvals.list_approvals(
             company_id=company_id,
             run_id=run_id,
@@ -72,7 +72,7 @@ class SqlAlchemyControlPlaneRuntimePluginStore(ControlPlaneRuntimePluginStore):
         company_id: str,
         run_id: str | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[BudgetUsage]:
         return await self._budgets.list_budget_usage(
             company_id=company_id,
             run_id=run_id,
@@ -85,17 +85,17 @@ class SqlAlchemyControlPlaneRuntimePluginStore(ControlPlaneRuntimePluginStore):
         company_id: str,
         run_id: str | None = None,
         limit: int = 100,
-    ) -> list[Any]:
+    ) -> list[AuditEvent]:
         return await self._audits.list_audit_events(
             company_id=company_id,
             run_id=run_id,
             limit=limit,
         )
 
-    async def create_artifact(self, artifact: Any) -> Any:
+    async def create_artifact(self, artifact: Artifact) -> Artifact:
         return await self._artifacts.create_artifact(artifact)
 
-    async def append_audit_event(self, event: AuditEvent) -> Any:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         return await self._audits.append_audit_event(event)
 
     async def ensure_core_organization_role_agents(

@@ -49,6 +49,7 @@ async def test_agent_registry_store_owns_role_lifecycle(db_session: AsyncSession
 
     assert listed[0].role_id == role.role_id
     assert updated is not None
-    assert updated.metadata_json == {"seed": "test", "status": "reviewed"}
+    assert updated.metadata == {"seed": "test", "status": "reviewed"}
+    assert not hasattr(updated, "metadata_json")
     assert disabled is not None
     assert disabled.status == "disabled"

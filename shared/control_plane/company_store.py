@@ -8,9 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from .company_ports import ControlPlaneCompanyStore
+from .domain_records import company_record
 from .models import AuditEvent, CompanyContext
 from .store_utils import model_values, now_utc, to_db_value
-from .tables import AuditEventTable, CompanyContextTable
+from .tables import CompanyContextTable
 
 
 class SqlAlchemyControlPlaneCompanyStore(ControlPlaneCompanyStore):
@@ -20,13 +21,17 @@ class SqlAlchemyControlPlaneCompanyStore(ControlPlaneCompanyStore):
         self._session = session
         self._audits = SqlAlchemyControlPlaneAuditEventStore(session)
 
-    async def create_company(self, company: CompanyContext) -> CompanyContextTable:
+    async def create_company(self, company: CompanyContext) -> CompanyContext:
         row = CompanyContextTable(**model_values(company))
         self._session.add(row)
         await self._session.flush()
-        return row
+        return company_record(row)
 
-    async def get_company(self, company_id: str) -> CompanyContextTable | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
+        row = await self._get_company_row(company_id)
+        return company_record(row) if row is not None else None
+
+    async def _get_company_row(self, company_id: str) -> CompanyContextTable | None:
         result = await self._session.execute(
             select(CompanyContextTable).where(
                 CompanyContextTable.company_id == company_id
@@ -39,7 +44,7 @@ class SqlAlchemyControlPlaneCompanyStore(ControlPlaneCompanyStore):
         *,
         search: str | None = None,
         limit: int = 100,
-    ) -> list[CompanyContextTable]:
+    ) -> list[CompanyContext]:
         query = select(CompanyContextTable)
         if search:
             pattern = f"%{search}%"
@@ -53,7 +58,7 @@ class SqlAlchemyControlPlaneCompanyStore(ControlPlaneCompanyStore):
         result = await self._session.execute(
             query.order_by(CompanyContextTable.created_at.desc()).limit(limit)
         )
-        return list(result.scalars().all())
+        return [company_record(row) for row in result.scalars().all()]
 
     async def update_company_context(
         self,
@@ -62,8 +67,8 @@ class SqlAlchemyControlPlaneCompanyStore(ControlPlaneCompanyStore):
         name: str | None = None,
         mission: str | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> CompanyContextTable | None:
-        row = await self.get_company(company_id)
+    ) -> CompanyContext | None:
+        row = await self._get_company_row(company_id)
         if row is None:
             return None
         if name is not None:
@@ -74,7 +79,7 @@ class SqlAlchemyControlPlaneCompanyStore(ControlPlaneCompanyStore):
             row.metadata_json = to_db_value(metadata)
         row.updated_at = now_utc()
         await self._session.flush()
-        return row
+        return company_record(row)
 
-    async def append_audit_event(self, event: AuditEvent) -> AuditEventTable:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         return await self._audits.append_audit_event(event)

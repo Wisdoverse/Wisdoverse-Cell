@@ -9,13 +9,13 @@ from .models import AgentRole, AuditEvent, CompanyContext
 class ControlPlaneAgentRegistryStore(Protocol):
     """Persistence operations required by agent registry use cases."""
 
-    async def create_company(self, company: CompanyContext) -> Any:
+    async def create_company(self, company: CompanyContext) -> CompanyContext:
         """Create a control-plane company context."""
 
-    async def get_company(self, company_id: str) -> Any | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
         """Return a company context if it exists."""
 
-    async def create_agent_role(self, role: AgentRole) -> Any:
+    async def create_agent_role(self, role: AgentRole) -> AgentRole:
         """Create a new agent role definition."""
 
     async def get_agent_role(
@@ -23,7 +23,7 @@ class ControlPlaneAgentRegistryStore(Protocol):
         *,
         company_id: str,
         agent_id: str,
-    ) -> Any | None:
+    ) -> AgentRole | None:
         """Return one agent role definition."""
 
     async def list_agent_roles(
@@ -36,7 +36,7 @@ class ControlPlaneAgentRegistryStore(Protocol):
         adapter_type: str | None = None,
         search: str | None = None,
         limit: int = 100,
-    ) -> list[Any]:
+    ) -> list[AgentRole]:
         """Return agent role definitions for one company."""
 
     async def update_agent_role(
@@ -45,7 +45,7 @@ class ControlPlaneAgentRegistryStore(Protocol):
         company_id: str,
         agent_id: str,
         values: dict[str, Any],
-    ) -> Any | None:
+    ) -> AgentRole | None:
         """Update one agent role definition."""
 
     async def update_agent_role_status(
@@ -54,8 +54,8 @@ class ControlPlaneAgentRegistryStore(Protocol):
         company_id: str,
         agent_id: str,
         status: str,
-    ) -> Any | None:
+    ) -> AgentRole | None:
         """Update one agent role status."""
 
-    async def append_audit_event(self, event: AuditEvent) -> Any:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         """Append a control-plane audit event."""

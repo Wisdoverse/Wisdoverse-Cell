@@ -7,17 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from .artifact_ports import ControlPlaneArtifactStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
+from .domain_records import artifact_record
 from .goal_store import SqlAlchemyControlPlaneGoalStore
-from .models import Artifact, AuditEvent, CompanyContext
+from .models import AgentRun, Artifact, AuditEvent, CompanyContext, Goal, WorkItem
 from .store_utils import model_values
-from .tables import (
-    AgentRunTable,
-    ArtifactTable,
-    AuditEventTable,
-    CompanyContextTable,
-    GoalTable,
-    WorkItemTable,
-)
+from .tables import ArtifactTable
 from .work_item_store import SqlAlchemyControlPlaneWorkItemStore
 
 
@@ -31,32 +25,33 @@ class SqlAlchemyControlPlaneArtifactStore(ControlPlaneArtifactStore):
         self._goals = SqlAlchemyControlPlaneGoalStore(session)
         self._work_items = SqlAlchemyControlPlaneWorkItemStore(session)
 
-    async def create_company(self, company: CompanyContext) -> CompanyContextTable:
+    async def create_company(self, company: CompanyContext) -> CompanyContext:
         return await self._companies.create_company(company)
 
-    async def get_company(self, company_id: str) -> CompanyContextTable | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
-    async def get_agent_run(self, run_id: str) -> AgentRunTable | None:
+    async def get_agent_run(self, run_id: str) -> AgentRun | None:
         return await self._runs.get_agent_run(run_id)
 
-    async def get_goal(self, goal_id: str) -> GoalTable | None:
+    async def get_goal(self, goal_id: str) -> Goal | None:
         return await self._goals.get_goal(goal_id)
 
-    async def get_work_item(self, work_item_id: str) -> WorkItemTable | None:
+    async def get_work_item(self, work_item_id: str) -> WorkItem | None:
         return await self._work_items.get_work_item(work_item_id)
 
-    async def create_artifact(self, artifact: Artifact) -> ArtifactTable:
+    async def create_artifact(self, artifact: Artifact) -> Artifact:
         row = ArtifactTable(**model_values(artifact))
         self._session.add(row)
         await self._session.flush()
-        return row
+        return artifact_record(row)
 
-    async def get_artifact(self, artifact_id: str) -> ArtifactTable | None:
+    async def get_artifact(self, artifact_id: str) -> Artifact | None:
         result = await self._session.execute(
             select(ArtifactTable).where(ArtifactTable.artifact_id == artifact_id)
         )
-        return result.scalar_one_or_none()
+        row = result.scalar_one_or_none()
+        return artifact_record(row) if row is not None else None
 
     async def list_artifacts(
         self,
@@ -69,7 +64,7 @@ class SqlAlchemyControlPlaneArtifactStore(ControlPlaneArtifactStore):
         work_item_id: str | None = None,
         created_by_agent_id: str | None = None,
         limit: int = 50,
-    ) -> list[ArtifactTable]:
+    ) -> list[Artifact]:
         query = select(ArtifactTable).where(ArtifactTable.company_id == company_id)
         if artifact_type:
             query = query.where(ArtifactTable.artifact_type == artifact_type)
@@ -86,7 +81,7 @@ class SqlAlchemyControlPlaneArtifactStore(ControlPlaneArtifactStore):
         result = await self._session.execute(
             query.order_by(ArtifactTable.created_at.desc()).limit(limit)
         )
-        return list(result.scalars().all())
+        return [artifact_record(row) for row in result.scalars().all()]
 
-    async def append_audit_event(self, event: AuditEvent) -> AuditEventTable:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         return await self._companies.append_audit_event(event)

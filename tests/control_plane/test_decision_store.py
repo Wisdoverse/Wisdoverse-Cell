@@ -108,14 +108,15 @@ async def test_decision_store_owns_decision_queries(
     )
     fetched = await decision_store.get_decision(decision.decision_id)
 
-    assert rows == [decision]
+    assert [row.decision_id for row in rows] == [decision.decision_id]
     assert {row.decision_id for row in run_rows} == {
         decision.decision_id,
         other_decision.decision_id,
     }
     assert fetched is not None
     assert fetched.options == [{"id": "thin-facade", "label": "Thin facade"}]
-    assert fetched.metadata_json == {"source": "decision-store"}
+    assert fetched.metadata == {"source": "decision-store"}
+    assert not hasattr(fetched, "metadata_json")
 
 
 @pytest.mark.asyncio

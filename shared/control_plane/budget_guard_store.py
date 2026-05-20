@@ -1,14 +1,12 @@
 """SQLAlchemy adapter for budget guard persistence."""
 from __future__ import annotations
 
-from typing import Any
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from .budget_guard_ports import ControlPlaneBudgetGuardStore
 from .budget_store import SqlAlchemyControlPlaneBudgetStore
-from .models import BudgetPeriod, BudgetScope, BudgetUsage
+from .models import AgentRun, BudgetPeriod, BudgetPolicy, BudgetScope, BudgetUsage
 
 
 class SqlAlchemyControlPlaneBudgetGuardStore(ControlPlaneBudgetGuardStore):
@@ -25,7 +23,7 @@ class SqlAlchemyControlPlaneBudgetGuardStore(ControlPlaneBudgetGuardStore):
         scope: BudgetScope | str,
         period: BudgetPeriod | str,
         scope_id: str | None = None,
-    ) -> Any | None:
+    ) -> BudgetPolicy | None:
         return await self._budgets.get_active_budget_policy(
             company_id=company_id,
             scope=scope,
@@ -36,7 +34,7 @@ class SqlAlchemyControlPlaneBudgetGuardStore(ControlPlaneBudgetGuardStore):
     async def get_budget_usage_total(self, budget_id: str) -> float:
         return await self._budgets.get_budget_usage_total(budget_id)
 
-    async def record_budget_usage(self, usage: BudgetUsage) -> Any:
+    async def record_budget_usage(self, usage: BudgetUsage) -> BudgetUsage:
         return await self._budgets.record_budget_usage(usage)
 
     async def add_agent_run_usage(
@@ -46,7 +44,7 @@ class SqlAlchemyControlPlaneBudgetGuardStore(ControlPlaneBudgetGuardStore):
         cost_usd: float,
         input_tokens: int | None = None,
         output_tokens: int | None = None,
-    ) -> Any | None:
+    ) -> AgentRun | None:
         return await self._runs.add_agent_run_usage(
             run_id,
             cost_usd=cost_usd,

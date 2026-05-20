@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from .models import (
+    AgentPromptConfig,
     AgentRole,
     AgentRun,
     ApprovalRequest,
@@ -16,6 +17,7 @@ from .models import (
 )
 from .models import Artifact as ArtifactModel
 from .tables import (
+    AgentPromptConfigTable,
     AgentRoleTable,
     AgentRunTable,
     ApprovalRequestTable,
@@ -90,6 +92,19 @@ def agent_role_record(row: AgentRoleTable) -> AgentRole:
         escalation_policy=dict(row.escalation_policy or {}),
         status=row.status,
         created_by=row.created_by,
+        metadata=dict(row.metadata_json or {}),
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+def agent_prompt_config_record(row: AgentPromptConfigTable) -> AgentPromptConfig:
+    """Convert an agent prompt-config ORM row into its domain model."""
+    return AgentPromptConfig(
+        company_id=row.company_id,
+        agent_id=row.agent_id,
+        system_prompt=row.system_prompt,
+        updated_by=row.updated_by,
         metadata=dict(row.metadata_json or {}),
         created_at=row.created_at,
         updated_at=row.updated_at,

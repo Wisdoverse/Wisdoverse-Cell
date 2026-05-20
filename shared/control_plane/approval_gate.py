@@ -11,7 +11,6 @@ from shared.config import settings
 from .approval_ports import ControlPlaneApprovalStore
 from .approval_store import SqlAlchemyControlPlaneApprovalStore
 from .context import get_current_run_context
-from .domain_records import approval_request_record
 from .models import ApprovalCategory, ApprovalRequest, ApprovalStatus
 
 
@@ -50,7 +49,7 @@ class ApprovalGate:
         goal_id: str | None = None,
         trace_id: str | None = None,
     ) -> ApprovalRequest:
-        row = await self._store.request_approval(
+        return await self._store.request_approval(
             ApprovalRequest(
                 company_id=company_id,
                 category=category,
@@ -68,7 +67,6 @@ class ApprovalGate:
                 trace_id=trace_id,
             )
         )
-        return approval_request_record(row)
 
     async def approve(self, approval_id: str, *, resolved_by: str) -> ApprovalDecision:
         row = await self._store.resolve_approval(

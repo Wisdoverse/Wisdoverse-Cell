@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from shared.schemas.event import EventTypes
 
-from .domain_records import goal_record
 from .goal_ports import ControlPlaneGoalStore
 from .models import AuditEvent, CompanyContext, Goal, GoalStatus
 
@@ -27,7 +26,7 @@ async def list_goals(
     limit: int = 100,
 ) -> list[Goal]:
     """List goals for one company."""
-    rows = await store.list_goals(
+    return await store.list_goals(
         company_id=company_id,
         status=status,
         owner_agent_id=owner_agent_id,
@@ -35,7 +34,6 @@ async def list_goals(
         search=search,
         limit=limit,
     )
-    return [goal_record(row) for row in rows]
 
 
 async def get_goal(
@@ -45,10 +43,10 @@ async def get_goal(
     goal_id: str,
 ) -> Goal:
     """Return one goal in a company or raise not found."""
-    row = await store.get_goal(goal_id)
-    if row is None or row.company_id != company_id:
+    goal = await store.get_goal(goal_id)
+    if goal is None or goal.company_id != company_id:
         raise GoalNotFoundError(goal_id)
-    return goal_record(row)
+    return goal
 
 
 async def create_goal_with_audit(
@@ -64,25 +62,25 @@ async def create_goal_with_audit(
         if parent is None or parent.company_id != goal.company_id:
             raise ParentGoalNotFoundError(goal.parent_goal_id)
 
-    row = await store.create_goal(goal)
+    created = await store.create_goal(goal)
     await store.append_audit_event(
         AuditEvent(
             company_id=goal.company_id,
             action=EventTypes.GOAL_CREATED,
             target_type="goal",
-            target_id=row.goal_id,
+            target_id=created.goal_id,
             actor_type="user",
             actor_id=created_by,
             detail={
-                "goal_id": row.goal_id,
-                "status": row.status,
-                "parent_goal_id": row.parent_goal_id,
-                "owner_agent_id": row.owner_agent_id,
-                "owner_user_id": row.owner_user_id,
+                "goal_id": created.goal_id,
+                "status": created.status,
+                "parent_goal_id": created.parent_goal_id,
+                "owner_agent_id": created.owner_agent_id,
+                "owner_user_id": created.owner_user_id,
             },
         )
     )
-    return goal_record(row)
+    return created
 
 
 async def update_goal_status_with_audit(
@@ -100,12 +98,12 @@ async def update_goal_status_with_audit(
         raise GoalNotFoundError(goal_id)
 
     status_value = status.value if isinstance(status, GoalStatus) else status
-    row = await store.update_goal_status(
+    updated = await store.update_goal_status(
         goal_id,
         status=status_value,
         current_value=current_value,
     )
-    if row is None:
+    if updated is None:
         raise GoalNotFoundError(goal_id)
 
     await store.append_audit_event(
@@ -113,16 +111,16 @@ async def update_goal_status_with_audit(
             company_id=company_id,
             action=EventTypes.GOAL_UPDATED,
             target_type="goal",
-            target_id=row.goal_id,
+            target_id=updated.goal_id,
             actor_type="user",
             actor_id=actor_id,
             detail={
-                "status": row.status,
-                "current_value": row.current_value,
+                "status": updated.status,
+                "current_value": updated.current_value,
             },
         )
     )
-    return goal_record(row)
+    return updated
 
 
 async def _ensure_company(store: ControlPlaneGoalStore, company_id: str) -> None:

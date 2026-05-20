@@ -9,9 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .agent_registry_ports import ControlPlaneAgentRegistryStore
 from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
+from .domain_records import agent_role_record
 from .models import AgentRole, AuditEvent, CompanyContext
 from .store_utils import model_values, now_utc, to_db_value
-from .tables import AgentRoleTable, AuditEventTable, CompanyContextTable
+from .tables import AgentRoleTable
 
 
 class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
@@ -22,19 +23,28 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
         self._companies = SqlAlchemyControlPlaneCompanyStore(session)
         self._audits = SqlAlchemyControlPlaneAuditEventStore(session)
 
-    async def create_company(self, company: CompanyContext) -> CompanyContextTable:
+    async def create_company(self, company: CompanyContext) -> CompanyContext:
         return await self._companies.create_company(company)
 
-    async def get_company(self, company_id: str) -> CompanyContextTable | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
-    async def create_agent_role(self, role: AgentRole) -> AgentRoleTable:
+    async def create_agent_role(self, role: AgentRole) -> AgentRole:
         row = AgentRoleTable(**model_values(role))
         self._session.add(row)
         await self._session.flush()
-        return row
+        return agent_role_record(row)
 
     async def get_agent_role(
+        self,
+        *,
+        company_id: str,
+        agent_id: str,
+    ) -> AgentRole | None:
+        row = await self._get_agent_role_row(company_id=company_id, agent_id=agent_id)
+        return agent_role_record(row) if row is not None else None
+
+    async def _get_agent_role_row(
         self,
         *,
         company_id: str,
@@ -58,7 +68,7 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
         adapter_type: str | None = None,
         search: str | None = None,
         limit: int = 100,
-    ) -> list[AgentRoleTable]:
+    ) -> list[AgentRole]:
         query = select(AgentRoleTable).where(AgentRoleTable.company_id == company_id)
         if status:
             query = query.where(AgentRoleTable.status == status)
@@ -81,7 +91,7 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
         result = await self._session.execute(
             query.order_by(AgentRoleTable.created_at.desc()).limit(limit)
         )
-        return list(result.scalars().all())
+        return [agent_role_record(row) for row in result.scalars().all()]
 
     async def update_agent_role(
         self,
@@ -89,8 +99,8 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
         company_id: str,
         agent_id: str,
         values: dict[str, Any],
-    ) -> AgentRoleTable | None:
-        row = await self.get_agent_role(company_id=company_id, agent_id=agent_id)
+    ) -> AgentRole | None:
+        row = await self._get_agent_role_row(company_id=company_id, agent_id=agent_id)
         if row is None:
             return None
 
@@ -99,7 +109,7 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
             setattr(row, db_key, to_db_value(value))
         row.updated_at = now_utc()
         await self._session.flush()
-        return row
+        return agent_role_record(row)
 
     async def update_agent_role_status(
         self,
@@ -107,14 +117,14 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
         company_id: str,
         agent_id: str,
         status: str,
-    ) -> AgentRoleTable | None:
-        row = await self.get_agent_role(company_id=company_id, agent_id=agent_id)
+    ) -> AgentRole | None:
+        row = await self._get_agent_role_row(company_id=company_id, agent_id=agent_id)
         if row is None:
             return None
         row.status = status
         row.updated_at = now_utc()
         await self._session.flush()
-        return row
+        return agent_role_record(row)
 
-    async def append_audit_event(self, event: AuditEvent) -> AuditEventTable:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         return await self._audits.append_audit_event(event)

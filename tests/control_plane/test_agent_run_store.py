@@ -58,10 +58,11 @@ async def test_agent_run_store_owns_run_queries(db_session: AsyncSession) -> Non
     )
     fetched = await run_store.get_agent_run(run.run_id)
 
-    assert rows == [run]
+    assert [row.run_id for row in rows] == [run.run_id]
     assert fetched is not None
     assert fetched.output_events == [{"event_type": "agent_run.started"}]
-    assert fetched.metadata_json == {"source": "agent-run-store"}
+    assert fetched.metadata == {"source": "agent-run-store"}
+    assert not hasattr(fetched, "metadata_json")
 
 
 @pytest.mark.asyncio

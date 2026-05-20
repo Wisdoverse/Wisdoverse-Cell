@@ -195,6 +195,16 @@ class AgentRole(ControlPlaneModel):
     updated_at: datetime = Field(default_factory=_now)
 
 
+class AgentPromptConfig(ControlPlaneModel):
+    company_id: str
+    agent_id: str
+    system_prompt: str = ""
+    updated_by: str = "system"
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=_now)
+    updated_at: datetime = Field(default_factory=_now)
+
+
 class WorkItem(ControlPlaneModel):
     work_item_id: str = Field(default_factory=lambda: generate_id(IDPrefix.WORK_ITEM))
     company_id: str

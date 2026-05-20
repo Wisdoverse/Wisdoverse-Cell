@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .budget_ports import ControlPlaneBudgetStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
+from .domain_records import budget_policy_record, budget_usage_record
 from .models import (
     AuditEvent,
     BudgetPeriod,
@@ -17,12 +18,7 @@ from .models import (
     CompanyContext,
 )
 from .store_utils import model_values, now_utc, to_db_value
-from .tables import (
-    AuditEventTable,
-    BudgetPolicyTable,
-    BudgetUsageTable,
-    CompanyContextTable,
-)
+from .tables import BudgetPolicyTable, BudgetUsageTable
 
 
 class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
@@ -32,19 +28,25 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         self._session = session
         self._companies = SqlAlchemyControlPlaneCompanyStore(session)
 
-    async def create_company(self, company: CompanyContext) -> CompanyContextTable:
+    async def create_company(self, company: CompanyContext) -> CompanyContext:
         return await self._companies.create_company(company)
 
-    async def get_company(self, company_id: str) -> CompanyContextTable | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
-    async def create_budget_policy(self, budget: BudgetPolicy) -> BudgetPolicyTable:
+    async def create_budget_policy(self, budget: BudgetPolicy) -> BudgetPolicy:
         row = BudgetPolicyTable(**model_values(budget))
         self._session.add(row)
         await self._session.flush()
-        return row
+        return budget_policy_record(row)
 
-    async def get_budget_policy(self, budget_id: str) -> BudgetPolicyTable | None:
+    async def get_budget_policy(self, budget_id: str) -> BudgetPolicy | None:
+        row = await self._get_budget_policy_row(budget_id)
+        return budget_policy_record(row) if row is not None else None
+
+    async def _get_budget_policy_row(
+        self, budget_id: str
+    ) -> BudgetPolicyTable | None:
         result = await self._session.execute(
             select(BudgetPolicyTable).where(BudgetPolicyTable.budget_id == budget_id)
         )
@@ -59,7 +61,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         period: BudgetPeriod | str | None = None,
         status: str | None = None,
         limit: int = 100,
-    ) -> list[BudgetPolicyTable]:
+    ) -> list[BudgetPolicy]:
         query = select(BudgetPolicyTable).where(
             BudgetPolicyTable.company_id == company_id
         )
@@ -74,7 +76,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         result = await self._session.execute(
             query.order_by(BudgetPolicyTable.created_at.desc()).limit(limit)
         )
-        return list(result.scalars().all())
+        return [budget_policy_record(row) for row in result.scalars().all()]
 
     async def update_budget_policy(
         self,
@@ -85,8 +87,8 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         status: str | None = None,
         model_allowlist: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> BudgetPolicyTable | None:
-        row = await self.get_budget_policy(budget_id)
+    ) -> BudgetPolicy | None:
+        row = await self._get_budget_policy_row(budget_id)
         if row is None:
             return None
         if limit_usd is not None:
@@ -101,7 +103,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
             row.metadata_json = to_db_value(metadata)
         row.updated_at = now_utc()
         await self._session.flush()
-        return row
+        return budget_policy_record(row)
 
     async def get_active_budget_policy(
         self,
@@ -110,7 +112,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         scope: BudgetScope | str,
         period: BudgetPeriod | str,
         scope_id: str | None = None,
-    ) -> BudgetPolicyTable | None:
+    ) -> BudgetPolicy | None:
         query = select(BudgetPolicyTable).where(
             BudgetPolicyTable.company_id == company_id,
             BudgetPolicyTable.scope == to_db_value(scope),
@@ -125,13 +127,14 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         result = await self._session.execute(
             query.order_by(BudgetPolicyTable.created_at.desc()).limit(1)
         )
-        return result.scalar_one_or_none()
+        row = result.scalar_one_or_none()
+        return budget_policy_record(row) if row is not None else None
 
-    async def record_budget_usage(self, usage: BudgetUsage) -> BudgetUsageTable:
+    async def record_budget_usage(self, usage: BudgetUsage) -> BudgetUsage:
         row = BudgetUsageTable(**model_values(usage))
         self._session.add(row)
         await self._session.flush()
-        return row
+        return budget_usage_record(row)
 
     async def list_budget_usage(
         self,
@@ -141,7 +144,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         run_id: str | None = None,
         trace_id: str | None = None,
         limit: int = 50,
-    ) -> list[BudgetUsageTable]:
+    ) -> list[BudgetUsage]:
         query = select(BudgetUsageTable).where(BudgetUsageTable.company_id == company_id)
         if budget_id:
             query = query.where(BudgetUsageTable.budget_id == budget_id)
@@ -152,7 +155,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         result = await self._session.execute(
             query.order_by(BudgetUsageTable.created_at.desc()).limit(limit)
         )
-        return list(result.scalars().all())
+        return [budget_usage_record(row) for row in result.scalars().all()]
 
     async def get_budget_usage_total(self, budget_id: str) -> float:
         result = await self._session.execute(
@@ -162,5 +165,5 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         )
         return float(result.scalar_one() or 0.0)
 
-    async def append_audit_event(self, event: AuditEvent) -> AuditEventTable:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         return await self._companies.append_audit_event(event)

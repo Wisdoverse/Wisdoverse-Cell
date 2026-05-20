@@ -4,7 +4,6 @@ from __future__ import annotations
 from shared.schemas.event import EventTypes
 
 from .decision_ports import ControlPlaneDecisionStore
-from .domain_records import decision_record
 from .models import AuditEvent, CompanyContext, Decision, DecisionStatus
 
 
@@ -39,7 +38,7 @@ async def list_decisions(
     limit: int = 50,
 ) -> list[Decision]:
     """List decisions for one company."""
-    rows = await store.list_decisions(
+    return await store.list_decisions(
         company_id=company_id,
         status=status,
         run_id=run_id,
@@ -47,7 +46,6 @@ async def list_decisions(
         work_item_id=work_item_id,
         limit=limit,
     )
-    return [decision_record(row) for row in rows]
 
 
 async def get_decision(
@@ -57,10 +55,10 @@ async def get_decision(
     decision_id: str,
 ) -> Decision:
     """Return one decision in a company or raise not found."""
-    row = await store.get_decision(decision_id)
-    if row is None or row.company_id != company_id:
+    decision = await store.get_decision(decision_id)
+    if decision is None or decision.company_id != company_id:
         raise DecisionNotFoundError(decision_id)
-    return decision_record(row)
+    return decision
 
 
 async def create_decision_with_audit(
@@ -79,7 +77,7 @@ async def create_decision_with_audit(
         goal_id=decision.goal_id,
     )
 
-    row = await store.create_decision(
+    created = await store.create_decision(
         decision.model_copy(
             update={
                 "goal_id": goal_id,
@@ -92,21 +90,21 @@ async def create_decision_with_audit(
             company_id=decision.company_id,
             action=EventTypes.DECISION_CREATED,
             target_type="decision",
-            target_id=row.decision_id,
+            target_id=created.decision_id,
             actor_type="user",
             actor_id=created_by,
-            run_id=row.run_id,
-            work_item_id=row.work_item_id,
+            run_id=created.run_id,
+            work_item_id=created.work_item_id,
             detail={
-                "decision_id": row.decision_id,
-                "status": row.status,
-                "goal_id": row.goal_id,
-                "work_item_id": row.work_item_id,
-                "run_id": row.run_id,
+                "decision_id": created.decision_id,
+                "status": created.status,
+                "goal_id": created.goal_id,
+                "work_item_id": created.work_item_id,
+                "run_id": created.run_id,
             },
         )
     )
-    return decision_record(row)
+    return created
 
 
 async def update_decision_status_with_audit(
@@ -125,13 +123,13 @@ async def update_decision_status_with_audit(
         raise DecisionNotFoundError(decision_id)
 
     status_value = status.value if isinstance(status, DecisionStatus) else status
-    row = await store.update_decision_status(
+    updated = await store.update_decision_status(
         decision_id,
         status=status_value,
         selected_option=selected_option,
         decided_by=decided_by,
     )
-    if row is None:
+    if updated is None:
         raise DecisionNotFoundError(decision_id)
 
     await store.append_audit_event(
@@ -139,20 +137,20 @@ async def update_decision_status_with_audit(
             company_id=company_id,
             action=EventTypes.DECISION_UPDATED,
             target_type="decision",
-            target_id=row.decision_id,
+            target_id=updated.decision_id,
             actor_type="user",
             actor_id=actor_id,
-            run_id=row.run_id,
-            work_item_id=row.work_item_id,
+            run_id=updated.run_id,
+            work_item_id=updated.work_item_id,
             detail={
-                "status": row.status,
-                "selected_option": row.selected_option,
-                "decided_by": row.decided_by,
-                "goal_id": row.goal_id,
+                "status": updated.status,
+                "selected_option": updated.selected_option,
+                "decided_by": updated.decided_by,
+                "goal_id": updated.goal_id,
             },
         )
     )
-    return decision_record(row)
+    return updated
 
 
 async def _ensure_company(

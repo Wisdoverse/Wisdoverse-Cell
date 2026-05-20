@@ -3,16 +3,16 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from .models import AuditEvent, CompanyContext
+from .models import AgentPromptConfig, AgentRole, AuditEvent, CompanyContext
 
 
 class ControlPlanePromptConfigStore(Protocol):
     """Read-side persistence required by prompt-configuration helpers."""
 
-    async def create_company(self, company: CompanyContext) -> Any:
+    async def create_company(self, company: CompanyContext) -> CompanyContext:
         """Create a control-plane company context."""
 
-    async def get_company(self, company_id: str) -> Any | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
         """Return a company context if it exists."""
 
     async def get_agent_role(
@@ -20,7 +20,7 @@ class ControlPlanePromptConfigStore(Protocol):
         *,
         company_id: str,
         agent_id: str,
-    ) -> Any | None:
+    ) -> AgentRole | None:
         """Return an agent role if the target exists."""
 
     async def get_agent_prompt_config(
@@ -28,7 +28,7 @@ class ControlPlanePromptConfigStore(Protocol):
         *,
         company_id: str,
         agent_id: str,
-    ) -> Any | None:
+    ) -> AgentPromptConfig | None:
         """Return a stored prompt configuration if present."""
 
     async def upsert_agent_prompt_config(
@@ -39,8 +39,8 @@ class ControlPlanePromptConfigStore(Protocol):
         system_prompt: str,
         updated_by: str,
         metadata: dict[str, Any] | None = None,
-    ) -> Any:
+    ) -> AgentPromptConfig:
         """Create or update one prompt configuration."""
 
-    async def append_audit_event(self, event: AuditEvent) -> Any:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         """Append a control-plane audit event."""

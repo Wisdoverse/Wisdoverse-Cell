@@ -53,8 +53,8 @@ async def test_goal_store_owns_goal_queries(db_session: AsyncSession) -> None:
         current_value=0.5,
     )
 
-    assert active_goals == [parent]
-    assert draft_goals == [child]
+    assert [goal.goal_id for goal in active_goals] == [parent.goal_id]
+    assert [goal.goal_id for goal in draft_goals] == [child.goal_id]
     assert updated is not None
     assert updated.status == GoalStatus.ACTIVE.value
     assert updated.current_value == 0.5

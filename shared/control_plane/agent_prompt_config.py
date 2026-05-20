@@ -91,7 +91,7 @@ def prompt_config_to_dict(
         "agent_id": row.agent_id,
         "system_prompt": row.system_prompt,
         "updated_by": row.updated_by,
-        "metadata": row.metadata_json,
+        "metadata": row.metadata,
         "created_at": _serialize(row.created_at),
         "updated_at": _serialize(row.updated_at),
     }

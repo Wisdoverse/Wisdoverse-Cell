@@ -9,10 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .agent_registry_store import SqlAlchemyControlPlaneAgentRegistryStore
 from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
-from .models import AuditEvent, CompanyContext
+from .domain_records import agent_prompt_config_record
+from .models import AgentPromptConfig, AgentRole, AuditEvent, CompanyContext
 from .prompt_config_ports import ControlPlanePromptConfigStore
 from .store_utils import now_utc, to_db_value
-from .tables import AgentPromptConfigTable, AgentRoleTable, AuditEventTable, CompanyContextTable
+from .tables import AgentPromptConfigTable
 
 
 class SqlAlchemyControlPlanePromptConfigStore(ControlPlanePromptConfigStore):
@@ -24,10 +25,10 @@ class SqlAlchemyControlPlanePromptConfigStore(ControlPlanePromptConfigStore):
         self._agents = SqlAlchemyControlPlaneAgentRegistryStore(session)
         self._audits = SqlAlchemyControlPlaneAuditEventStore(session)
 
-    async def create_company(self, company: CompanyContext) -> CompanyContextTable:
+    async def create_company(self, company: CompanyContext) -> CompanyContext:
         return await self._companies.create_company(company)
 
-    async def get_company(self, company_id: str) -> CompanyContextTable | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
     async def get_agent_role(
@@ -35,13 +36,25 @@ class SqlAlchemyControlPlanePromptConfigStore(ControlPlanePromptConfigStore):
         *,
         company_id: str,
         agent_id: str,
-    ) -> AgentRoleTable | None:
+    ) -> AgentRole | None:
         return await self._agents.get_agent_role(
             company_id=company_id,
             agent_id=agent_id,
         )
 
     async def get_agent_prompt_config(
+        self,
+        *,
+        company_id: str,
+        agent_id: str,
+    ) -> AgentPromptConfig | None:
+        row = await self._get_agent_prompt_config_row(
+            company_id=company_id,
+            agent_id=agent_id,
+        )
+        return agent_prompt_config_record(row) if row is not None else None
+
+    async def _get_agent_prompt_config_row(
         self,
         *,
         company_id: str,
@@ -63,8 +76,8 @@ class SqlAlchemyControlPlanePromptConfigStore(ControlPlanePromptConfigStore):
         system_prompt: str,
         updated_by: str,
         metadata: dict[str, Any] | None = None,
-    ) -> AgentPromptConfigTable:
-        row = await self.get_agent_prompt_config(
+    ) -> AgentPromptConfig:
+        row = await self._get_agent_prompt_config_row(
             company_id=company_id,
             agent_id=agent_id,
         )
@@ -84,7 +97,7 @@ class SqlAlchemyControlPlanePromptConfigStore(ControlPlanePromptConfigStore):
                 row.metadata_json = to_db_value(metadata)
             row.updated_at = now_utc()
         await self._session.flush()
-        return row
+        return agent_prompt_config_record(row)
 
-    async def append_audit_event(self, event: AuditEvent) -> AuditEventTable:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         return await self._audits.append_audit_event(event)

@@ -9,10 +9,10 @@ from .models import AuditEvent, CompanyContext
 class ControlPlaneCompanyStore(Protocol):
     """Persistence operations required by company context use cases."""
 
-    async def create_company(self, company: CompanyContext) -> Any:
+    async def create_company(self, company: CompanyContext) -> CompanyContext:
         """Create a company context."""
 
-    async def get_company(self, company_id: str) -> Any | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
         """Return one company context."""
 
     async def list_companies(
@@ -20,7 +20,7 @@ class ControlPlaneCompanyStore(Protocol):
         *,
         search: str | None = None,
         limit: int = 100,
-    ) -> list[Any]:
+    ) -> list[CompanyContext]:
         """Return company contexts."""
 
     async def update_company_context(
@@ -30,8 +30,8 @@ class ControlPlaneCompanyStore(Protocol):
         name: str | None = None,
         mission: str | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> Any | None:
+    ) -> CompanyContext | None:
         """Update one company context."""
 
-    async def append_audit_event(self, event: AuditEvent) -> Any:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         """Append a control-plane audit event."""

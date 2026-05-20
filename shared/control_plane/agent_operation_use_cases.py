@@ -6,7 +6,6 @@ from typing import Any
 
 from .agent_operation_ports import ControlPlaneAgentOperationStore
 from .agent_runner import AgentWakeupResult, ControlPlaneAgentRunner
-from .domain_records import agent_run_record
 from .models import AgentRun
 from .scheduler import AgentHeartbeatResult, ControlPlaneHeartbeatScheduler
 
@@ -53,7 +52,7 @@ async def wake_agent_definition(
     )
     run_row = await store.get_agent_run(wakeup.run_id)
     return AgentWakeupUseCaseResult(
-        run=agent_run_record(run_row) if run_row is not None else None,
+        run=run_row,
         wakeup=wakeup,
     )
 

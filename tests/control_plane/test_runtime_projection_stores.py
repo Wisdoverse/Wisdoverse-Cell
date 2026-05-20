@@ -85,15 +85,21 @@ async def test_agent_operation_store_composes_runtime_stores(
         AgentRunStatus.SUCCEEDED,
     )
 
-    assert await store.get_company(company.company_id) == company
-    assert await store.get_agent_role(
+    fetched_company = await store.get_company(company.company_id)
+    fetched_role = await store.get_agent_role(
         company_id=company.company_id,
         agent_id="dev-agent",
-    ) == role
-    assert await store.list_agent_roles(
+    )
+    listed_roles = await store.list_agent_roles(
         company_id=company.company_id,
         status="active",
-    ) == [role]
+    )
+
+    assert fetched_company is not None
+    assert fetched_company.company_id == company.company_id
+    assert fetched_role is not None
+    assert fetched_role.role_id == role.role_id
+    assert [row.role_id for row in listed_roles] == [role.role_id]
     assert completed is not None
     assert completed.status == AgentRunStatus.SUCCEEDED.value
     assert len(
@@ -186,31 +192,40 @@ async def test_audit_timeline_store_composes_projection_sources(
         )
     )
 
-    assert await timeline.get_agent_run(run.run_id) == run
-    assert await timeline.list_agent_runs(
+    fetched_run = await timeline.get_agent_run(run.run_id)
+    listed_runs = await timeline.list_agent_runs(
         company_id=company.company_id,
         trace_id="trace_timeline_store",
-    ) == [run]
-    assert await timeline.list_approvals(
-        company_id=company.company_id,
-        run_id=run.run_id,
-        trace_id="trace_timeline_store",
-    ) == [approval]
-    assert await timeline.list_budget_usage(
+    )
+    listed_approvals = await timeline.list_approvals(
         company_id=company.company_id,
         run_id=run.run_id,
         trace_id="trace_timeline_store",
-    ) == [usage]
-    assert await timeline.list_audit_events(
+    )
+    listed_usage = await timeline.list_budget_usage(
         company_id=company.company_id,
         run_id=run.run_id,
         trace_id="trace_timeline_store",
-    ) == [audit]
-    assert await timeline.list_decisions(
+    )
+    listed_audits = await timeline.list_audit_events(
+        company_id=company.company_id,
+        run_id=run.run_id,
+        trace_id="trace_timeline_store",
+    )
+    listed_decisions = await timeline.list_decisions(
         company_id=company.company_id,
         run_ids=[run.run_id],
-    ) == [decision]
-    assert await timeline.list_artifacts(
+    )
+    listed_artifacts = await timeline.list_artifacts(
         company_id=company.company_id,
         run_ids=[run.run_id],
-    ) == [artifact]
+    )
+
+    assert fetched_run is not None
+    assert fetched_run.run_id == run.run_id
+    assert [row.run_id for row in listed_runs] == [run.run_id]
+    assert [row.approval_id for row in listed_approvals] == [approval.approval_id]
+    assert [row.usage_id for row in listed_usage] == [usage.usage_id]
+    assert [row.audit_event_id for row in listed_audits] == [audit.audit_event_id]
+    assert [row.decision_id for row in listed_decisions] == [decision.decision_id]
+    assert [row.artifact_id for row in listed_artifacts] == [artifact.artifact_id]
