@@ -18,7 +18,7 @@ from shared.control_plane.models import (
     ApprovalStatus,
     CompanyContext,
 )
-from shared.control_plane.repository import ControlPlaneRepository
+from shared.control_plane.store_factory import ControlPlaneStores
 from shared.control_plane.tables import control_plane_metadata
 
 aiosqlite = pytest.importorskip("aiosqlite", reason="aiosqlite not installed")
@@ -38,8 +38,8 @@ async def _install_control_plane_manager(monkeypatch, seed=None):
 
     if seed is not None:
         async with session_factory() as session:
-            repo = ControlPlaneRepository(session)
-            await seed(repo)
+            stores = ControlPlaneStores(session)
+            await seed(stores)
             await session.commit()
 
     @asynccontextmanager
@@ -60,16 +60,16 @@ async def _install_control_plane_manager(monkeypatch, seed=None):
     return engine
 
 
-async def _seed_runtime_records(repo: ControlPlaneRepository) -> None:
+async def _seed_runtime_records(stores: ControlPlaneStores) -> None:
     company_id = settings.control_plane_company_id
-    await repo.create_company(
+    await stores.companies.create_company(
         CompanyContext(
             company_id=company_id,
             name="Wisdoverse Cell",
             mission="AI-native company operations",
         )
     )
-    await repo.create_agent_role(
+    await stores.agent_registry.create_agent_role(
         AgentRole(
             company_id=company_id,
             agent_id="requirement-manager",
@@ -79,7 +79,7 @@ async def _seed_runtime_records(repo: ControlPlaneRepository) -> None:
             status="active",
         )
     )
-    await repo.create_agent_role(
+    await stores.agent_registry.create_agent_role(
         AgentRole(
             company_id=company_id,
             agent_id="qa-agent",
@@ -89,7 +89,7 @@ async def _seed_runtime_records(repo: ControlPlaneRepository) -> None:
             status="paused",
         )
     )
-    await repo.create_agent_run(
+    await stores.agent_runs.create_agent_run(
         AgentRun(
             company_id=company_id,
             agent_id="requirement-manager",
@@ -144,16 +144,16 @@ async def test_paused_agent_role_reports_stopped(monkeypatch) -> None:
     await engine.dispose()
 
 
-async def _seed_approval_records(repo: ControlPlaneRepository) -> None:
+async def _seed_approval_records(stores: ControlPlaneStores) -> None:
     company_id = settings.control_plane_company_id
-    await repo.create_company(
+    await stores.companies.create_company(
         CompanyContext(
             company_id=company_id,
             name="Wisdoverse Cell",
             mission="AI-native company operations",
         )
     )
-    await repo.request_approval(
+    await stores.approvals.request_approval(
         ApprovalRequest(
             company_id=company_id,
             category=ApprovalCategory.TECHNICAL,

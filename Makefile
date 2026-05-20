@@ -16,6 +16,7 @@ PYTEST_PUBLIC_PATHS = \
 	tests/unit/test_rust_gateway_prod_shadow_preflight.py \
 	tests/unit/test_rust_gateway_prod_gate.py \
 	tests/unit/test_rust_gateway_contracts.py \
+	shared/control_plane/tests/test_store_factory.py \
 	tests/control_plane/test_audit_event_store.py \
 	tests/control_plane/test_company_store.py \
 	tests/control_plane/test_agent_registry_store.py \

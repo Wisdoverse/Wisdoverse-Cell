@@ -24,7 +24,7 @@ from shared.control_plane.models import (
     BudgetUsage,
     CompanyContext,
 )
-from shared.control_plane.repository import ControlPlaneRepository
+from shared.control_plane.store_factory import ControlPlaneStores
 from shared.middleware import internal_auth as _internal_auth_mod
 from shared.schemas.event import EventTypes
 
@@ -39,11 +39,11 @@ def _session_provider(db_session: AsyncSession):
 
 
 async def _seed(db_session: AsyncSession):
-    repo = ControlPlaneRepository(db_session)
-    company = await repo.create_company(
+    stores = ControlPlaneStores(db_session)
+    company = await stores.companies.create_company(
         CompanyContext(company_id="cmp_api", name="API Test")
     )
-    run = await repo.create_agent_run(
+    run = await stores.agent_runs.create_agent_run(
         AgentRun(
             company_id=company.company_id,
             agent_id="dev-agent",
@@ -51,7 +51,7 @@ async def _seed(db_session: AsyncSession):
             trace_id="trace-api",
         )
     )
-    approval = await repo.request_approval(
+    approval = await stores.approvals.request_approval(
         ApprovalRequest(
             company_id=company.company_id,
             category=ApprovalCategory.TECHNICAL,
@@ -66,7 +66,7 @@ async def _seed(db_session: AsyncSession):
             trace_id="trace-api",
         )
     )
-    budget = await repo.create_budget_policy(
+    budget = await stores.budgets.create_budget_policy(
         BudgetPolicy(
             company_id=company.company_id,
             scope=BudgetScope.AGENT,
@@ -75,7 +75,7 @@ async def _seed(db_session: AsyncSession):
             limit_usd=5.0,
         )
     )
-    await repo.record_budget_usage(
+    await stores.budgets.record_budget_usage(
         BudgetUsage(
             company_id=company.company_id,
             budget_id=budget.budget_id,
@@ -87,7 +87,7 @@ async def _seed(db_session: AsyncSession):
             trace_id="trace-api",
         )
     )
-    await repo.append_audit_event(
+    await stores.audit_events.append_audit_event(
         AuditEvent(
             company_id=company.company_id,
             action="agent_run.started",
@@ -172,8 +172,10 @@ async def test_control_plane_api_manages_company_contexts(db_session: AsyncSessi
 async def test_control_plane_api_manages_evolution_proposals(
     db_session: AsyncSession,
 ):
-    repo = ControlPlaneRepository(db_session)
-    await repo.create_company(CompanyContext(company_id="cmp_evolution", name="Evolution"))
+    stores = ControlPlaneStores(db_session)
+    await stores.companies.create_company(
+        CompanyContext(company_id="cmp_evolution", name="Evolution")
+    )
     app = FastAPI()
     app.include_router(
         create_control_plane_router(session_provider=_session_provider(db_session))
@@ -776,8 +778,10 @@ async def test_control_plane_api_rejects_decision_with_missing_run(
 async def test_control_plane_api_creates_frontend_agent_definition(
     db_session: AsyncSession,
 ):
-    repo = ControlPlaneRepository(db_session)
-    await repo.create_company(CompanyContext(company_id="cmp_agents", name="Agent API Test"))
+    stores = ControlPlaneStores(db_session)
+    await stores.companies.create_company(
+        CompanyContext(company_id="cmp_agents", name="Agent API Test")
+    )
     app = FastAPI()
     app.include_router(
         create_control_plane_router(session_provider=_session_provider(db_session))
@@ -965,8 +969,10 @@ async def test_control_plane_api_manages_agent_prompt_config(
 async def test_control_plane_api_separates_agent_kinds(
     db_session: AsyncSession,
 ):
-    repo = ControlPlaneRepository(db_session)
-    await repo.create_company(CompanyContext(company_id="cmp_agent_kinds", name="Kinds"))
+    stores = ControlPlaneStores(db_session)
+    await stores.companies.create_company(
+        CompanyContext(company_id="cmp_agent_kinds", name="Kinds")
+    )
     app = FastAPI()
     app.include_router(
         create_control_plane_router(session_provider=_session_provider(db_session))
@@ -1070,8 +1076,10 @@ async def test_control_plane_api_wakes_process_agent_definition(
         "shared.control_plane.agent_runner.settings.control_plane_local_adapter_allowlist",
         "process:ops-runner",
     )
-    repo = ControlPlaneRepository(db_session)
-    await repo.create_company(CompanyContext(company_id="cmp_wake", name="Wake Test"))
+    stores = ControlPlaneStores(db_session)
+    await stores.companies.create_company(
+        CompanyContext(company_id="cmp_wake", name="Wake Test")
+    )
     app = FastAPI()
     app.include_router(
         create_control_plane_router(session_provider=_session_provider(db_session))
@@ -1146,9 +1154,11 @@ async def test_control_plane_api_wakes_process_agent_definition(
 async def test_control_plane_service_actions_require_internal_key(
     db_session: AsyncSession,
 ):
-    repo = ControlPlaneRepository(db_session)
-    await repo.create_company(CompanyContext(company_id="cmp_internal", name="Internal"))
-    await repo.create_agent_role(
+    stores = ControlPlaneStores(db_session)
+    await stores.companies.create_company(
+        CompanyContext(company_id="cmp_internal", name="Internal")
+    )
+    await stores.agent_registry.create_agent_role(
         AgentRole(
             company_id="cmp_internal",
             agent_id="internal-runner",
@@ -1195,8 +1205,8 @@ async def test_control_plane_service_actions_require_internal_key(
 async def test_control_plane_api_runs_due_heartbeat_scheduler(
     db_session: AsyncSession,
 ):
-    repo = ControlPlaneRepository(db_session)
-    await repo.create_company(
+    stores = ControlPlaneStores(db_session)
+    await stores.companies.create_company(
         CompanyContext(company_id="cmp_heartbeat", name="Heartbeat Test")
     )
     app = FastAPI()
@@ -1268,8 +1278,8 @@ async def test_control_plane_api_runs_due_heartbeat_scheduler(
 async def test_control_plane_heartbeat_scheduler_skips_agents_without_opt_in(
     db_session: AsyncSession,
 ):
-    repo = ControlPlaneRepository(db_session)
-    await repo.create_company(
+    stores = ControlPlaneStores(db_session)
+    await stores.companies.create_company(
         CompanyContext(company_id="cmp_no_heartbeat", name="No Heartbeat Test")
     )
     app = FastAPI()
@@ -1307,8 +1317,8 @@ async def test_control_plane_heartbeat_scheduler_skips_agents_without_opt_in(
 async def test_control_plane_api_blocks_local_adapter_by_default(
     db_session: AsyncSession,
 ):
-    repo = ControlPlaneRepository(db_session)
-    await repo.create_company(
+    stores = ControlPlaneStores(db_session)
+    await stores.companies.create_company(
         CompanyContext(company_id="cmp_wake_blocked", name="Wake Blocked Test")
     )
     app = FastAPI()
@@ -1356,8 +1366,8 @@ async def test_control_plane_api_blocks_enabled_local_adapter_without_allowlist(
         "shared.control_plane.agent_runner.settings.control_plane_local_adapter_allowlist",
         "",
     )
-    repo = ControlPlaneRepository(db_session)
-    await repo.create_company(
+    stores = ControlPlaneStores(db_session)
+    await stores.companies.create_company(
         CompanyContext(company_id="cmp_wake_not_allowed", name="Wake Not Allowed Test")
     )
     app = FastAPI()
@@ -1400,8 +1410,8 @@ async def test_control_plane_api_blocks_enabled_local_adapter_without_allowlist(
 async def test_control_plane_api_rejects_unknown_adapter_definition(
     db_session: AsyncSession,
 ):
-    repo = ControlPlaneRepository(db_session)
-    await repo.create_company(
+    stores = ControlPlaneStores(db_session)
+    await stores.companies.create_company(
         CompanyContext(company_id="cmp_unknown_adapter", name="Unknown Adapter Test")
     )
     app = FastAPI()

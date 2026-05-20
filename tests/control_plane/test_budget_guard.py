@@ -4,20 +4,23 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.control_plane.budget_guard import BudgetExceededError, BudgetGuard
+from shared.control_plane.budget_guard_store import SqlAlchemyControlPlaneBudgetGuardStore
+from shared.control_plane.budget_store import SqlAlchemyControlPlaneBudgetStore
+from shared.control_plane.company_store import SqlAlchemyControlPlaneCompanyStore
 from shared.control_plane.models import (
     BudgetPeriod,
     BudgetPolicy,
     BudgetScope,
     CompanyContext,
 )
-from shared.control_plane.repository import ControlPlaneRepository
 
 
 @pytest.mark.asyncio
 async def test_budget_guard_allows_when_no_policy_exists(db_session: AsyncSession):
-    repo = ControlPlaneRepository(db_session)
-    company = await repo.create_company(CompanyContext(name="Wisdoverse Cell"))
-    guard = BudgetGuard(repo)
+    companies = SqlAlchemyControlPlaneCompanyStore(db_session)
+    guard_store = SqlAlchemyControlPlaneBudgetGuardStore(db_session)
+    company = await companies.create_company(CompanyContext(name="Wisdoverse Cell"))
+    guard = BudgetGuard(guard_store)
 
     decision = await guard.check(
         company_id=company.company_id,
@@ -32,9 +35,11 @@ async def test_budget_guard_allows_when_no_policy_exists(db_session: AsyncSessio
 
 @pytest.mark.asyncio
 async def test_budget_guard_blocks_when_estimate_exceeds_limit(db_session: AsyncSession):
-    repo = ControlPlaneRepository(db_session)
-    company = await repo.create_company(CompanyContext(name="Wisdoverse Cell"))
-    policy = await repo.create_budget_policy(
+    companies = SqlAlchemyControlPlaneCompanyStore(db_session)
+    budgets = SqlAlchemyControlPlaneBudgetStore(db_session)
+    guard_store = SqlAlchemyControlPlaneBudgetGuardStore(db_session)
+    company = await companies.create_company(CompanyContext(name="Wisdoverse Cell"))
+    policy = await budgets.create_budget_policy(
         BudgetPolicy(
             company_id=company.company_id,
             scope=BudgetScope.COMPANY,
@@ -42,7 +47,7 @@ async def test_budget_guard_blocks_when_estimate_exceeds_limit(db_session: Async
             limit_usd=10,
         )
     )
-    guard = BudgetGuard(repo)
+    guard = BudgetGuard(guard_store)
     await guard.record_usage(
         company_id=company.company_id,
         budget_id=policy.budget_id,
@@ -73,9 +78,11 @@ async def test_budget_guard_blocks_when_estimate_exceeds_limit(db_session: Async
 
 @pytest.mark.asyncio
 async def test_budget_guard_enforces_model_allowlist(db_session: AsyncSession):
-    repo = ControlPlaneRepository(db_session)
-    company = await repo.create_company(CompanyContext(name="Wisdoverse Cell"))
-    await repo.create_budget_policy(
+    companies = SqlAlchemyControlPlaneCompanyStore(db_session)
+    budgets = SqlAlchemyControlPlaneBudgetStore(db_session)
+    guard_store = SqlAlchemyControlPlaneBudgetGuardStore(db_session)
+    company = await companies.create_company(CompanyContext(name="Wisdoverse Cell"))
+    await budgets.create_budget_policy(
         BudgetPolicy(
             company_id=company.company_id,
             scope=BudgetScope.AGENT,
@@ -85,7 +92,7 @@ async def test_budget_guard_enforces_model_allowlist(db_session: AsyncSession):
             model_allowlist=["claude-haiku-4-5-20251001"],
         )
     )
-    guard = BudgetGuard(repo)
+    guard = BudgetGuard(guard_store)
 
     decision = await guard.check(
         company_id=company.company_id,

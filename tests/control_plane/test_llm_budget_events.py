@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.control_plane import database as control_plane_database
 from shared.control_plane.models import BudgetPeriod, BudgetPolicy, BudgetScope, CompanyContext
-from shared.control_plane.repository import ControlPlaneRepository
+from shared.control_plane.store_factory import ControlPlaneStores
 from shared.infra import llm_gateway as llm_gateway_module
 from shared.infra.llm_gateway import ControlPlaneBudgetReservation, LLMGateway
 
@@ -27,11 +27,11 @@ async def test_llm_budget_usage_recording_publishes_event(
     db_session: AsyncSession,
     monkeypatch,
 ):
-    repo = ControlPlaneRepository(db_session)
-    company = await repo.create_company(
+    stores = ControlPlaneStores(db_session)
+    company = await stores.companies.create_company(
         CompanyContext(company_id="cmp_llm_event", name="LLM Event Test")
     )
-    budget = await repo.create_budget_policy(
+    budget = await stores.budgets.create_budget_policy(
         BudgetPolicy(
             company_id=company.company_id,
             scope=BudgetScope.AGENT,
@@ -67,7 +67,9 @@ async def test_llm_budget_usage_recording_publishes_event(
         trace_id="trace-llm-budget",
     )
 
-    assert await repo.get_budget_usage_total(budget.budget_id) == pytest.approx(0.012)
+    assert await stores.budgets.get_budget_usage_total(budget.budget_id) == pytest.approx(
+        0.012
+    )
     publish_budget.assert_awaited_once()
     publish_kwargs = publish_budget.await_args.kwargs
     assert publish_kwargs["company_id"] == company.company_id

@@ -2745,6 +2745,29 @@ def test_control_plane_repository_is_confined_to_store_adapters() -> None:
     assert offenders == []
 
 
+def test_control_plane_repository_facade_tests_are_isolated() -> None:
+    """Repository facade coverage should not leak into unrelated tests."""
+    allowed_files = {
+        Path("tests/control_plane/test_repository.py"),
+        Path("tests/unit/test_architecture_boundaries.py"),
+    }
+    offenders: list[str] = []
+
+    for root in (Path("tests/control_plane"), Path("tests/unit")):
+        for path in _python_files(root):
+            if path in allowed_files:
+                continue
+            source = path.read_text()
+            if (
+                "ControlPlaneRepository(" in source
+                or "shared.control_plane.repository import ControlPlaneRepository"
+                in source
+            ):
+                offenders.append(str(path))
+
+    assert offenders == []
+
+
 def test_control_plane_runtime_plugin_delegates_to_use_cases_and_ports() -> None:
     """Runtime plugin should not own repository writes or bootstrap assembly."""
     plugin_source = Path("shared/app/plugins/control_plane.py").read_text()

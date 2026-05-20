@@ -10,15 +10,17 @@ from shared.control_plane.approval_gate import (
     ApprovalGateService,
     ApprovalRequiredError,
 )
+from shared.control_plane.approval_store import SqlAlchemyControlPlaneApprovalStore
+from shared.control_plane.company_store import SqlAlchemyControlPlaneCompanyStore
 from shared.control_plane.models import ApprovalCategory, CompanyContext
-from shared.control_plane.repository import ControlPlaneRepository
 
 
 @pytest.mark.asyncio
 async def test_approval_gate_blocks_until_approved(db_session: AsyncSession):
-    repo = ControlPlaneRepository(db_session)
-    company = await repo.create_company(CompanyContext(name="Wisdoverse Cell"))
-    gate = ApprovalGate(repo)
+    companies = SqlAlchemyControlPlaneCompanyStore(db_session)
+    approvals = SqlAlchemyControlPlaneApprovalStore(db_session)
+    company = await companies.create_company(CompanyContext(name="Wisdoverse Cell"))
+    gate = ApprovalGate(approvals)
 
     approval = await gate.request_approval(
         company_id=company.company_id,
@@ -77,7 +79,7 @@ async def test_approval_gate_service_requests_and_approves(db_session: AsyncSess
     assert approval.source_agent_id == "dev-agent"
     assert approval.affected_resources == ["agent:dev-agent"]
     with pytest.raises(ApprovalRequiredError):
-        await ApprovalGate(ControlPlaneRepository(db_session)).ensure_approved(
+        await ApprovalGate(SqlAlchemyControlPlaneApprovalStore(db_session)).ensure_approved(
             approval.approval_id
         )
 
@@ -106,9 +108,10 @@ async def test_approval_gate_service_enforced_requires_id(db_session: AsyncSessi
 
 @pytest.mark.asyncio
 async def test_approval_gate_rejects(db_session: AsyncSession):
-    repo = ControlPlaneRepository(db_session)
-    company = await repo.create_company(CompanyContext(name="Wisdoverse Cell"))
-    gate = ApprovalGate(repo)
+    companies = SqlAlchemyControlPlaneCompanyStore(db_session)
+    approvals = SqlAlchemyControlPlaneApprovalStore(db_session)
+    company = await companies.create_company(CompanyContext(name="Wisdoverse Cell"))
+    gate = ApprovalGate(approvals)
 
     approval = await gate.request_approval(
         company_id=company.company_id,
