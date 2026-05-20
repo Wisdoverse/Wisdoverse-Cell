@@ -651,6 +651,9 @@ EventBus failure visibility:
 - Runtime outbox dispatch exposes
   `wisdoverse-cell_outbox_pending_oldest_age_seconds` by runtime so operators
   can alert on the oldest unsent integration event before consumers go stale.
+  Prometheus rules `OutboxBacklogAgeWarning` and
+  `OutboxBacklogAgeCritical` are defined in
+  `docker/prometheus/rules/application.yml`.
 - Redis EventBus exposes `get_pending_count(event_type, group)` for consumer lag.
 - Redis EventBus writes failed handler events and malformed payloads to
   `dlq.failed`; operators can inspect it with `get_dead_letter_count()` and
@@ -658,7 +661,9 @@ EventBus failure visibility:
   a SHA-256 fingerprint instead of raw event content. Prometheus exports
   `wisdoverse-cell_eventbus_dlq_messages_total`,
   `wisdoverse-cell_eventbus_dlq_length`, and
-  `wisdoverse-cell_eventbus_queue_length_by_type`.
+  `wisdoverse-cell_eventbus_queue_length_by_type`. Prometheus rules
+  `EventBusDLQGrowth` and `EventBusDLQNotEmpty` are defined in
+  `docker/prometheus/rules/application.yml`.
 - NATS deployments use JetStream redelivery and consumer stats instead of the
   Redis DLQ stream. Malformed NATS payload logs include payload length and a
   SHA-256 fingerprint, not raw event content.

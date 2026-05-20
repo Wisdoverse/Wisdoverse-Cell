@@ -530,7 +530,7 @@ docker compose -f docker/compose/docker-compose.app.yml logs --tail=50 ai-core |
 ```bash
 # Step 1: Which runtime is lagging?
 curl -s -H "X-Internal-Key: $PM_API_KEY" http://localhost:9090/api/v1/query \
-  --data-urlencode 'query=wisdoverse-cell_outbox_pending_oldest_age_seconds' | jq
+  --data-urlencode 'query={__name__="wisdoverse-cell_outbox_pending_oldest_age_seconds"}' | jq
 
 # Step 2: Look at the agent's /status for last error / last result.
 docker compose exec cell curl -s http://requirement-manager:8000/status | jq .plugins
@@ -645,7 +645,7 @@ curl -s -H "X-Internal-Key: $PM_API_KEY" \
 
 # Step 3: Top offenders from metrics
 curl -s http://localhost:9090/api/v1/query \
-  --data-urlencode 'query=topk(5, sum by (agent_id) (wisdoverse-cell_llm_cost_dollars_total))' | jq
+  --data-urlencode 'query=topk(5, sum by (agent_id) ({__name__="wisdoverse-cell_llm_cost_dollars_total"}))' | jq
 ```
 
 **Fix**:
