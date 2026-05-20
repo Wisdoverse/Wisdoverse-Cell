@@ -52,7 +52,8 @@ When you add a new context, you must add a row to this document **and** to
 - Outbound dependencies: runtime agents (writes runs, artifacts, audit);
   LLM Gateway (budget usage); gateways (approvals consumption).
 - Boundary clarity: high (single owner); internal seam not yet structurally
-  complete (`repository.py` is 902 LOC; needs P0-1 work).
+  complete (`company_store.py` owns its SQL, but remaining store adapters still
+  need P0-1 extraction work).
 - Split fitness: must remain central. Do not extract.
 
 ### 2.2 Requirement Management
