@@ -1,10 +1,9 @@
 """Ports for control-plane approval persistence."""
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Protocol
 
-from .models import ApprovalRequest, ApprovalStatus, AuditEvent
-from .tables import ApprovalRequestTable
+from .models import ApprovalRequest, ApprovalStatus, AuditEvent, EvolutionProposal
 
 
 class ControlPlaneApprovalStore(Protocol):
@@ -13,10 +12,10 @@ class ControlPlaneApprovalStore(Protocol):
     async def request_approval(
         self,
         approval: ApprovalRequest,
-    ) -> ApprovalRequestTable:
+    ) -> ApprovalRequest:
         """Persist a new approval request."""
 
-    async def get_approval(self, approval_id: str) -> ApprovalRequestTable | None:
+    async def get_approval(self, approval_id: str) -> ApprovalRequest | None:
         """Return one approval request."""
 
     async def list_approvals(
@@ -27,7 +26,7 @@ class ControlPlaneApprovalStore(Protocol):
         run_id: str | None = None,
         trace_id: str | None = None,
         limit: int = 50,
-    ) -> list[ApprovalRequestTable]:
+    ) -> list[ApprovalRequest]:
         """Return approval requests for one company."""
 
     async def resolve_approval(
@@ -36,7 +35,7 @@ class ControlPlaneApprovalStore(Protocol):
         *,
         status: ApprovalStatus | str,
         resolved_by: str,
-    ) -> ApprovalRequestTable | None:
+    ) -> ApprovalRequest | None:
         """Resolve an approval request."""
 
     async def update_evolution_proposal_approval_state_by_approval(
@@ -45,8 +44,8 @@ class ControlPlaneApprovalStore(Protocol):
         *,
         approval_state: str,
         rollout_state: str | None = None,
-    ) -> Any | None:
+    ) -> EvolutionProposal | None:
         """Synchronize an evolution proposal tied to an approval."""
 
-    async def append_audit_event(self, event: AuditEvent) -> Any:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         """Append a control-plane audit event."""

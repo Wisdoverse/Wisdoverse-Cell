@@ -80,10 +80,11 @@ async def test_approval_store_owns_approval_queries(
     )
     fetched = await approval_store.get_approval(approval.approval_id)
 
-    assert rows == [approval]
+    assert [row.approval_id for row in rows] == [approval.approval_id]
     assert fetched is not None
     assert fetched.category == ApprovalCategory.TECHNICAL.value
-    assert fetched.metadata_json == {"source": "approval-store"}
+    assert fetched.metadata == {"source": "approval-store"}
+    assert not hasattr(fetched, "metadata_json")
 
 
 @pytest.mark.asyncio

@@ -94,15 +94,16 @@ async def test_budget_store_owns_policy_and_usage_queries(
     )
     total = await store.get_budget_usage_total(policy.budget_id)
 
-    assert listed == [policy]
+    assert [row.budget_id for row in listed] == [policy.budget_id]
     assert active is not None
     assert active.budget_id == policy.budget_id
     assert updated is not None
     assert updated.limit_usd == 30
     assert updated.warning_threshold == 0.7
     assert updated.model_allowlist == ["claude-opus-4-20250514"]
-    assert updated.metadata_json == {"source": "budget-store-updated"}
-    assert usage_rows == [first_usage]
+    assert updated.metadata == {"source": "budget-store-updated"}
+    assert not hasattr(updated, "metadata_json")
+    assert [row.usage_id for row in usage_rows] == [first_usage.usage_id]
     assert total == pytest.approx(2.0)
 
 

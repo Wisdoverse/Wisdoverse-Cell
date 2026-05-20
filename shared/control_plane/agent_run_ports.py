@@ -1,13 +1,15 @@
 """Ports for control-plane agent run read persistence."""
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Protocol
+
+from .models import AgentRun
 
 
 class ControlPlaneAgentRunStore(Protocol):
     """Persistence operations required by agent-run query use cases."""
 
-    async def get_agent_run(self, run_id: str) -> Any | None:
+    async def get_agent_run(self, run_id: str) -> AgentRun | None:
         """Return one agent run by id."""
 
     async def list_agent_runs(
@@ -20,5 +22,5 @@ class ControlPlaneAgentRunStore(Protocol):
         goal_id: str | None = None,
         work_item_id: str | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[AgentRun]:
         """Return agent runs for one company."""

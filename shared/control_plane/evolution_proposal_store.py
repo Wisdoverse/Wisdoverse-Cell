@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .approval_store import SqlAlchemyControlPlaneApprovalStore
 from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
+from .domain_records import evolution_proposal_record
 from .evolution_proposal_ports import ControlPlaneEvolutionProposalStore
 from .models import (
     ApprovalRequest,
@@ -16,12 +17,7 @@ from .models import (
     EvolutionProposal,
 )
 from .store_utils import model_values, now_utc
-from .tables import (
-    ApprovalRequestTable,
-    AuditEventTable,
-    CompanyContextTable,
-    EvolutionProposalTable,
-)
+from .tables import EvolutionProposalTable
 
 
 class SqlAlchemyControlPlaneEvolutionProposalStore(
@@ -35,16 +31,16 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
         self._approvals = SqlAlchemyControlPlaneApprovalStore(session)
         self._audits = SqlAlchemyControlPlaneAuditEventStore(session)
 
-    async def create_company(self, company: CompanyContext) -> CompanyContextTable:
+    async def create_company(self, company: CompanyContext) -> CompanyContext:
         return await self._companies.create_company(company)
 
-    async def get_company(self, company_id: str) -> CompanyContextTable | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
-    async def request_approval(self, approval: ApprovalRequest) -> ApprovalRequestTable:
+    async def request_approval(self, approval: ApprovalRequest) -> ApprovalRequest:
         return await self._approvals.request_approval(approval)
 
-    async def get_approval(self, approval_id: str) -> ApprovalRequestTable | None:
+    async def get_approval(self, approval_id: str) -> ApprovalRequest | None:
         return await self._approvals.get_approval(approval_id)
 
     async def resolve_approval(
@@ -53,7 +49,7 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
         *,
         status: ApprovalStatus | str,
         resolved_by: str,
-    ) -> ApprovalRequestTable | None:
+    ) -> ApprovalRequest | None:
         return await self._approvals.resolve_approval(
             approval_id,
             status=status,
@@ -62,13 +58,19 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
 
     async def create_evolution_proposal(
         self, proposal: EvolutionProposal
-    ) -> EvolutionProposalTable:
+    ) -> EvolutionProposal:
         row = EvolutionProposalTable(**model_values(proposal))
         self._session.add(row)
         await self._session.flush()
-        return row
+        return evolution_proposal_record(row)
 
     async def get_evolution_proposal(
+        self, proposal_id: str
+    ) -> EvolutionProposal | None:
+        row = await self._get_evolution_proposal_row(proposal_id)
+        return evolution_proposal_record(row) if row is not None else None
+
+    async def _get_evolution_proposal_row(
         self, proposal_id: str
     ) -> EvolutionProposalTable | None:
         result = await self._session.execute(
@@ -87,7 +89,7 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
         rollout_state: str | None = None,
         scope: str | None = None,
         limit: int = 100,
-    ) -> list[EvolutionProposalTable]:
+    ) -> list[EvolutionProposal]:
         query = select(EvolutionProposalTable).where(
             EvolutionProposalTable.company_id == company_id
         )
@@ -102,7 +104,7 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
         result = await self._session.execute(
             query.order_by(EvolutionProposalTable.created_at.desc()).limit(limit)
         )
-        return list(result.scalars().all())
+        return [evolution_proposal_record(row) for row in result.scalars().all()]
 
     async def update_evolution_proposal_status(
         self,
@@ -111,8 +113,8 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
         approval_state: str | None = None,
         rollout_state: str | None = None,
         approval_id: str | None = None,
-    ) -> EvolutionProposalTable | None:
-        row = await self.get_evolution_proposal(proposal_id)
+    ) -> EvolutionProposal | None:
+        row = await self._get_evolution_proposal_row(proposal_id)
         if row is None:
             return None
         if approval_state is not None:
@@ -123,7 +125,7 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
             row.approval_id = approval_id
         row.updated_at = now_utc()
         await self._session.flush()
-        return row
+        return evolution_proposal_record(row)
 
     async def update_evolution_proposal_approval_state_by_approval(
         self,
@@ -131,7 +133,7 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
         *,
         approval_state: str,
         rollout_state: str | None = None,
-    ) -> EvolutionProposalTable | None:
+    ) -> EvolutionProposal | None:
         result = await self._session.execute(
             select(EvolutionProposalTable).where(
                 EvolutionProposalTable.approval_id == approval_id
@@ -145,7 +147,7 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
             row.rollout_state = rollout_state
         row.updated_at = now_utc()
         await self._session.flush()
-        return row
+        return evolution_proposal_record(row)
 
-    async def append_audit_event(self, event: AuditEvent) -> AuditEventTable:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         return await self._audits.append_audit_event(event)

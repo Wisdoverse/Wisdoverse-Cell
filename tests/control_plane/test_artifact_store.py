@@ -111,14 +111,15 @@ async def test_artifact_store_owns_artifact_queries(
     )
     fetched = await artifact_store.get_artifact(artifact.artifact_id)
 
-    assert rows == [artifact]
+    assert [row.artifact_id for row in rows] == [artifact.artifact_id]
     assert {row.artifact_id for row in run_rows} == {
         artifact.artifact_id,
         other_artifact.artifact_id,
     }
     assert fetched is not None
     assert fetched.artifact_type == ArtifactType.REPORT.value
-    assert fetched.metadata_json == {"source": "artifact-store"}
+    assert fetched.metadata == {"source": "artifact-store"}
+    assert not hasattr(fetched, "metadata_json")
 
 
 @pytest.mark.asyncio

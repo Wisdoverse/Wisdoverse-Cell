@@ -6,7 +6,6 @@ from typing import Any
 from shared.schemas.event import EventTypes
 
 from .company_ports import ControlPlaneCompanyStore
-from .domain_records import company_record
 from .models import AuditEvent, CompanyContext
 
 
@@ -25,8 +24,7 @@ async def list_companies(
     limit: int = 100,
 ) -> list[CompanyContext]:
     """List control-plane companies."""
-    rows = await store.list_companies(search=search, limit=limit)
-    return [company_record(row) for row in rows]
+    return await store.list_companies(search=search, limit=limit)
 
 
 async def get_company(
@@ -35,10 +33,10 @@ async def get_company(
     company_id: str,
 ) -> CompanyContext:
     """Return one company or raise not found."""
-    row = await store.get_company(company_id)
-    if row is None:
+    company = await store.get_company(company_id)
+    if company is None:
         raise CompanyNotFoundError(company_id)
-    return company_record(row)
+    return company
 
 
 async def create_company_with_audit(
@@ -61,22 +59,22 @@ async def create_company_with_audit(
     }
     if company_id:
         company_values["company_id"] = company_id
-    row = await store.create_company(CompanyContext(**company_values))
+    company = await store.create_company(CompanyContext(**company_values))
     await store.append_audit_event(
         AuditEvent(
-            company_id=row.company_id,
+            company_id=company.company_id,
             action=EventTypes.COMPANY_CREATED,
             target_type="company",
-            target_id=row.company_id,
+            target_id=company.company_id,
             actor_type="user",
             actor_id=created_by,
             detail={
-                "company_id": row.company_id,
-                "name": row.name,
+                "company_id": company.company_id,
+                "name": company.name,
             },
         )
     )
-    return company_record(row)
+    return company
 
 
 async def update_company_with_audit(
@@ -89,27 +87,27 @@ async def update_company_with_audit(
     actor_id: str,
 ) -> CompanyContext:
     """Update a company context and record its audit event."""
-    row = await store.update_company_context(
+    company = await store.update_company_context(
         company_id,
         name=name,
         mission=mission,
         metadata=metadata,
     )
-    if row is None:
+    if company is None:
         raise CompanyNotFoundError(company_id)
 
     await store.append_audit_event(
         AuditEvent(
-            company_id=row.company_id,
+            company_id=company.company_id,
             action=EventTypes.COMPANY_UPDATED,
             target_type="company",
-            target_id=row.company_id,
+            target_id=company.company_id,
             actor_type="user",
             actor_id=actor_id,
             detail={
-                "company_id": row.company_id,
-                "name": row.name,
+                "company_id": company.company_id,
+                "name": company.name,
             },
         )
     )
-    return company_record(row)
+    return company

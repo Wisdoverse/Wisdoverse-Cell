@@ -73,7 +73,7 @@ async def test_work_item_store_owns_work_item_queries(
         owner_agent_id="dev-agent",
     )
 
-    assert rows == [work_item]
+    assert [row.work_item_id for row in rows] == [work_item.work_item_id]
     assert work_item.dependencies == [dependency.work_item_id]
     assert updated is not None
     assert updated.status == WorkItemStatus.RUNNING.value

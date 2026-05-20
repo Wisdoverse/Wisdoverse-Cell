@@ -1,8 +1,6 @@
 """SQLAlchemy adapter for control-plane role bootstrap persistence."""
 from __future__ import annotations
 
-from typing import Any
-
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,10 +20,12 @@ class SqlAlchemyControlPlaneRoleBootstrapStore(ControlPlaneRoleBootstrapStore):
         self._roles = SqlAlchemyControlPlaneAgentRegistryStore(session)
         self._audits = SqlAlchemyControlPlaneAuditEventStore(session)
 
-    async def get_company(self, company_id: str) -> Any | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
-    async def create_company_if_absent(self, company: CompanyContext) -> Any | None:
+    async def create_company_if_absent(
+        self, company: CompanyContext
+    ) -> CompanyContext | None:
         try:
             async with self._session.begin_nested():
                 return await self._companies.create_company(company)
@@ -37,18 +37,18 @@ class SqlAlchemyControlPlaneRoleBootstrapStore(ControlPlaneRoleBootstrapStore):
         *,
         company_id: str,
         agent_id: str,
-    ) -> Any | None:
+    ) -> AgentRole | None:
         return await self._roles.get_agent_role(
             company_id=company_id,
             agent_id=agent_id,
         )
 
-    async def create_agent_role_if_absent(self, role: AgentRole) -> Any | None:
+    async def create_agent_role_if_absent(self, role: AgentRole) -> AgentRole | None:
         try:
             async with self._session.begin_nested():
                 return await self._roles.create_agent_role(role)
         except IntegrityError:
             return None
 
-    async def append_audit_event(self, event: AuditEvent) -> Any:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         return await self._audits.append_audit_event(event)

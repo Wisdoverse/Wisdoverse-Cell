@@ -4,7 +4,6 @@ from __future__ import annotations
 from shared.schemas.event import EventTypes
 
 from .artifact_ports import ControlPlaneArtifactStore
-from .domain_records import artifact_record
 from .models import Artifact, ArtifactType, AuditEvent, CompanyContext
 
 
@@ -40,7 +39,7 @@ async def list_artifacts(
     limit: int = 50,
 ) -> list[Artifact]:
     """List artifacts for one company."""
-    rows = await store.list_artifacts(
+    return await store.list_artifacts(
         company_id=company_id,
         artifact_type=artifact_type,
         run_id=run_id,
@@ -49,7 +48,6 @@ async def list_artifacts(
         created_by_agent_id=created_by_agent_id,
         limit=limit,
     )
-    return [artifact_record(row) for row in rows]
 
 
 async def get_artifact(
@@ -59,10 +57,10 @@ async def get_artifact(
     artifact_id: str,
 ) -> Artifact:
     """Return one artifact in a company or raise not found."""
-    row = await store.get_artifact(artifact_id)
-    if row is None or row.company_id != company_id:
+    artifact = await store.get_artifact(artifact_id)
+    if artifact is None or artifact.company_id != company_id:
         raise ArtifactNotFoundError(artifact_id)
-    return artifact_record(row)
+    return artifact
 
 
 async def create_artifact_with_audit(
@@ -81,7 +79,7 @@ async def create_artifact_with_audit(
         goal_id=artifact.goal_id,
     )
 
-    row = await store.create_artifact(
+    created = await store.create_artifact(
         artifact.model_copy(
             update={
                 "goal_id": goal_id,
@@ -94,22 +92,22 @@ async def create_artifact_with_audit(
             company_id=artifact.company_id,
             action=EventTypes.ARTIFACT_CREATED,
             target_type="artifact",
-            target_id=row.artifact_id,
+            target_id=created.artifact_id,
             actor_type="user",
             actor_id=created_by,
-            run_id=row.run_id,
-            work_item_id=row.work_item_id,
+            run_id=created.run_id,
+            work_item_id=created.work_item_id,
             detail={
-                "artifact_id": row.artifact_id,
-                "artifact_type": row.artifact_type,
-                "goal_id": row.goal_id,
-                "work_item_id": row.work_item_id,
-                "run_id": row.run_id,
-                "created_by_agent_id": row.created_by_agent_id,
+                "artifact_id": created.artifact_id,
+                "artifact_type": created.artifact_type,
+                "goal_id": created.goal_id,
+                "work_item_id": created.work_item_id,
+                "run_id": created.run_id,
+                "created_by_agent_id": created.created_by_agent_id,
             },
         )
     )
-    return artifact_record(row)
+    return created
 
 
 def enum_value(value: ArtifactType | str | None) -> str | None:

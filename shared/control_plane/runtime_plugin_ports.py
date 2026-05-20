@@ -10,13 +10,13 @@ from .run_evidence_ports import ControlPlaneRunEvidenceStore
 class ControlPlaneRuntimePluginStore(ControlPlaneRunEvidenceStore, Protocol):
     """Persistence operations required by runtime plugin use cases."""
 
-    async def get_company(self, company_id: str) -> Any | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
         """Return one company context."""
 
-    async def create_company(self, company: CompanyContext) -> Any:
+    async def create_company(self, company: CompanyContext) -> CompanyContext:
         """Create a company context."""
 
-    async def create_agent_run(self, run: AgentRun) -> Any:
+    async def create_agent_run(self, run: AgentRun) -> AgentRun:
         """Create an agent run."""
 
     async def update_agent_run_status(
@@ -24,10 +24,10 @@ class ControlPlaneRuntimePluginStore(ControlPlaneRunEvidenceStore, Protocol):
         run_id: str,
         status: Any,
         **values: Any,
-    ) -> Any | None:
+    ) -> AgentRun | None:
         """Update an agent run status."""
 
-    async def append_audit_event(self, event: AuditEvent) -> Any:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         """Append an audit event."""
 
     async def ensure_core_organization_role_agents(

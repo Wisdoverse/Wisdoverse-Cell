@@ -5,7 +5,6 @@ from shared.schemas.event import EventTypes
 
 from .adapter_registry import DEFAULT_ADAPTER_REGISTRY, AdapterRegistry
 from .agent_registry_ports import ControlPlaneAgentRegistryStore
-from .domain_records import agent_role_record
 from .models import AgentRole, AuditEvent, CompanyContext
 
 
@@ -55,7 +54,7 @@ async def list_agent_roles(
     limit: int = 100,
 ) -> list[AgentRole]:
     """List agent roles through the registry boundary."""
-    rows = await store.list_agent_roles(
+    return await store.list_agent_roles(
         company_id=company_id,
         status=status,
         agent_kind=agent_kind,
@@ -64,7 +63,6 @@ async def list_agent_roles(
         search=search,
         limit=limit,
     )
-    return [agent_role_record(row) for row in rows]
 
 
 async def get_agent_role(
@@ -74,10 +72,10 @@ async def get_agent_role(
     agent_id: str,
 ) -> AgentRole:
     """Return one agent role or raise a registry-domain not-found error."""
-    row = await store.get_agent_role(company_id=company_id, agent_id=agent_id)
-    if row is None:
+    role = await store.get_agent_role(company_id=company_id, agent_id=agent_id)
+    if role is None:
         raise AgentNotFoundError(agent_id)
-    return agent_role_record(row)
+    return role
 
 
 async def create_agent_role_with_audit(
@@ -96,27 +94,27 @@ async def create_agent_role_with_audit(
         raise AgentAlreadyExistsError(role.agent_id)
     await _validate_adapter(adapter_registry, role.adapter_type)
 
-    row = await store.create_agent_role(role)
+    created = await store.create_agent_role(role)
     await store.append_audit_event(
         AuditEvent(
             company_id=role.company_id,
             action=EventTypes.AGENT_ROLE_CREATED,
             target_type="agent_role",
-            target_id=row.agent_id,
+            target_id=created.agent_id,
             actor_type="user",
             actor_id=role.created_by,
             detail={
-                "agent_id": row.agent_id,
-                "role_id": row.role_id,
-                "agent_kind": row.agent_kind,
-                "interaction_mode": row.interaction_mode,
-                "role": row.role,
-                "adapter_type": row.adapter_type,
-                "reports_to_agent_id": row.reports_to_agent_id,
+                "agent_id": created.agent_id,
+                "role_id": created.role_id,
+                "agent_kind": created.agent_kind,
+                "interaction_mode": created.interaction_mode,
+                "role": created.role,
+                "adapter_type": created.adapter_type,
+                "reports_to_agent_id": created.reports_to_agent_id,
             },
         )
     )
-    return agent_role_record(row)
+    return created
 
 
 async def update_agent_role_with_audit(
@@ -128,12 +126,12 @@ async def update_agent_role_with_audit(
     """Update an agent role and record its audit event."""
     await _validate_adapter(adapter_registry, role.adapter_type)
 
-    row = await store.update_agent_role(
+    updated = await store.update_agent_role(
         company_id=role.company_id,
         agent_id=role.agent_id,
         values={field: getattr(role, field) for field in AGENT_UPDATE_FIELDS},
     )
-    if row is None:
+    if updated is None:
         raise AgentNotFoundError(role.agent_id)
 
     await store.append_audit_event(
@@ -141,17 +139,17 @@ async def update_agent_role_with_audit(
             company_id=role.company_id,
             action=EventTypes.AGENT_ROLE_UPDATED,
             target_type="agent_role",
-            target_id=row.agent_id,
+            target_id=updated.agent_id,
             actor_type="user",
             actor_id=role.created_by,
             detail={
-                "agent_id": row.agent_id,
-                "role_id": row.role_id,
+                "agent_id": updated.agent_id,
+                "role_id": updated.role_id,
                 "changed_fields": list(AGENT_UPDATE_FIELDS),
             },
         )
     )
-    return agent_role_record(row)
+    return updated
 
 
 async def update_agent_status_with_audit(
@@ -163,12 +161,12 @@ async def update_agent_status_with_audit(
     actor_id: str,
 ) -> AgentRole:
     """Update an agent role status and record its audit event."""
-    row = await store.update_agent_role_status(
+    updated = await store.update_agent_role_status(
         company_id=company_id,
         agent_id=agent_id,
         status=status.strip(),
     )
-    if row is None:
+    if updated is None:
         raise AgentNotFoundError(agent_id)
 
     await store.append_audit_event(
@@ -176,13 +174,13 @@ async def update_agent_status_with_audit(
             company_id=company_id,
             action=EventTypes.AGENT_ROLE_STATUS_UPDATED,
             target_type="agent_role",
-            target_id=row.agent_id,
+            target_id=updated.agent_id,
             actor_type="user",
             actor_id=actor_id,
-            detail={"status": row.status},
+            detail={"status": updated.status},
         )
     )
-    return agent_role_record(row)
+    return updated
 
 
 async def _ensure_company(

@@ -34,7 +34,7 @@ Closed Phase 1 audit gaps:
 |------------------|--------|
 | H1 / P0-2 (single Alembic dir) | Design closure #154; physical cutover deferred |
 | H2 / P0-1 (repository compatibility facade) | Closed: per-aggregate stores now own control-plane SQL, non-facade tests use store factory / ports, and the retired `repository.py` facade plus its compatibility tests have been deleted. |
-| H5 / P1-3 (ORM leak into business logic) | Closed for routes #135/#136, ApprovalGate #143, and Control Plane application/use-case returns across company, goal, work item, agent role, agent run, approval, decision, artifact, budget, audit timeline, and evolution proposal surfaces. Remaining follow-up is lower-level store return cleanup. |
+| H5 / P1-3 (ORM leak into business logic) | Closed for Control Plane: routes #135/#136, ApprovalGate #143, application/use-case returns, and low-level store ports now expose domain records across company, goal, work item, agent role, agent prompt config, agent run, approval, decision, artifact, budget, audit timeline, and evolution proposal surfaces. ORM rows remain infrastructure-private inside store adapters. |
 | H6 / P0-3 (no outbox metrics) | ✓ #128 + #129 (all 10 runtimes); shared cross-cutting metrics are now owned by `shared.observability.metrics` with `shared.infra.metrics` kept as a compatibility shim |
 | P0-4 (optional tracing) | Runtime tracing now installs a provider in non-production even without an exporter; production settings fail closed without `OTEL_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` |
 | H8 / P1-4 (no contract tests) | ✓ event-catalog tests #153 |

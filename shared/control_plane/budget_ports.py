@@ -3,22 +3,29 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from .models import AuditEvent, BudgetPeriod, BudgetPolicy, BudgetScope, CompanyContext
+from .models import (
+    AuditEvent,
+    BudgetPeriod,
+    BudgetPolicy,
+    BudgetScope,
+    BudgetUsage,
+    CompanyContext,
+)
 
 
 class ControlPlaneBudgetStore(Protocol):
     """Persistence operations required by budget use cases."""
 
-    async def create_company(self, company: CompanyContext) -> Any:
+    async def create_company(self, company: CompanyContext) -> CompanyContext:
         """Create a control-plane company context."""
 
-    async def get_company(self, company_id: str) -> Any | None:
+    async def get_company(self, company_id: str) -> CompanyContext | None:
         """Return a company context if it exists."""
 
-    async def create_budget_policy(self, budget: BudgetPolicy) -> Any:
+    async def create_budget_policy(self, budget: BudgetPolicy) -> BudgetPolicy:
         """Create a budget policy."""
 
-    async def get_budget_policy(self, budget_id: str) -> Any | None:
+    async def get_budget_policy(self, budget_id: str) -> BudgetPolicy | None:
         """Return one budget policy."""
 
     async def list_budget_policies(
@@ -30,7 +37,7 @@ class ControlPlaneBudgetStore(Protocol):
         period: BudgetPeriod | str | None = None,
         status: str | None = None,
         limit: int = 100,
-    ) -> list[Any]:
+    ) -> list[BudgetPolicy]:
         """Return budget policies for one company."""
 
     async def update_budget_policy(
@@ -42,7 +49,7 @@ class ControlPlaneBudgetStore(Protocol):
         status: str | None = None,
         model_allowlist: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> Any | None:
+    ) -> BudgetPolicy | None:
         """Update one budget policy."""
 
     async def get_active_budget_policy(
@@ -52,7 +59,7 @@ class ControlPlaneBudgetStore(Protocol):
         scope: BudgetScope | str,
         period: BudgetPeriod | str,
         scope_id: str | None = None,
-    ) -> Any | None:
+    ) -> BudgetPolicy | None:
         """Return the active policy for a scope/period."""
 
     async def list_budget_usage(
@@ -63,8 +70,8 @@ class ControlPlaneBudgetStore(Protocol):
         run_id: str | None = None,
         trace_id: str | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[BudgetUsage]:
         """Return budget usage rows."""
 
-    async def append_audit_event(self, event: AuditEvent) -> Any:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         """Append a control-plane audit event."""

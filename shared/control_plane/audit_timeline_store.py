@@ -1,8 +1,6 @@
 """SQLAlchemy adapter for control-plane audit and timeline queries."""
 from __future__ import annotations
 
-from typing import Any
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
@@ -12,6 +10,14 @@ from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from .audit_timeline_ports import ControlPlaneAuditTimelineStore
 from .budget_store import SqlAlchemyControlPlaneBudgetStore
 from .decision_store import SqlAlchemyControlPlaneDecisionStore
+from .models import (
+    AgentRun,
+    ApprovalRequest,
+    Artifact,
+    AuditEvent,
+    BudgetUsage,
+    Decision,
+)
 
 
 class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
@@ -25,7 +31,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
         self._budgets = SqlAlchemyControlPlaneBudgetStore(session)
         self._decisions = SqlAlchemyControlPlaneDecisionStore(session)
 
-    async def get_agent_run(self, run_id: str) -> Any | None:
+    async def get_agent_run(self, run_id: str) -> AgentRun | None:
         return await self._agent_runs.get_agent_run(run_id)
 
     async def list_agent_runs(
@@ -34,7 +40,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
         company_id: str,
         trace_id: str | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[AgentRun]:
         return await self._agent_runs.list_agent_runs(
             company_id=company_id,
             trace_id=trace_id,
@@ -50,7 +56,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
         target_type: str | None = None,
         target_id: str | None = None,
         limit: int = 100,
-    ) -> list[Any]:
+    ) -> list[AuditEvent]:
         return await self._audits.list_audit_events(
             company_id=company_id,
             trace_id=trace_id,
@@ -67,7 +73,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
         run_id: str | None = None,
         trace_id: str | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[ApprovalRequest]:
         return await self._approvals.list_approvals(
             company_id=company_id,
             run_id=run_id,
@@ -82,7 +88,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
         run_id: str | None = None,
         trace_id: str | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[BudgetUsage]:
         return await self._budgets.list_budget_usage(
             company_id=company_id,
             run_id=run_id,
@@ -97,7 +103,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
         run_id: str | None = None,
         run_ids: list[str] | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[Decision]:
         return await self._decisions.list_decisions(
             company_id=company_id,
             run_id=run_id,
@@ -112,7 +118,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
         run_id: str | None = None,
         run_ids: list[str] | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[Artifact]:
         return await self._artifacts.list_artifacts(
             company_id=company_id,
             run_id=run_id,

@@ -6,9 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .approval_ports import ControlPlaneApprovalStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
-from .models import ApprovalRequest, ApprovalStatus, AuditEvent
+from .domain_records import approval_request_record, evolution_proposal_record
+from .models import ApprovalRequest, ApprovalStatus, AuditEvent, EvolutionProposal
 from .store_utils import model_values, now_utc
-from .tables import ApprovalRequestTable, AuditEventTable, EvolutionProposalTable
+from .tables import ApprovalRequestTable, EvolutionProposalTable
 
 
 class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
@@ -21,13 +22,17 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
     async def request_approval(
         self,
         approval: ApprovalRequest,
-    ) -> ApprovalRequestTable:
+    ) -> ApprovalRequest:
         row = ApprovalRequestTable(**model_values(approval))
         self._session.add(row)
         await self._session.flush()
-        return row
+        return approval_request_record(row)
 
-    async def get_approval(self, approval_id: str) -> ApprovalRequestTable | None:
+    async def get_approval(self, approval_id: str) -> ApprovalRequest | None:
+        row = await self._get_approval_row(approval_id)
+        return approval_request_record(row) if row is not None else None
+
+    async def _get_approval_row(self, approval_id: str) -> ApprovalRequestTable | None:
         result = await self._session.execute(
             select(ApprovalRequestTable).where(
                 ApprovalRequestTable.approval_id == approval_id
@@ -43,7 +48,7 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
         run_id: str | None = None,
         trace_id: str | None = None,
         limit: int = 50,
-    ) -> list[ApprovalRequestTable]:
+    ) -> list[ApprovalRequest]:
         query = select(ApprovalRequestTable).where(
             ApprovalRequestTable.company_id == company_id
         )
@@ -56,7 +61,7 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
         result = await self._session.execute(
             query.order_by(ApprovalRequestTable.created_at.desc()).limit(limit)
         )
-        return list(result.scalars().all())
+        return [approval_request_record(row) for row in result.scalars().all()]
 
     async def resolve_approval(
         self,
@@ -64,8 +69,8 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
         *,
         status: ApprovalStatus | str,
         resolved_by: str,
-    ) -> ApprovalRequestTable | None:
-        row = await self.get_approval(approval_id)
+    ) -> ApprovalRequest | None:
+        row = await self._get_approval_row(approval_id)
         if row is None:
             return None
         status_value = status.value if isinstance(status, ApprovalStatus) else status
@@ -75,7 +80,7 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
         row.resolved_at = now
         row.updated_at = now
         await self._session.flush()
-        return row
+        return approval_request_record(row)
 
     async def update_evolution_proposal_approval_state_by_approval(
         self,
@@ -83,7 +88,7 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
         *,
         approval_state: str,
         rollout_state: str | None = None,
-    ) -> EvolutionProposalTable | None:
+    ) -> EvolutionProposal | None:
         result = await self._session.execute(
             select(EvolutionProposalTable).where(
                 EvolutionProposalTable.approval_id == approval_id
@@ -97,7 +102,7 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
             row.rollout_state = rollout_state
         row.updated_at = now_utc()
         await self._session.flush()
-        return row
+        return evolution_proposal_record(row)
 
-    async def append_audit_event(self, event: AuditEvent) -> AuditEventTable:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         return await self._companies.append_audit_event(event)

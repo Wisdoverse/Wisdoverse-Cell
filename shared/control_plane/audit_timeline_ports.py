@@ -1,13 +1,22 @@
 """Ports for control-plane audit and timeline queries."""
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Protocol
+
+from .models import (
+    AgentRun,
+    ApprovalRequest,
+    Artifact,
+    AuditEvent,
+    BudgetUsage,
+    Decision,
+)
 
 
 class ControlPlaneAuditTimelineStore(Protocol):
     """Persistence operations required by audit and timeline use cases."""
 
-    async def get_agent_run(self, run_id: str) -> Any | None:
+    async def get_agent_run(self, run_id: str) -> AgentRun | None:
         """Return one agent run."""
 
     async def list_agent_runs(
@@ -16,7 +25,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
         company_id: str,
         trace_id: str | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[AgentRun]:
         """Return agent runs for one company."""
 
     async def list_audit_events(
@@ -28,7 +37,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
         target_type: str | None = None,
         target_id: str | None = None,
         limit: int = 100,
-    ) -> list[Any]:
+    ) -> list[AuditEvent]:
         """Return audit events."""
 
     async def list_approvals(
@@ -38,7 +47,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
         run_id: str | None = None,
         trace_id: str | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[ApprovalRequest]:
         """Return approval requests."""
 
     async def list_budget_usage(
@@ -48,7 +57,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
         run_id: str | None = None,
         trace_id: str | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[BudgetUsage]:
         """Return budget usage rows."""
 
     async def list_decisions(
@@ -58,7 +67,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
         run_id: str | None = None,
         run_ids: list[str] | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[Decision]:
         """Return decisions."""
 
     async def list_artifacts(
@@ -68,5 +77,5 @@ class ControlPlaneAuditTimelineStore(Protocol):
         run_id: str | None = None,
         run_ids: list[str] | None = None,
         limit: int = 50,
-    ) -> list[Any]:
+    ) -> list[Artifact]:
         """Return artifacts."""

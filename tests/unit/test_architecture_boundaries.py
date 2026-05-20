@@ -2279,7 +2279,7 @@ def test_control_plane_approval_gate_uses_approval_store_port() -> None:
     assert "-> ApprovalRequestTable" not in gate_source
     assert "ApprovalRequestTable | None" not in gate_source
     assert "ApprovalRequestTable" not in gate_source
-    assert "approval_request_record" in gate_source
+    assert "approval_request_record" not in gate_source
 
 
 def test_control_plane_approval_api_delegates_to_use_case() -> None:
@@ -2539,24 +2539,39 @@ def test_control_plane_artifact_api_delegates_to_use_cases() -> None:
 
 
 def test_control_plane_operator_use_cases_return_domain_records() -> None:
-    """Operator-facing use cases should not return ORM rows to callers."""
+    """Control-plane store ports should expose domain records, not ORM rows."""
     api_source = Path("shared/control_plane/api.py").read_text()
     mapper_source = Path("shared/control_plane/domain_records.py").read_text()
-    use_case_files = {
-        "company_record": Path("shared/control_plane/company_use_cases.py"),
-        "goal_record": Path("shared/control_plane/goal_use_cases.py"),
-        "work_item_record": Path("shared/control_plane/work_item_use_cases.py"),
-        "agent_role_record": Path("shared/control_plane/agent_registry_use_cases.py"),
-        "agent_run_record": Path("shared/control_plane/agent_run_use_cases.py"),
-        "approval_request_record": Path("shared/control_plane/approval_use_cases.py"),
-        "decision_record": Path("shared/control_plane/decision_use_cases.py"),
-        "artifact_record": Path("shared/control_plane/artifact_use_cases.py"),
-        "budget_policy_record": Path("shared/control_plane/budget_use_cases.py"),
-        "budget_usage_record": Path("shared/control_plane/budget_use_cases.py"),
+    store_files = {
+        "company_record": Path("shared/control_plane/company_store.py"),
+        "goal_record": Path("shared/control_plane/goal_store.py"),
+        "work_item_record": Path("shared/control_plane/work_item_store.py"),
+        "agent_role_record": Path("shared/control_plane/agent_registry_store.py"),
+        "agent_run_record": Path("shared/control_plane/agent_run_store.py"),
+        "approval_request_record": Path("shared/control_plane/approval_store.py"),
+        "decision_record": Path("shared/control_plane/decision_store.py"),
+        "artifact_record": Path("shared/control_plane/artifact_store.py"),
+        "budget_policy_record": Path("shared/control_plane/budget_store.py"),
+        "budget_usage_record": Path("shared/control_plane/budget_store.py"),
         "evolution_proposal_record": Path(
-            "shared/control_plane/evolution_proposal_use_cases.py"
+            "shared/control_plane/evolution_proposal_store.py"
         ),
     }
+    use_case_paths = (
+        Path("shared/control_plane/company_use_cases.py"),
+        Path("shared/control_plane/goal_use_cases.py"),
+        Path("shared/control_plane/work_item_use_cases.py"),
+        Path("shared/control_plane/agent_registry_use_cases.py"),
+        Path("shared/control_plane/agent_run_use_cases.py"),
+        Path("shared/control_plane/approval_use_cases.py"),
+        Path("shared/control_plane/decision_use_cases.py"),
+        Path("shared/control_plane/artifact_use_cases.py"),
+        Path("shared/control_plane/budget_use_cases.py"),
+        Path("shared/control_plane/evolution_proposal_use_cases.py"),
+        Path("shared/control_plane/audit_timeline_use_cases.py"),
+        Path("shared/control_plane/agent_operation_use_cases.py"),
+        Path("shared/control_plane/run_evidence.py"),
+    )
 
     assert "def company_record(" in mapper_source
     assert "def goal_record(" in mapper_source
@@ -2564,6 +2579,7 @@ def test_control_plane_operator_use_cases_return_domain_records() -> None:
     assert "def agent_role_record(" in mapper_source
     assert "def agent_run_record(" in mapper_source
     assert "def approval_request_record(" in mapper_source
+    assert "def agent_prompt_config_record(" in mapper_source
     assert "def decision_record(" in mapper_source
     assert "def artifact_record(" in mapper_source
     assert "def budget_policy_record(" in mapper_source
@@ -2572,30 +2588,22 @@ def test_control_plane_operator_use_cases_return_domain_records() -> None:
     assert "def evolution_proposal_record(" in mapper_source
     assert "metadata=dict(row.metadata_json or {})" in mapper_source
 
-    for mapper_name, path in use_case_files.items():
+    for mapper_name, path in store_files.items():
         source = path.read_text()
         assert mapper_name in source
         assert f"{mapper_name}(row)" in source
+
+    for path in use_case_paths:
+        source = path.read_text()
+        assert "domain_records" not in source
         assert "metadata_json" not in source
 
-    timeline_source = Path("shared/control_plane/audit_timeline_use_cases.py").read_text()
-    for mapper_name in (
-        "agent_run_record",
-        "approval_request_record",
-        "artifact_record",
-        "audit_event_record",
-        "budget_usage_record",
-        "decision_record",
-    ):
-        assert mapper_name in timeline_source
-    assert "metadata_json" not in timeline_source
-
-    operation_source = Path("shared/control_plane/agent_operation_use_cases.py").read_text()
-    run_evidence_source = Path("shared/control_plane/run_evidence.py").read_text()
-    assert "agent_run_record" in operation_source
-    assert "artifact_record" in run_evidence_source
-    assert "metadata_json" not in operation_source
-    assert "metadata_json" not in run_evidence_source
+    for path in Path("shared/control_plane").glob("*_ports.py"):
+        source = path.read_text()
+        assert "Table" not in source
+        assert "-> Any" not in source
+        assert "list[Any]" not in source
+        assert "Any | None" not in source
 
     row_to_dict_source = _function_source(api_source, "_row_to_dict")
     assert "isinstance(row, BaseModel)" in row_to_dict_source

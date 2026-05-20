@@ -31,7 +31,8 @@ async def test_company_store_owns_company_queries(db_session: AsyncSession) -> N
     assert rows[0].company_id == "cmp_company_store"
     assert updated is not None
     assert updated.name == "Wisdoverse Cell Public"
-    assert updated.metadata_json == {"stage": "store", "status": "public"}
+    assert updated.metadata == {"stage": "store", "status": "public"}
+    assert not hasattr(updated, "metadata_json")
 
 
 @pytest.mark.asyncio

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from shared.schemas.event import EventTypes
 
-from .domain_records import work_item_record
 from .models import (
     AuditEvent,
     CompanyContext,
@@ -39,7 +38,7 @@ async def list_work_items(
     limit: int = 100,
 ) -> list[WorkItem]:
     """List work items for one company."""
-    rows = await store.list_work_items(
+    return await store.list_work_items(
         company_id=company_id,
         status=status,
         priority=priority,
@@ -49,7 +48,6 @@ async def list_work_items(
         search=search,
         limit=limit,
     )
-    return [work_item_record(row) for row in rows]
 
 
 async def get_work_item(
@@ -59,10 +57,10 @@ async def get_work_item(
     work_item_id: str,
 ) -> WorkItem:
     """Return one work item in a company or raise not found."""
-    row = await store.get_work_item(work_item_id)
-    if row is None or row.company_id != company_id:
+    work_item = await store.get_work_item(work_item_id)
+    if work_item is None or work_item.company_id != company_id:
         raise WorkItemNotFoundError(work_item_id)
-    return work_item_record(row)
+    return work_item
 
 
 async def create_work_item_with_audit(
@@ -83,27 +81,27 @@ async def create_work_item_with_audit(
         if dependency is None or dependency.company_id != work_item.company_id:
             raise WorkItemDependencyNotFoundError(dependency_id)
 
-    row = await store.create_work_item(work_item)
+    created = await store.create_work_item(work_item)
     await store.append_audit_event(
         AuditEvent(
             company_id=work_item.company_id,
             action=EventTypes.WORK_ITEM_CREATED,
             target_type="work_item",
-            target_id=row.work_item_id,
+            target_id=created.work_item_id,
             actor_type="user",
             actor_id=created_by,
-            work_item_id=row.work_item_id,
+            work_item_id=created.work_item_id,
             detail={
-                "work_item_id": row.work_item_id,
-                "status": row.status,
-                "priority": row.priority,
-                "goal_id": row.goal_id,
-                "owner_agent_id": row.owner_agent_id,
-                "owner_user_id": row.owner_user_id,
+                "work_item_id": created.work_item_id,
+                "status": created.status,
+                "priority": created.priority,
+                "goal_id": created.goal_id,
+                "owner_agent_id": created.owner_agent_id,
+                "owner_user_id": created.owner_user_id,
             },
         )
     )
-    return work_item_record(row)
+    return created
 
 
 async def update_work_item_status_with_audit(
@@ -122,13 +120,13 @@ async def update_work_item_status_with_audit(
         raise WorkItemNotFoundError(work_item_id)
 
     status_value = status.value if isinstance(status, WorkItemStatus) else status
-    row = await store.update_work_item_status(
+    updated = await store.update_work_item_status(
         work_item_id,
         status=status_value,
         owner_agent_id=owner_agent_id,
         owner_user_id=owner_user_id,
     )
-    if row is None:
+    if updated is None:
         raise WorkItemNotFoundError(work_item_id)
 
     await store.append_audit_event(
@@ -136,18 +134,18 @@ async def update_work_item_status_with_audit(
             company_id=company_id,
             action=EventTypes.WORK_ITEM_UPDATED,
             target_type="work_item",
-            target_id=row.work_item_id,
+            target_id=updated.work_item_id,
             actor_type="user",
             actor_id=actor_id,
-            work_item_id=row.work_item_id,
+            work_item_id=updated.work_item_id,
             detail={
-                "status": row.status,
-                "owner_agent_id": row.owner_agent_id,
-                "owner_user_id": row.owner_user_id,
+                "status": updated.status,
+                "owner_agent_id": updated.owner_agent_id,
+                "owner_user_id": updated.owner_user_id,
             },
         )
     )
-    return work_item_record(row)
+    return updated
 
 
 def enum_value(value: WorkItemPriority | WorkItemStatus | str | None) -> str | None:

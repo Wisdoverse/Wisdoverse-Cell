@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_run_ports import ControlPlaneAgentRunStore
 from .domain.agent_run_lifecycle import TERMINAL_STATUSES as AGENT_RUN_TERMINAL_STATUSES
+from .domain_records import agent_run_record
 from .models import AgentRun, AgentRunStatus
 from .store_utils import model_values, now_utc
 from .tables import AgentRunTable
@@ -20,13 +21,17 @@ class SqlAlchemyControlPlaneAgentRunStore(ControlPlaneAgentRunStore):
     def __init__(self, session: AsyncSession):
         self._session = session
 
-    async def create_agent_run(self, run: AgentRun) -> AgentRunTable:
+    async def create_agent_run(self, run: AgentRun) -> AgentRun:
         row = AgentRunTable(**model_values(run))
         self._session.add(row)
         await self._session.flush()
-        return row
+        return agent_run_record(row)
 
-    async def get_agent_run(self, run_id: str) -> AgentRunTable | None:
+    async def get_agent_run(self, run_id: str) -> AgentRun | None:
+        row = await self._get_agent_run_row(run_id)
+        return agent_run_record(row) if row is not None else None
+
+    async def _get_agent_run_row(self, run_id: str) -> AgentRunTable | None:
         result = await self._session.execute(
             select(AgentRunTable).where(AgentRunTable.run_id == run_id)
         )
@@ -42,7 +47,7 @@ class SqlAlchemyControlPlaneAgentRunStore(ControlPlaneAgentRunStore):
         goal_id: str | None = None,
         work_item_id: str | None = None,
         limit: int = 50,
-    ) -> list[AgentRunTable]:
+    ) -> list[AgentRun]:
         query = select(AgentRunTable).where(AgentRunTable.company_id == company_id)
         if status:
             query = query.where(AgentRunTable.status == status)
@@ -57,7 +62,7 @@ class SqlAlchemyControlPlaneAgentRunStore(ControlPlaneAgentRunStore):
         result = await self._session.execute(
             query.order_by(AgentRunTable.started_at.desc()).limit(limit)
         )
-        return list(result.scalars().all())
+        return [agent_run_record(row) for row in result.scalars().all()]
 
     async def update_agent_run_status(
         self,
@@ -71,8 +76,8 @@ class SqlAlchemyControlPlaneAgentRunStore(ControlPlaneAgentRunStore):
         cost_usd: float | None = None,
         input_tokens: int | None = None,
         output_tokens: int | None = None,
-    ) -> AgentRunTable | None:
-        row = await self.get_agent_run(run_id)
+    ) -> AgentRun | None:
+        row = await self._get_agent_run_row(run_id)
         if row is None:
             return None
         status_value = status.value if isinstance(status, Enum) else status
@@ -94,7 +99,7 @@ class SqlAlchemyControlPlaneAgentRunStore(ControlPlaneAgentRunStore):
         if output_tokens is not None:
             row.output_tokens = output_tokens
         await self._session.flush()
-        return row
+        return agent_run_record(row)
 
     async def add_agent_run_usage(
         self,
@@ -103,12 +108,12 @@ class SqlAlchemyControlPlaneAgentRunStore(ControlPlaneAgentRunStore):
         cost_usd: float,
         input_tokens: int = 0,
         output_tokens: int = 0,
-    ) -> AgentRunTable | None:
-        row = await self.get_agent_run(run_id)
+    ) -> AgentRun | None:
+        row = await self._get_agent_run_row(run_id)
         if row is None:
             return None
         row.cost_usd = float(row.cost_usd or 0.0) + cost_usd
         row.input_tokens = int(row.input_tokens or 0) + input_tokens
         row.output_tokens = int(row.output_tokens or 0) + output_tokens
         await self._session.flush()
-        return row
+        return agent_run_record(row)

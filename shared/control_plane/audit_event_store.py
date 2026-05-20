@@ -4,6 +4,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .domain_records import audit_event_record
 from .models import AuditEvent
 from .store_utils import model_values
 from .tables import AuditEventTable
@@ -15,18 +16,18 @@ class SqlAlchemyControlPlaneAuditEventStore:
     def __init__(self, session: AsyncSession):
         self._session = session
 
-    async def append_audit_event(self, event: AuditEvent) -> AuditEventTable:
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         if event.idempotency_key:
             existing = await self._get_audit_by_idempotency(
                 event.company_id, event.idempotency_key
             )
             if existing is not None:
-                return existing
+                return audit_event_record(existing)
 
         row = AuditEventTable(**model_values(event))
         self._session.add(row)
         await self._session.flush()
-        return row
+        return audit_event_record(row)
 
     async def list_audit_events(
         self,
@@ -37,7 +38,7 @@ class SqlAlchemyControlPlaneAuditEventStore:
         target_type: str | None = None,
         target_id: str | None = None,
         limit: int = 100,
-    ) -> list[AuditEventTable]:
+    ) -> list[AuditEvent]:
         query = select(AuditEventTable).where(AuditEventTable.company_id == company_id)
         if trace_id:
             query = query.where(AuditEventTable.trace_id == trace_id)
@@ -50,7 +51,7 @@ class SqlAlchemyControlPlaneAuditEventStore:
         result = await self._session.execute(
             query.order_by(AuditEventTable.created_at.desc()).limit(limit)
         )
-        return list(result.scalars().all())
+        return [audit_event_record(row) for row in result.scalars().all()]
 
     async def _get_audit_by_idempotency(
         self, company_id: str, idempotency_key: str
