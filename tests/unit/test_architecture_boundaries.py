@@ -2515,7 +2515,8 @@ def test_control_plane_artifact_api_delegates_to_use_cases() -> None:
 
     assert "class ControlPlaneArtifactStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneArtifactStore" in adapter_source
-    assert "ControlPlaneRepository" in adapter_source
+    assert "ArtifactTable" in adapter_source
+    assert "ControlPlaneRepository" not in adapter_source
     assert "create_artifact_with_audit" in use_case_source
     assert "append_audit_event" in use_case_source
     assert "ArtifactLinkMismatchError" in use_case_source

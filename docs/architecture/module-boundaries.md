@@ -53,8 +53,8 @@ When you add a new context, you must add a row to this document **and** to
   LLM Gateway (budget usage); gateways (approvals consumption).
 - Boundary clarity: high (single owner); internal seam not yet structurally
   complete (`company_store.py`, `goal_store.py`, `work_item_store.py`,
-  `agent_run_store.py`, and `decision_store.py` own their SQL, but remaining
-  store adapters still need P0-1 extraction work).
+  `agent_run_store.py`, `decision_store.py`, and `artifact_store.py` own their
+  SQL, but remaining store adapters still need P0-1 extraction work).
 - Split fitness: must remain central. Do not extract.
 
 ### 2.2 Requirement Management

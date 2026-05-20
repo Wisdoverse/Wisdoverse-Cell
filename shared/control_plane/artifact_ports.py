@@ -36,6 +36,7 @@ class ControlPlaneArtifactStore(Protocol):
         company_id: str,
         artifact_type: str | None = None,
         run_id: str | None = None,
+        run_ids: list[str] | None = None,
         goal_id: str | None = None,
         work_item_id: str | None = None,
         created_by_agent_id: str | None = None,

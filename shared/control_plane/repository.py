@@ -9,6 +9,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
+from .artifact_store import SqlAlchemyControlPlaneArtifactStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
 from .decision_store import SqlAlchemyControlPlaneDecisionStore
 from .goal_store import SqlAlchemyControlPlaneGoalStore
@@ -520,16 +521,14 @@ class ControlPlaneRepository:
         return row
 
     async def create_artifact(self, artifact: Artifact) -> ArtifactTable:
-        row = ArtifactTable(**_model_values(artifact))
-        self.session.add(row)
-        await self.session.flush()
-        return row
+        return await SqlAlchemyControlPlaneArtifactStore(
+            self.session
+        ).create_artifact(artifact)
 
     async def get_artifact(self, artifact_id: str) -> ArtifactTable | None:
-        result = await self.session.execute(
-            select(ArtifactTable).where(ArtifactTable.artifact_id == artifact_id)
-        )
-        return result.scalar_one_or_none()
+        return await SqlAlchemyControlPlaneArtifactStore(
+            self.session
+        ).get_artifact(artifact_id)
 
     async def list_artifacts(
         self,
@@ -543,23 +542,18 @@ class ControlPlaneRepository:
         created_by_agent_id: str | None = None,
         limit: int = 50,
     ) -> list[ArtifactTable]:
-        query = select(ArtifactTable).where(ArtifactTable.company_id == company_id)
-        if artifact_type:
-            query = query.where(ArtifactTable.artifact_type == artifact_type)
-        if run_id:
-            query = query.where(ArtifactTable.run_id == run_id)
-        elif run_ids:
-            query = query.where(ArtifactTable.run_id.in_(run_ids))
-        if goal_id:
-            query = query.where(ArtifactTable.goal_id == goal_id)
-        if work_item_id:
-            query = query.where(ArtifactTable.work_item_id == work_item_id)
-        if created_by_agent_id:
-            query = query.where(ArtifactTable.created_by_agent_id == created_by_agent_id)
-        result = await self.session.execute(
-            query.order_by(ArtifactTable.created_at.desc()).limit(limit)
+        return await SqlAlchemyControlPlaneArtifactStore(
+            self.session
+        ).list_artifacts(
+            company_id=company_id,
+            artifact_type=artifact_type,
+            run_id=run_id,
+            run_ids=run_ids,
+            goal_id=goal_id,
+            work_item_id=work_item_id,
+            created_by_agent_id=created_by_agent_id,
+            limit=limit,
         )
-        return list(result.scalars().all())
 
     async def create_budget_policy(self, budget: BudgetPolicy) -> BudgetPolicyTable:
         row = BudgetPolicyTable(**_model_values(budget))
