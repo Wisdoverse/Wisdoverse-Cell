@@ -1,6 +1,6 @@
 # Backend Target Architecture and Phased Migration Plan
 
-Last updated: 2026-05-18
+Last updated: 2026-05-20
 
 Status: Design proposal. Awaiting user confirmation before any code is
 modified.
@@ -137,7 +137,8 @@ Observed layer behavior (verified in the Phase 1 audit):
   URL/engine level, not schema-level.
 - `shared/control_plane/repository.py` is still the active compatibility facade
   for most control-plane aggregates. `company_store.py` owns company/audit SQL
-  directly; remaining `*_store.py` adapters still delegate into the facade.
+  directly and `goal_store.py` owns goal SQL directly; remaining `*_store.py`
+  adapters still delegate into the facade.
 - Per-runtime outbox tables (`*_event_outbox`) for durable event publication;
   outbox drained by per-agent `OutboxDispatcherPlugin` every 30 s in batches
   of 100.
@@ -158,7 +159,7 @@ impact, risk level, and recommended handling.
 
 | ID | Problem | Location | Impact | Risk | Recommended action |
 |----|---------|----------|--------|------|--------------------|
-| P0-1 | `shared/control_plane/repository.py` remains the active compatibility facade for most control-plane aggregates. `company_store.py` now owns its company/audit SQL directly, but the remaining per-aggregate `*_store.py` files still delegate into the central repository. | `shared/control_plane/repository.py`, `shared/control_plane/*_store.py` | Every remaining delegated aggregate touches the same monolith; regressions cascade; future split impossible without finishing the store extraction. | High | Continue moving per-aggregate SQL from the central repository into the matching store; keep repository as a thin compatibility facade with a deprecation horizon. |
+| P0-1 | `shared/control_plane/repository.py` remains the active compatibility facade for most control-plane aggregates. `company_store.py` now owns its company/audit SQL directly and `goal_store.py` owns goal SQL directly, but the remaining per-aggregate `*_store.py` files still delegate into the central repository. | `shared/control_plane/repository.py`, `shared/control_plane/*_store.py` | Every remaining delegated aggregate touches the same monolith; regressions cascade; future split impossible without finishing the store extraction. | High | Continue moving per-aggregate SQL from the central repository into the matching store; keep repository as a thin compatibility facade with a deprecation horizon. |
 | P0-2 | Single Alembic directory holds 19 migrations for every runtime; per-runtime ownership impossible. | `migrations/versions/` | Blocks Phase 4 service-boundary evolution; any agent extraction requires global migration coordination. | High | Plan and adopt per-runtime migration ownership (separate Alembic dirs or a per-runtime migration tool) before service extraction starts. |
 | P0-3 | Shared Prometheus metrics now live at the `shared.observability.metrics` boundary and cover LLM cost/tokens, event loop errors, loop breaker state, event queue length by stream, Redis DLQ length/rate, outbox dispatcher totals/duration/errors, and oldest pending outbox age per runtime. Alert rules now cover outbox backlog age and DLQ growth/retention. Remaining gap: dashboard panels and threshold tuning need production evidence. | `shared/observability/metrics.py`, `shared/observability/outbox.py`, `shared/infra/event_bus.py`, `docker/prometheus/rules/application.yml`, runtime outbox dispatch use cases, `shared/infra/metrics.py` compatibility shim | Operators have a canonical metrics and alerting boundary for sustained DLQ growth, stream backlog, and outbox backlog age before service extraction. | Low | Keep new metric definitions under `shared.observability.metrics`; add dashboard panels and tune thresholds from production evidence. |
 | P0-4 | OpenTelemetry tracing now installs a runtime `TracerProvider` even when non-production lacks an exporter, and production settings fail closed without `OTEL_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT`. Remaining gap: sampling policy and trace dashboard evidence need production tuning. | `shared/observability/tracing.py`, `shared/config.py`, `docker/compose/docker-compose.app.yml` | Cross-runtime traces have a mandatory bootstrap contract before service extraction; non-prod keeps trace context without requiring a collector. | Low | Keep tracing initialized through `create_agent_app()`; add sampling policy and dashboard evidence during production hardening. |
