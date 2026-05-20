@@ -66,7 +66,7 @@ have drifted and should be cleaned in phases:
 | `services/gateways/channel/` | Implemented channel gateway runtime | Keep gateway lifecycle and event dispatch here; reusable messaging primitives remain under `shared/messaging/outbound/`; not part of the default Compose topology yet |
 | `shared/integrations/` | Reusable platform adapters, clients, routers, and card builders | Keep platform primitives here; capability-owned Feishu gateway handlers belong under `agents/requirement_manager/integrations/feishu/` |
 | `shared/integrations/feishu/cards/` | Platform-level Feishu card builder plus shared Feishu presentation contracts | Keep `CardBuilder` and cross-capability Feishu card payload contracts here. These files must only build Feishu payloads and action values; workflow logic stays inside the owning capability |
-| `shared/grpc/server.py` | Deprecated compatibility entry point | Use `agents/requirement_manager/grpc/server.py` for the requirements gRPC runtime |
+| `shared/grpc/` runtime entry points | Retired; this tree keeps protocol artifacts only | Use `agents/requirement_manager/grpc/server.py` for the requirements gRPC runtime |
 | `frontend/src/components/agents/` | Legacy agent detail UI location | Migrated to `frontend/src/widgets/agent-detail/`; do not add new agent surfaces under `components/agents` |
 | Tests | Mixed module-local tests and cross-cutting root tests | Keep module-local tests beside their service; use root `tests/` only for cross-module, protocol, e2e, and load tests |
 
@@ -78,7 +78,8 @@ have drifted and should be cleaned in phases:
   behavior, define a port or callback and let the capability inject the
   implementation.
 - New shared imports should use canonical paths. Do not reintroduce retired
-  compatibility roots such as `shared.services.*` or root `skills.*`.
+  compatibility roots such as `shared.services.*`, root `skills.*`, or
+  `shared.grpc.server`.
 - Business agents should keep runtime entry points in `app/`, API routers in
   `api/`, orchestration/business logic in `service/` or `core/`, persistence in
   `db/` and `models/`, and service-local tests in `tests/`.
@@ -94,7 +95,8 @@ have drifted and should be cleaned in phases:
 | 3 | Move requirements-specific Feishu gateway handlers, recorder, and session behavior out of `shared/integrations/feishu/` | Done |
 | 4 | Retire root `skills/` and use `agents.requirement_manager.skills.*` directly | Done |
 | 5 | Retire `shared/services/` and use canonical shared paths directly | Done |
-| 6 | Split overgrown requirements-only UI/dev artifacts into root `frontend/` or explicit dev tooling; agent detail UI is already under FSD widgets | Medium |
+| 6 | Retire `shared/grpc/server.py`; keep shared gRPC limited to protocol artifacts | Done |
+| 7 | Split overgrown requirements-only UI/dev artifacts into root `frontend/` or explicit dev tooling; agent detail UI is already under FSD widgets | Medium |
 
 ## Operations And Verification
 

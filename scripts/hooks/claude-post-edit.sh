@@ -17,4 +17,9 @@ if grep -qE '(from|import)\s+(shared\.services|skills)(\.|\s|$)' "$FILE_PATH" 2>
   exit 1
 fi
 
+if grep -qE '((from|import)\s+shared\.grpc\.server(\s|$)|from\s+shared\.grpc\s+import\s+.*\bserver\b)' "$FILE_PATH" 2>/dev/null; then
+  echo "⚠️  Retired gRPC runtime import detected in $FILE_PATH — use agents.requirement_manager.grpc.server"
+  exit 1
+fi
+
 exit 0

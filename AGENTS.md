@@ -148,7 +148,7 @@ user-facing product copy while an i18n path is being migrated.
 **Events**: `Event(event_id="evt_{ulid}", event_type="{domain}.{action}", source_agent, payload, schema_version="1.0")`
 - Immutable, fire-and-forget, use `trace_id`
 
-**Imports**: Use canonical paths (`shared.integrations.feishu`, `shared.messaging.outbound`, `shared.infra.agent_client`). The retired `shared.services.*` and root `skills.*` compatibility paths must not be reintroduced.
+**Imports**: Use canonical paths (`shared.integrations.feishu`, `shared.messaging.outbound`, `shared.infra.agent_client`). The retired `shared.services.*`, root `skills.*`, and `shared.grpc.server` compatibility paths must not be reintroduced.
 
 **Agents**: Inherit `BaseAgent`, implement `handle_event()`, `startup()`, `shutdown()`. Use `create_agent_app()` for FastAPI entry (see `shared/app/`). Scheduler jobs must call `runtime.agent` not `_raw_agent`.
 

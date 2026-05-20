@@ -2,11 +2,11 @@
 Integration tests for the requirement manager agent gRPC boundary.
 
 The runtime implementation lives under
-``agents.requirement_manager.grpc``. ``shared.grpc.server`` is kept only
-as a deprecated compatibility entry point and must not expose capability
-runtime classes.
+``agents.requirement_manager.grpc``. ``shared.grpc`` keeps protocol artifacts
+only and must not expose capability runtime entry points.
 """
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -43,12 +43,9 @@ def mock_requirement():
     return req
 
 
-def test_shared_grpc_server_entrypoint_is_deprecated():
-    """The shared package must not expose requirements runtime classes."""
-    from shared.grpc.server import main
-
-    with pytest.raises(SystemExit, match="agents.requirement_manager.grpc.server"):
-        main()
+def test_shared_grpc_server_entrypoint_is_retired():
+    """The shared package must not expose the requirements runtime entry point."""
+    assert not Path("shared/grpc/server.py").exists()
 
 
 class TestRequirementServicer:

@@ -304,14 +304,27 @@ def test_runtime_code_does_not_import_llm_provider_sdks_directly() -> None:
 
 def test_runtime_code_uses_canonical_shared_paths() -> None:
     assert not Path("shared/services").exists()
+    assert not Path("shared/grpc/server.py").exists()
     roots = [Path("agents"), Path("services"), Path("shared")]
     for root in roots:
         if not root.exists():
             continue
         for path in _python_files(root):
+            source = path.read_text()
+            tree = ast.parse(source)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module == "shared.grpc":
+                    assert all(alias.name != "server" for alias in node.names), (
+                        f"{path} imports retired shared.grpc.server via package import; "
+                        "use agents.requirement_manager.grpc.server"
+                    )
             for module in _imported_modules(path):
                 assert not module.startswith("shared.services"), (
                     f"{path} imports retired module {module}; use canonical shared paths"
+                )
+                assert module != "shared.grpc.server", (
+                    f"{path} imports retired module {module}; "
+                    "use agents.requirement_manager.grpc.server"
                 )
 
 
