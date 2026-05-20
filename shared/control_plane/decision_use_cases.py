@@ -1,11 +1,10 @@
 """Application use cases for control-plane decisions."""
 from __future__ import annotations
 
-from typing import Any
-
 from shared.schemas.event import EventTypes
 
 from .decision_ports import ControlPlaneDecisionStore
+from .domain_records import decision_record
 from .models import AuditEvent, CompanyContext, Decision, DecisionStatus
 
 
@@ -38,9 +37,9 @@ async def list_decisions(
     goal_id: str | None = None,
     work_item_id: str | None = None,
     limit: int = 50,
-) -> list[Any]:
+) -> list[Decision]:
     """List decisions for one company."""
-    return await store.list_decisions(
+    rows = await store.list_decisions(
         company_id=company_id,
         status=status,
         run_id=run_id,
@@ -48,6 +47,7 @@ async def list_decisions(
         work_item_id=work_item_id,
         limit=limit,
     )
+    return [decision_record(row) for row in rows]
 
 
 async def get_decision(
@@ -55,12 +55,12 @@ async def get_decision(
     *,
     company_id: str,
     decision_id: str,
-) -> Any:
+) -> Decision:
     """Return one decision in a company or raise not found."""
     row = await store.get_decision(decision_id)
     if row is None or row.company_id != company_id:
         raise DecisionNotFoundError(decision_id)
-    return row
+    return decision_record(row)
 
 
 async def create_decision_with_audit(
@@ -68,7 +68,7 @@ async def create_decision_with_audit(
     decision: Decision,
     *,
     created_by: str,
-) -> Any:
+) -> Decision:
     """Create a decision, validate execution links, and record its audit event."""
     await _ensure_company(store, decision.company_id)
     goal_id, work_item_id = await _validate_execution_links(
@@ -106,7 +106,7 @@ async def create_decision_with_audit(
             },
         )
     )
-    return row
+    return decision_record(row)
 
 
 async def update_decision_status_with_audit(
@@ -118,7 +118,7 @@ async def update_decision_status_with_audit(
     selected_option: str | None,
     decided_by: str | None,
     actor_id: str,
-) -> Any:
+) -> Decision:
     """Update a decision status and record its audit event."""
     existing = await store.get_decision(decision_id)
     if existing is None or existing.company_id != company_id:
@@ -152,7 +152,7 @@ async def update_decision_status_with_audit(
             },
         )
     )
-    return row
+    return decision_record(row)
 
 
 async def _ensure_company(

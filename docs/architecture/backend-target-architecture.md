@@ -126,9 +126,11 @@ Observed layer behavior (verified in the Phase 1 audit):
 - Domain rules are scattered between `*_lifecycle.py`, ports, and use
   cases. No explicit `core/domain/` layer yet.
 - ORM tables and Pydantic domain models are separated (`tables.py` vs
-  `models.py`) but ORM types occasionally leak into business logic through
-  store/facade returns (`shared/control_plane/approval_gate.py:15,52`,
-  `shared/control_plane/*_store.py`).
+  `models.py`). Operator-facing Control Plane use cases for company, goal,
+  work item, decision, and artifact now map store rows into Pydantic domain
+  records before returning to API/application callers. Remaining ORM cleanup
+  is concentrated in store/facade return types and less frequently touched
+  aggregates.
 
 ### 1.5 Current Data Access
 
@@ -173,7 +175,7 @@ impact, risk level, and recommended handling.
 |----|---------|----------|--------|------|--------------------|
 | P1-1 | No explicit domain layer per agent. Invariants and state transitions live in `*_lifecycle.py`, ports, and use cases mixed together. | `agents/*/core/`, `shared/control_plane/agent_run_lifecycle.py` | Use cases drift into domain ownership; rules duplicate; cross-aggregate invariants weak. | High | Introduce `core/domain/` per agent with entities, value objects, aggregates, and explicit state machines. |
 | P1-2 | State transitions modeled as string comparisons; no explicit FSM. | `shared/capabilities/sync/core/engine.py:74-87`, sync `progress.py`, evolution tables `status` defaults | Adding states is unsafe; bugs that skip a state are silent; transitions are not auditable. | High | Adopt explicit state machines per aggregate (Python enum + transition table or a small library). Make every transition emit a domain event. |
-| P1-3 | ORM types escape the persistence layer into business logic and route handlers. | `shared/control_plane/approval_gate.py:15,52`; `shared/control_plane/*_store.py`; `shared/control_plane/api.py:730,742,761` | Couples business logic to schema; defeats the domain/ORM split; harder to test in isolation. | Medium | Return domain models from stores; hide `AsyncSession` behind a `UnitOfWork` / session-provider port at route level. |
+| P1-3 | ORM types still escape through some persistence-facing return types, but the main operator Control Plane use cases now return domain records for company, goal, work item, decision, and artifact. | `shared/control_plane/*_store.py`, `shared/control_plane/domain_records.py`, `shared/control_plane/*_use_cases.py` | Residual coupling remains for lower-level store/facade consumers; API/application callers are no longer forced to handle ORM metadata fields for the migrated aggregates. | Medium | Finish the same domain-record mapping for remaining aggregates, then decide whether stores themselves should return domain records or remain infrastructure-private row providers behind use cases. |
 | P1-4 | No HTTP contract tests per agent; no producer/consumer event contract tests. | `tests/` (no contract test directory found) | Payload-shape regressions are caught only by handwritten unit tests. | Medium | Add per-agent OpenAPI snapshot tests and producer/consumer event tests keyed off `docs/guides/event-catalog.md`. |
 | P1-5 | `users` table has no dedicated public API boundary; identity reads/writes go through several paths. | `shared/db/user_store.py`, `shared/messaging/inbound/user_service.py` | Identity becomes shared mutable state if unrelated modules write directly. | Medium | Define an Identity / User service boundary with a single write owner; route all writes through it. |
 
@@ -716,8 +718,10 @@ stages depend on the seams the earlier stages established.
   2. Introduce an explicit projection table for Analysis (P2-2). One
      projection per source domain it currently reads.
   3. Introduce an Identity / User write-owner path (P1-5).
-  4. Move ORM types out of business-logic returns (P1-3): stores return
-     domain models, not `*Table` rows.
+  4. Move ORM types out of business-logic returns (P1-3): operator-facing
+     use cases return domain models. For remaining low-level store/facade
+     consumers, either keep rows infrastructure-private behind use cases or
+     promote store returns to domain models aggregate by aggregate.
   5. Add a CI rule to `tests/unit/test_architecture_boundaries.py` that
      forbids cross-runtime ORM imports in the application layer.
 - **Will not change**: HTTP routes (additive only), event payloads

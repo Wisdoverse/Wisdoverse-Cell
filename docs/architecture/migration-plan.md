@@ -118,8 +118,9 @@ same PR.
   2. Introduce an explicit projection table for Analysis. One projection
      per source domain it currently reads.
   3. Introduce an Identity / User write-owner path.
-  4. Move ORM types out of business-logic returns: stores return domain
-     models, not `*Table` rows.
+  4. Move ORM types out of business-logic returns: application use cases
+     return domain models; remaining infrastructure-private row providers
+     are migrated aggregate by aggregate.
   5. Add a CI rule to `tests/unit/test_architecture_boundaries.py` that
      forbids cross-runtime ORM imports in the application layer.
 - **Will not change**: HTTP routes (additive only); event payloads

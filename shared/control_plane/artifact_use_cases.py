@@ -1,11 +1,10 @@
 """Application use cases for control-plane artifacts."""
 from __future__ import annotations
 
-from typing import Any
-
 from shared.schemas.event import EventTypes
 
 from .artifact_ports import ControlPlaneArtifactStore
+from .domain_records import artifact_record
 from .models import Artifact, ArtifactType, AuditEvent, CompanyContext
 
 
@@ -39,9 +38,9 @@ async def list_artifacts(
     work_item_id: str | None = None,
     created_by_agent_id: str | None = None,
     limit: int = 50,
-) -> list[Any]:
+) -> list[Artifact]:
     """List artifacts for one company."""
-    return await store.list_artifacts(
+    rows = await store.list_artifacts(
         company_id=company_id,
         artifact_type=artifact_type,
         run_id=run_id,
@@ -50,6 +49,7 @@ async def list_artifacts(
         created_by_agent_id=created_by_agent_id,
         limit=limit,
     )
+    return [artifact_record(row) for row in rows]
 
 
 async def get_artifact(
@@ -57,12 +57,12 @@ async def get_artifact(
     *,
     company_id: str,
     artifact_id: str,
-) -> Any:
+) -> Artifact:
     """Return one artifact in a company or raise not found."""
     row = await store.get_artifact(artifact_id)
     if row is None or row.company_id != company_id:
         raise ArtifactNotFoundError(artifact_id)
-    return row
+    return artifact_record(row)
 
 
 async def create_artifact_with_audit(
@@ -70,7 +70,7 @@ async def create_artifact_with_audit(
     artifact: Artifact,
     *,
     created_by: str,
-) -> Any:
+) -> Artifact:
     """Create an artifact, validate execution links, and record its audit event."""
     await _ensure_company(store, artifact.company_id)
     goal_id, work_item_id = await _validate_execution_links(
@@ -109,7 +109,7 @@ async def create_artifact_with_audit(
             },
         )
     )
-    return row
+    return artifact_record(row)
 
 
 def enum_value(value: ArtifactType | str | None) -> str | None:
