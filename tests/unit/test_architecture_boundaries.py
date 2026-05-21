@@ -3310,6 +3310,9 @@ def test_pjm_decomposition_api_events_have_durable_outbox_contract() -> None:
     request_workflow_source = Path(
         "agents/pjm_agent/core/decomposition_request_workflow.py"
     ).read_text()
+    recovery_workflow_source = Path(
+        "agents/pjm_agent/core/decomposition_recovery_workflow.py"
+    ).read_text()
     event_use_case_source = Path("agents/pjm_agent/core/event_use_cases.py").read_text()
     doc_source = Path("docs/guides/backend-boundaries.md").read_text()
 
@@ -3340,6 +3343,12 @@ def test_pjm_decomposition_api_events_have_durable_outbox_contract() -> None:
     assert "async def handle_decompose" in request_workflow_source
     assert "async def request_decomposition_approval" in request_workflow_source
     assert "await self._messenger.send_card(" in request_workflow_source
+    assert "class DecompositionRecoveryWorkflow" in recovery_workflow_source
+    assert "class PJMOpenProjectReadPort(Protocol)" in recovery_workflow_source
+    assert "async def retry_decompose" in recovery_workflow_source
+    assert "async def get_decompose" in recovery_workflow_source
+    assert "await decomposition.stage_event(event)" in recovery_workflow_source
+    assert "await self._op.get_work_package(wp_id)" in recovery_workflow_source
     assert "await self._stage_event(decomposition, completion_event)" in approval_workflow_source
     assert "await decomposition.commit()" in approval_workflow_source
     assert "write_wbs(" not in orchestrator_source
@@ -3350,6 +3359,9 @@ def test_pjm_decomposition_api_events_have_durable_outbox_contract() -> None:
     assert "_handle_task_check" not in orchestrator_source
     assert "request_decomposition_approval" not in orchestrator_source
     assert "send_card(" not in orchestrator_source
+    assert "_RECOVERABLE_STATUSES" not in orchestrator_source
+    assert "get_work_package(" not in orchestrator_source
+    assert "delete_by_wp_id(" not in orchestrator_source
     assert "await self._publish_staged_pjm_event" in orchestrator_source
     assert "publish_event_via_outbox" in orchestrator_source
     assert "publish_pending_pjm_events" in orchestrator_source
