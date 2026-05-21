@@ -27,7 +27,7 @@ independently deployable agent services. The shape is:
 | Layer | Code locations | Responsibility |
 |-------|----------------|----------------|
 | Edge plane | `rust/gateway/` (out of scope here) | TLS termination, webhook verification, gRPC fan-out |
-| Operator / control plane API | `shared/control_plane/api.py` plus per-aggregate route modules under `shared/control_plane/api_routes/` | `/api/v1/control-plane/*` over the ledger |
+| Operator / control plane API | `shared/control_plane/api.py` composition entrypoint plus per-surface route modules under `shared/control_plane/api_routes/` | `/api/v1/control-plane/*` over the ledger |
 | Business runtime agents | `agents/requirement_manager/`, `agents/pjm_agent/`, `agents/qa_agent/`, `agents/dev_agent/` | Domain workflows behind explicit service boundaries |
 | Gateways | `services/gateways/user_interaction/`, `services/gateways/channel/` | Chat/webhook inbound, outbound messaging |
 | Orchestration | `services/orchestration/coordinator/` | Cross-boundary dispatch decisions |
@@ -139,8 +139,10 @@ Spot checks across `agents/*/api/`, `shared/control_plane/api.py`, and
 exceptions to HTTP errors. Example: `agents/qa_agent/api/qa.py:44-73` is ~20
 LOC and delegates to `QAApiUseCase`.
 
-`shared/control_plane/api.py` remains large but contains only thin handlers
-across many endpoints; each handler still delegates to a use-case module.
+`shared/control_plane/api.py` is now the session/UOW provider and router
+composition entrypoint. Control Plane HTTP handlers and request DTOs live under
+`shared/control_plane/api_routes/`, grouped by ledger surface, and delegate to
+use-case modules.
 
 ### 4.2 Agent Service Shells — Delegating
 
@@ -286,7 +288,7 @@ concrete file citations from §4 / §5.
 
 | # | Problem | Severity | Evidence |
 |---|---------|----------|----------|
-| M1 | Partially closed: companies, goals, work items, decisions, and artifacts are split into `shared/control_plane/api_routes/`, but agent, run, approval, budget, evolution, and audit handlers still live in the main API module | Medium | `shared/control_plane/api.py`, `shared/control_plane/api_routes/*.py` |
+| M1 | Closed: Control Plane HTTP handlers and DTOs are split into `shared/control_plane/api_routes/`; the main API module only composes routers and owns session/UOW dependencies | Low | `shared/control_plane/api.py`, `shared/control_plane/api_routes/*.py` |
 | M2 | Domain layer is implicit; lifecycle helpers, ports, and use cases co-exist under `core/` without a separate `core/domain/` | Medium | `agents/<agent>/core/`, `shared/control_plane/agent_run_lifecycle.py` |
 | M3 | Closed: compatibility surfaces `shared/services/*`, root `skills/*`, and `shared.grpc.server` have been retired | Low | `tests/unit/test_architecture_boundaries.py` |
 | M4 | Sync capability hosts OpenProject and Feishu Bitable in one runtime; sub-boundaries exist only inside `core/` | Medium | `shared/capabilities/sync/core/engine.py`, `shared/capabilities/sync/core/progress.py` |
@@ -349,7 +351,7 @@ from §6 and align with the phases already drafted in
 | P2 | Add an explicit projection layer for Analysis | M5 closure | Backend evolution plan Phase C |
 | P3 | Keep retired `shared/services/*`, root `skills/*`, and `shared.grpc.server` from returning | M3 / M10 remain closed | Architecture-boundary tests |
 | P3 | Split Sync into two sub-capability runtimes (OpenProject and Feishu Bitable) once each side has its own outbox and repository | M4 closure | Backend evolution plan Phase D |
-| P3 | Continue splitting `shared/control_plane/api.py` into per-aggregate routers | M1 closure | low-risk structure work; batch by route family |
+| P3 | Keep Control Plane HTTP handlers out of `shared/control_plane/api.py` | M1 remains closed | Architecture-boundary tests block DTO and handler drift back into the composition module |
 
 ---
 
@@ -424,9 +426,9 @@ the status rows current when an audit item changes. Concrete verification:
   status rows may also cite newer files added by later refactor PRs.
 - Key baseline facts re-checked at write time:
   - `shared/control_plane/repository.py` = 902 LOC
-  - `shared/control_plane/api.py` remains the main Control Plane router;
-    company, goal, work item, decision, and artifact routes have been moved
-    to `shared/control_plane/api_routes/`
+  - `shared/control_plane/api.py` remains the Control Plane composition
+    entrypoint; HTTP handlers and DTOs live in
+    `shared/control_plane/api_routes/`
   - `tests/unit/test_architecture_boundaries.py` = 4583 LOC
   - `migrations/versions/` = 19 files
   - `grep "session.begin" agents/ services/ shared/` = 0 hits
