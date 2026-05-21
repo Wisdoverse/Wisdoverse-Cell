@@ -115,6 +115,9 @@ review before merge.
 - Use cases own the transaction boundary. Implicit `async with session()` is
   acceptable for one aggregate; multi-aggregate writes require an explicit
   `UnitOfWork`.
+- Control Plane HTTP commands use `ControlPlaneUnitOfWork` and explicitly
+  commit after the application use case succeeds; failed commands roll back in
+  dependency cleanup.
 - Use cases depend on ports (`*_ports.py`), not on adapters.
 - Domain events emitted by aggregates are collected by the use case and
   written to the outbox in the same transaction as the aggregate state.
