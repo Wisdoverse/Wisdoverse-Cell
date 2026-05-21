@@ -2080,6 +2080,9 @@ def test_dev_agent_request_dispatch_delegates_to_application_use_case() -> None:
     assert "DevRequestUseCase" in service_source
     assert "def _request_use_case" in service_source
     assert ".handle(request)" in handle_source
+    assert "async with self._get_unit_of_work() as uow" in handle_source
+    assert "await uow.commit()" in handle_source
+    assert "await session.commit()" not in handle_source
     assert "if action == \"get_task_status\"" not in handle_source
     assert "if action == \"approve_workflow\"" not in handle_source
     assert "WorkflowPlan.model_validate" not in service_source
@@ -2119,6 +2122,35 @@ def test_dev_agent_event_dispatch_delegates_to_application_use_case() -> None:
     assert "TaskInput(" not in service_source
     assert "task_rejected_critical" not in service_source
     assert "qa_result_received" not in service_source
+
+
+def test_dev_agent_event_use_case_uses_explicit_unit_of_work() -> None:
+    """Dev event writes should use an explicit runtime transaction seam."""
+    service_source = Path("agents/dev_agent/service/agent.py").read_text()
+    use_case_source = Path("agents/dev_agent/core/event_use_cases.py").read_text()
+    port_source = Path("agents/dev_agent/core/unit_of_work_ports.py").read_text()
+    adapter_source = Path("agents/dev_agent/db/unit_of_work.py").read_text()
+
+    assert "class DevUnitOfWork(Protocol)" in port_source
+    assert "class DevUnitOfWorkFactory(Protocol)" in port_source
+    assert "class SqlAlchemyDevUnitOfWork" in adapter_source
+    assert "SqlAlchemyDevTaskStore(session)" in adapter_source
+    assert "SqlAlchemyDevWorkflowLogStore(session)" in adapter_source
+    assert "self._db_manager.async_session()" in adapter_source
+    assert "await self._session.commit()" in adapter_source
+    assert "await self._session.rollback()" in adapter_source
+
+    assert "DevUnitOfWorkFactory" in use_case_source
+    assert "uow_factory" in use_case_source
+    assert "async with self._uow_factory() as uow" in use_case_source
+    assert "repo = uow.tasks" in use_case_source
+    assert "log_repo = uow.workflow_logs" in use_case_source
+    assert "await uow.commit()" in use_case_source
+    assert "session_factory" not in use_case_source
+    assert "await session.commit()" not in use_case_source
+
+    assert "SqlAlchemyDevUnitOfWorkFactory" in service_source
+    assert "uow_factory=self._get_unit_of_work" in service_source
 
 
 def test_dev_agent_workflow_execution_delegates_to_application_use_case() -> None:

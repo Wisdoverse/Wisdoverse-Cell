@@ -9,13 +9,15 @@ from shared.schemas.event import Event, EventTypes
 
 
 class _SessionContext:
-    def __init__(self, session):
-        self.session = session
+    def __init__(self, uow):
+        self.uow = uow
 
     async def __aenter__(self):
-        return self.session
+        return self.uow
 
     async def __aexit__(self, exc_type, exc, tb):
+        if not self.uow.completed:
+            await self.uow.rollback()
         return False
 
 
@@ -47,6 +49,21 @@ class _RiskAssessor:
         return self._risk
 
 
+class _UnitOfWork:
+    def __init__(self, repo, log_repo):
+        self.tasks = repo
+        self.workflow_logs = log_repo
+        self.completed = False
+        self.commit = AsyncMock(side_effect=self._commit)
+        self.rollback = AsyncMock(side_effect=self._rollback)
+
+    async def _commit(self) -> None:
+        self.completed = True
+
+    async def _rollback(self) -> None:
+        self.completed = True
+
+
 def _use_case(
     *,
     risk: RiskLevel = RiskLevel.MEDIUM,
@@ -57,14 +74,13 @@ def _use_case(
     collector=None,
     task_processor=None,
 ) -> tuple[DevEventUseCase, SimpleNamespace]:
-    session = session or AsyncMock()
-    session.commit = AsyncMock()
     repo = repo or AsyncMock()
     log_repo = log_repo or AsyncMock()
+    uow = session or _UnitOfWork(repo, log_repo)
     task_processor = task_processor or AsyncMock(return_value=[])
 
     context = SimpleNamespace(
-        session=session,
+        uow=uow,
         repo=repo,
         log_repo=log_repo,
         collector=collector,
@@ -74,9 +90,7 @@ def _use_case(
         sanitizer=_Sanitizer(),
         risk_assessor=_RiskAssessor(risk),
         has_db=lambda: has_db,
-        session_factory=lambda: _SessionContext(session),
-        repo_factory=lambda _session: repo,
-        log_repo_factory=lambda _session: log_repo,
+        uow_factory=lambda: _SessionContext(uow),
         result_collector_factory=lambda _repo, _log_repo: collector,
         task_processor=task_processor,
         event_factory=_Factory(),
@@ -162,7 +176,8 @@ async def test_tasks_ready_processes_sanitized_tasks_and_commits() -> None:
     )
 
     assert result == [task_event]
-    context.session.commit.assert_awaited_once()
+    context.uow.commit.assert_awaited_once()
+    context.uow.rollback.assert_not_awaited()
     processor.assert_awaited_once()
     sanitized = processor.await_args.args[0]
     assert sanitized.wp_id == 123
@@ -201,7 +216,8 @@ async def test_qa_result_handles_reviewing_task_and_commits() -> None:
         task,
         {"mr_iid": 7, "summary": {"l0_gate": "PASS"}},
     )
-    context.session.commit.assert_awaited_once()
+    context.uow.commit.assert_awaited_once()
+    context.uow.rollback.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -219,7 +235,8 @@ async def test_qa_result_missing_mr_iid_returns_no_events() -> None:
 
     assert result == []
     repo.get_by_mr_iid.assert_not_awaited()
-    context.session.commit.assert_not_awaited()
+    context.uow.commit.assert_not_awaited()
+    context.uow.rollback.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -241,4 +258,5 @@ async def test_qa_result_ignores_wrong_task_status() -> None:
 
     assert result == []
     collector.handle_qa_result.assert_not_awaited()
-    context.session.commit.assert_not_awaited()
+    context.uow.commit.assert_not_awaited()
+    context.uow.rollback.assert_awaited_once()
