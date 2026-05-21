@@ -2284,12 +2284,16 @@ def test_a2a_auth_uses_shared_error_contracts() -> None:
 def test_control_plane_api_uses_shared_error_contracts() -> None:
     """Control-plane HTTP adapters use shared compatibility error codes."""
     control_plane_source = Path("shared/control_plane/api.py").read_text()
-
-    assert "raise_control_plane_api_error" in control_plane_source
-    assert "from fastapi import APIRouter, Depends, HTTPException, Query" not in (
-        control_plane_source
+    route_source = "".join(
+        path.read_text() for path in Path("shared/control_plane/api_routes").glob("*.py")
     )
-    assert "raise HTTPException(" not in control_plane_source
+    combined_source = control_plane_source + route_source
+
+    assert "raise_control_plane_api_error" in combined_source
+    assert "from fastapi import APIRouter, Depends, HTTPException, Query" not in (
+        combined_source
+    )
+    assert "raise HTTPException(" not in combined_source
 
 
 def test_control_plane_approval_gate_uses_approval_store_port() -> None:
@@ -2315,14 +2319,14 @@ def test_control_plane_approval_gate_uses_approval_store_port() -> None:
 def test_control_plane_approval_api_delegates_to_use_case() -> None:
     """Control-plane approval routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
+    route_source = Path("shared/control_plane/api_routes/approvals.py").read_text()
     use_case_source = Path("shared/control_plane/approval_use_cases.py").read_text()
 
+    assert "create_approval_router" in api_source
+    assert "class ApprovalActionRequest" not in api_source
+
     for function_name in ("list_approvals", "approve", "reject"):
-        start = api_source.index(f"async def {function_name}")
-        end = api_source.find("\n\n    @router.", start)
-        if end == -1:
-            end = len(api_source)
-        function_source = api_source[start:end]
+        function_source = _function_source(route_source, function_name)
         assert "ControlPlaneRepository" not in function_source
         assert "stores.approvals" in function_source
         assert "AsyncSession" not in function_source
@@ -2330,7 +2334,7 @@ def test_control_plane_approval_api_delegates_to_use_case() -> None:
         assert "append_audit_event" not in function_source
         assert "update_evolution_proposal_approval_state_by_approval" not in function_source
 
-    assert "resolve_approval_and_sync_proposal" in api_source
+    assert "resolve_approval_and_sync_proposal" in route_source
     assert "ApprovalGate(" in use_case_source
     assert "update_evolution_proposal_approval_state_by_approval" in use_case_source
     assert "append_audit_event" in use_case_source
@@ -2339,6 +2343,7 @@ def test_control_plane_approval_api_delegates_to_use_case() -> None:
 def test_control_plane_agent_registry_api_delegates_to_use_cases() -> None:
     """Control-plane agent registry routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
+    route_source = Path("shared/control_plane/api_routes/agents.py").read_text()
     port_source = Path("shared/control_plane/agent_registry_ports.py").read_text()
     adapter_source = Path("shared/control_plane/agent_registry_store.py").read_text()
     use_case_source = Path(
@@ -2353,6 +2358,8 @@ def test_control_plane_agent_registry_api_delegates_to_use_cases() -> None:
     assert "update_agent_status_with_audit" in use_case_source
     assert "append_audit_event" in use_case_source
     assert "DEFAULT_ADAPTER_REGISTRY" in use_case_source
+    assert "create_agent_router" in api_source
+    assert "class AgentDefinitionCreateRequest" not in api_source
 
     for function_name in (
         "list_agents",
@@ -2361,14 +2368,14 @@ def test_control_plane_agent_registry_api_delegates_to_use_cases() -> None:
         "update_agent",
         "update_agent_status",
     ):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "ControlPlaneRepository" not in function_source
         assert "stores.agent_registry" in function_source
         assert "AsyncSession" not in function_source
         assert "DEFAULT_ADAPTER_REGISTRY" not in function_source
 
     for function_name in ("create_agent", "update_agent", "update_agent_status"):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "append_audit_event" not in function_source
         assert "update_agent_role_status" not in function_source
 
@@ -2376,6 +2383,7 @@ def test_control_plane_agent_registry_api_delegates_to_use_cases() -> None:
 def test_control_plane_run_api_delegates_to_query_use_cases() -> None:
     """Control-plane run read routes should not own repository queries."""
     api_source = Path("shared/control_plane/api.py").read_text()
+    route_source = Path("shared/control_plane/api_routes/runs.py").read_text()
     port_source = Path("shared/control_plane/agent_run_ports.py").read_text()
     adapter_source = Path("shared/control_plane/agent_run_store.py").read_text()
     use_case_source = Path("shared/control_plane/agent_run_use_cases.py").read_text()
@@ -2386,9 +2394,10 @@ def test_control_plane_run_api_delegates_to_query_use_cases() -> None:
     assert "AgentRunTable" in adapter_source
     assert "list_agent_runs" in use_case_source
     assert "get_agent_run" in use_case_source
+    assert "create_run_router" in api_source
 
     for function_name in ("list_runs", "get_run"):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "ControlPlaneRepository" not in function_source
         assert "stores.agent_runs" in function_source
         assert "AsyncSession" not in function_source
@@ -2722,6 +2731,7 @@ def test_control_plane_operator_use_cases_return_domain_records() -> None:
 def test_control_plane_evolution_proposal_api_delegates_to_use_cases() -> None:
     """Control-plane evolution proposal routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
+    route_source = Path("shared/control_plane/api_routes/evolution_proposals.py").read_text()
     port_source = Path(
         "shared/control_plane/evolution_proposal_ports.py"
     ).read_text()
@@ -2739,6 +2749,8 @@ def test_control_plane_evolution_proposal_api_delegates_to_use_cases() -> None:
     assert "update_evolution_proposal_status_with_audit" in use_case_source
     assert "ApprovalGate(store)" in use_case_source
     assert "append_audit_event" in use_case_source
+    assert "create_evolution_proposal_router" in api_source
+    assert "class EvolutionProposalCreateRequest" not in api_source
 
     for function_name in (
         "list_evolution_proposals",
@@ -2746,7 +2758,7 @@ def test_control_plane_evolution_proposal_api_delegates_to_use_cases() -> None:
         "get_evolution_proposal",
         "update_evolution_proposal_status",
     ):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "ControlPlaneRepository" not in function_source
         assert "stores.evolution_proposals" in function_source
         assert "AsyncSession" not in function_source
@@ -2756,7 +2768,7 @@ def test_control_plane_evolution_proposal_api_delegates_to_use_cases() -> None:
         "create_evolution_proposal",
         "update_evolution_proposal_status",
     ):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "AuditEvent(" not in function_source
         assert "append_audit_event" not in function_source
         assert "_rollout_requires_approval" not in function_source
@@ -2765,6 +2777,7 @@ def test_control_plane_evolution_proposal_api_delegates_to_use_cases() -> None:
 def test_control_plane_budget_api_delegates_to_use_cases() -> None:
     """Control-plane budget routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
+    route_source = Path("shared/control_plane/api_routes/budgets.py").read_text()
     port_source = Path("shared/control_plane/budget_ports.py").read_text()
     adapter_source = Path("shared/control_plane/budget_store.py").read_text()
     use_case_source = Path("shared/control_plane/budget_use_cases.py").read_text()
@@ -2778,6 +2791,8 @@ def test_control_plane_budget_api_delegates_to_use_cases() -> None:
     assert "update_budget_policy_with_audit" in use_case_source
     assert "append_audit_event" in use_case_source
     assert "ActiveBudgetPolicyConflictError" in use_case_source
+    assert "create_budget_router" in api_source
+    assert "class BudgetPolicyCreateRequest" not in api_source
 
     for function_name in (
         "list_budget_policies",
@@ -2786,13 +2801,13 @@ def test_control_plane_budget_api_delegates_to_use_cases() -> None:
         "update_budget_policy",
         "list_budget_usage",
     ):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "ControlPlaneRepository" not in function_source
         assert "stores.budgets" in function_source
         assert "AsyncSession" not in function_source
 
     for function_name in ("create_budget_policy", "update_budget_policy"):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "AuditEvent(" not in function_source
         assert "append_audit_event" not in function_source
         assert "ensure_no_active_budget_policy_conflict" not in function_source
@@ -2822,6 +2837,7 @@ def test_control_plane_budget_guard_uses_budget_store_port() -> None:
 def test_control_plane_audit_timeline_api_delegates_to_use_cases() -> None:
     """Control-plane audit and timeline routes should not own repository queries."""
     api_source = Path("shared/control_plane/api.py").read_text()
+    route_source = Path("shared/control_plane/api_routes/audit.py").read_text()
     port_source = Path("shared/control_plane/audit_timeline_ports.py").read_text()
     adapter_source = Path("shared/control_plane/audit_timeline_store.py").read_text()
     use_case_source = Path(
@@ -2836,14 +2852,15 @@ def test_control_plane_audit_timeline_api_delegates_to_use_cases() -> None:
     assert "_list_run_scoped_decisions" in use_case_source
     assert "_list_run_scoped_artifacts" in use_case_source
     assert "if not run_ids:" in use_case_source
+    assert "create_audit_router" in api_source
 
     for function_name in ("list_audit_events", "get_timeline"):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "ControlPlaneRepository" not in function_source
         assert "stores.audit_timeline" in function_source
         assert "AsyncSession" not in function_source
 
-    function_source = _function_source(api_source, "get_timeline")
+    function_source = _function_source(route_source, "get_timeline")
     assert "list_decisions(" not in function_source
     assert "list_artifacts(" not in function_source
     assert "_timeline_sort_key" not in function_source
@@ -2852,6 +2869,7 @@ def test_control_plane_audit_timeline_api_delegates_to_use_cases() -> None:
 def test_control_plane_agent_operations_delegate_to_use_cases_and_ports() -> None:
     """Wakeup and heartbeat routes should not construct repositories directly."""
     api_source = Path("shared/control_plane/api.py").read_text()
+    route_source = Path("shared/control_plane/api_routes/agents.py").read_text()
     port_source = Path("shared/control_plane/agent_operation_ports.py").read_text()
     adapter_source = Path("shared/control_plane/agent_operation_store.py").read_text()
     use_case_source = Path(
@@ -2871,9 +2889,10 @@ def test_control_plane_agent_operations_delegate_to_use_cases_and_ports() -> Non
     assert "run_heartbeat_scheduler_once" in use_case_source
     assert "ControlPlaneAgentRunner(store)" in use_case_source
     assert "ControlPlaneHeartbeatScheduler(store)" in use_case_source
+    assert "create_agent_router" in api_source
 
     for function_name in ("wake_agent", "run_heartbeat_scheduler_once"):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "ControlPlaneRepository" not in function_source
         assert "stores.agent_operations" in function_source
         assert "AsyncSession" not in function_source
@@ -3005,21 +3024,21 @@ def test_control_plane_prompt_config_uses_prompt_store_port() -> None:
 def test_control_plane_prompt_config_api_delegates_to_use_case() -> None:
     """Control-plane prompt-config routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
+    route_source = Path("shared/control_plane/api_routes/agents.py").read_text()
+
+    assert "create_agent_router" in api_source
+    assert "class AgentPromptConfigUpdateRequest" not in api_source
 
     for function_name in ("get_agent_prompt_config", "update_agent_prompt_config"):
-        start = api_source.index(f"async def {function_name}")
-        end = api_source.find("\n\n    @router.", start)
-        if end == -1:
-            end = len(api_source)
-        function_source = api_source[start:end]
+        function_source = _function_source(route_source, function_name)
         assert "ControlPlaneRepository" not in function_source
         assert "stores.prompt_configs" in function_source
         assert "AsyncSession" not in function_source
         assert "append_audit_event" not in function_source
         assert "upsert_agent_prompt_config" not in function_source
 
-    assert "update_prompt_config_with_audit" in api_source
-    assert "get_or_default_prompt_config" in api_source
+    assert "update_prompt_config_with_audit" in route_source
+    assert "get_or_default_prompt_config" in route_source
 
 
 def test_backend_boundary_contract_documents_table_owners() -> None:
