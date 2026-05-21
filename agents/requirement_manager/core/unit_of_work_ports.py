@@ -5,6 +5,7 @@ from typing import Protocol
 
 from shared.schemas.event import Event
 
+from .feedback_ports import RequirementFeedbackStore
 from .meeting_ports import RequirementMeetingStore
 from .message_ports import RequirementMessageStore
 from .question_ports import RequirementQuestionStore
@@ -25,6 +26,7 @@ class RequirementUnitOfWork(Protocol):
     requirements: RequirementStore
     questions: RequirementQuestionStore
     messages: RequirementMessageStore
+    feedback: RequirementFeedbackStore
     outbox: RequirementOutboxWriter
     completed: bool
 

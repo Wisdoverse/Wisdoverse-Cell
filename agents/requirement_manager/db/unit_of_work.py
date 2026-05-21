@@ -1,5 +1,6 @@
 """SQLAlchemy unit-of-work implementation for Requirement Manager use cases."""
 
+import inspect
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -9,6 +10,7 @@ from shared.schemas.event import Event
 
 from ..core.unit_of_work_ports import RequirementOutboxWriter, RequirementUnitOfWork
 from .database import DatabaseManager
+from .feedback_store import SqlAlchemyRequirementFeedbackStore
 from .meeting_store import SqlAlchemyRequirementMeetingStore
 from .message_store import SqlAlchemyRequirementMessageStore
 from .question_store import SqlAlchemyRequirementQuestionStore
@@ -35,15 +37,20 @@ class SqlAlchemyRequirementUnitOfWork(RequirementUnitOfWork):
         self.requirements = SqlAlchemyRequirementStore(session)
         self.questions = SqlAlchemyRequirementQuestionStore(session)
         self.messages = SqlAlchemyRequirementMessageStore(session)
+        self.feedback = SqlAlchemyRequirementFeedbackStore(session)
         self.outbox = SqlAlchemyRequirementOutboxWriter(session)
         self.completed = False
 
     async def commit(self) -> None:
-        await self._session.commit()
+        result = self._session.commit()
+        if inspect.isawaitable(result):
+            await result
         self.completed = True
 
     async def rollback(self) -> None:
-        await self._session.rollback()
+        result = self._session.rollback()
+        if inspect.isawaitable(result):
+            await result
         self.completed = True
 
 

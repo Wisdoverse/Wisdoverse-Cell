@@ -39,18 +39,20 @@ from ..core.question_ports import RequirementQuestionStore
 from ..core.request_use_cases import RequirementManagerRequestUseCase
 from ..core.requirement_lifecycle import record_updated
 from ..core.requirement_ports import RequirementStore
-from ..core.unit_of_work_ports import RequirementUnitOfWork, RequirementUnitOfWorkFactory
+from ..core.unit_of_work_ports import (
+    RequirementOutboxWriter,
+    RequirementUnitOfWork,
+    RequirementUnitOfWorkFactory,
+)
 from ..db.database import DatabaseManager, db_manager
+from ..db.feedback_store import SqlAlchemyRequirementFeedbackStore
 from ..db.health_store import SqlAlchemyRequirementHealthStore
 from ..db.meeting_store import SqlAlchemyRequirementMeetingStore
 from ..db.message_store import SqlAlchemyRequirementMessageStore
 from ..db.outbox_store import SqlAlchemyRequirementEventOutboxStore
 from ..db.question_store import SqlAlchemyRequirementQuestionStore
 from ..db.requirement_store import SqlAlchemyRequirementStore
-from ..db.unit_of_work import (
-    SqlAlchemyRequirementUnitOfWork,
-    SqlAlchemyRequirementUnitOfWorkFactory,
-)
+from ..db.unit_of_work import SqlAlchemyRequirementUnitOfWorkFactory
 from ..db.vector_store import VectorStore, vector_store
 from ..models import Meeting, OpenQuestion, Requirement
 
@@ -67,6 +69,55 @@ class IngestResult:
     requirements: list[Requirement] = field(default_factory=list, repr=False)
     open_questions: list[OpenQuestion] = field(default_factory=list, repr=False)
     staged_events: list[Event] = field(default_factory=list, repr=False)
+
+
+@dataclass
+class RequirementMutationResult:
+    """Requirement mutation result with post-commit side effects."""
+
+    entity: Requirement | OpenQuestion | None
+    event: Event | None = None
+    requirement_id: str | None = None
+    delete_vector_requirement_id: str | None = None
+
+
+class _RequirementSessionOutboxWriter(RequirementOutboxWriter):
+    """Adapter for staging outbox rows in a caller-owned legacy session."""
+
+    def __init__(self, agent: "RequirementManagerAgent", session: AsyncSession):
+        self._agent = agent
+        self._session = session
+
+    async def stage(self, event: Event) -> None:
+        await self._agent._stage_requirement_event(self._session, event)
+
+
+class _RequirementSessionUnitOfWork(RequirementUnitOfWork):
+    """Compatibility UOW for existing callers that still pass a session."""
+
+    def __init__(self, agent: "RequirementManagerAgent", session: AsyncSession):
+        self._agent = agent
+        self._session = session
+        self.meetings = agent._get_meeting_store(session)
+        self.requirements = agent._get_requirement_store(session)
+        self.questions = agent._get_question_store(session)
+        self.messages = agent._get_message_store(session)
+        self.feedback = SqlAlchemyRequirementFeedbackStore(session)
+        self.outbox = _RequirementSessionOutboxWriter(agent, session)
+        self.completed = False
+
+    async def commit(self) -> None:
+        await self._agent._commit_requirement_mutation(
+            self._session,
+            use_case="requirement_mutation",
+        )
+        self.completed = True
+
+    async def rollback(self) -> None:
+        result = self._session.rollback()
+        if inspect.isawaitable(result):
+            await result
+        self.completed = True
 
 
 class RequirementManagerAgent(BaseAgent):
@@ -255,7 +306,7 @@ class RequirementManagerAgent(BaseAgent):
             IngestResult with extracted requirement and question counts.
         """
         if session is not None:
-            uow = SqlAlchemyRequirementUnitOfWork(session)
+            uow = _RequirementSessionUnitOfWork(self, session)
             result = await self.ingest_meeting_with_uow(
                 content=content,
                 source=source,
@@ -430,7 +481,7 @@ class RequirementManagerAgent(BaseAgent):
         self,
         requirement_id: str,
         confirmed_by: str,
-        session: AsyncSession,
+        session: AsyncSession | None = None,
     ) -> Optional[Requirement]:
         """
         Confirm a requirement.
@@ -438,16 +489,42 @@ class RequirementManagerAgent(BaseAgent):
         Args:
             requirement_id: Requirement ID.
             confirmed_by: Confirmer.
-            session: Database session.
+            session: Optional existing database session for compatibility.
 
         Returns:
             Confirmed requirement, or None if it does not exist.
         """
-        repo = self._get_requirement_store(session)
-        requirement = await repo.confirm(requirement_id, confirmed_by)
+        if session is not None:
+            uow = _RequirementSessionUnitOfWork(self, session)
+            result = await self.confirm_requirement_with_uow(
+                requirement_id=requirement_id,
+                confirmed_by=confirmed_by,
+                uow=uow,
+            )
+            await uow.commit()
+        else:
+            async with self.get_unit_of_work() as uow:
+                result = await self.confirm_requirement_with_uow(
+                    requirement_id=requirement_id,
+                    confirmed_by=confirmed_by,
+                    uow=uow,
+                )
+                await uow.commit()
 
+        await self.publish_requirement_mutation_side_effects(result)
+        return result.entity
+
+    async def confirm_requirement_with_uow(
+        self,
+        *,
+        requirement_id: str,
+        confirmed_by: str,
+        uow: RequirementUnitOfWork,
+    ) -> RequirementMutationResult:
+        """Confirm one requirement inside an explicit unit of work."""
+        requirement = await uow.requirements.confirm(requirement_id, confirmed_by)
         if not requirement:
-            return None
+            return RequirementMutationResult(entity=None)
 
         logger.info(
             "requirement_confirmed",
@@ -456,18 +533,19 @@ class RequirementManagerAgent(BaseAgent):
         )
 
         event = self._create_requirement_confirmed_event(requirement, confirmed_by)
-        await self._stage_requirement_event(session, event)
-        await self._commit_requirement_mutation(session, use_case="confirm_requirement")
-        await self._publish_staged_requirement_event(event, requirement_id=requirement.id)
-
-        return requirement
+        await uow.outbox.stage(event)
+        return RequirementMutationResult(
+            entity=requirement,
+            event=event,
+            requirement_id=requirement.id,
+        )
 
     async def reject_requirement(
         self,
         requirement_id: str,
         reason: str,
         rejected_by: str,
-        session: AsyncSession,
+        session: AsyncSession | None = None,
     ) -> Optional[Requirement]:
         """
         Reject a requirement.
@@ -476,19 +554,48 @@ class RequirementManagerAgent(BaseAgent):
             requirement_id: Requirement ID.
             reason: Rejection reason.
             rejected_by: Rejecting user.
-            session: Database session.
+            session: Optional existing database session for compatibility.
 
         Returns:
             Rejected requirement, or None if it does not exist.
         """
+        if session is not None:
+            uow = _RequirementSessionUnitOfWork(self, session)
+            result = await self.reject_requirement_with_uow(
+                requirement_id=requirement_id,
+                reason=reason,
+                rejected_by=rejected_by,
+                uow=uow,
+            )
+            await uow.commit()
+        else:
+            async with self.get_unit_of_work() as uow:
+                result = await self.reject_requirement_with_uow(
+                    requirement_id=requirement_id,
+                    reason=reason,
+                    rejected_by=rejected_by,
+                    uow=uow,
+                )
+                await uow.commit()
+
+        await self.publish_requirement_mutation_side_effects(result)
+        return result.entity
+
+    async def reject_requirement_with_uow(
+        self,
+        *,
+        requirement_id: str,
+        reason: str,
+        rejected_by: str,
+        uow: RequirementUnitOfWork,
+    ) -> RequirementMutationResult:
+        """Reject one requirement inside an explicit unit of work."""
         from .feedback_learning import FeedbackLearningService
 
-        repo = self._get_requirement_store(session)
-
         # Load the original requirement for feedback learning.
-        original_req = await repo.get_by_id(requirement_id)
+        original_req = await uow.requirements.get_by_id(requirement_id)
         if not original_req:
-            return None
+            return RequirementMutationResult(entity=None)
 
         original_values = {
             "title": original_req.title,
@@ -497,10 +604,14 @@ class RequirementManagerAgent(BaseAgent):
             "category": original_req.category,
         }
 
-        requirement = await repo.reject(requirement_id, reason=reason, rejected_by=rejected_by)
+        requirement = await uow.requirements.reject(
+            requirement_id,
+            reason=reason,
+            rejected_by=rejected_by,
+        )
 
         if not requirement:
-            return None
+            return RequirementMutationResult(entity=None)
 
         logger.info(
             "requirement_rejected",
@@ -511,7 +622,7 @@ class RequirementManagerAgent(BaseAgent):
 
         # Record rejection feedback for learning; failure does not block the main flow.
         try:
-            feedback_service = FeedbackLearningService(session)
+            feedback_service = FeedbackLearningService(feedback_store=uow.feedback)
             await feedback_service.record_rejection(
                 requirement_id=requirement_id,
                 original=original_values,
@@ -526,17 +637,18 @@ class RequirementManagerAgent(BaseAgent):
             )
 
         event = self._create_requirement_rejected_event(requirement, reason)
-        await self._stage_requirement_event(session, event)
-        await self._commit_requirement_mutation(session, use_case="reject_requirement")
-        await self._publish_staged_requirement_event(event, requirement_id=requirement.id)
-
-        return requirement
+        await uow.outbox.stage(event)
+        return RequirementMutationResult(
+            entity=requirement,
+            event=event,
+            requirement_id=requirement.id,
+        )
 
     async def update_requirement(
         self,
         requirement_id: str,
         changes: dict[str, Any],
-        session: AsyncSession,
+        session: AsyncSession | None = None,
     ) -> Optional[Requirement]:
         """
         Update a requirement through the application boundary.
@@ -544,17 +656,44 @@ class RequirementManagerAgent(BaseAgent):
         HTTP/RPC adapters pass validated DTO data here. This use case owns
         history recording, feedback learning, and event publication.
         """
+        if session is not None:
+            uow = _RequirementSessionUnitOfWork(self, session)
+            result = await self.update_requirement_with_uow(
+                requirement_id=requirement_id,
+                changes=changes,
+                uow=uow,
+            )
+            await uow.commit()
+        else:
+            async with self.get_unit_of_work() as uow:
+                result = await self.update_requirement_with_uow(
+                    requirement_id=requirement_id,
+                    changes=changes,
+                    uow=uow,
+                )
+                await uow.commit()
+
+        await self.publish_requirement_mutation_side_effects(result)
+        return result.entity
+
+    async def update_requirement_with_uow(
+        self,
+        *,
+        requirement_id: str,
+        changes: dict[str, Any],
+        uow: RequirementUnitOfWork,
+    ) -> RequirementMutationResult:
+        """Update one requirement inside an explicit unit of work."""
         from .feedback_learning import FeedbackLearningService
 
-        repo = self._get_requirement_store(session)
-        requirement = await repo.get_by_id(requirement_id)
+        requirement = await uow.requirements.get_by_id(requirement_id)
         if not requirement:
-            return None
+            return RequirementMutationResult(entity=None)
 
         update_data = dict(changes)
         comment = update_data.pop("comment", None)
         if not update_data:
-            return requirement
+            return RequirementMutationResult(entity=requirement)
 
         original_values = {
             "title": requirement.title,
@@ -566,9 +705,9 @@ class RequirementManagerAgent(BaseAgent):
         changed_by = comment or "system"
 
         record_updated(requirement, changed_fields, changed_by)
-        requirement = await repo.update(requirement_id, **update_data)
+        requirement = await uow.requirements.update(requirement_id, **update_data)
         if requirement is None:
-            return None
+            return RequirementMutationResult(entity=None)
 
         feedback_fields = {"title", "description", "priority", "category"}
         if update_data.keys() & feedback_fields:
@@ -579,7 +718,7 @@ class RequirementManagerAgent(BaseAgent):
                     "priority": requirement.priority,
                     "category": requirement.category,
                 }
-                feedback_service = FeedbackLearningService(session)
+                feedback_service = FeedbackLearningService(feedback_store=uow.feedback)
                 await feedback_service.record_correction(
                     requirement_id=requirement_id,
                     original=original_values,
@@ -599,16 +738,18 @@ class RequirementManagerAgent(BaseAgent):
             changed_fields,
             changed_by,
         )
-        await self._stage_requirement_event(session, event)
-        await self._commit_requirement_mutation(session, use_case="update_requirement")
-        await self._publish_staged_requirement_event(event, requirement_id=requirement.id)
-        return requirement
+        await uow.outbox.stage(event)
+        return RequirementMutationResult(
+            entity=requirement,
+            event=event,
+            requirement_id=requirement.id,
+        )
 
     async def delete_requirement(
         self,
         requirement_id: str,
         deleted_by: str,
-        session: AsyncSession,
+        session: AsyncSession | None = None,
     ) -> Optional[Requirement]:
         """
         Delete a requirement.
@@ -618,21 +759,45 @@ class RequirementManagerAgent(BaseAgent):
         Args:
             requirement_id: Requirement ID.
             deleted_by: Deleting user.
-            session: Database session.
+            session: Optional existing database session for compatibility.
 
         Returns:
             Deleted requirement, or None if it does not exist.
         """
-        repo = self._get_requirement_store(session)
-        requirement = await repo.delete(requirement_id)
+        if session is not None:
+            uow = _RequirementSessionUnitOfWork(self, session)
+            result = await self.delete_requirement_with_uow(
+                requirement_id=requirement_id,
+                deleted_by=deleted_by,
+                uow=uow,
+            )
+            await uow.commit()
+        else:
+            async with self.get_unit_of_work() as uow:
+                result = await self.delete_requirement_with_uow(
+                    requirement_id=requirement_id,
+                    deleted_by=deleted_by,
+                    uow=uow,
+                )
+                await uow.commit()
 
+        await self.publish_requirement_mutation_side_effects(result)
+        return result.entity
+
+    async def delete_requirement_with_uow(
+        self,
+        *,
+        requirement_id: str,
+        deleted_by: str,
+        uow: RequirementUnitOfWork,
+    ) -> RequirementMutationResult:
+        """Delete one requirement inside an explicit unit of work."""
+        requirement = await uow.requirements.delete(requirement_id)
         if not requirement:
-            return None
+            return RequirementMutationResult(entity=None)
 
         event = self._create_requirement_deleted_event(requirement, deleted_by)
-        await self._stage_requirement_event(session, event)
-        await self._commit_requirement_mutation(session, use_case="delete_requirement")
-        await self._delete_requirement_vector_record(requirement_id)
+        await uow.outbox.stage(event)
 
         logger.info(
             "requirement_deleted",
@@ -641,16 +806,19 @@ class RequirementManagerAgent(BaseAgent):
             deleted_by_hash=hash_identifier(deleted_by),
         )
 
-        await self._publish_staged_requirement_event(event, requirement_id=requirement.id)
-
-        return requirement
+        return RequirementMutationResult(
+            entity=requirement,
+            event=event,
+            requirement_id=requirement.id,
+            delete_vector_requirement_id=requirement_id,
+        )
 
     async def answer_question(
         self,
         question_id: str,
         answer: str,
         answered_by: str,
-        session: AsyncSession,
+        session: AsyncSession | None = None,
     ) -> Optional[OpenQuestion]:
         """
         Answer an open clarification question through the application boundary.
@@ -658,16 +826,43 @@ class RequirementManagerAgent(BaseAgent):
         HTTP/RPC adapters pass validated DTO data here. This use case owns the
         write transaction and keeps the route layer free of persistence rules.
         """
-        question_store = self._get_question_store(session)
-        question = await question_store.answer(
+        if session is not None:
+            uow = _RequirementSessionUnitOfWork(self, session)
+            result = await self.answer_question_with_uow(
+                question_id,
+                answer=answer,
+                answered_by=answered_by,
+                uow=uow,
+            )
+            await uow.commit()
+        else:
+            async with self.get_unit_of_work() as uow:
+                result = await self.answer_question_with_uow(
+                    question_id,
+                    answer=answer,
+                    answered_by=answered_by,
+                    uow=uow,
+                )
+                await uow.commit()
+
+        return result.entity
+
+    async def answer_question_with_uow(
+        self,
+        question_id: str,
+        *,
+        answer: str,
+        answered_by: str,
+        uow: RequirementUnitOfWork,
+    ) -> RequirementMutationResult:
+        """Answer one open clarification question inside an explicit unit of work."""
+        question = await uow.questions.answer(
             question_id,
             answer=answer,
             answered_by=answered_by,
         )
         if not question:
-            return None
-
-        await self._commit_requirement_mutation(session, use_case="answer_question")
+            return RequirementMutationResult(entity=None)
 
         logger.info(
             "question_answered",
@@ -675,17 +870,33 @@ class RequirementManagerAgent(BaseAgent):
             answered_by_hash=hash_identifier(answered_by),
         )
 
-        return question
+        return RequirementMutationResult(entity=question)
 
     async def list_open_questions(
         self,
-        session: AsyncSession,
+        session: AsyncSession | None = None,
         *,
         limit: int = 50,
     ) -> list[OpenQuestion]:
         """List unanswered clarification questions through the application facade."""
-        question_store = self._get_question_store(session)
-        return await question_store.list_open(limit=limit)
+        if session is not None:
+            return await self._get_question_store(session).list_open(limit=limit)
+
+        async with self.get_unit_of_work() as uow:
+            return await uow.questions.list_open(limit=limit)
+
+    async def publish_requirement_mutation_side_effects(
+        self,
+        result: RequirementMutationResult,
+    ) -> None:
+        """Run external side effects after a Requirement mutation commits."""
+        if result.delete_vector_requirement_id:
+            await self._delete_requirement_vector_record(result.delete_vector_requirement_id)
+        if result.event:
+            await self._publish_staged_requirement_event(
+                result.event,
+                requirement_id=result.requirement_id,
+            )
 
     async def publish_pending_requirement_events(self, limit: int = 100) -> dict[str, int]:
         """
@@ -926,53 +1137,68 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             Operation results; each item contains requirement_id, success, and error.
         """
-        results = []
-        events_to_publish: list[tuple[Event, str]] = []
-        async with self._db_manager.session() as session:
-            repo = self._get_requirement_store(session)
+        async with self.get_unit_of_work() as uow:
+            results, mutation_results = await self.batch_confirm_requirements_with_uow(
+                requirement_ids=requirement_ids,
+                confirmed_by=confirmed_by,
+                uow=uow,
+            )
+            await uow.commit()
 
-            for req_id in requirement_ids:
-                try:
-                    requirement = await repo.confirm(req_id, confirmed_by)
-                    if requirement:
-                        event = self._create_requirement_confirmed_event(
-                            requirement,
-                            confirmed_by,
-                        )
-                        await self._stage_requirement_event(session, event)
-                        events_to_publish.append((event, requirement.id))
-                        results.append({
-                            "requirement_id": req_id,
-                            "success": True,
-                            "error": None
-                        })
-                        logger.info(
-                            "batch_requirement_confirmed",
-                            requirement_id=req_id,
-                            confirmed_by=confirmed_by
-                        )
-                    else:
-                        results.append({
-                            "requirement_id": req_id,
-                            "success": False,
-                            "error": "需求不存在或已处理"
-                        })
-                except Exception as e:
+        for result in mutation_results:
+            await self.publish_requirement_mutation_side_effects(result)
+
+        return results
+
+    async def batch_confirm_requirements_with_uow(
+        self,
+        *,
+        requirement_ids: list[str],
+        confirmed_by: str,
+        uow: RequirementUnitOfWork,
+    ) -> tuple[list[dict], list[RequirementMutationResult]]:
+        """Confirm requirements in one explicit unit of work."""
+        results = []
+        mutation_results: list[RequirementMutationResult] = []
+
+        for req_id in requirement_ids:
+            try:
+                result = await self.confirm_requirement_with_uow(
+                    requirement_id=req_id,
+                    confirmed_by=confirmed_by,
+                    uow=uow,
+                )
+                if result.entity:
+                    mutation_results.append(result)
+                    results.append({
+                        "requirement_id": req_id,
+                        "success": True,
+                        "error": None
+                    })
+                    logger.info(
+                        "batch_requirement_confirmed",
+                        requirement_id=req_id,
+                        confirmed_by=confirmed_by
+                    )
+                else:
                     results.append({
                         "requirement_id": req_id,
                         "success": False,
-                        "error": str(e)
+                        "error": "需求不存在或已处理"
                     })
-                    logger.error(
-                        "batch_confirm_error",
-                        requirement_id=req_id,
-                        error=str(e)
-                    )
+            except Exception as e:
+                results.append({
+                    "requirement_id": req_id,
+                    "success": False,
+                    "error": str(e)
+                })
+                logger.error(
+                    "batch_confirm_error",
+                    requirement_id=req_id,
+                    error=str(e)
+                )
 
-        for event, requirement_id in events_to_publish:
-            await self._publish_staged_requirement_event(event, requirement_id=requirement_id)
-
-        return results
+        return results, mutation_results
 
     async def batch_reject_requirements(
         self,
@@ -991,51 +1217,72 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             Operation results; each item contains requirement_id, success, and error.
         """
-        results = []
-        events_to_publish: list[tuple[Event, str]] = []
-        async with self._db_manager.session() as session:
-            repo = self._get_requirement_store(session)
+        async with self.get_unit_of_work() as uow:
+            results, mutation_results = await self.batch_reject_requirements_with_uow(
+                requirement_ids=requirement_ids,
+                reason=reason,
+                rejected_by=rejected_by,
+                uow=uow,
+            )
+            await uow.commit()
 
-            for req_id in requirement_ids:
-                try:
-                    requirement = await repo.reject(req_id, reason=reason, rejected_by=rejected_by)
-                    if requirement:
-                        event = self._create_requirement_rejected_event(requirement, reason)
-                        await self._stage_requirement_event(session, event)
-                        events_to_publish.append((event, requirement.id))
-                        results.append({
-                            "requirement_id": req_id,
-                            "success": True,
-                            "error": None
-                        })
-                        logger.info(
-                            "batch_requirement_rejected",
-                            requirement_id=req_id,
-                            reason_length=len(reason or ""),
-                            rejected_by_hash=hash_identifier(rejected_by),
-                        )
-                    else:
-                        results.append({
-                            "requirement_id": req_id,
-                            "success": False,
-                            "error": "需求不存在或已处理"
-                        })
-                except Exception as e:
+        for result in mutation_results:
+            await self.publish_requirement_mutation_side_effects(result)
+
+        return results
+
+    async def batch_reject_requirements_with_uow(
+        self,
+        *,
+        requirement_ids: list[str],
+        reason: str,
+        rejected_by: str,
+        uow: RequirementUnitOfWork,
+    ) -> tuple[list[dict], list[RequirementMutationResult]]:
+        """Reject requirements in one explicit unit of work."""
+        results = []
+        mutation_results: list[RequirementMutationResult] = []
+
+        for req_id in requirement_ids:
+            try:
+                result = await self.reject_requirement_with_uow(
+                    requirement_id=req_id,
+                    reason=reason,
+                    rejected_by=rejected_by,
+                    uow=uow,
+                )
+                if result.entity:
+                    mutation_results.append(result)
+                    results.append({
+                        "requirement_id": req_id,
+                        "success": True,
+                        "error": None
+                    })
+                    logger.info(
+                        "batch_requirement_rejected",
+                        requirement_id=req_id,
+                        reason_length=len(reason or ""),
+                        rejected_by_hash=hash_identifier(rejected_by),
+                    )
+                else:
                     results.append({
                         "requirement_id": req_id,
                         "success": False,
-                        "error": str(e)
+                        "error": "需求不存在或已处理"
                     })
-                    logger.error(
-                        "batch_reject_error",
-                        requirement_id=req_id,
-                        error=str(e)
-                    )
+            except Exception as e:
+                results.append({
+                    "requirement_id": req_id,
+                    "success": False,
+                    "error": str(e)
+                })
+                logger.error(
+                    "batch_reject_error",
+                    requirement_id=req_id,
+                    error=str(e)
+                )
 
-        for event, requirement_id in events_to_publish:
-            await self._publish_staged_requirement_event(event, requirement_id=requirement_id)
-
-        return results
+        return results, mutation_results
 
     async def get_requirement(self, requirement_id: str) -> Optional[Requirement]:
         """

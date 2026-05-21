@@ -201,13 +201,16 @@ class TestAgentEventPublishing:
         mock_bus.connect = AsyncMock()
         mock_bus.disconnect = AsyncMock()
 
+        mock_outbox = MagicMock()
+        mock_outbox.stage = AsyncMock()
         test_agent = RequirementManagerAgent(
             db=MagicMock(),
             bus=mock_bus,
-            vectors=MagicMock()
+            vectors=MagicMock(),
+            outbox_store=mock_outbox,
         )
 
-        # Mock repository
+        # Mock the requirement persistence port used by the session UOW adapter.
         mock_requirement = MagicMock(spec=Requirement)
         mock_requirement.id = "req_123"
         mock_requirement.title = "测试需求"
@@ -216,15 +219,17 @@ class TestAgentEventPublishing:
 
         mock_session = MagicMock()
 
-        with patch("agents.requirement_manager.service.agent.RequirementRepository") as MockRepo:
-            mock_repo_instance = MagicMock()
-            mock_repo_instance.confirm = AsyncMock(return_value=mock_requirement)
-            MockRepo.return_value = mock_repo_instance
-
+        mock_requirement_store = MagicMock()
+        mock_requirement_store.confirm = AsyncMock(return_value=mock_requirement)
+        with patch.object(
+            test_agent,
+            "_get_requirement_store",
+            return_value=mock_requirement_store,
+        ):
             await test_agent.confirm_requirement(
                 requirement_id="req_123",
                 confirmed_by="测试用户",
-                session=mock_session
+                session=mock_session,
             )
 
         # Validate event publishing.
@@ -248,10 +253,13 @@ class TestAgentEventPublishing:
         mock_bus.connect = AsyncMock()
         mock_bus.disconnect = AsyncMock()
 
+        mock_outbox = MagicMock()
+        mock_outbox.stage = AsyncMock()
         test_agent = RequirementManagerAgent(
             db=MagicMock(),
             bus=mock_bus,
-            vectors=MagicMock()
+            vectors=MagicMock(),
+            outbox_store=mock_outbox,
         )
 
         mock_requirement = MagicMock(spec=Requirement)
@@ -262,16 +270,18 @@ class TestAgentEventPublishing:
 
         mock_session = MagicMock()
 
-        with patch("agents.requirement_manager.service.agent.RequirementRepository") as MockRepo:
-            mock_repo_instance = MagicMock()
-            mock_repo_instance.confirm = AsyncMock(return_value=mock_requirement)
-            MockRepo.return_value = mock_repo_instance
-
+        mock_requirement_store = MagicMock()
+        mock_requirement_store.confirm = AsyncMock(return_value=mock_requirement)
+        with patch.object(
+            test_agent,
+            "_get_requirement_store",
+            return_value=mock_requirement_store,
+        ):
             # Should not raise.
             result = await test_agent.confirm_requirement(
                 requirement_id="req_123",
                 confirmed_by="测试用户",
-                session=mock_session
+                session=mock_session,
             )
 
         # Validate that the main flow completed.

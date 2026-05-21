@@ -13,8 +13,8 @@ from agents.requirement_manager.service.agent import RequirementManagerAgent
 
 
 @pytest.mark.asyncio
-async def test_answer_question_commits_in_application_service():
-    """Question-answer writes are committed by the agent application boundary."""
+async def test_answer_question_with_uow_uses_question_store():
+    """Question-answer writes use the transaction-scoped question store."""
     agent = RequirementManagerAgent(db=MagicMock(), bus=MagicMock(), vectors=MagicMock())
 
     question = MagicMock(spec=OpenQuestion)
@@ -23,49 +23,44 @@ async def test_answer_question_commits_in_application_service():
     question.answer = "Use the web onboarding flow"
     question.answered_by = "pm"
 
-    session = MagicMock()
-    session.commit = AsyncMock()
-
     question_store = MagicMock()
     question_store.answer = AsyncMock(return_value=question)
 
-    agent._get_question_store = MagicMock(return_value=question_store)
-    result = await agent.answer_question(
+    uow = MagicMock()
+    uow.questions = question_store
+    result = await agent.answer_question_with_uow(
         question_id="qst_123",
         answer="Use the web onboarding flow",
         answered_by="pm",
-        session=session,
+        uow=uow,
     )
 
-    assert result is question
+    assert result.entity is question
     question_store.answer.assert_awaited_once_with(
         "qst_123",
         answer="Use the web onboarding flow",
         answered_by="pm",
     )
-    session.commit.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_answer_question_does_not_commit_missing_question():
-    """Missing questions do not produce a write commit."""
+async def test_answer_question_with_uow_returns_empty_result_for_missing_question():
+    """Missing questions do not produce a mutation result entity."""
     agent = RequirementManagerAgent(db=MagicMock(), bus=MagicMock(), vectors=MagicMock())
-    session = MagicMock()
-    session.commit = AsyncMock()
 
     question_store = MagicMock()
     question_store.answer = AsyncMock(return_value=None)
 
-    agent._get_question_store = MagicMock(return_value=question_store)
-    result = await agent.answer_question(
+    uow = MagicMock()
+    uow.questions = question_store
+    result = await agent.answer_question_with_uow(
         question_id="qst_missing",
         answer="No answer",
         answered_by="pm",
-        session=session,
+        uow=uow,
     )
 
-    assert result is None
-    session.commit.assert_not_awaited()
+    assert result.entity is None
 
 
 @pytest.mark.asyncio
