@@ -99,11 +99,20 @@ class RequirementServicer(pb2_grpc.RequirementServiceServicer):
                     error="Failed to extract requirements",
                 )
 
+            requirement_ids = list(
+                getattr(result, "requirement_ids", None)
+                or getattr(result, "requirements", [])
+                or []
+            )
+            questions_count = getattr(result, "questions_generated", None)
+            if questions_count is None:
+                questions_count = len(getattr(result, "open_questions", []) or [])
+
             # Convert requirements to protobuf
             proto_requirements = [
                 _requirement_to_proto(req)
                 for req in await self._requirements.get_many(
-                    list(result.requirements)
+                    requirement_ids
                 )
             ]
 
@@ -111,7 +120,7 @@ class RequirementServicer(pb2_grpc.RequirementServiceServicer):
                 success=True,
                 meeting_id=result.meeting_id,
                 requirements=proto_requirements,
-                questions_count=len(result.open_questions),
+                questions_count=questions_count,
             )
 
         except Exception as e:

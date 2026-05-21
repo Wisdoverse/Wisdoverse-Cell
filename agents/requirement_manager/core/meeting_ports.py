@@ -12,5 +12,8 @@ class RequirementMeetingStore(Protocol):
     async def get_by_id(self, meeting_id: str) -> Any | None:
         """Return one meeting by id."""
 
+    async def get_by_source_id(self, source: str, source_id: str) -> Any | None:
+        """Return one meeting by source-system identity."""
+
     async def mark_processed(self, meeting_id: str) -> None:
         """Mark a meeting as processed."""

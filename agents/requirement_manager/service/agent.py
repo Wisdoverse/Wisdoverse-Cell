@@ -5,7 +5,7 @@ Inherits BaseAgent and implements the standard Agent interface. All business
 logic is coordinated through this class; FastAPI is only the HTTP adapter.
 """
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Optional
 
@@ -39,6 +39,7 @@ from ..core.question_ports import RequirementQuestionStore
 from ..core.request_use_cases import RequirementManagerRequestUseCase
 from ..core.requirement_lifecycle import record_updated
 from ..core.requirement_ports import RequirementStore
+from ..core.unit_of_work_ports import RequirementUnitOfWork, RequirementUnitOfWorkFactory
 from ..db.database import DatabaseManager, db_manager
 from ..db.health_store import SqlAlchemyRequirementHealthStore
 from ..db.meeting_store import SqlAlchemyRequirementMeetingStore
@@ -46,6 +47,10 @@ from ..db.message_store import SqlAlchemyRequirementMessageStore
 from ..db.outbox_store import SqlAlchemyRequirementEventOutboxStore
 from ..db.question_store import SqlAlchemyRequirementQuestionStore
 from ..db.requirement_store import SqlAlchemyRequirementStore
+from ..db.unit_of_work import (
+    SqlAlchemyRequirementUnitOfWork,
+    SqlAlchemyRequirementUnitOfWorkFactory,
+)
 from ..db.vector_store import VectorStore, vector_store
 from ..models import Meeting, OpenQuestion, Requirement
 
@@ -59,6 +64,9 @@ class IngestResult:
     requirements_extracted: int
     questions_generated: int
     requirement_ids: list[str]
+    requirements: list[Requirement] = field(default_factory=list, repr=False)
+    open_questions: list[OpenQuestion] = field(default_factory=list, repr=False)
+    staged_events: list[Event] = field(default_factory=list, repr=False)
 
 
 class RequirementManagerAgent(BaseAgent):
@@ -101,6 +109,9 @@ class RequirementManagerAgent(BaseAgent):
         self._event_publisher = event_publisher or EventBusEventPublisher(self._event_bus)
         self._outbox_store = outbox_store or SqlAlchemyRequirementEventOutboxStore(
             self._db_manager
+        )
+        self._uow_factory: RequirementUnitOfWorkFactory = (
+            SqlAlchemyRequirementUnitOfWorkFactory(self._db_manager)
         )
         self._health_store = health_store or SqlAlchemyRequirementHealthStore(
             self._db_manager
@@ -176,7 +187,7 @@ class RequirementManagerAgent(BaseAgent):
     def _event_use_case(self) -> RequirementManagerEventUseCase:
         return RequirementManagerEventUseCase(
             agent=self,
-            session_factory=self._db_manager.session,
+            uow_factory=self.get_unit_of_work,
         )
 
     async def handle_request(self, request: dict) -> dict:
@@ -195,8 +206,12 @@ class RequirementManagerAgent(BaseAgent):
     def _request_use_case(self) -> RequirementManagerRequestUseCase:
         return RequirementManagerRequestUseCase(
             agent=self,
-            session_factory=self._db_manager.session,
+            uow_factory=self.get_unit_of_work,
         )
+
+    def get_unit_of_work(self):
+        """Open one transaction-scoped Requirement unit of work."""
+        return self._uow_factory()
 
     async def health_check(self) -> dict[str, bool]:
         """Return readiness checks for the requirement manager runtime boundary."""
@@ -216,7 +231,7 @@ class RequirementManagerAgent(BaseAgent):
         self,
         content: str,
         source: str,
-        session: AsyncSession,
+        session: AsyncSession | None = None,
         title: Optional[str] = None,
         meeting_date: Optional[datetime] = None,
         participants: Optional[list[str]] = None,
@@ -229,7 +244,7 @@ class RequirementManagerAgent(BaseAgent):
         Args:
             content: Raw meeting content.
             source: Source channel (upload/feishu/wechat).
-            session: Database session.
+            session: Optional existing database session for compatibility.
             title: Meeting title.
             meeting_date: Meeting date.
             participants: Participant list.
@@ -239,9 +254,52 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             IngestResult with extracted requirement and question counts.
         """
-        meeting_store = self._get_meeting_store(session)
-        requirement_store = self._get_requirement_store(session)
-        question_store = self._get_question_store(session)
+        if session is not None:
+            uow = SqlAlchemyRequirementUnitOfWork(session)
+            result = await self.ingest_meeting_with_uow(
+                content=content,
+                source=source,
+                uow=uow,
+                title=title,
+                meeting_date=meeting_date,
+                participants=participants,
+                context=context,
+                source_id=source_id,
+            )
+            await uow.commit()
+        else:
+            async with self.get_unit_of_work() as uow:
+                result = await self.ingest_meeting_with_uow(
+                    content=content,
+                    source=source,
+                    uow=uow,
+                    title=title,
+                    meeting_date=meeting_date,
+                    participants=participants,
+                    context=context,
+                    source_id=source_id,
+                )
+                await uow.commit()
+
+        await self.publish_ingest_side_effects(result)
+        return result
+
+    async def ingest_meeting_with_uow(
+        self,
+        *,
+        content: str,
+        source: str,
+        uow: RequirementUnitOfWork,
+        title: Optional[str] = None,
+        meeting_date: Optional[datetime] = None,
+        participants: Optional[list[str]] = None,
+        context: Optional[str] = None,
+        source_id: Optional[str] = None,
+    ) -> IngestResult:
+        """Ingest meeting content inside an explicit Requirement unit of work."""
+        meeting_store = uow.meetings
+        requirement_store = uow.requirements
+        question_store = uow.questions
 
         # Create meeting record.
         meeting = Meeting(
@@ -332,37 +390,41 @@ class RequirementManagerAgent(BaseAgent):
                 requirements=requirements,
                 meeting_id=meeting.id,
             )
-            await self._stage_requirement_event(session, extracted_event)
-
-        await self._commit_requirement_mutation(session, use_case="ingest_meeting")
-
-        if extracted_event:
-            await self._publish_staged_requirement_event(extracted_event)
-
-        # Send notification; non-critical failure does not block the main flow.
-        if requirements:
-            try:
-                await notification_service.send(
-                    channel=NotificationChannel.FEISHU,
-                    title="新需求待确认",
-                    content=(
-                        f"从会议中提取了 {len(requirements)} 个新需求，"
-                        f"{len(questions)} 个待确认问题。"
-                    )
-                )
-            except Exception as e:
-                logger.warning(
-                    "notification_send_failed",
-                    meeting_id=meeting.id,
-                    error=str(e),
-                )
+            await uow.outbox.stage(extracted_event)
 
         return IngestResult(
             meeting_id=meeting.id,
             requirements_extracted=len(requirements),
             questions_generated=len(questions),
-            requirement_ids=[r.id for r in requirements]
+            requirement_ids=[r.id for r in requirements],
+            requirements=requirements,
+            open_questions=questions,
+            staged_events=[extracted_event] if extracted_event else [],
         )
+
+    async def publish_ingest_side_effects(self, result: IngestResult) -> None:
+        """Publish integration and notification side effects after ingest commit."""
+        for event in result.staged_events:
+            await self._publish_staged_requirement_event(event)
+
+        if result.requirements_extracted <= 0:
+            return
+
+        try:
+            await notification_service.send(
+                channel=NotificationChannel.FEISHU,
+                title="新需求待确认",
+                content=(
+                    f"从会议中提取了 {result.requirements_extracted} 个新需求，"
+                    f"{result.questions_generated} 个待确认问题。"
+                )
+            )
+        except Exception as e:
+            logger.warning(
+                "notification_send_failed",
+                meeting_id=result.meeting_id,
+                error=str(e),
+            )
 
     async def confirm_requirement(
         self,
@@ -1017,12 +1079,9 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             IngestResult if extraction succeeded, None if no messages or error
         """
-        async with self._db_manager.session() as db_session:
-            msg_store = self._get_message_store(db_session)
-            req_store = self._get_requirement_store(db_session)
-
+        async with self.get_unit_of_work() as uow:
             # Get all messages in session
-            messages = await msg_store.get_by_session(session_id)
+            messages = await uow.messages.get_by_session(session_id)
             if not messages:
                 logger.warning("extract_from_session_no_messages", session_id=session_id)
                 return None
@@ -1040,29 +1099,30 @@ class RequirementManagerAgent(BaseAgent):
                 content_length=len(content),
             )
 
-            # Call existing extraction logic via ingest_meeting
-            result = await self.ingest_meeting(
+            result = await self.ingest_meeting_with_uow(
                 content=content,
                 source="feishu_session",
-                session=db_session,
+                uow=uow,
                 context=f"Session {session_id} from chat {chat_id} with {len(messages)} messages",
             )
 
             if result and result.requirements_extracted > 0:
                 # Mark messages as extracted and link to requirements
-                await msg_store.mark_extracted(session_id, result.requirement_ids)
+                await uow.messages.mark_extracted(session_id, result.requirement_ids)
 
                 # Get message IDs for context linking
                 message_ids = [m.id for m in messages]
 
                 # Update requirements with context_message_ids
                 for req_id in result.requirement_ids:
-                    req = await req_store.get_by_id(req_id)
+                    req = await uow.requirements.get_by_id(req_id)
                     if req and hasattr(req, 'context_message_ids'):
                         req.context_message_ids = message_ids
 
-                await db_session.commit()
+            await uow.commit()
+            await self.publish_ingest_side_effects(result)
 
+            if result and result.requirements_extracted > 0:
                 # Send notification card to chat
                 await self._send_session_extraction_card(chat_id, result, session_id)
 
