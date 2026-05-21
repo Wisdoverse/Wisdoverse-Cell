@@ -38,6 +38,32 @@ def _session_provider(db_session: AsyncSession):
     return _provider
 
 
+class _TrackingSession:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+        self.commits = 0
+        self.rollbacks = 0
+
+    def __getattr__(self, name: str):
+        return getattr(self._session, name)
+
+    async def commit(self) -> None:
+        self.commits += 1
+        await self._session.commit()
+
+    async def rollback(self) -> None:
+        self.rollbacks += 1
+        await self._session.rollback()
+
+
+def _tracking_session_provider(tracking_session: _TrackingSession):
+    @asynccontextmanager
+    async def _provider():
+        yield tracking_session
+
+    return _provider
+
+
 async def _seed(db_session: AsyncSession):
     stores = ControlPlaneStores(db_session)
     company = await stores.companies.create_company(
@@ -102,6 +128,35 @@ async def _seed(db_session: AsyncSession):
     )
     await db_session.flush()
     return run, approval
+
+
+@pytest.mark.asyncio
+async def test_control_plane_commands_commit_success_and_rollback_failure(
+    db_session: AsyncSession,
+):
+    tracking_session = _TrackingSession(db_session)
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(
+            session_provider=_tracking_session_provider(tracking_session)
+        )
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        created = await client.post(
+            "/api/v1/control-plane/companies",
+            json={"company_id": "cmp_uow", "name": "UOW Test"},
+        )
+        duplicate = await client.post(
+            "/api/v1/control-plane/companies",
+            json={"company_id": "cmp_uow", "name": "UOW Test"},
+        )
+
+    assert created.status_code == 201
+    assert duplicate.status_code == 409
+    assert tracking_session.commits == 1
+    assert tracking_session.rollbacks == 1
 
 
 @pytest.mark.asyncio

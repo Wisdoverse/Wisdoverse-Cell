@@ -186,8 +186,8 @@ impact, risk level, and recommended handling.
 | P2-3 | Sync capability hosts OpenProject and Feishu Bitable inside one runtime; sub-boundaries exist only in `core/`. | `shared/capabilities/sync/core/engine.py`, `progress.py` | Independent scaling / failure isolation impossible. | Medium | Split into two sub-capability runtimes, each with its own outbox and repository; keep a compatibility orchestrator endpoint. |
 | P2-4 | Closed: retired `shared/services/*` and root `skills/*` compatibility surfaces have been removed. Tests and docs now use canonical paths, and architecture checks block reintroduction. | `shared/infra/tests/test_nats_event_bus.py`, `shared/db/tests/test_base_database_manager.py`, `tests/unit/test_architecture_boundaries.py` | New code has no compatibility import surface to couple to. | Low | Keep architecture tests blocking `shared/services` and root `skills` resurrection. |
 | P2-5 | Closed: the deprecated `shared/grpc/server.py` runtime entry point has been removed; shared gRPC now keeps protocol artifacts only. | `shared/grpc/`, `agents/requirement_manager/grpc/`, `tests/integration/test_grpc_server.py` | New code has one requirements gRPC runtime entry point. | Low | Keep architecture and deprecated-import checks blocking `shared.grpc.server` imports. |
-| P2-6 | No explicit unit-of-work seam; transactions are implicit via session context exit. | `agents/*/core/*_use_cases.py` patterns | Multi-aggregate writes share an implicit boundary; partial-failure recovery hard to reason about. | Medium | Introduce a `UnitOfWork` port; explicit `commit()` / `rollback()` in use cases that touch more than one aggregate or outbox. |
-| P2-7 | Configuration loads with `SecretStr` but no startup-time failing-closed check that production secrets are non-empty. | `shared/config.py:28,59,99-100` | Misconfigured production starts without surfacing the gap. | Medium | Add explicit fail-closed validation for required secrets when deployment marker indicates production. |
+| P2-6 | Partially closed: Control Plane command routes use `ControlPlaneUnitOfWork` with explicit `commit()` and rollback-on-error cleanup; other runtime use cases still use implicit session context boundaries. | `shared/control_plane/unit_of_work.py`, `shared/control_plane/api.py`, `agents/*/core/*_use_cases.py` patterns | The central governance API now has an explicit command transaction seam; remaining multi-aggregate agent writes still need per-runtime adoption. | Medium | Keep command-route architecture tests in place and introduce per-runtime `UnitOfWork` ports where a use case touches more than one aggregate or outbox. |
+| P2-7 | Closed: production settings fail closed when required secrets, internal transport protection, telemetry endpoint, control-plane approval enforcement, A2A JWT, and enabled platform callback secrets are missing or defaulted. | `shared/config.py`, `tests/unit/test_config_secrets.py` | Misconfigured production fails during settings validation instead of starting silently. | Low | Keep production-secret tests aligned with new required integrations and deployment markers. |
 | P2-8 | AgentClient infrastructure exists but is barely used. Inter-agent comms is dominantly event-driven. | `shared/infra/agent_client.py:21-60`, single live caller in `agents/requirement_manager/app/plugins/feishu_gateway.py` | Not a bug, but the documented HTTP boundary is mostly aspirational for cross-agent flow. | Low | Either commit to event-first cross-agent communication explicitly, or strengthen HTTP usage for synchronous contracts (e.g., approvals). |
 
 ### 2.4 P3 — Can Be Deferred
@@ -658,9 +658,9 @@ stages depend on the seams the earlier stages established.
   1. Add an explicit `core/domain/` directory per agent (empty at first;
      no class moves yet — just the package).
   2. Move `*_lifecycle.py` files into `core/domain/lifecycle/`.
-  3. Hide `AsyncSession` from route handlers in `shared/control_plane/api.py`
-     behind a `UnitOfWork`/session-provider port; route handlers receive
-     stores, not sessions.
+  3. Hide `AsyncSession` from route handlers in `shared/control_plane/api.py`.
+     Read routes receive store factories; command routes receive
+     `ControlPlaneUnitOfWork` and explicitly commit successful mutations.
   4. Split `shared/control_plane/api.py` (1783 LOC) into per-aggregate
      routers under `shared/control_plane/api/` (file move; no logic
      change).

@@ -168,6 +168,7 @@ from .models import (
     WorkItemStatus,
 )
 from .store_factory import ControlPlaneStores
+from .unit_of_work import ControlPlaneUnitOfWork
 from .work_item_use_cases import (
     WorkItemDependencyNotFoundError,
     WorkItemGoalNotFoundError,
@@ -710,13 +711,27 @@ def create_control_plane_router(
     provider = session_provider or control_plane_db_manager.session
     router = APIRouter(prefix="/api/v1/control-plane", tags=["control-plane"])
 
-    async def get_session():
-        async with provider() as session:
-            yield session
-
     async def get_stores() -> AsyncGenerator[ControlPlaneStores, None]:
         async with provider() as session:
             yield ControlPlaneStores(session)
+
+    async def get_uow() -> AsyncGenerator[ControlPlaneUnitOfWork, None]:
+        if session_provider is None:
+            session_context = control_plane_db_manager.async_session()
+        else:
+            session_context = provider()
+
+        async with session_context as session:
+            uow = ControlPlaneUnitOfWork(session)
+            try:
+                yield uow
+            except Exception:
+                if not uow.completed:
+                    await uow.rollback()
+                raise
+            finally:
+                if not uow.completed:
+                    await uow.rollback()
 
     def resolve_company(company_id: str | None) -> str:
         return company_id or settings.control_plane_company_id
@@ -736,8 +751,9 @@ def create_control_plane_router(
     )
     async def create_company(
         body: CompanyCreateRequest,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         try:
             row = await create_company_with_audit(
                 stores.companies,
@@ -749,6 +765,7 @@ def create_control_plane_router(
             )
         except CompanyAlreadyExistsError:
             raise_control_plane_api_error(status_code=409, detail="company_already_exists")
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/companies/{company_id}")
@@ -766,8 +783,9 @@ def create_control_plane_router(
     async def update_company(
         company_id: str,
         body: CompanyUpdateRequest,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         try:
             row = await update_company_with_audit(
                 stores.companies,
@@ -779,6 +797,7 @@ def create_control_plane_router(
             )
         except CompanyNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="company_not_found")
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/goals")
@@ -809,8 +828,9 @@ def create_control_plane_router(
     )
     async def create_goal(
         body: GoalCreateRequest,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.goals
         company_id = resolve_company(body.company_id)
         try:
@@ -835,6 +855,7 @@ def create_control_plane_router(
             )
         except ParentGoalNotFoundError:
             raise_control_plane_api_error(status_code=400, detail="parent_goal_not_found")
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/goals/{goal_id}")
@@ -859,8 +880,9 @@ def create_control_plane_router(
         goal_id: str,
         body: GoalStatusUpdateRequest,
         company_id: str | None = None,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.goals
         resolved_company_id = resolve_company(company_id)
         try:
@@ -874,6 +896,7 @@ def create_control_plane_router(
             )
         except GoalNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="goal_not_found")
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/work-items")
@@ -908,8 +931,9 @@ def create_control_plane_router(
     )
     async def create_work_item(
         body: WorkItemCreateRequest,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.work_items
         company_id = resolve_company(body.company_id)
         try:
@@ -936,6 +960,7 @@ def create_control_plane_router(
             raise_control_plane_api_error(status_code=400, detail="goal_not_found")
         except WorkItemDependencyNotFoundError:
             raise_control_plane_api_error(status_code=400, detail="dependency_not_found")
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/work-items/{work_item_id}")
@@ -960,8 +985,9 @@ def create_control_plane_router(
         work_item_id: str,
         body: WorkItemStatusUpdateRequest,
         company_id: str | None = None,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.work_items
         resolved_company_id = resolve_company(company_id)
         try:
@@ -976,6 +1002,7 @@ def create_control_plane_router(
             )
         except WorkItemNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/decisions")
@@ -1006,8 +1033,9 @@ def create_control_plane_router(
     )
     async def create_decision(
         body: DecisionCreateRequest,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.decisions
         company_id = resolve_company(body.company_id)
         try:
@@ -1036,6 +1064,7 @@ def create_control_plane_router(
             raise_control_plane_api_error(status_code=400, detail="goal_not_found")
         except DecisionLinkMismatchError:
             raise_control_plane_api_error(status_code=400, detail="link_mismatch")
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/decisions/{decision_id}")
@@ -1060,8 +1089,9 @@ def create_control_plane_router(
         decision_id: str,
         body: DecisionStatusUpdateRequest,
         company_id: str | None = None,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.decisions
         resolved_company_id = resolve_company(company_id)
         try:
@@ -1076,6 +1106,7 @@ def create_control_plane_router(
             )
         except DecisionNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="decision_not_found")
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/artifacts")
@@ -1108,8 +1139,9 @@ def create_control_plane_router(
     )
     async def create_artifact(
         body: ArtifactCreateRequest,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.artifacts
         company_id = resolve_company(body.company_id)
         try:
@@ -1137,6 +1169,7 @@ def create_control_plane_router(
             raise_control_plane_api_error(status_code=400, detail="goal_not_found")
         except ArtifactLinkMismatchError:
             raise_control_plane_api_error(status_code=400, detail="link_mismatch")
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/artifacts/{artifact_id}")
@@ -1187,8 +1220,9 @@ def create_control_plane_router(
     )
     async def create_evolution_proposal(
         body: EvolutionProposalCreateRequest,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.evolution_proposals
         company_id = resolve_company(body.company_id)
         try:
@@ -1209,6 +1243,7 @@ def create_control_plane_router(
             )
         except EvolutionProposalApprovalNotFoundError:
             raise_control_plane_api_error(status_code=400, detail="approval_not_found")
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/evolution-proposals/{proposal_id}")
@@ -1233,8 +1268,9 @@ def create_control_plane_router(
         proposal_id: str,
         body: EvolutionProposalStatusUpdateRequest,
         company_id: str | None = None,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.evolution_proposals
         resolved_company_id = resolve_company(company_id)
         try:
@@ -1253,6 +1289,7 @@ def create_control_plane_router(
             raise_control_plane_api_error(status_code=400, detail="approval_not_found")
         except EvolutionProposalApprovalRequiredError:
             raise_control_plane_api_error(status_code=400, detail="approval_required")
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/runs")
@@ -1309,8 +1346,9 @@ def create_control_plane_router(
     )
     async def create_agent(
         body: AgentDefinitionCreateRequest,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.agent_registry
         company_id = resolve_company(body.company_id)
         try:
@@ -1345,6 +1383,7 @@ def create_control_plane_router(
             raise_control_plane_api_error(status_code=409, detail="agent_already_exists")
         except UnsupportedAdapterTypeError:
             raise_control_plane_api_error(status_code=400, detail="unsupported_adapter_type")
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/agents/{agent_id}")
@@ -1368,11 +1407,12 @@ def create_control_plane_router(
     async def update_agent(
         agent_id: str,
         body: AgentDefinitionCreateRequest,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
         if body.agent_id != agent_id:
             raise_control_plane_api_error(status_code=400, detail="agent_id_mismatch")
 
+        stores = uow.stores
         store = stores.agent_registry
         company_id = resolve_company(body.company_id)
         try:
@@ -1406,6 +1446,7 @@ def create_control_plane_router(
             raise_control_plane_api_error(status_code=400, detail="unsupported_adapter_type")
         except AgentNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="agent_not_found")
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/agents/{agent_id}/prompt-config")
@@ -1430,12 +1471,13 @@ def create_control_plane_router(
         agent_id: str,
         body: AgentPromptConfigUpdateRequest,
         company_id: str | None = None,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.prompt_configs
         resolved_company_id = resolve_company(company_id)
         try:
-            return await update_prompt_config_with_audit(
+            result = await update_prompt_config_with_audit(
                 store,
                 company_id=resolved_company_id,
                 agent_id=agent_id,
@@ -1445,14 +1487,17 @@ def create_control_plane_router(
             )
         except KeyError:
             raise_control_plane_api_error(status_code=404, detail="agent_not_found")
+        await uow.commit()
+        return result
 
     @router.patch("/agents/{agent_id}/status")
     async def update_agent_status(
         agent_id: str,
         body: AgentStatusUpdateRequest,
         company_id: str | None = None,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.agent_registry
         resolved_company_id = resolve_company(company_id)
         try:
@@ -1465,14 +1510,16 @@ def create_control_plane_router(
             )
         except AgentNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="agent_not_found")
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.post("/agents/{agent_id}/wake", dependencies=[Depends(verify_internal_key)])
     async def wake_agent(
         agent_id: str,
         body: AgentWakeupRequest,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.agent_operations
         try:
             result = await wake_agent_definition(
@@ -1488,8 +1535,10 @@ def create_control_plane_router(
         except AgentDefinitionNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="agent_not_found")
         except AgentWakeupError as exc:
+            await uow.commit()
             raise_control_plane_api_error(status_code=exc.status_code, detail=exc.detail)
 
+        await uow.commit()
         return {
             "run": (
                 _row_to_dict(result.run)
@@ -1506,8 +1555,9 @@ def create_control_plane_router(
     )
     async def run_heartbeat_scheduler_once(
         body: HeartbeatRunRequest,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.agent_operations
         company_id = resolve_company(body.company_id)
         try:
@@ -1518,6 +1568,7 @@ def create_control_plane_router(
             )
         except AgentOperationCompanyNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="company_not_found")
+        await uow.commit()
         return {
             "company_id": company_id,
             "results": [asdict(item) for item in results],
@@ -1560,8 +1611,9 @@ def create_control_plane_router(
     async def approve(
         approval_id: str,
         body: ApprovalActionRequest,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.approvals
         try:
             decision = await resolve_approval_and_sync_proposal(
@@ -1572,14 +1624,16 @@ def create_control_plane_router(
             )
         except ApprovalRequiredError as exc:
             raise_control_plane_api_error(status_code=404, detail=str(exc))
+        await uow.commit()
         return decision.__dict__
 
     @router.post("/approvals/{approval_id}/reject")
     async def reject(
         approval_id: str,
         body: ApprovalActionRequest,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.approvals
         try:
             decision = await resolve_approval_and_sync_proposal(
@@ -1590,6 +1644,7 @@ def create_control_plane_router(
             )
         except ApprovalRequiredError as exc:
             raise_control_plane_api_error(status_code=404, detail=str(exc))
+        await uow.commit()
         return decision.__dict__
 
     @router.get("/budgets/policies")
@@ -1626,8 +1681,9 @@ def create_control_plane_router(
     )
     async def create_budget_policy(
         body: BudgetPolicyCreateRequest,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.budgets
         company_id = resolve_company(body.company_id)
         try:
@@ -1651,6 +1707,7 @@ def create_control_plane_router(
                 status_code=409,
                 detail="active_budget_policy_exists",
             )
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/budgets/policies/{budget_id}")
@@ -1675,8 +1732,9 @@ def create_control_plane_router(
         budget_id: str,
         body: BudgetPolicyUpdateRequest,
         company_id: str | None = None,
-        stores: ControlPlaneStores = Depends(get_stores),
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
     ):
+        stores = uow.stores
         store = stores.budgets
         resolved_company_id = resolve_company(company_id)
         update_values = body.model_dump(exclude_unset=True)
@@ -1701,6 +1759,7 @@ def create_control_plane_router(
                 status_code=409,
                 detail="active_budget_policy_exists",
             )
+        await uow.commit()
         return _row_to_dict(row)
 
     @router.get("/budgets/usage")

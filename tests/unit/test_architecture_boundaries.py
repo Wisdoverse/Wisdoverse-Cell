@@ -2394,6 +2394,42 @@ def test_control_plane_run_api_delegates_to_query_use_cases() -> None:
         assert "AsyncSession" not in function_source
 
 
+def test_control_plane_command_routes_use_explicit_unit_of_work() -> None:
+    """Control-plane command routes must use the explicit transaction seam."""
+    api_source = Path("shared/control_plane/api.py").read_text()
+    uow_source = Path("shared/control_plane/unit_of_work.py").read_text()
+    tree = ast.parse(api_source)
+
+    command_route_names: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.AsyncFunctionDef):
+            continue
+        for decorator in node.decorator_list:
+            call = decorator if isinstance(decorator, ast.Call) else None
+            func = call.func if call is not None else decorator
+            if not isinstance(func, ast.Attribute):
+                continue
+            if func.attr not in {"post", "put", "patch", "delete"}:
+                continue
+            if not isinstance(func.value, ast.Name) or func.value.id != "router":
+                continue
+            command_route_names.append(node.name)
+
+    assert len(command_route_names) >= 20
+    assert "class ControlPlaneUnitOfWork" in uow_source
+    assert "ControlPlaneStores(session)" in uow_source
+    assert "await self._session.commit()" in uow_source
+    assert "await self._session.rollback()" in uow_source
+    assert "control_plane_db_manager.async_session()" in api_source
+
+    for function_name in command_route_names:
+        function_source = _function_source(api_source, function_name)
+        assert "uow: ControlPlaneUnitOfWork = Depends(get_uow)" in function_source
+        assert "stores: ControlPlaneStores = Depends(get_stores)" not in function_source
+        assert "await uow.commit()" in function_source
+        assert "AsyncSession" not in function_source
+
+
 def test_control_plane_company_api_delegates_to_use_cases() -> None:
     """Control-plane company routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
@@ -2417,10 +2453,8 @@ def test_control_plane_company_api_delegates_to_use_cases() -> None:
     ):
         function_source = _function_source(api_source, function_name)
         assert "ControlPlaneRepository" not in function_source
-        # AsyncSession must not appear in the route signature; routes now
-        # depend on ControlPlaneStores. See PR migrating the company routes
-        # to the store factory introduced by docs/architecture/migration-plan.md
-        # §Stage 1 item 3/4.
+        # AsyncSession must not appear in the route signature; reads depend on
+        # ControlPlaneStores and commands depend on ControlPlaneUnitOfWork.
         assert "AsyncSession" not in function_source
         assert "stores.companies" in function_source
 
