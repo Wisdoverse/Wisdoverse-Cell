@@ -2396,34 +2396,41 @@ def test_control_plane_run_api_delegates_to_query_use_cases() -> None:
 
 def test_control_plane_command_routes_use_explicit_unit_of_work() -> None:
     """Control-plane command routes must use the explicit transaction seam."""
-    api_source = Path("shared/control_plane/api.py").read_text()
+    api_path = Path("shared/control_plane/api.py")
+    route_paths = (
+        api_path,
+        Path("shared/control_plane/api_routes/work_items.py"),
+    )
+    route_sources = {path: path.read_text() for path in route_paths}
+    api_source = route_sources[api_path]
     uow_source = Path("shared/control_plane/unit_of_work.py").read_text()
-    tree = ast.parse(api_source)
 
-    command_route_names: list[str] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.AsyncFunctionDef):
-            continue
-        for decorator in node.decorator_list:
-            call = decorator if isinstance(decorator, ast.Call) else None
-            func = call.func if call is not None else decorator
-            if not isinstance(func, ast.Attribute):
+    command_routes: list[tuple[str, str]] = []
+    for source in route_sources.values():
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.AsyncFunctionDef):
                 continue
-            if func.attr not in {"post", "put", "patch", "delete"}:
-                continue
-            if not isinstance(func.value, ast.Name) or func.value.id != "router":
-                continue
-            command_route_names.append(node.name)
+            for decorator in node.decorator_list:
+                call = decorator if isinstance(decorator, ast.Call) else None
+                func = call.func if call is not None else decorator
+                if not isinstance(func, ast.Attribute):
+                    continue
+                if func.attr not in {"post", "put", "patch", "delete"}:
+                    continue
+                if not isinstance(func.value, ast.Name) or func.value.id != "router":
+                    continue
+                command_routes.append((source, node.name))
 
-    assert len(command_route_names) >= 20
+    assert len(command_routes) >= 20
     assert "class ControlPlaneUnitOfWork" in uow_source
     assert "ControlPlaneStores(session)" in uow_source
     assert "await self._session.commit()" in uow_source
     assert "await self._session.rollback()" in uow_source
     assert "control_plane_db_manager.async_session()" in api_source
 
-    for function_name in command_route_names:
-        function_source = _function_source(api_source, function_name)
+    for source, function_name in command_routes:
+        function_source = _function_source(source, function_name)
         assert "uow: ControlPlaneUnitOfWork = Depends(get_uow)" in function_source
         assert "stores: ControlPlaneStores = Depends(get_stores)" not in function_source
         assert "await uow.commit()" in function_source
@@ -2500,6 +2507,7 @@ def test_control_plane_goal_api_delegates_to_use_cases() -> None:
 def test_control_plane_work_item_api_delegates_to_use_cases() -> None:
     """Control-plane work-item routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
+    route_source = Path("shared/control_plane/api_routes/work_items.py").read_text()
     port_source = Path("shared/control_plane/work_item_ports.py").read_text()
     adapter_source = Path("shared/control_plane/work_item_store.py").read_text()
     use_case_source = Path(
@@ -2527,6 +2535,8 @@ def test_control_plane_work_item_api_delegates_to_use_cases() -> None:
     assert "reassign_work_item" in operation_use_case_source
     assert "block_work_item" in operation_use_case_source
     assert "close_work_item" in operation_use_case_source
+    assert "create_work_item_router" in api_source
+    assert "class WorkItemCreateRequest" not in api_source
 
     for function_name in (
         "list_work_items",
@@ -2540,7 +2550,7 @@ def test_control_plane_work_item_api_delegates_to_use_cases() -> None:
         "close_work_item_route",
         "get_work_item_activity",
     ):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "ControlPlaneRepository" not in function_source
         assert "stores.work_items" in function_source
         assert "AsyncSession" not in function_source
@@ -2554,7 +2564,7 @@ def test_control_plane_work_item_api_delegates_to_use_cases() -> None:
         "block_work_item_route",
         "close_work_item_route",
     ):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "AuditEvent(" not in function_source
         assert "append_audit_event" not in function_source
 
@@ -2630,7 +2640,6 @@ def test_control_plane_artifact_api_delegates_to_use_cases() -> None:
 
 def test_control_plane_operator_use_cases_return_domain_records() -> None:
     """Control-plane store ports should expose domain records, not ORM rows."""
-    api_source = Path("shared/control_plane/api.py").read_text()
     mapper_source = Path("shared/control_plane/domain_records.py").read_text()
     store_files = {
         "company_record": Path("shared/control_plane/company_store.py"),
@@ -2695,7 +2704,8 @@ def test_control_plane_operator_use_cases_return_domain_records() -> None:
         assert "list[Any]" not in source
         assert "Any | None" not in source
 
-    row_to_dict_source = _function_source(api_source, "_row_to_dict")
+    serialization_source = Path("shared/control_plane/api_serialization.py").read_text()
+    row_to_dict_source = _function_source(serialization_source, "row_to_dict")
     assert "isinstance(row, BaseModel)" in row_to_dict_source
     assert 'row.model_dump(mode="json")' in row_to_dict_source
 
