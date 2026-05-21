@@ -100,13 +100,11 @@ def get_requirement_analysis_use_case(
     )
 
 
-def get_ingest_use_case(
-    db: AsyncSession = Depends(get_db),
-) -> IngestUseCase:
+def get_ingest_use_case() -> IngestUseCase:
+    agent = get_agent()
     return IngestUseCase(
-        meeting_repository=MeetingRepository(db),
-        agent=get_agent(),
-        session=db,
+        agent=agent,
+        uow_factory=agent.get_unit_of_work,
     )
 
 

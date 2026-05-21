@@ -18,5 +18,8 @@ class SqlAlchemyRequirementMeetingStore(RequirementMeetingStore):
     async def get_by_id(self, meeting_id: str):
         return await self._meetings.get_by_id(meeting_id)
 
+    async def get_by_source_id(self, source: str, source_id: str):
+        return await self._meetings.get_by_source_id(source, source_id)
+
     async def mark_processed(self, meeting_id: str) -> None:
         await self._meetings.mark_processed(meeting_id)

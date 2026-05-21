@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
+from .unit_of_work_ports import RequirementUnitOfWork, RequirementUnitOfWorkFactory
+
 
 @dataclass(frozen=True, slots=True)
 class IngestUseCaseResult:
@@ -23,18 +25,13 @@ class IngestUseCaseResult:
         )
 
 
-class MeetingDedupRepository(Protocol):
-    async def get_by_source_id(self, source: str, source_id: str) -> object | None:
-        """Return an existing meeting by source-system identity."""
-
-
 class MeetingIngestAgent(Protocol):
-    async def ingest_meeting(
+    async def ingest_meeting_with_uow(
         self,
         *,
         content: str,
         source: str,
-        session: object,
+        uow: RequirementUnitOfWork,
         title: str | None = None,
         meeting_date: datetime | None = None,
         participants: list[str] | None = None,
@@ -43,6 +40,9 @@ class MeetingIngestAgent(Protocol):
     ) -> object:
         """Ingest a meeting and extract requirements."""
 
+    async def publish_ingest_side_effects(self, result: object) -> None:
+        """Publish post-commit side effects for a completed ingestion."""
+
 
 class IngestUseCase:
     """Application use case for upload and Feishu meeting ingestion."""
@@ -50,13 +50,11 @@ class IngestUseCase:
     def __init__(
         self,
         *,
-        meeting_repository: MeetingDedupRepository,
         agent: MeetingIngestAgent,
-        session: object,
+        uow_factory: RequirementUnitOfWorkFactory,
     ):
-        self._meetings = meeting_repository
         self._agent = agent
-        self._session = session
+        self._uow_factory = uow_factory
 
     async def upload_content(
         self,
@@ -68,15 +66,19 @@ class IngestUseCase:
         participants: list[str] | None = None,
         context: str | None = None,
     ) -> IngestUseCaseResult:
-        result = await self._agent.ingest_meeting(
-            content=content,
-            source=source,
-            session=self._session,
-            title=title,
-            meeting_date=_parse_optional_datetime(meeting_date),
-            participants=participants,
-            context=context,
-        )
+        async with self._uow_factory() as uow:
+            result = await self._agent.ingest_meeting_with_uow(
+                content=content,
+                source=source,
+                uow=uow,
+                title=title,
+                meeting_date=_parse_optional_datetime(meeting_date),
+                participants=participants,
+                context=context,
+            )
+            await uow.commit()
+
+        await self._agent.publish_ingest_side_effects(result)
         return IngestUseCaseResult.from_agent_result(result)
 
     async def ingest_feishu(
@@ -88,25 +90,29 @@ class IngestUseCase:
         participants: list[str] | None = None,
         meeting_time: str | None = None,
     ) -> IngestUseCaseResult:
-        if meeting_id:
-            existing = await self._meetings.get_by_source_id("feishu", meeting_id)
-            if existing:
-                return IngestUseCaseResult(
-                    meeting_id=existing.id,
-                    requirements_extracted=0,
-                    questions_generated=0,
-                    deduplicated=True,
-                )
+        async with self._uow_factory() as uow:
+            if meeting_id:
+                existing = await uow.meetings.get_by_source_id("feishu", meeting_id)
+                if existing:
+                    return IngestUseCaseResult(
+                        meeting_id=existing.id,
+                        requirements_extracted=0,
+                        questions_generated=0,
+                        deduplicated=True,
+                    )
 
-        result = await self._agent.ingest_meeting(
-            content=summary,
-            source="feishu",
-            session=self._session,
-            title=topic,
-            meeting_date=_parse_optional_datetime(meeting_time),
-            participants=participants,
-            source_id=meeting_id,
-        )
+            result = await self._agent.ingest_meeting_with_uow(
+                content=summary,
+                source="feishu",
+                uow=uow,
+                title=topic,
+                meeting_date=_parse_optional_datetime(meeting_time),
+                participants=participants,
+                source_id=meeting_id,
+            )
+            await uow.commit()
+
+        await self._agent.publish_ingest_side_effects(result)
         return IngestUseCaseResult.from_agent_result(result)
 
 

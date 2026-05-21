@@ -1,19 +1,19 @@
 """Application use cases for Requirement Manager direct agent requests."""
 from __future__ import annotations
 
-from collections.abc import Callable
-from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
+from .unit_of_work_ports import RequirementUnitOfWork, RequirementUnitOfWorkFactory
+
 
 class RequirementRequestIngestAgent(Protocol):
-    async def ingest_meeting(
+    async def ingest_meeting_with_uow(
         self,
         *,
         content: str,
         source: str,
-        session: object,
+        uow: RequirementUnitOfWork,
         title: str | None = None,
         meeting_date: datetime | None = None,
         participants: list[str] | None = None,
@@ -21,6 +21,9 @@ class RequirementRequestIngestAgent(Protocol):
         source_id: str | None = None,
     ) -> object:
         """Ingest a meeting through the runtime agent boundary."""
+
+    async def publish_ingest_side_effects(self, result: object) -> None:
+        """Publish post-commit side effects for a completed ingestion."""
 
 
 class RequirementManagerRequestUseCase:
@@ -30,10 +33,10 @@ class RequirementManagerRequestUseCase:
         self,
         *,
         agent: RequirementRequestIngestAgent,
-        session_factory: Callable[[], AbstractAsyncContextManager[object]],
+        uow_factory: RequirementUnitOfWorkFactory,
     ) -> None:
         self._agent = agent
-        self._session_factory = session_factory
+        self._uow_factory = uow_factory
 
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         action = request.get("action")
@@ -51,17 +54,20 @@ class RequirementManagerRequestUseCase:
         except ValueError as exc:
             return {"status": "error", "error": str(exc)}
 
-        async with self._session_factory() as session:
-            result = await self._agent.ingest_meeting(
+        async with self._uow_factory() as uow:
+            result = await self._agent.ingest_meeting_with_uow(
                 content=content,
                 source=str(request.get("source") or "agent_request"),
-                session=session,
+                uow=uow,
                 title=self._optional_str(request.get("title")),
                 meeting_date=meeting_date,
                 participants=self._string_list(request.get("participants")),
                 context=self._optional_str(request.get("context")),
                 source_id=self._optional_str(request.get("source_id")),
             )
+            await uow.commit()
+
+        await self._agent.publish_ingest_side_effects(result)
 
         return {
             "status": "ok",

@@ -1,14 +1,14 @@
 """Application use cases for Requirement Manager event orchestration."""
 from __future__ import annotations
 
-from collections.abc import Callable
-from contextlib import AbstractAsyncContextManager
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Protocol
 
 from shared.observability.privacy import hash_identifier
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
+
+from .unit_of_work_ports import RequirementUnitOfWork, RequirementUnitOfWorkFactory
 
 logger = get_logger("requirement-manager.event_use_cases")
 
@@ -23,17 +23,20 @@ SUBSCRIBED_EVENTS = [
 
 
 class RequirementEventIngestAgent(Protocol):
-    async def ingest_meeting(
+    async def ingest_meeting_with_uow(
         self,
         *,
         content: str,
         source: str,
-        session: object,
+        uow: RequirementUnitOfWork,
         title: str | None = None,
-        meeting_date: datetime | str | None = None,
+        meeting_date: datetime | None = None,
         participants: list[str] | None = None,
     ) -> object:
         """Ingest meeting content through the requirement runtime boundary."""
+
+    async def publish_ingest_side_effects(self, result: object) -> None:
+        """Publish post-commit side effects for a completed ingestion."""
 
 
 class RequirementManagerEventUseCase:
@@ -43,10 +46,10 @@ class RequirementManagerEventUseCase:
         self,
         *,
         agent: RequirementEventIngestAgent,
-        session_factory: Callable[[], AbstractAsyncContextManager[object]],
+        uow_factory: RequirementUnitOfWorkFactory,
     ) -> None:
         self._agent = agent
-        self._session_factory = session_factory
+        self._uow_factory = uow_factory
 
     async def handle(self, event: Event) -> list[Event]:
         if event.event_type == EventTypes.COORDINATOR_DISPATCH:
@@ -177,15 +180,18 @@ class RequirementManagerEventUseCase:
         )
 
         try:
-            async with self._session_factory() as session:
-                result = await self._agent.ingest_meeting(
+            async with self._uow_factory() as uow:
+                result = await self._agent.ingest_meeting_with_uow(
                     content=content,
                     source=source,
-                    session=session,
+                    uow=uow,
                     title=title,
-                    meeting_date=meeting_date,
+                    meeting_date=_parse_optional_datetime(meeting_date),
                     participants=participants,
                 )
+                await uow.commit()
+
+            await self._agent.publish_ingest_side_effects(result)
 
             logger.info(
                 "meeting_processed_from_event",
@@ -201,3 +207,21 @@ class RequirementManagerEventUseCase:
             )
 
         return []
+
+
+def _parse_optional_datetime(value: object) -> datetime | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        return value
+    if not isinstance(value, str):
+        return None
+
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        logger.warning("meeting_uploaded_invalid_meeting_date")
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed

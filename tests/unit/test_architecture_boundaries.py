@@ -945,9 +945,12 @@ def test_requirement_ingest_api_delegates_to_use_case() -> None:
     assert "get_agent" not in api_source
     assert "datetime.fromisoformat" not in api_source
     assert "Depends(get_db)" not in api_source
-    assert "MeetingRepository" in dependency_source
-    assert "get_agent()" in dependency_source
+    assert "agent = get_agent()" in dependency_source
+    assert "uow_factory=agent.get_unit_of_work" in dependency_source
     assert "class IngestUseCase" in use_case_source
+    assert "RequirementUnitOfWorkFactory" in use_case_source
+    assert "async with self._uow_factory() as uow" in use_case_source
+    assert "await uow.commit()" in use_case_source
 
 
 def test_requirement_agent_request_dispatch_delegates_to_application_use_case() -> None:
@@ -963,6 +966,10 @@ def test_requirement_agent_request_dispatch_delegates_to_application_use_case() 
     assert "async def _ingest" in use_case_source
     assert "datetime.fromisoformat" in use_case_source
     assert "meeting_date_must_be_iso_datetime" in use_case_source
+    assert "RequirementUnitOfWorkFactory" in use_case_source
+    assert "async with self._uow_factory() as uow" in use_case_source
+    assert "await uow.commit()" in use_case_source
+    assert "session_factory" not in use_case_source
 
     assert "RequirementManagerRequestUseCase" in service_source
     assert "def _request_use_case" in service_source
@@ -988,7 +995,10 @@ def test_requirement_agent_event_dispatch_delegates_to_application_use_case() ->
     assert "EventTypes.MEETING_UPLOADED" in use_case_source
     assert "coordinator_dispatch_received" in use_case_source
     assert "hash_identifier(title)" in use_case_source
-    assert "await self._agent.ingest_meeting(" in use_case_source
+    assert "await self._agent.ingest_meeting_with_uow(" in use_case_source
+    assert "RequirementUnitOfWorkFactory" in use_case_source
+    assert "async with self._uow_factory() as uow" in use_case_source
+    assert "await uow.commit()" in use_case_source
 
     assert "RequirementManagerEventUseCase" in service_source
     assert "def _event_use_case" in service_source
@@ -996,7 +1006,34 @@ def test_requirement_agent_event_dispatch_delegates_to_application_use_case() ->
     assert ".event_handlers" not in service_source
     assert "dispatch_event" not in service_source
     assert "agent._db_manager.session" not in use_case_source
+    assert "session_factory" not in use_case_source
     assert "async with agent._db_manager.session()" not in service_source
+
+
+def test_requirement_ingest_uses_explicit_unit_of_work_boundary() -> None:
+    """Requirement ingestion should stage events and commit through an explicit UOW."""
+    port_source = Path("agents/requirement_manager/core/unit_of_work_ports.py").read_text()
+    adapter_source = Path("agents/requirement_manager/db/unit_of_work.py").read_text()
+    service_source = Path("agents/requirement_manager/service/agent.py").read_text()
+
+    assert "class RequirementUnitOfWork(Protocol)" in port_source
+    assert "class RequirementUnitOfWorkFactory(Protocol)" in port_source
+    assert "class RequirementOutboxWriter(Protocol)" in port_source
+    assert "class SqlAlchemyRequirementUnitOfWork" in adapter_source
+    assert "SqlAlchemyRequirementMeetingStore(session)" in adapter_source
+    assert "SqlAlchemyRequirementStore(session)" in adapter_source
+    assert "SqlAlchemyRequirementQuestionStore(session)" in adapter_source
+    assert "SqlAlchemyRequirementMessageStore(session)" in adapter_source
+    assert "RequirementEventOutboxRepository(session)" in adapter_source
+    assert "self._db_manager.async_session()" in adapter_source
+    assert "await self._session.commit()" in adapter_source
+    assert "await self._session.rollback()" in adapter_source
+
+    assert "SqlAlchemyRequirementUnitOfWorkFactory(self._db_manager)" in service_source
+    assert "def get_unit_of_work" in service_source
+    assert "async def ingest_meeting_with_uow" in service_source
+    assert "await uow.outbox.stage(extracted_event)" in service_source
+    assert "await self.publish_ingest_side_effects(result)" in service_source
 
 
 def test_requirement_feedback_api_delegates_to_use_case() -> None:

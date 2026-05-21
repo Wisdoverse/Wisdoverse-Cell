@@ -1,5 +1,5 @@
 """Requirement Manager question use-case tests."""
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -116,15 +116,11 @@ async def test_ingest_meeting_persists_open_questions_through_question_store():
         vectors=vectors,
         requirement_extractor=extractor,
     )
-    session = MagicMock()
-    session.commit = AsyncMock()
 
     question_store = MagicMock()
     question_store.create_batch = AsyncMock(side_effect=lambda questions: questions)
-    agent._get_question_store = MagicMock(return_value=question_store)
-    agent._stage_requirement_event = AsyncMock()
-    agent._publish_staged_requirement_event = AsyncMock()
-    agent._commit_requirement_mutation = AsyncMock()
+    outbox = MagicMock()
+    outbox.stage = AsyncMock()
 
     async def create_meeting(meeting):
         meeting.id = "mtg_ingest"
@@ -142,21 +138,20 @@ async def test_ingest_meeting_persists_open_questions_through_question_store():
     requirement_repo = MagicMock()
     requirement_repo.create_batch = AsyncMock(side_effect=create_requirements)
 
-    with (
-        patch.object(agent, "_get_meeting_store", return_value=meeting_repo),
-        patch.object(agent, "_get_requirement_store", return_value=requirement_repo),
-        patch(
-            "agents.requirement_manager.service.agent.notification_service.send",
-            new_callable=AsyncMock,
-        ),
-    ):
-        result = await agent.ingest_meeting(
-            content="Need login",
-            source="upload",
-            session=session,
-        )
+    uow = MagicMock()
+    uow.meetings = meeting_repo
+    uow.requirements = requirement_repo
+    uow.questions = question_store
+    uow.outbox = outbox
+
+    result = await agent.ingest_meeting_with_uow(
+        content="Need login",
+        source="upload",
+        uow=uow,
+    )
 
     assert result.questions_generated == 2
+    outbox.stage.assert_awaited_once()
     question_store.create_batch.assert_awaited_once()
     questions = question_store.create_batch.await_args.args[0]
     assert [question.question for question in questions] == [

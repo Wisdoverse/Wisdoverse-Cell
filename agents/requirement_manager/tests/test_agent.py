@@ -277,21 +277,19 @@ class TestHandleRequest:
 
     @pytest.mark.asyncio
     async def test_ingest_action_calls_ingest_meeting(self):
-        from contextlib import asynccontextmanager
-
-        mock_db = MagicMock()
-        mock_session = MagicMock()
-
-        @asynccontextmanager
-        async def session():
-            yield mock_session
-
-        mock_db.session = session
         test_agent = RequirementManagerAgent(
-            db=mock_db,
+            db=MagicMock(),
             bus=MagicMock(),
             vectors=MagicMock(),
         )
+        fake_uow = MagicMock()
+        fake_uow.commit = AsyncMock()
+
+        @asynccontextmanager
+        async def uow_context():
+            yield fake_uow
+
+        test_agent.get_unit_of_work = MagicMock(return_value=uow_context())
         ingest_result = IngestResult(
             meeting_id="mtg_123",
             requirements_extracted=2,
@@ -301,9 +299,13 @@ class TestHandleRequest:
 
         with patch.object(
             test_agent,
-            "ingest_meeting",
+            "ingest_meeting_with_uow",
             new_callable=AsyncMock,
-        ) as mock_ingest:
+        ) as mock_ingest, patch.object(
+            test_agent,
+            "publish_ingest_side_effects",
+            new_callable=AsyncMock,
+        ):
             mock_ingest.return_value = ingest_result
 
             result = await test_agent.handle_request(
@@ -330,12 +332,13 @@ class TestHandleRequest:
         kwargs = mock_ingest.await_args.kwargs
         assert kwargs["content"] == "We need a login flow."
         assert kwargs["source"] == "control_plane"
-        assert kwargs["session"] is mock_session
+        assert kwargs["uow"] is fake_uow
         assert kwargs["title"] == "Planning"
         assert kwargs["meeting_date"].isoformat() == "2026-05-03T10:30:00+00:00"
         assert kwargs["participants"] == ["Alice", "Bob"]
         assert kwargs["context"] == "Sprint planning"
         assert kwargs["source_id"] == "meeting_123"
+        fake_uow.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_ingest_action_requires_content(self):
@@ -469,48 +472,26 @@ class TestExtractFromSession:
     @pytest.mark.asyncio
     async def test_extract_from_session_no_messages(self):
         """Return None when the session has no messages."""
-        from contextlib import asynccontextmanager
+        test_agent = RequirementManagerAgent(db=MagicMock())
+        fake_uow = MagicMock()
+        fake_uow.messages.get_by_session = AsyncMock(return_value=[])
 
-        mock_db = MagicMock()
-
-        # Create async context manager for session
         @asynccontextmanager
-        async def mock_session():
-            mock_db_session = MagicMock()
-            yield mock_db_session
+        async def uow_context():
+            yield fake_uow
 
-        mock_db.session = mock_session
+        test_agent.get_unit_of_work = MagicMock(return_value=uow_context())
+        result = await test_agent.extract_from_session("ses_test123")
 
-        test_agent = RequirementManagerAgent(db=mock_db)
-
-        # Mock message persistence port.
-        with patch.object(test_agent, "_get_message_store") as mock_get_msg_store:
-            mock_repo_instance = MagicMock()
-            mock_repo_instance.get_by_session = AsyncMock(return_value=[])
-            mock_get_msg_store.return_value = mock_repo_instance
-
-            result = await test_agent.extract_from_session("ses_test123")
-
-            assert result is None
-            mock_repo_instance.get_by_session.assert_called_once_with("ses_test123")
+        assert result is None
+        fake_uow.messages.get_by_session.assert_awaited_once_with("ses_test123")
 
     @pytest.mark.asyncio
     async def test_extract_from_session_with_messages(self):
         """Trigger extraction when the session has messages."""
-        from contextlib import asynccontextmanager
         from datetime import UTC, datetime
 
-        mock_db = MagicMock()
-        mock_db_session = MagicMock()
-        mock_db_session.commit = AsyncMock()
-
-        @asynccontextmanager
-        async def mock_session():
-            yield mock_db_session
-
-        mock_db.session = mock_session
-
-        test_agent = RequirementManagerAgent(db=mock_db)
+        test_agent = RequirementManagerAgent(db=MagicMock())
 
         # Create mock messages
         mock_msg = MagicMock()
@@ -528,22 +509,30 @@ class TestExtractFromSession:
         )
 
         with (
-            patch.object(test_agent, "_get_message_store") as mock_get_msg_store,
-            patch.object(test_agent, "_get_requirement_store") as mock_get_req_store,
-            patch.object(test_agent, "ingest_meeting", new_callable=AsyncMock) as mock_ingest,
+            patch.object(
+                test_agent,
+                "ingest_meeting_with_uow",
+                new_callable=AsyncMock,
+            ) as mock_ingest,
+            patch.object(
+                test_agent, "publish_ingest_side_effects", new_callable=AsyncMock
+            ),
             patch.object(
                 test_agent, "_send_session_extraction_card", new_callable=AsyncMock
             ) as mock_send_card,
         ):
 
-            mock_msg_repo = MagicMock()
-            mock_msg_repo.get_by_session = AsyncMock(return_value=[mock_msg])
-            mock_msg_repo.mark_extracted = AsyncMock()
-            mock_get_msg_store.return_value = mock_msg_repo
+            fake_uow = MagicMock()
+            fake_uow.messages.get_by_session = AsyncMock(return_value=[mock_msg])
+            fake_uow.messages.mark_extracted = AsyncMock()
+            fake_uow.requirements.get_by_id = AsyncMock(return_value=None)
+            fake_uow.commit = AsyncMock()
 
-            mock_req_repo = MagicMock()
-            mock_req_repo.get_by_id = AsyncMock(return_value=None)
-            mock_get_req_store.return_value = mock_req_repo
+            @asynccontextmanager
+            async def uow_context():
+                yield fake_uow
+
+            test_agent.get_unit_of_work = MagicMock(return_value=uow_context())
 
             mock_ingest.return_value = mock_result
 
@@ -552,25 +541,19 @@ class TestExtractFromSession:
             assert result is not None
             assert result.requirements_extracted == 1
             mock_ingest.assert_called_once()
-            mock_msg_repo.mark_extracted.assert_called_once_with("ses_test123", ["req_001"])
+            fake_uow.messages.mark_extracted.assert_awaited_once_with(
+                "ses_test123",
+                ["req_001"],
+            )
+            fake_uow.commit.assert_awaited_once()
             mock_send_card.assert_called_once_with("chat_456", mock_result, "ses_test123")
 
     @pytest.mark.asyncio
     async def test_extract_from_session_no_requirements_extracted(self):
         """Do not send a card when no requirements are extracted."""
-        from contextlib import asynccontextmanager
         from datetime import UTC, datetime
 
-        mock_db = MagicMock()
-
-        @asynccontextmanager
-        async def mock_session():
-            mock_db_session = MagicMock()
-            yield mock_db_session
-
-        mock_db.session = mock_session
-
-        test_agent = RequirementManagerAgent(db=mock_db)
+        test_agent = RequirementManagerAgent(db=MagicMock())
 
         # Create mock message
         mock_msg = MagicMock()
@@ -588,17 +571,28 @@ class TestExtractFromSession:
         )
 
         with (
-            patch.object(test_agent, "_get_message_store") as mock_get_msg_store,
-            patch.object(test_agent, "_get_requirement_store"),
-            patch.object(test_agent, "ingest_meeting", new_callable=AsyncMock) as mock_ingest,
+            patch.object(
+                test_agent,
+                "ingest_meeting_with_uow",
+                new_callable=AsyncMock,
+            ) as mock_ingest,
+            patch.object(
+                test_agent, "publish_ingest_side_effects", new_callable=AsyncMock
+            ),
             patch.object(
                 test_agent, "_send_session_extraction_card", new_callable=AsyncMock
             ) as mock_send_card,
         ):
 
-            mock_msg_repo = MagicMock()
-            mock_msg_repo.get_by_session = AsyncMock(return_value=[mock_msg])
-            mock_get_msg_store.return_value = mock_msg_repo
+            fake_uow = MagicMock()
+            fake_uow.messages.get_by_session = AsyncMock(return_value=[mock_msg])
+            fake_uow.commit = AsyncMock()
+
+            @asynccontextmanager
+            async def uow_context():
+                yield fake_uow
+
+            test_agent.get_unit_of_work = MagicMock(return_value=uow_context())
 
             mock_ingest.return_value = mock_result
 
