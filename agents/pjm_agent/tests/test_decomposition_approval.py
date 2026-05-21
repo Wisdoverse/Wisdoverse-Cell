@@ -11,6 +11,9 @@ from agents.pjm_agent.core.decompose import DecomposeError
 from agents.pjm_agent.core.decomposition_orchestrator import (
     DecompositionOrchestrator,
 )
+from agents.pjm_agent.core.decomposition_request_workflow import (
+    DecompositionRequestWorkflow,
+)
 from shared.api import ApiErrorCode
 from shared.schemas.event import Event, EventTypes
 
@@ -25,18 +28,17 @@ async def test_decomposition_approval_request_returns_control_plane_id():
         )
     )
     approval_gate.enforced = False
-    orchestrator = DecompositionOrchestrator(
-        db_manager=MagicMock(),
-        op_writer=MagicMock(),
+    workflow = DecompositionRequestWorkflow(
+        decomposition_store=MagicMock(),
         decompose_service=MagicMock(),
         push_service=MagicMock(),
-        create_event_fn=MagicMock(),
-        event_publisher=MagicMock(),
         approval_gate=approval_gate,
+        create_event_fn=MagicMock(),
+        config=MagicMock(),
     )
     result_dict = {"summary": "Split feature"}
 
-    approval_id = await orchestrator._request_decomposition_approval(
+    approval_id = await workflow.request_decomposition_approval(
         wp_id=123,
         project_id=456,
         subject="Split feature",
