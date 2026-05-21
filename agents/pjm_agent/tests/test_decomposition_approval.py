@@ -133,6 +133,9 @@ class _TransactionContext:
 
 def _decomposition_store(transaction):
     transaction.stage_event = AsyncMock()
+    transaction.commit = AsyncMock()
+    transaction.rollback = AsyncMock()
+    transaction.completed = False
     store = MagicMock()
     store.transaction.return_value = _TransactionContext(transaction)
     return store

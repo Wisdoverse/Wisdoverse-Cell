@@ -232,6 +232,7 @@ class DecompositionOrchestrator:
             # Allow failed/rejected to retry — delete old record
             if existing:
                 await decomposition.delete_by_wp_id(wp_id)
+                await decomposition.commit()
 
         # Branch: Task detail check vs Feature/Epic decomposition
         if wp_type == "Task":
@@ -270,6 +271,7 @@ class DecompositionOrchestrator:
                         assignee_id=assignee_id,
                     )
                     await decomposition.update_status(wp_id, FAILED)
+                    await decomposition.commit()
             except Exception:
                 logger.error("decompose_failed_save_error", wp_id=wp_id)
             # Notify user about decomposition failure via Feishu
@@ -308,6 +310,7 @@ class DecompositionOrchestrator:
                     decompose_result=result_dict,
                     assignee_id=assignee_id,
                 )
+                await decomposition.commit()
         except Exception as e:
             logger.error("decompose_save_failed", wp_id=wp_id, error=str(e))
 
@@ -386,6 +389,7 @@ class DecompositionOrchestrator:
                         assignee_id=assignee_id,
                     )
                     await decomposition.update_status(wp_id, FAILED)
+                    await decomposition.commit()
             except Exception:
                 pass
             return []
@@ -422,6 +426,7 @@ class DecompositionOrchestrator:
                     decompose_result=result_dict,
                     assignee_id=assignee_id,
                 )
+                await decomposition.commit()
         except Exception as e:
             logger.error("task_check_save_failed", wp_id=wp_id, error=str(e))
 
@@ -535,6 +540,7 @@ class DecompositionOrchestrator:
             wbs_result = record.decompose_result
             project_id = record.project_id
             assignee_id = record.assignee_id
+            await decomposition.commit()
 
         is_task_refinement = wbs_result.get("type") == "task_refinement"
 
@@ -594,12 +600,13 @@ class DecompositionOrchestrator:
 
             # Write succeeded — transition to "approved" and stage outgoing events.
             async with self._require_decomposition_store().transaction() as decomposition:
-                await decomposition.update_status(wp_id, APPROVED)
+                await decomposition.update_status(wp_id, final_status)
                 await self._stage_pjm_event(decomposition, completion_event)
                 staged_events.append(completion_event)
                 if dev_event is not None:
                     await self._stage_pjm_event(decomposition, dev_event)
                     staged_events.append(dev_event)
+                await decomposition.commit()
         except Exception as e:
             logger.error("decompose_op_write_failed", wp_id=wp_id, error=str(e))
             completion_event = self._create_event(
@@ -617,6 +624,7 @@ class DecompositionOrchestrator:
                     await decomposition.update_status(wp_id, WRITE_FAILED)
                     await self._stage_pjm_event(decomposition, completion_event)
                     staged_events.append(completion_event)
+                    await decomposition.commit()
             except Exception as inner_e:
                 logger.error(
                     "decompose_write_failed_status_update_error", wp_id=wp_id, error=str(inner_e)
@@ -758,6 +766,7 @@ class DecompositionOrchestrator:
                 )
             await decomposition.delete_by_wp_id(wp_id)
             await self._stage_pjm_event(decomposition, event)
+            await decomposition.commit()
 
         await self._publish_staged_pjm_event(event, wp_id=wp_id)
         return {"status": "retrying", "wp_id": wp_id}
@@ -827,6 +836,7 @@ class DecompositionOrchestrator:
                 },
             )
             await self._stage_pjm_event(decomposition, event)
+            await decomposition.commit()
 
         logger.info(
             "decompose_rejected",
