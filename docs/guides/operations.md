@@ -611,15 +611,22 @@ Production policy:
 - Record run, approval, artifact, budget, and audit evidence on the same trace.
 - Fail closed when an adapter is missing or not allowlisted.
 
-Manual wakeup path:
+Task execution path:
 
 ```text
-operator -> POST /api/v1/control-plane/agents/{agent_id}/wake
+operator -> POST /api/v1/control-plane/work-items/{work_item_id}/run
+         -> owner AgentRole resolved
          -> AgentRun created
          -> adapter resolved
          -> POST /agent/request on deployed service
+         -> WorkItem moved to completed or failed
          -> output/error/budget/artifact evidence persisted
 ```
+
+Manual agent wakeups remain available for internal service calls at
+`POST /api/v1/control-plane/agents/{agent_id}/wake`; operator-facing workflows
+should prefer the work-item command so task state, run evidence, and timeline
+records advance together.
 
 Heartbeat path:
 

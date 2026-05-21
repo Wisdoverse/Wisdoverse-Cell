@@ -2505,6 +2505,9 @@ def test_control_plane_work_item_api_delegates_to_use_cases() -> None:
     use_case_source = Path(
         "shared/control_plane/work_item_use_cases.py"
     ).read_text()
+    execution_use_case_source = Path(
+        "shared/control_plane/work_item_execution_use_cases.py"
+    ).read_text()
 
     assert "class ControlPlaneWorkItemStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneWorkItemStore" in adapter_source
@@ -2515,19 +2518,23 @@ def test_control_plane_work_item_api_delegates_to_use_cases() -> None:
     assert "append_audit_event" in use_case_source
     assert "WorkItemGoalNotFoundError" in use_case_source
     assert "WorkItemDependencyNotFoundError" in use_case_source
+    assert "run_work_item_with_agent" in execution_use_case_source
+    assert "ControlPlaneAgentOperationStore" in execution_use_case_source
+    assert "wake_agent_definition" in execution_use_case_source
 
     for function_name in (
         "list_work_items",
         "create_work_item",
         "get_work_item",
         "update_work_item_status",
+        "run_work_item",
     ):
         function_source = _function_source(api_source, function_name)
         assert "ControlPlaneRepository" not in function_source
         assert "stores.work_items" in function_source
         assert "AsyncSession" not in function_source
 
-    for function_name in ("create_work_item", "update_work_item_status"):
+    for function_name in ("create_work_item", "update_work_item_status", "run_work_item"):
         function_source = _function_source(api_source, function_name)
         assert "AuditEvent(" not in function_source
         assert "append_audit_event" not in function_source

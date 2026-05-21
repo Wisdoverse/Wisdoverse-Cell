@@ -98,13 +98,11 @@ async def test_goal_to_agent_run_to_artifact_timeline_e2e(
         )
 
         wake = await client.post(
-            "/api/v1/control-plane/agents/ops-runner/wake",
+            f"/api/v1/control-plane/work-items/{work_item_id}/run",
             json={
                 "company_id": "cmp_e2e",
                 "actor_id": "human:board",
                 "trace_id": "trace-e2e",
-                "goal_id": goal_id,
-                "work_item_id": work_item_id,
                 "input": {"task": "produce handoff"},
             },
         )
@@ -159,6 +157,8 @@ async def test_goal_to_agent_run_to_artifact_timeline_e2e(
     assert work_item.status_code == 201
     assert agent.status_code == 201
     assert wake.status_code == 200
+    assert wake.json()["work_item"]["status"] == "completed"
+    assert wake.json()["work_item"]["owner_agent_id"] == "ops-runner"
     assert wake.json()["run"]["status"] == "succeeded"
     assert wake.json()["run"]["goal_id"] == goal_id
     assert wake.json()["run"]["work_item_id"] == work_item_id

@@ -169,6 +169,10 @@ from .models import (
 )
 from .store_factory import ControlPlaneStores
 from .unit_of_work import ControlPlaneUnitOfWork
+from .work_item_execution_use_cases import (
+    WorkItemExecutionAgentRequiredError,
+    run_work_item_with_agent,
+)
 from .work_item_use_cases import (
     WorkItemDependencyNotFoundError,
     WorkItemGoalNotFoundError,
@@ -325,6 +329,27 @@ class WorkItemStatusUpdateRequest(BaseModel):
     owner_agent_id: str | None = Field(default=None, max_length=64)
     owner_user_id: str | None = Field(default=None, max_length=64)
     actor_id: str = Field(default="api", min_length=1, max_length=128)
+
+
+class WorkItemRunRequest(BaseModel):
+    company_id: str | None = Field(default=None, min_length=1, max_length=48)
+    agent_id: str | None = Field(default=None, max_length=64)
+    input: dict[str, Any] = Field(default_factory=dict)
+    actor_id: str = Field(default="api", min_length=1, max_length=128)
+    trace_id: str | None = Field(default=None, max_length=96)
+
+    @field_validator("company_id", "agent_id", "trace_id", mode="before")
+    @classmethod
+    def _clean_optional_string(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        cleaned = str(value).strip()
+        return cleaned or None
+
+    @field_validator("actor_id", mode="before")
+    @classmethod
+    def _clean_actor_id(cls, value: Any) -> str:
+        return str(value or "api").strip() or "api"
 
 
 class DecisionCreateRequest(BaseModel):
@@ -1004,6 +1029,46 @@ def create_control_plane_router(
             raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
         await uow.commit()
         return _row_to_dict(row)
+
+    @router.post("/work-items/{work_item_id}/run")
+    async def run_work_item(
+        work_item_id: str,
+        body: WorkItemRunRequest,
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
+    ):
+        stores = uow.stores
+        try:
+            result = await run_work_item_with_agent(
+                stores.work_items,
+                stores.agent_operations,
+                company_id=resolve_company(body.company_id),
+                work_item_id=work_item_id,
+                agent_id=body.agent_id,
+                input_payload=body.input,
+                actor_id=body.actor_id,
+                trace_id=body.trace_id,
+            )
+        except WorkItemNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
+        except WorkItemExecutionAgentRequiredError:
+            raise_control_plane_api_error(status_code=400, detail="agent_required")
+        except AgentDefinitionNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="agent_not_found")
+        except AgentWakeupError as exc:
+            await uow.commit()
+            raise_control_plane_api_error(status_code=exc.status_code, detail=exc.detail)
+
+        await uow.commit()
+        return {
+            "work_item": _row_to_dict(result.work_item),
+            "run": (
+                _row_to_dict(result.agent_wakeup.run)
+                if result.agent_wakeup.run is not None
+                else {"run_id": result.agent_wakeup.wakeup.run_id}
+            ),
+            "output": result.agent_wakeup.wakeup.output,
+            "evidence_artifact_id": result.agent_wakeup.wakeup.evidence_artifact_id,
+        }
 
     @router.get("/decisions")
     async def list_decisions(

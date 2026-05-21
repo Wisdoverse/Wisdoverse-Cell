@@ -257,9 +257,10 @@ does not finish the job here.
    and response shaping only.
 3. Publish per-agent OpenAPI snapshots and assert against them in CI to prevent
    silent contract drift.
-4. Document the `/agent/request` envelope used by control-plane wakeups in
-   `docs/guides/api-reference.md` as a stable contract before splitting any
-   agent runtime.
+4. Keep the operator-facing work-item execution command documented separately
+   from the internal `/agent/request` envelope. `/work-items/{work_item_id}/run`
+   is the product command; `/agent/request` remains the runtime adapter
+   contract that must be stable before splitting any agent runtime.
 
 ### 6.2 Events
 

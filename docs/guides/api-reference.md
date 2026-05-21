@@ -114,6 +114,7 @@ Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.
 | `POST` | `/work-items` | Create a work item |
 | `GET` | `/work-items/{work_item_id}` | Read one work item |
 | `PATCH` | `/work-items/{work_item_id}/status` | Update work item status and owner |
+| `POST` | `/work-items/{work_item_id}/run` | Execute a work item through its owner agent or a supplied agent |
 | `GET` | `/decisions` | List decisions |
 | `POST` | `/decisions` | Create a decision |
 | `GET` | `/decisions/{decision_id}` | Read one decision |
