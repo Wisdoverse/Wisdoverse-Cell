@@ -108,21 +108,19 @@ def get_ingest_use_case() -> IngestUseCase:
     )
 
 
-def get_requirement_feedback_use_case(
-    db: AsyncSession = Depends(get_db),
-) -> RequirementFeedbackUseCase:
+def get_requirement_feedback_use_case() -> RequirementFeedbackUseCase:
+    agent = get_agent()
     return RequirementFeedbackUseCase(
-        agent=get_agent(),
-        session=db,
+        agent=agent,
+        uow_factory=agent.get_unit_of_work,
     )
 
 
-def get_requirement_mutation_use_case(
-    db: AsyncSession = Depends(get_db),
-) -> RequirementMutationUseCase:
+def get_requirement_mutation_use_case() -> RequirementMutationUseCase:
+    agent = get_agent()
     return RequirementMutationUseCase(
-        agent=get_agent(),
-        session=db,
+        agent=agent,
+        uow_factory=agent.get_unit_of_work,
     )
 
 

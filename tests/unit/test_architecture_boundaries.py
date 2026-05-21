@@ -1024,10 +1024,11 @@ def test_requirement_ingest_uses_explicit_unit_of_work_boundary() -> None:
     assert "SqlAlchemyRequirementStore(session)" in adapter_source
     assert "SqlAlchemyRequirementQuestionStore(session)" in adapter_source
     assert "SqlAlchemyRequirementMessageStore(session)" in adapter_source
+    assert "SqlAlchemyRequirementFeedbackStore(session)" in adapter_source
     assert "RequirementEventOutboxRepository(session)" in adapter_source
     assert "self._db_manager.async_session()" in adapter_source
-    assert "await self._session.commit()" in adapter_source
-    assert "await self._session.rollback()" in adapter_source
+    assert "self._session.commit()" in adapter_source
+    assert "self._session.rollback()" in adapter_source
 
     assert "SqlAlchemyRequirementUnitOfWorkFactory(self._db_manager)" in service_source
     assert "def get_unit_of_work" in service_source
@@ -1050,8 +1051,13 @@ def test_requirement_feedback_api_delegates_to_use_case() -> None:
     assert "Depends(get_db)" not in api_source
     assert "sum(1 for" not in api_source
     assert "get_requirement_feedback_use_case" in dependency_source
-    assert "get_agent()" in dependency_source
+    assert "agent = get_agent()" in dependency_source
+    assert "uow_factory=agent.get_unit_of_work" in dependency_source
     assert "class RequirementFeedbackUseCase" in use_case_source
+    assert "RequirementUnitOfWorkFactory" in use_case_source
+    assert "async with self._uow_factory() as uow" in use_case_source
+    assert "await uow.commit()" in use_case_source
+    assert "session" not in use_case_source
 
 
 def test_requirement_mutation_routes_delegate_to_use_case() -> None:
@@ -1074,8 +1080,13 @@ def test_requirement_mutation_routes_delegate_to_use_case() -> None:
         assert "Depends(get_db)" not in function_source
 
     assert "get_requirement_mutation_use_case" in dependency_source
-    assert "get_agent()" in dependency_source
+    assert "agent = get_agent()" in dependency_source
+    assert "uow_factory=agent.get_unit_of_work" in dependency_source
     assert "class RequirementMutationUseCase" in use_case_source
+    assert "RequirementUnitOfWorkFactory" in use_case_source
+    assert "async with self._uow_factory() as uow" in use_case_source
+    assert "await uow.commit()" in use_case_source
+    assert "session" not in use_case_source
 
 
 def test_webui_read_routes_delegate_to_query_use_case() -> None:
@@ -1208,8 +1219,12 @@ def test_requirement_question_use_cases_use_persistence_port() -> None:
 
     for function_name in ("answer_question", "list_open_questions"):
         function_source = _function_source(agent_source, function_name)
-        assert "_get_question_store" in function_source
+        assert "_RequirementSessionUnitOfWork" in function_source or "get_unit_of_work" in function_source
         assert "QuestionRepository(" not in function_source
+
+    answer_with_uow_source = _function_source(agent_source, "answer_question_with_uow")
+    assert "uow.questions.answer" in answer_with_uow_source
+    assert "QuestionRepository(" not in answer_with_uow_source
 
     assert "class RequirementQuestionStore(Protocol)" in port_source
     assert "create_batch" in port_source
@@ -3217,9 +3232,11 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
     assert "class RequirementEventOutboxRepository" in repository_source
     assert "class RequirementEventOutboxStore" in port_source
     assert "SqlAlchemyRequirementEventOutboxStore" in adapter_source
-    assert "await self._stage_requirement_event(session, event)" in service_source
+    assert "await uow.outbox.stage(event)" in service_source
+    assert "await self._agent._stage_requirement_event(self._session, event)" in service_source
     assert "RequirementEventOutboxRepository" not in service_source
-    assert "await self._commit_requirement_mutation" in service_source
+    assert "await self._agent._commit_requirement_mutation" in service_source
+    assert "await self.publish_requirement_mutation_side_effects(result)" in service_source
     assert "await self._publish_staged_requirement_event" in service_source
     assert "publish_pending_requirement_events" in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
