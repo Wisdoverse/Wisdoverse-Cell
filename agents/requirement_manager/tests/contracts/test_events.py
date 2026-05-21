@@ -308,7 +308,7 @@ class TestAgentEventContracts:
             "_get_requirement_store",
             return_value=mock_repo,
         ), patch(
-            "agents.requirement_manager.service.feedback_learning.FeedbackLearningService",
+            "agents.requirement_manager.core.requirement_mutation_workflow.FeedbackLearningService",
             return_value=mock_feedback,
         ):
             await test_agent.update_requirement(

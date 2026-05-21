@@ -1,31 +1,10 @@
 """Application use cases for requirement mutation workflows."""
 
-from typing import Any, Protocol
-
-from .unit_of_work_ports import RequirementUnitOfWork, RequirementUnitOfWorkFactory
-
-
-class RequirementMutationAgent(Protocol):
-    async def update_requirement_with_uow(
-        self,
-        *,
-        requirement_id: str,
-        changes: dict,
-        uow: RequirementUnitOfWork,
-    ) -> Any:
-        """Update one requirement."""
-
-    async def delete_requirement_with_uow(
-        self,
-        *,
-        requirement_id: str,
-        deleted_by: str,
-        uow: RequirementUnitOfWork,
-    ) -> Any:
-        """Delete one requirement."""
-
-    async def publish_requirement_mutation_side_effects(self, result: Any) -> None:
-        """Publish post-commit mutation side effects."""
+from .requirement_mutation_workflow import (
+    RequirementMutationSideEffectPublisher,
+    RequirementMutationWorkflow,
+)
+from .unit_of_work_ports import RequirementUnitOfWorkFactory
 
 
 class RequirementMutationUseCase:
@@ -34,10 +13,12 @@ class RequirementMutationUseCase:
     def __init__(
         self,
         *,
-        agent: RequirementMutationAgent,
+        mutation_workflow: RequirementMutationWorkflow,
+        side_effects: RequirementMutationSideEffectPublisher,
         uow_factory: RequirementUnitOfWorkFactory,
     ):
-        self._agent = agent
+        self._mutation_workflow = mutation_workflow
+        self._side_effects = side_effects
         self._uow_factory = uow_factory
 
     async def update_requirement(
@@ -47,7 +28,7 @@ class RequirementMutationUseCase:
         changes: dict,
     ) -> object | None:
         async with self._uow_factory() as uow:
-            result = await self._agent.update_requirement_with_uow(
+            result = await self._mutation_workflow.update_requirement(
                 requirement_id=requirement_id,
                 changes=changes,
                 uow=uow,
@@ -56,7 +37,7 @@ class RequirementMutationUseCase:
                 return None
             await uow.commit()
 
-        await self._agent.publish_requirement_mutation_side_effects(result)
+        await self._side_effects.publish_requirement_mutation_side_effects(result)
         return result.entity
 
     async def delete_requirement(
@@ -66,7 +47,7 @@ class RequirementMutationUseCase:
         deleted_by: str,
     ) -> object | None:
         async with self._uow_factory() as uow:
-            result = await self._agent.delete_requirement_with_uow(
+            result = await self._mutation_workflow.delete_requirement(
                 requirement_id=requirement_id,
                 deleted_by=deleted_by,
                 uow=uow,
@@ -75,5 +56,5 @@ class RequirementMutationUseCase:
                 return None
             await uow.commit()
 
-        await self._agent.publish_requirement_mutation_side_effects(result)
+        await self._side_effects.publish_requirement_mutation_side_effects(result)
         return result.entity

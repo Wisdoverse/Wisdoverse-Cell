@@ -1052,11 +1052,16 @@ def test_requirement_feedback_api_delegates_to_use_case() -> None:
     assert "sum(1 for" not in api_source
     assert "get_requirement_feedback_use_case" in dependency_source
     assert "agent = get_agent()" in dependency_source
+    assert "mutation_workflow=agent.mutation_workflow" in dependency_source
+    assert "side_effects=agent" in dependency_source
     assert "uow_factory=agent.get_unit_of_work" in dependency_source
     assert "class RequirementFeedbackUseCase" in use_case_source
+    assert "RequirementMutationWorkflow" in use_case_source
+    assert "RequirementMutationSideEffectPublisher" in use_case_source
     assert "RequirementUnitOfWorkFactory" in use_case_source
     assert "async with self._uow_factory() as uow" in use_case_source
     assert "await uow.commit()" in use_case_source
+    assert "confirm_requirement_with_uow" not in use_case_source
     assert "session" not in use_case_source
 
 
@@ -1081,12 +1086,39 @@ def test_requirement_mutation_routes_delegate_to_use_case() -> None:
 
     assert "get_requirement_mutation_use_case" in dependency_source
     assert "agent = get_agent()" in dependency_source
+    assert "mutation_workflow=agent.mutation_workflow" in dependency_source
+    assert "side_effects=agent" in dependency_source
     assert "uow_factory=agent.get_unit_of_work" in dependency_source
     assert "class RequirementMutationUseCase" in use_case_source
+    assert "RequirementMutationWorkflow" in use_case_source
+    assert "RequirementMutationSideEffectPublisher" in use_case_source
     assert "RequirementUnitOfWorkFactory" in use_case_source
     assert "async with self._uow_factory() as uow" in use_case_source
     assert "await uow.commit()" in use_case_source
+    assert "update_requirement_with_uow" not in use_case_source
     assert "session" not in use_case_source
+
+
+def test_requirement_mutation_rules_live_in_core_workflow() -> None:
+    """Requirement mutation business rules should not live in the agent facade."""
+    agent_source = Path("agents/requirement_manager/service/agent.py").read_text()
+    workflow_source = Path(
+        "agents/requirement_manager/core/requirement_mutation_workflow.py"
+    ).read_text()
+    feedback_source = Path("agents/requirement_manager/core/feedback_learning.py").read_text()
+
+    assert "class RequirementMutationWorkflow" in workflow_source
+    assert "class RequirementMutationResult" in workflow_source
+    assert "from .feedback_learning import FeedbackLearningService" in workflow_source
+    assert "record_updated(requirement, changed_fields, changed_by)" in workflow_source
+    assert "await uow.outbox.stage(event)" in workflow_source
+    assert "Event.create(" in workflow_source
+    assert "source_agent=REQUIREMENT_MANAGER_AGENT_ID" in workflow_source
+    assert "RequirementMutationWorkflow()" in agent_source
+    assert "FeedbackLearningService(" not in agent_source
+    assert "record_updated(" not in agent_source
+    assert "def _create_requirement_confirmed_event" not in agent_source
+    assert "SqlAlchemyRequirementFeedbackStore" not in feedback_source
 
 
 def test_webui_read_routes_delegate_to_query_use_case() -> None:
@@ -1214,6 +1246,9 @@ def test_requirement_routes_delegate_mutations_to_agent_boundary() -> None:
 def test_requirement_question_use_cases_use_persistence_port() -> None:
     """Question use cases should not directly construct SQLAlchemy repositories."""
     agent_source = Path("agents/requirement_manager/service/agent.py").read_text()
+    workflow_source = Path(
+        "agents/requirement_manager/core/requirement_mutation_workflow.py"
+    ).read_text()
     port_source = Path("agents/requirement_manager/core/question_ports.py").read_text()
     adapter_source = Path("agents/requirement_manager/db/question_store.py").read_text()
 
@@ -1222,7 +1257,7 @@ def test_requirement_question_use_cases_use_persistence_port() -> None:
         assert "_RequirementSessionUnitOfWork" in function_source or "get_unit_of_work" in function_source
         assert "QuestionRepository(" not in function_source
 
-    answer_with_uow_source = _function_source(agent_source, "answer_question_with_uow")
+    answer_with_uow_source = _function_source(workflow_source, "answer_question")
     assert "uow.questions.answer" in answer_with_uow_source
     assert "QuestionRepository(" not in answer_with_uow_source
 
@@ -3223,6 +3258,9 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
     repository_source = Path("agents/requirement_manager/db/repository.py").read_text()
     port_source = Path("agents/requirement_manager/core/outbox_ports.py").read_text()
     adapter_source = Path("agents/requirement_manager/db/outbox_store.py").read_text()
+    workflow_source = Path(
+        "agents/requirement_manager/core/requirement_mutation_workflow.py"
+    ).read_text()
     service_source = Path("agents/requirement_manager/service/agent.py").read_text()
     doc_source = Path("docs/guides/backend-boundaries.md").read_text()
 
@@ -3232,7 +3270,7 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
     assert "class RequirementEventOutboxRepository" in repository_source
     assert "class RequirementEventOutboxStore" in port_source
     assert "SqlAlchemyRequirementEventOutboxStore" in adapter_source
-    assert "await uow.outbox.stage(event)" in service_source
+    assert "await uow.outbox.stage(event)" in workflow_source
     assert "await self._agent._stage_requirement_event(self._session, event)" in service_source
     assert "RequirementEventOutboxRepository" not in service_source
     assert "await self._agent._commit_requirement_mutation" in service_source
