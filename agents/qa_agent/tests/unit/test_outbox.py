@@ -122,8 +122,6 @@ async def test_publish_pending_qa_events_marks_success():
         notifier=MagicMock(),
         outbox_store=outbox_store,
     )
-    agent._mark_qa_event_published = AsyncMock()
-    agent._mark_qa_event_failed = AsyncMock()
 
     result = await agent.publish_pending_qa_events(limit=5)
 
@@ -134,8 +132,8 @@ async def test_publish_pending_qa_events_marks_success():
     assert event.event_id == "evt_qa_01"
     assert event.event_type == EventTypes.QA_ACCEPTANCE_COMPLETED
     assert event.payload["run_id"] == "run_1"
-    agent._mark_qa_event_published.assert_awaited_once_with(event)
-    agent._mark_qa_event_failed.assert_not_awaited()
+    assert outbox_store.published == ["evt_qa_01"]
+    assert outbox_store.failed == []
     assert result == {"total": 1, "published": 1, "failed": 0}
 
 
@@ -156,15 +154,13 @@ async def test_publish_pending_qa_events_marks_failure_and_continues():
         notifier=MagicMock(),
         outbox_store=outbox_store,
     )
-    agent._mark_qa_event_published = AsyncMock()
-    agent._mark_qa_event_failed = AsyncMock()
 
     result = await agent.publish_pending_qa_events(limit=2)
 
     assert publisher.publish.await_count == 2
     bus.publish.assert_not_awaited()
-    agent._mark_qa_event_failed.assert_awaited_once()
-    agent._mark_qa_event_published.assert_awaited_once()
+    assert outbox_store.failed == [("evt_failed", "broker down")]
+    assert outbox_store.published == ["evt_ok"]
     assert result == {"total": 2, "published": 1, "failed": 1}
 
 
@@ -210,8 +206,6 @@ async def test_run_acceptance_stages_events_before_notifier():
         notifier=notifier,
         outbox_store=outbox_store,
     )
-    agent._mark_qa_event_published = AsyncMock()
-    agent._mark_qa_event_failed = AsyncMock()
 
     request = QARunRequest(agent_name="dev_agent", trigger="api", requested_by="tester")
 
@@ -232,6 +226,8 @@ async def test_run_acceptance_stages_events_before_notifier():
     bus.publish.assert_not_awaited()
     published_events = [call.args[0] for call in publisher.publish.await_args_list]
     assert published_events == staged_events
+    assert outbox_store.published == [event.event_id for event in staged_events]
+    assert outbox_store.failed == []
     notifier.notify_all.assert_awaited_once()
     eventbus_summary = notifier.notify_all.await_args.kwargs["eventbus_summary"]
     assert eventbus_summary == {"sent": True, "published": 2, "failed": 0}
