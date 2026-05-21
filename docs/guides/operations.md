@@ -628,6 +628,17 @@ Manual agent wakeups remain available for internal service calls at
 should prefer the work-item command so task state, run evidence, and timeline
 records advance together.
 
+Task operation path:
+
+```text
+operator -> GET /api/v1/control-plane/work-items/{work_item_id}/activity
+         -> inspect runs, artifacts, decisions, approvals, and audit evidence
+operator -> POST /api/v1/control-plane/work-items/{work_item_id}/retry
+operator -> POST /api/v1/control-plane/work-items/{work_item_id}/reassign
+operator -> POST /api/v1/control-plane/work-items/{work_item_id}/block
+operator -> POST /api/v1/control-plane/work-items/{work_item_id}/close
+```
+
 Heartbeat path:
 
 ```text

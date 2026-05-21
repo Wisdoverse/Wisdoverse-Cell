@@ -15,6 +15,7 @@ async def list_approvals(
     status: str | None = None,
     run_id: str | None = None,
     trace_id: str | None = None,
+    work_item_id: str | None = None,
     limit: int = 50,
 ) -> list[ApprovalRequest]:
     """List approval requests for one company."""
@@ -23,6 +24,7 @@ async def list_approvals(
         status=status,
         run_id=run_id,
         trace_id=trace_id,
+        work_item_id=work_item_id,
         limit=limit,
     )
 

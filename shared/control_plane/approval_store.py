@@ -47,6 +47,7 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
         status: str | None = None,
         run_id: str | None = None,
         trace_id: str | None = None,
+        work_item_id: str | None = None,
         limit: int = 50,
     ) -> list[ApprovalRequest]:
         query = select(ApprovalRequestTable).where(
@@ -58,6 +59,8 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
             query = query.where(ApprovalRequestTable.run_id == run_id)
         if trace_id:
             query = query.where(ApprovalRequestTable.trace_id == trace_id)
+        if work_item_id:
+            query = query.where(ApprovalRequestTable.work_item_id == work_item_id)
         result = await self._session.execute(
             query.order_by(ApprovalRequestTable.created_at.desc()).limit(limit)
         )

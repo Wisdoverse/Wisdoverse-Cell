@@ -28,6 +28,7 @@ async def list_audit_events(
     company_id: str,
     trace_id: str | None = None,
     run_id: str | None = None,
+    work_item_id: str | None = None,
     target_type: str | None = None,
     target_id: str | None = None,
     limit: int = 100,
@@ -37,6 +38,7 @@ async def list_audit_events(
         company_id=company_id,
         trace_id=trace_id,
         run_id=run_id,
+        work_item_id=work_item_id,
         target_type=target_type,
         target_id=target_id,
         limit=limit,
@@ -119,6 +121,71 @@ async def build_timeline(
     items.extend(
         TimelineItem(item_type="budget_usage", at=row.created_at, data=row)
         for row in budget_usage
+    )
+    items.extend(
+        TimelineItem(item_type="decision", at=row.updated_at or row.created_at, data=row)
+        for row in decisions
+    )
+    items.extend(
+        TimelineItem(item_type="artifact", at=row.created_at, data=row)
+        for row in artifacts
+    )
+    return sorted(items, key=lambda item: _timeline_sort_key(item.at), reverse=True)[:limit]
+
+
+async def build_work_item_activity(
+    store: ControlPlaneAuditTimelineStore,
+    *,
+    company_id: str,
+    work_item_id: str,
+    limit: int = 100,
+) -> list[TimelineItem]:
+    """Build a work-item-scoped activity feed across runs and evidence."""
+    runs = await store.list_agent_runs(
+        company_id=company_id,
+        work_item_id=work_item_id,
+        limit=limit,
+    )
+    audits = await store.list_audit_events(
+        company_id=company_id,
+        work_item_id=work_item_id,
+        limit=limit,
+    )
+    approvals = await store.list_approvals(
+        company_id=company_id,
+        work_item_id=work_item_id,
+        limit=limit,
+    )
+    decisions = await store.list_decisions(
+        company_id=company_id,
+        work_item_id=work_item_id,
+        limit=limit,
+    )
+    artifacts = await store.list_artifacts(
+        company_id=company_id,
+        work_item_id=work_item_id,
+        limit=limit,
+    )
+
+    items = [
+        TimelineItem(item_type="audit_event", at=row.created_at, data=row)
+        for row in audits
+    ]
+    items.extend(
+        TimelineItem(
+            item_type="agent_run",
+            at=row.completed_at or row.started_at,
+            data=row,
+        )
+        for row in runs
+    )
+    items.extend(
+        TimelineItem(
+            item_type="approval",
+            at=row.resolved_at or row.created_at,
+            data=row,
+        )
+        for row in approvals
     )
     items.extend(
         TimelineItem(item_type="decision", at=row.updated_at or row.created_at, data=row)

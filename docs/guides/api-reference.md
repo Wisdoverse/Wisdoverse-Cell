@@ -114,7 +114,12 @@ Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.
 | `POST` | `/work-items` | Create a work item |
 | `GET` | `/work-items/{work_item_id}` | Read one work item |
 | `PATCH` | `/work-items/{work_item_id}/status` | Update work item status and owner |
+| `GET` | `/work-items/{work_item_id}/activity` | Read a work-item activity feed across runs, artifacts, decisions, approvals, and audit events |
 | `POST` | `/work-items/{work_item_id}/run` | Execute a work item through its owner agent or a supplied agent |
+| `POST` | `/work-items/{work_item_id}/retry` | Re-run a work item through its owner agent or a supplied agent |
+| `POST` | `/work-items/{work_item_id}/reassign` | Change work-item ownership without changing lifecycle status |
+| `POST` | `/work-items/{work_item_id}/block` | Mark a work item blocked with a reason |
+| `POST` | `/work-items/{work_item_id}/close` | Close a work item as completed, failed, or cancelled |
 | `GET` | `/decisions` | List decisions |
 | `POST` | `/decisions` | Create a decision |
 | `GET` | `/decisions/{decision_id}` | Read one decision |

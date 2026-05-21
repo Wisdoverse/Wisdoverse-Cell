@@ -217,8 +217,8 @@ fitness. The capability/runtime mapping matches
   EvolutionProposal, AgentPromptConfig.
 - **Owned data**: `control_plane_*` tables.
 - **Capabilities exposed**: `/api/v1/control-plane/*` REST surface,
-  work-item execution commands, `runtime.agent` wakeups, run evidence APIs,
-  budget enforcement, approval gates.
+  work-item operation commands and activity feeds, `runtime.agent` wakeups,
+  run evidence APIs, budget enforcement, approval gates.
 - **External dependencies**: business agents emit runs / artifacts / audit
   events; LLM gateway emits budget usage; gateways consume approvals.
 - **Boundary clarity**: high. Single owner. Internal SQL ownership is behind
