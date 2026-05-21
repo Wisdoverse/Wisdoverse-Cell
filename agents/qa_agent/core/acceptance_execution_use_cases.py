@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
@@ -19,17 +18,10 @@ from .domain.acceptance_verdicts import (
     is_blocking_finding,
     is_warning_finding,
 )
-from .report_store import QAReportStore
 from .run_store import QAAcceptanceRunRecord, QAAcceptanceRunStore
+from .unit_of_work_ports import QAUnitOfWorkFactory
 
 logger = get_logger("qa_agent.acceptance_execution")
-
-
-class QAExecutionSessionManagerPort(Protocol):
-    """Database session manager required for one acceptance execution."""
-
-    def session(self) -> AbstractAsyncContextManager[Any]:
-        """Return an async session context manager."""
 
 
 class QAAcceptanceRunnerPort(Protocol):
@@ -56,9 +48,7 @@ class QANotifierPort(Protocol):
         """Notify all configured channels."""
 
 
-StageQAEvent = Callable[[Any, Event], Any]
 PublishStagedQAEvents = Callable[[list[Event], str | None], Any]
-QAReportStoreFactory = Callable[[Any], QAReportStore]
 RecordQAMetrics = Callable[[str, str, AcceptanceExecutionResult], None]
 
 
@@ -68,22 +58,18 @@ class QAAcceptanceExecutionUseCase:
     def __init__(
         self,
         *,
-        db_manager: QAExecutionSessionManagerPort,
+        uow_factory: QAUnitOfWorkFactory,
         runner: QAAcceptanceRunnerPort,
         notifier: QANotifierPort,
         run_store: QAAcceptanceRunStore,
-        report_store_factory: QAReportStoreFactory,
-        stage_event: StageQAEvent,
         publish_staged_events: PublishStagedQAEvents,
         record_metrics: RecordQAMetrics,
         duplicate_persist_error_types: tuple[type[BaseException], ...] = (),
     ) -> None:
-        self._db_manager = db_manager
+        self._uow_factory = uow_factory
         self._runner = runner
         self._notifier = notifier
         self._run_store = run_store
-        self._report_store_factory = report_store_factory
-        self._stage_event = stage_event
         self._publish_staged_events = publish_staged_events
         self._record_metrics = record_metrics
         self._duplicate_persist_error_types = duplicate_persist_error_types
@@ -246,9 +232,8 @@ class QAAcceptanceExecutionUseCase:
         trigger_event_id: str | None,
     ) -> tuple[str | None, list[Event]]:
         try:
-            async with self._db_manager.session() as session:
-                store = self._report_store_factory(session)
-                run = await store.save_execution_result(
+            async with self._uow_factory() as uow:
+                run = await uow.reports.save_execution_result(
                     request,
                     result,
                     trace_id=trace_id,
@@ -264,7 +249,8 @@ class QAAcceptanceExecutionUseCase:
                     trace_id=trace_id,
                 )
                 for event in staged_events:
-                    await self._stage_event(session, event)
+                    await uow.outbox.stage(event)
+                await uow.commit()
                 return run.id, staged_events
         except Exception as exc:
             if isinstance(exc, self._duplicate_persist_error_types):

@@ -16,23 +16,50 @@ from agents.qa_agent.models.schemas import (
 from shared.schemas.event import EventTypes
 
 
-class _SessionContext:
-    def __init__(self, session):
-        self.session = session
+class _FakeAcceptanceOutbox:
+    def __init__(self):
+        self.staged: list = []
+
+    async def stage(self, event):
+        self.staged.append(event)
+
+
+class _FakeAcceptanceUnitOfWork:
+    def __init__(self, report_store):
+        self.reports = report_store
+        self.outbox = _FakeAcceptanceOutbox()
+        self.completed = False
+        self.commit = AsyncMock(side_effect=self._commit)
+        self.rollback = AsyncMock(side_effect=self._rollback)
+
+    async def _commit(self):
+        self.completed = True
+
+    async def _rollback(self):
+        self.completed = True
+
+
+class _FakeAcceptanceUnitOfWorkContext:
+    def __init__(self, uow):
+        self.uow = uow
 
     async def __aenter__(self):
-        return self.session
+        return self.uow
 
     async def __aexit__(self, exc_type, exc, tb):
+        if not self.uow.completed:
+            await self.uow.rollback()
         return False
 
 
-class _Db:
-    def __init__(self, session=None):
-        self.session_obj = session or object()
+class _FakeAcceptanceUnitOfWorkFactory:
+    def __init__(self, report_store):
+        self.uow = _FakeAcceptanceUnitOfWork(report_store)
+        self.calls = 0
 
-    def session(self):
-        return _SessionContext(self.session_obj)
+    def __call__(self):
+        self.calls += 1
+        return _FakeAcceptanceUnitOfWorkContext(self.uow)
 
 
 def _report(l0_gate: str = "PASS") -> dict:
@@ -103,7 +130,6 @@ def _use_case(
     notifier=None,
     run_store=None,
     report_store=None,
-    stage_event=None,
     publish_staged=None,
     record_metrics=None,
     duplicate_error_types: tuple[type[BaseException], ...] = (),
@@ -122,8 +148,7 @@ def _use_case(
     if report_store is None:
         report_store = AsyncMock()
         report_store.save_execution_result = AsyncMock(return_value=_run_record())
-    if stage_event is None:
-        stage_event = AsyncMock()
+    uow_factory = _FakeAcceptanceUnitOfWorkFactory(report_store)
     if publish_staged is None:
         publish_staged = AsyncMock(
             return_value={"sent": True, "published": 1, "failed": 0}
@@ -136,17 +161,16 @@ def _use_case(
         notifier=notifier,
         run_store=run_store,
         report_store=report_store,
-        stage_event=stage_event,
+        uow_factory=uow_factory,
+        uow=uow_factory.uow,
         publish_staged=publish_staged,
         record_metrics=record_metrics,
     )
     use_case = QAAcceptanceExecutionUseCase(
-        db_manager=_Db(),
+        uow_factory=uow_factory,
         runner=runner,
         notifier=notifier,
         run_store=run_store,
-        report_store_factory=lambda _session: report_store,
-        stage_event=stage_event,
         publish_staged_events=publish_staged,
         record_metrics=record_metrics,
         duplicate_persist_error_types=duplicate_error_types,
@@ -171,8 +195,9 @@ async def test_run_acceptance_persists_stages_publishes_and_notifies() -> None:
     assert result.summary.l0_gate == "FAIL"
     context.run_store.get_by_trigger_event_id.assert_awaited_once_with("evt_qa")
     context.report_store.save_execution_result.assert_awaited_once()
-    assert context.stage_event.await_count == 2
-    staged_events = [call.args[1] for call in context.stage_event.await_args_list]
+    context.uow.commit.assert_awaited_once()
+    context.uow.rollback.assert_not_awaited()
+    staged_events = context.uow.outbox.staged
     assert [event.event_type for event in staged_events] == [
         EventTypes.QA_ACCEPTANCE_COMPLETED,
         EventTypes.QA_GATE_FAILED,
@@ -200,6 +225,7 @@ async def test_replayed_event_returns_existing_run_without_side_effects() -> Non
     )
 
     assert result.run_id == "run_1"
+    assert context.uow_factory.calls == 0
     context.runner.run_json.assert_not_awaited()
     context.report_store.save_execution_result.assert_not_awaited()
     context.notifier.notify_all.assert_not_awaited()
@@ -231,6 +257,8 @@ async def test_duplicate_persist_race_returns_existing_run() -> None:
 
     assert result.run_id == "run_existing"
     assert run_store.get_by_trigger_event_id.await_count == 2
+    context.uow.commit.assert_not_awaited()
+    context.uow.rollback.assert_awaited_once()
     context.notifier.notify_all.assert_not_awaited()
     context.publish_staged.assert_not_awaited()
 

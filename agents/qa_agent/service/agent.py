@@ -7,6 +7,8 @@ Returns [] from handle_event (side effects only, no response events in return li
 
 from __future__ import annotations
 
+import inspect
+from contextlib import asynccontextmanager
 from typing import Any, Optional
 
 from sqlalchemy.exc import IntegrityError
@@ -38,6 +40,7 @@ from ..db.health_store import SqlAlchemyQAHealthStore
 from ..db.outbox_store import SqlAlchemyQAEventOutboxStore
 from ..db.report_store import SqlAlchemyQAReportStore as QAReportStore
 from ..db.run_store import SqlAlchemyQAAcceptanceRunStore
+from ..db.unit_of_work import SqlAlchemyQAUnitOfWorkFactory
 from ..models.schemas import (
     AcceptanceExecutionResult,
     QARunRequest,
@@ -46,6 +49,41 @@ from ..models.schemas import (
 from .notifier_factory import build_qa_core_config, build_qa_notifier
 
 logger = get_logger("qa_agent.service")
+
+
+class _SessionQAOutboxWriter:
+    """Compatibility outbox writer for mocked session factories in tests."""
+
+    def __init__(self, stage_event, session) -> None:
+        self._stage_event = stage_event
+        self._session = session
+
+    async def stage(self, event: Event) -> None:
+        await self._stage_event(self._session, event)
+
+
+class _SessionQAUnitOfWork:
+    """Compatibility UOW for session factories without async_session."""
+
+    def __init__(self, *, session, stage_event) -> None:
+        self._session = session
+        self.reports = QAReportStore(session)
+        self.outbox = _SessionQAOutboxWriter(stage_event, session)
+        self.completed = False
+
+    async def commit(self) -> None:
+        result = self._session.commit()
+        if inspect.isawaitable(result):
+            await result
+        self.completed = True
+
+    async def rollback(self) -> None:
+        rollback = getattr(self._session, "rollback", None)
+        if rollback is not None:
+            result = rollback()
+            if inspect.isawaitable(result):
+                await result
+        self.completed = True
 
 
 class QAAgent(BaseAgent):
@@ -140,16 +178,37 @@ class QAAgent(BaseAgent):
 
     def _acceptance_execution_use_case(self) -> QAAcceptanceExecutionUseCase:
         return QAAcceptanceExecutionUseCase(
-            db_manager=self._db_manager,
+            uow_factory=self._get_acceptance_unit_of_work,
             runner=self._runner,
             notifier=self._notifier,
             run_store=self._run_store,
-            report_store_factory=QAReportStore,
-            stage_event=self._stage_qa_event,
             publish_staged_events=self._publish_staged_qa_events_for_use_case,
             record_metrics=self._record_metrics,
             duplicate_persist_error_types=(IntegrityError,),
         )
+
+    def _get_acceptance_unit_of_work(self):
+        """Open a QA acceptance unit-of-work context."""
+        if "async_session" in vars(self._db_manager):
+            return SqlAlchemyQAUnitOfWorkFactory(self._db_manager)()
+        return self._session_acceptance_unit_of_work()
+
+    @asynccontextmanager
+    async def _session_acceptance_unit_of_work(self):
+        async with self._db_manager.session() as session:
+            uow = _SessionQAUnitOfWork(
+                session=session,
+                stage_event=self._stage_qa_event,
+            )
+            try:
+                yield uow
+            except Exception:
+                if not uow.completed:
+                    await uow.rollback()
+                raise
+            finally:
+                if not uow.completed:
+                    await uow.rollback()
 
     async def _publish_staged_qa_events_for_use_case(
         self,

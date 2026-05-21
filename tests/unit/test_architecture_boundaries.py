@@ -1408,27 +1408,36 @@ def test_qa_agent_acceptance_execution_delegates_to_application_use_case() -> No
     use_case_source = Path(
         "agents/qa_agent/core/acceptance_execution_use_cases.py"
     ).read_text()
+    uow_source = Path("agents/qa_agent/core/unit_of_work_ports.py").read_text()
     run_source = _function_source(service_source, "run_acceptance")
 
     assert "class QAAcceptanceExecutionUseCase" in use_case_source
-    assert "class QAExecutionSessionManagerPort(Protocol)" in use_case_source
+    assert "class QAUnitOfWork(Protocol)" in uow_source
+    assert "class QAUnitOfWorkFactory(Protocol)" in uow_source
     assert "class QAAcceptanceRunnerPort(Protocol)" in use_case_source
     assert "class QANotifierPort(Protocol)" in use_case_source
+    assert "uow_factory: QAUnitOfWorkFactory" in use_case_source
     assert "async def run_acceptance" in use_case_source
     assert "await self._runner.run_json" in use_case_source
-    assert "await store.save_execution_result" in use_case_source
+    assert "async with self._uow_factory() as uow" in use_case_source
+    assert "await uow.reports.save_execution_result" in use_case_source
     assert "build_acceptance_events(" in use_case_source
-    assert "await self._stage_event(session, event)" in use_case_source
+    assert "await uow.outbox.stage(event)" in use_case_source
+    assert "await uow.commit()" in use_case_source
     assert "await self._notifier.notify_all" in use_case_source
     assert "self._run_store.get_by_trigger_event_id" in use_case_source
     assert "def derive_severity" in use_case_source
     assert "def result_from_run" in use_case_source
+    assert "db_manager" not in use_case_source
+    assert "self._db_manager.session()" not in use_case_source
+    assert "session, event" not in use_case_source
 
     assert "QAAcceptanceExecutionUseCase" in service_source
     assert "def _acceptance_execution_use_case" in service_source
     assert "return await self._acceptance_execution_use_case().run_acceptance" in (
         run_source
     )
+    assert "SqlAlchemyQAUnitOfWorkFactory(self._db_manager)" in service_source
     assert "AcceptanceSummary(" not in service_source
     assert "AcceptanceFinding(" not in service_source
     assert "await self._runner.run_json" not in service_source
@@ -3901,7 +3910,7 @@ def test_qa_acceptance_events_have_durable_outbox_contract() -> None:
     assert "self._run_store.list_runs" in service_source
     assert "self._run_store.get_by_id" in service_source
     assert "self._run_store.get_by_trigger_event_id" in execution_use_case_source
-    assert "await self._stage_event(session, event)" in execution_use_case_source
+    assert "await uow.outbox.stage(event)" in execution_use_case_source
     assert "QAEventOutboxRepository" not in service_source
     assert "await self._publish_staged_qa_events" in service_source
     assert "publish_pending_qa_events" in service_source
