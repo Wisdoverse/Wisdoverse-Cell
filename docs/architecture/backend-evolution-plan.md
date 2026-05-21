@@ -1,6 +1,6 @@
 # Backend Evolution Follow-Up Plan
 
-Last updated: 2026-05-20 (refreshed after Stages 0–3 landed)
+Last updated: 2026-05-21 (refreshed for high-throughput backend refactoring)
 
 Status: Forward-looking plan. The plan below was originally drafted after
 PR #121 modularized service boundaries. Since then, Stages 0–3 of the
@@ -15,6 +15,15 @@ disagree, the migration plan wins.
 ---
 
 ## 0. Status Update
+
+Execution cadence from 2026-05-21: backend refactoring should proceed in
+cohesive architecture capability slices rather than small mechanical moves.
+Each PR should close or materially reduce one named boundary problem across a
+whole runtime, route family, capability, or cross-cutting contract. Good
+candidate slices include explicit unit-of-work adoption for one runtime,
+complete contract tests for one boundary, one observable runtime path, or one
+bounded capability split. Avoid PRs that only move a single helper unless that
+helper is blocking a larger architectural cutover.
 
 The original plan's "Recommended Next Phases" (A–H) and Stage roadmap have
 substantially landed. As of 2026-05-18:
@@ -34,7 +43,7 @@ Closed Phase 1 audit gaps:
 |------------------|--------|
 | H1 / P0-2 (single Alembic dir) | Design closure #154; physical cutover deferred |
 | H2 / P0-1 (repository compatibility facade) | Closed: per-aggregate stores now own control-plane SQL, non-facade tests use store factory / ports, and the retired `repository.py` facade plus its compatibility tests have been deleted. |
-| H3 / P2-6 (implicit transaction boundary) | Partially closed: Control Plane command routes now use `ControlPlaneUnitOfWork` with explicit `commit()` and rollback-on-error cleanup. Per-runtime adoption remains for agent/capability use cases that span multiple aggregates or outboxes. |
+| H3 / P2-6 (implicit transaction boundary) | Partially closed: Control Plane command routes and Dev Agent event/request use cases now use explicit unit-of-work boundaries with `commit()` and rollback cleanup. Per-runtime adoption remains for other agent/capability use cases that span multiple aggregates or outboxes. |
 | H5 / P1-3 (ORM leak into business logic) | Closed for Control Plane: routes #135/#136, ApprovalGate #143, application/use-case returns, and low-level store ports now expose domain records across company, goal, work item, agent role, agent prompt config, agent run, approval, decision, artifact, budget, audit timeline, and evolution proposal surfaces. ORM rows remain infrastructure-private inside store adapters. |
 | H6 / P0-3 (no outbox metrics) | ✓ #128 + #129 (all 10 runtimes); shared cross-cutting metrics are now owned by `shared.observability.metrics` with `shared.infra.metrics` kept as a compatibility shim |
 | P0-4 (optional tracing) | Runtime tracing now installs a provider in non-production even without an exporter; production settings fail closed without `OTEL_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` |

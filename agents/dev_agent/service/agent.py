@@ -1,6 +1,8 @@
 """DevAgent — Thin Orchestrator for PJM -> AgentForge -> QA workflow."""
 from __future__ import annotations
 
+import inspect
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 from shared.config import settings
@@ -36,6 +38,7 @@ from ..core.workflow_validator import WorkflowValidator
 from ..db.health_store import SqlAlchemyDevHealthStore
 from ..db.outbox_store import SqlAlchemyDevEventOutboxStore
 from ..db.task_store import SqlAlchemyDevTaskStore
+from ..db.unit_of_work import SqlAlchemyDevUnitOfWorkFactory
 from ..db.workflow_log_store import SqlAlchemyDevWorkflowLogStore
 from ..models.schemas import RiskLevel, SanitizedTask
 from .config_factory import build_dev_core_config
@@ -46,6 +49,54 @@ if TYPE_CHECKING:
     from ..db.database import DatabaseManager
 
 logger = get_logger("dev_agent.service")
+
+
+class _InjectedDevUnitOfWork:
+    """Unit-of-work adapter for tests that inject repository doubles."""
+
+    def __init__(
+        self,
+        *,
+        tasks: DevTaskRepositoryPort,
+        workflow_logs: DevWorkflowLogRepositoryPort,
+    ) -> None:
+        self.tasks = tasks
+        self.workflow_logs = workflow_logs
+        self.completed = False
+
+    async def commit(self) -> None:
+        self.completed = True
+
+    async def rollback(self) -> None:
+        self.completed = True
+
+
+class _SessionDevUnitOfWork(_InjectedDevUnitOfWork):
+    """Compatibility UOW for mocked session factories in existing unit tests."""
+
+    def __init__(
+        self,
+        *,
+        session,
+        tasks: DevTaskRepositoryPort,
+        workflow_logs: DevWorkflowLogRepositoryPort,
+    ) -> None:
+        super().__init__(tasks=tasks, workflow_logs=workflow_logs)
+        self._session = session
+
+    async def commit(self) -> None:
+        result = self._session.commit()
+        if inspect.isawaitable(result):
+            await result
+        self.completed = True
+
+    async def rollback(self) -> None:
+        rollback = getattr(self._session, "rollback", None)
+        if rollback is not None:
+            result = rollback()
+            if inspect.isawaitable(result):
+                await result
+        self.completed = True
 
 
 class DevAgent(BaseAgent):
@@ -136,9 +187,7 @@ class DevAgent(BaseAgent):
             sanitizer=self._sanitizer,
             risk_assessor=self._risk_assessor,
             has_db=self._has_db,
-            session_factory=self._get_session,
-            repo_factory=self._get_repo,
-            log_repo_factory=self._get_log_repo,
+            uow_factory=self._get_unit_of_work,
             result_collector_factory=self._get_result_collector,
             task_processor=self._process_single_task,
             event_factory=self,
@@ -155,16 +204,23 @@ class DevAgent(BaseAgent):
                 return {"workflows": []}
             return request_error("Database not initialized", "database_not_initialized")
 
-        async with self._get_session() as session:
-            repo = self._get_repo(session)
-            result = await self._request_use_case(session, repo).handle(request)
-            await session.commit()
+        async with self._get_unit_of_work() as uow:
+            request_use_case = self._request_use_case(
+                uow.tasks,
+                uow.workflow_logs,
+            )
+            result = await request_use_case.handle(request)
+            await uow.commit()
             return result
 
-    def _request_use_case(self, session, repo: DevTaskRepositoryPort) -> DevRequestUseCase:
+    def _request_use_case(
+        self,
+        repo: DevTaskRepositoryPort,
+        log_repo: DevWorkflowLogRepositoryPort,
+    ) -> DevRequestUseCase:
         return DevRequestUseCase(
             repo=repo,
-            log_repo=self._get_log_repo(session),
+            log_repo=log_repo,
             approval_gate=self._approval_gate,
             workflow_executor=self,
         )
@@ -420,6 +476,54 @@ class DevAgent(BaseAgent):
         # Fallback: import module-level db_manager
         from ..db.database import db_manager
         return db_manager.session()
+
+    def _get_unit_of_work(self):
+        """Open a Dev unit-of-work context for event handling."""
+        if self._repo is not None:
+            if self._log_repo is None:
+                raise RuntimeError("dev_log_repository_not_initialized")
+            return self._injected_unit_of_work(self._repo, self._log_repo)
+
+        db_manager = self._db_manager
+        if db_manager is None:
+            from ..db.database import db_manager as module_db_manager
+
+            db_manager = module_db_manager
+
+        if "async_session" in vars(db_manager):
+            return SqlAlchemyDevUnitOfWorkFactory(db_manager)()
+        return self._session_unit_of_work()
+
+    @asynccontextmanager
+    async def _injected_unit_of_work(self, repo, log_repo):
+        uow = _InjectedDevUnitOfWork(tasks=repo, workflow_logs=log_repo)
+        try:
+            yield uow
+        except Exception:
+            if not uow.completed:
+                await uow.rollback()
+            raise
+        finally:
+            if not uow.completed:
+                await uow.rollback()
+
+    @asynccontextmanager
+    async def _session_unit_of_work(self):
+        async with self._get_session() as session:
+            uow = _SessionDevUnitOfWork(
+                session=session,
+                tasks=self._get_repo(session),
+                workflow_logs=self._get_log_repo(session),
+            )
+            try:
+                yield uow
+            except Exception:
+                if not uow.completed:
+                    await uow.rollback()
+                raise
+            finally:
+                if not uow.completed:
+                    await uow.rollback()
 
     def _get_repo(self, session) -> DevTaskRepositoryPort:
         """Get a task store for the given session (or fallback to injected)."""

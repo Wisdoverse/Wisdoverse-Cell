@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from contextlib import AbstractAsyncContextManager
 from typing import Any, Protocol
 
 from shared.schemas.event import Event, EventTypes
@@ -12,6 +11,7 @@ from ..models.schemas import RiskLevel, SanitizedTask, TaskInput
 from .domain.lifecycle.task_lifecycle import REVIEWING
 from .input_sanitizer import InputRejectedError
 from .repositories import DevTaskRepositoryPort, DevWorkflowLogRepositoryPort
+from .unit_of_work_ports import DevUnitOfWorkFactory
 
 logger = get_logger("dev_agent.events")
 
@@ -54,9 +54,6 @@ class DevEventFactoryPort(Protocol):
 
 
 DevHasDb = Callable[[], bool]
-DevSessionFactory = Callable[[], AbstractAsyncContextManager[Any]]
-DevRepoFactory = Callable[[Any], DevTaskRepositoryPort]
-DevLogRepoFactory = Callable[[Any], DevWorkflowLogRepositoryPort]
 DevResultCollectorFactory = Callable[
     [DevTaskRepositoryPort, DevWorkflowLogRepositoryPort],
     DevResultCollectorPort | None,
@@ -76,9 +73,7 @@ class DevEventUseCase:
         sanitizer: DevTaskSanitizerPort,
         risk_assessor: DevRiskAssessorPort,
         has_db: DevHasDb,
-        session_factory: DevSessionFactory,
-        repo_factory: DevRepoFactory,
-        log_repo_factory: DevLogRepoFactory,
+        uow_factory: DevUnitOfWorkFactory,
         result_collector_factory: DevResultCollectorFactory,
         task_processor: DevTaskProcessor,
         event_factory: DevEventFactoryPort,
@@ -86,9 +81,7 @@ class DevEventUseCase:
         self._sanitizer = sanitizer
         self._risk_assessor = risk_assessor
         self._has_db = has_db
-        self._session_factory = session_factory
-        self._repo_factory = repo_factory
-        self._log_repo_factory = log_repo_factory
+        self._uow_factory = uow_factory
         self._result_collector_factory = result_collector_factory
         self._task_processor = task_processor
         self._event_factory = event_factory
@@ -178,9 +171,9 @@ class DevEventUseCase:
             logger.warning("db_not_available", msg="Cannot process tasks - no DB")
             return events
 
-        async with self._session_factory() as session:
-            repo = self._repo_factory(session)
-            log_repo = self._log_repo_factory(session)
+        async with self._uow_factory() as uow:
+            repo = uow.tasks
+            log_repo = uow.workflow_logs
             for sanitized, risk in sanitized_tasks:
                 try:
                     new_events = await self._task_processor(
@@ -198,7 +191,7 @@ class DevEventUseCase:
                         error=str(exc),
                         exc_info=True,
                     )
-            await session.commit()
+            await uow.commit()
         return events
 
     async def _handle_qa_result(self, event: Event) -> list[Event]:
@@ -218,8 +211,8 @@ class DevEventUseCase:
             logger.warning("db_not_available", msg="Cannot process QA result")
             return []
 
-        async with self._session_factory() as session:
-            repo = self._repo_factory(session)
+        async with self._uow_factory() as uow:
+            repo = uow.tasks
             task = await repo.get_by_mr_iid(mr_iid)
             if task is None:
                 logger.warning("qa_result_task_not_found", mr_iid=mr_iid)
@@ -233,7 +226,7 @@ class DevEventUseCase:
                 )
                 return []
 
-            log_repo = self._log_repo_factory(session)
+            log_repo = uow.workflow_logs
             collector = self._result_collector_factory(repo, log_repo)
             if not collector:
                 logger.warning(
@@ -243,7 +236,7 @@ class DevEventUseCase:
                 return []
 
             result = await collector.handle_qa_result(task, event.payload)
-            await session.commit()
+            await uow.commit()
             return result
 
 
