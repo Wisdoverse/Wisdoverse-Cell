@@ -55,9 +55,9 @@ same PR.
   3. Hide `AsyncSession` from route handlers in
      `shared/control_plane/api.py` behind a `UnitOfWork` or
      session-provider port; route handlers receive stores, not sessions.
-  4. Split `shared/control_plane/api.py` (1783 LOC) into per-aggregate
-     routers under `shared/control_plane/api/` (file moves only; no
-     logic change).
+  4. Continue splitting `shared/control_plane/api.py` into per-aggregate
+     routers under `shared/control_plane/api_routes/` (file moves only; no
+     behavior or HTTP contract change).
   5. Add minimum tests around the use cases touched in (3) and (4).
   6. Add `trace_id`, `agent_id`, and `run_id` logging on every use-case
      entry/exit (per `observability-guidelines.md` §2 item 3) using a

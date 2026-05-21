@@ -181,7 +181,7 @@ impact, risk level, and recommended handling.
 
 | ID | Problem | Location | Impact | Risk | Recommended action |
 |----|---------|----------|--------|------|--------------------|
-| P2-1 | `shared/control_plane/api.py` is 1783 LOC of thin handlers; no per-aggregate router split. | `shared/control_plane/api.py` | Cognitive load; PR diffs noisy; new endpoints land in the wrong file by default. | Low | Split into per-aggregate routers under `shared/control_plane/api/` after facade retirement. Cosmetic, low-risk. |
+| P2-1 | Partially closed: Work Item routes now live in `shared/control_plane/api_routes/work_items.py`; the remaining Control Plane aggregate handlers still live in a large `shared/control_plane/api.py`. | `shared/control_plane/api.py`, `shared/control_plane/api_routes/work_items.py` | Cognitive load is lower for Work Item changes, but unrelated aggregate route diffs can still collide in the main API module. | Low | Continue the per-aggregate router split as cohesive route-family slices while keeping HTTP contracts unchanged. |
 | P2-2 | Analysis capability can read source-domain tables directly. | `shared/capabilities/analysis/` (no projection module) | Reporting becomes implicit owner of other domains; refactors require analysis-side updates. | Medium | Introduce an explicit projection layer; let Analysis depend only on projection ports. |
 | P2-3 | Sync capability hosts OpenProject and Feishu Bitable inside one runtime; sub-boundaries exist only in `core/`. | `shared/capabilities/sync/core/engine.py`, `progress.py` | Independent scaling / failure isolation impossible. | Medium | Split into two sub-capability runtimes, each with its own outbox and repository; keep a compatibility orchestrator endpoint. |
 | P2-4 | Closed: retired `shared/services/*` and root `skills/*` compatibility surfaces have been removed. Tests and docs now use canonical paths, and architecture checks block reintroduction. | `shared/infra/tests/test_nats_event_bus.py`, `shared/db/tests/test_base_database_manager.py`, `tests/unit/test_architecture_boundaries.py` | New code has no compatibility import surface to couple to. | Low | Keep architecture tests blocking `shared/services` and root `skills` resurrection. |
@@ -661,9 +661,9 @@ stages depend on the seams the earlier stages established.
   3. Hide `AsyncSession` from route handlers in `shared/control_plane/api.py`.
      Read routes receive store factories; command routes receive
      `ControlPlaneUnitOfWork` and explicitly commit successful mutations.
-  4. Split `shared/control_plane/api.py` (1783 LOC) into per-aggregate
-     routers under `shared/control_plane/api/` (file move; no logic
-     change).
+  4. Continue splitting `shared/control_plane/api.py` into per-aggregate
+     routers under `shared/control_plane/api_routes/` (file move; no logic
+     or HTTP contract change).
   5. Add minimum tests around the use cases touched in (3) and (4).
   6. Add `trace_id`, `agent_id`, and `run_id` logging on every use case
      entry/exit (per §4.8 item 3) using a small helper.

@@ -27,7 +27,7 @@ independently deployable agent services. The shape is:
 | Layer | Code locations | Responsibility |
 |-------|----------------|----------------|
 | Edge plane | `rust/gateway/` (out of scope here) | TLS termination, webhook verification, gRPC fan-out |
-| Operator / control plane API | `shared/control_plane/api.py` (1783 LOC, thin handlers) | `/api/v1/control-plane/*` over the ledger |
+| Operator / control plane API | `shared/control_plane/api.py` plus per-aggregate route modules such as `shared/control_plane/api_routes/work_items.py` | `/api/v1/control-plane/*` over the ledger |
 | Business runtime agents | `agents/requirement_manager/`, `agents/pjm_agent/`, `agents/qa_agent/`, `agents/dev_agent/` | Domain workflows behind explicit service boundaries |
 | Gateways | `services/gateways/user_interaction/`, `services/gateways/channel/` | Chat/webhook inbound, outbound messaging |
 | Orchestration | `services/orchestration/coordinator/` | Cross-boundary dispatch decisions |
@@ -139,7 +139,7 @@ Spot checks across `agents/*/api/`, `shared/control_plane/api.py`, and
 exceptions to HTTP errors. Example: `agents/qa_agent/api/qa.py:44-73` is ~20
 LOC and delegates to `QAApiUseCase`.
 
-`shared/control_plane/api.py` is 1783 LOC but contains only thin handlers
+`shared/control_plane/api.py` remains large but contains only thin handlers
 across many endpoints; each handler still delegates to a use-case module.
 
 ### 4.2 Agent Service Shells — Delegating
@@ -286,7 +286,7 @@ concrete file citations from §4 / §5.
 
 | # | Problem | Severity | Evidence |
 |---|---------|----------|----------|
-| M1 | `shared/control_plane/api.py` is 1783 LOC of thin handlers; no per-aggregate router split | Medium | `shared/control_plane/api.py` |
+| M1 | Partially closed: Work Item routes are split into `shared/control_plane/api_routes/work_items.py`, but most aggregate handlers still live in the main API module | Medium | `shared/control_plane/api.py`, `shared/control_plane/api_routes/work_items.py` |
 | M2 | Domain layer is implicit; lifecycle helpers, ports, and use cases co-exist under `core/` without a separate `core/domain/` | Medium | `agents/<agent>/core/`, `shared/control_plane/agent_run_lifecycle.py` |
 | M3 | Closed: compatibility surfaces `shared/services/*`, root `skills/*`, and `shared.grpc.server` have been retired | Low | `tests/unit/test_architecture_boundaries.py` |
 | M4 | Sync capability hosts OpenProject and Feishu Bitable in one runtime; sub-boundaries exist only inside `core/` | Medium | `shared/capabilities/sync/core/engine.py`, `shared/capabilities/sync/core/progress.py` |
@@ -349,7 +349,7 @@ from §6 and align with the phases already drafted in
 | P2 | Add an explicit projection layer for Analysis | M5 closure | Backend evolution plan Phase C |
 | P3 | Keep retired `shared/services/*`, root `skills/*`, and `shared.grpc.server` from returning | M3 / M10 remain closed | Architecture-boundary tests |
 | P3 | Split Sync into two sub-capability runtimes (OpenProject and Feishu Bitable) once each side has its own outbox and repository | M4 closure | Backend evolution plan Phase D |
-| P3 | Split `shared/control_plane/api.py` (1783 LOC) into per-aggregate routers | M1 closure | cosmetic; do after P0 H2 work |
+| P3 | Continue splitting `shared/control_plane/api.py` into per-aggregate routers | M1 closure | low-risk structure work; batch by route family |
 
 ---
 
@@ -415,20 +415,24 @@ should be addressed during the Phase 2 target-architecture design.
 
 ## 12. Verification of This Document
 
-This audit was produced read-only. Concrete verification:
+This audit started as a read-only snapshot. Later backend refactor PRs keep
+the status rows current when an audit item changes. Concrete verification:
 
 - `git status` clean on `docs/backend-architecture-analysis` branch before
   this commit; only new files added under `docs/architecture/`.
-- All cited file paths exist on `main` at commit `751c1e1b3`.
-- Key size facts re-checked at write time:
+- Baseline file paths existed on `main` at commit `751c1e1b3`; current
+  status rows may also cite newer files added by later refactor PRs.
+- Key baseline facts re-checked at write time:
   - `shared/control_plane/repository.py` = 902 LOC
-  - `shared/control_plane/api.py` = 1783 LOC
+  - `shared/control_plane/api.py` remains the main Control Plane router;
+    Work Item routes have been moved to
+    `shared/control_plane/api_routes/work_items.py`
   - `tests/unit/test_architecture_boundaries.py` = 4583 LOC
   - `migrations/versions/` = 19 files
   - `grep "session.begin" agents/ services/ shared/` = 0 hits
   - Backend Python source (non-test) ≈ 795 files
 - No code, schema, route, event, configuration, or deployment artifact was
-  modified during this analysis.
+  modified during the original analysis phase.
 
 ---
 
