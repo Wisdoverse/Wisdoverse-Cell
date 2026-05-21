@@ -16,9 +16,8 @@ from sqlalchemy.exc import IntegrityError
 from shared.core import EventPublisher
 from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
-from shared.observability.outbox import record_outbox_pending_age
 from shared.schemas.agent import BaseAgent
-from shared.schemas.event import Event, EventMetadata, EventTypes
+from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
 from ..core.acceptance_execution_use_cases import (
@@ -32,8 +31,10 @@ from ..core.event_use_cases import QAEventUseCase
 from ..core.health_ports import QAHealthStore
 from ..core.health_use_cases import QAHealthUseCase
 from ..core.notifier import QANotifier
+from ..core.outbox_delivery_use_cases import QAOutboxDeliveryUseCase
 from ..core.outbox_ports import QAEventOutboxStore
 from ..core.request_use_cases import QARequestUseCase
+from ..core.run_query_use_cases import QARunQueryUseCase
 from ..core.run_store import QAAcceptanceRunRecord, QAAcceptanceRunStore
 from ..db.database import DatabaseManager, db_manager
 from ..db.health_store import SqlAlchemyQAHealthStore
@@ -224,56 +225,14 @@ class QAAgent(BaseAgent):
         limit: int = 20,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        runs = await self._run_store.list_runs(
+        return await self._run_query_use_case().list_runs(
             agent_name=agent_name,
             limit=limit,
             offset=offset,
         )
-        return [
-            {
-                "id": r.id,
-                "run_id": r.id,
-                "agent_name": r.agent_name,
-                "commit_sha": r.commit_sha,
-                "mr_iid": r.mr_iid,
-                "trigger": r.trigger,
-                "l0_status": r.l0_status,
-                "l1_status": r.l1_status,
-                "total_checks": r.total_checks,
-                "duration_seconds": r.duration_seconds,
-                "created_at": r.created_at.isoformat() if r.created_at else "",
-            }
-            for r in runs
-        ]
 
     async def get_run(self, run_id: str) -> dict[str, Any] | None:
-        run = await self._run_store.get_by_id(run_id)
-        if not run:
-            return None
-        return {
-            "id": run.id,
-            "run_id": run.id,
-            "agent_name": run.agent_name,
-            "commit_sha": run.commit_sha,
-            "mr_iid": run.mr_iid,
-            "trigger": run.trigger,
-            "level": run.level,
-            "files_changed": run.files_changed or [],
-            "summary": {
-                "l0_gate": run.l0_status,
-                "l1_check": run.l1_status,
-                "l2_report": run.l2_status,
-                "total_checks": run.total_checks,
-                "l0_failures": run.l0_failure_count,
-                "l1_warnings": run.l1_warning_count,
-            },
-            "findings": run.raw_report.get("results", []) if run.raw_report else [],
-            "raw_report": run.raw_report or {},
-            "report_markdown": run.report_markdown,
-            "notification_summary": run.notification_summary or {},
-            "created_at": run.created_at.isoformat() if run.created_at else "",
-            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
-        }
+        return await self._run_query_use_case().get_run(run_id)
 
     async def get_stats(
         self,
@@ -281,45 +240,27 @@ class QAAgent(BaseAgent):
         agent_name: str | None = None,
         days: int = 30,
     ) -> QARunStats:
-        return await self._run_store.get_stats(agent_name=agent_name, days=days)
+        return await self._run_query_use_case().get_stats(
+            agent_name=agent_name,
+            days=days,
+        )
+
+    def _run_query_use_case(self) -> QARunQueryUseCase:
+        return QARunQueryUseCase(run_store=self._run_store)
 
     async def publish_pending_qa_events(self, limit: int = 100) -> dict[str, int]:
-        """
-        Retry pending QA outbox events.
-
-        This stays as an application use case so runtime plugins, workers, or
-        admin operations do not need to know persistence details.
-        """
-        rows = await self._outbox_store.list_pending(limit=limit)
-        record_outbox_pending_age("qa-agent", rows)
-
-        published = 0
-        failed = 0
-        for row in rows:
-            event = self._event_from_outbox(row)
-            try:
-                ok = await self._event_publisher.publish(event)
-                if not ok:
-                    raise RuntimeError("event_bus_publish_returned_false")
-                await self._mark_qa_event_published(event)
-                published += 1
-            except Exception as exc:
-                await self._mark_qa_event_failed(event, exc)
-                failed += 1
-
-        logger.info(
-            "qa_outbox_dispatch_completed",
-            total=len(rows),
-            published=published,
-            failed=failed,
+        return await self._outbox_delivery_use_case().publish_pending_events(
+            limit=limit,
         )
-        return {"total": len(rows), "published": published, "failed": failed}
 
     async def publish_event_via_outbox(self, event: Event) -> bool:
-        """Stage a runtime-produced QA event before EventBus delivery."""
-        await self._outbox_store.add(event)
-        result = await self._publish_staged_qa_events([event], run_id=None)
-        return bool(result.get("sent"))
+        return await self._outbox_delivery_use_case().publish_event_via_outbox(event)
+
+    def _outbox_delivery_use_case(self) -> QAOutboxDeliveryUseCase:
+        return QAOutboxDeliveryUseCase(
+            outbox_store=self._outbox_store,
+            event_publisher=self._event_publisher,
+        )
 
     # ---------------------------------------------------------------
     # Private helpers
@@ -330,82 +271,16 @@ class QAAgent(BaseAgent):
         await self._outbox_store.stage(session, event)
         return event
 
-    def _event_from_outbox(self, row) -> Event:
-        """Rebuild an immutable Event from a QA outbox row."""
-        return Event(
-            event_id=row.event_id,
-            event_type=row.event_type,
-            timestamp=row.created_at,
-            source_agent=row.source_agent,
-            payload=row.payload,
-            schema_version=row.schema_version,
-            metadata=EventMetadata(
-                trace_id=row.trace_id,
-                correlation_id=row.correlation_id,
-                retry_count=row.retry_count,
-            ),
-        )
-
     async def _publish_staged_qa_events(
         self,
         events: list[Event],
         *,
         run_id: str | None,
     ) -> dict[str, Any]:
-        """Publish outbox-staged QA events after the local transaction commits."""
-        if not events:
-            return {"sent": False, "reason": "no_events"}
-
-        published = 0
-        failed = 0
-        for event in events:
-            try:
-                ok = await self._event_publisher.publish(event)
-                if not ok:
-                    raise RuntimeError("event_bus_publish_returned_false")
-                await self._mark_qa_event_published(event)
-                published += 1
-            except Exception as exc:
-                await self._mark_qa_event_failed(event, exc)
-                logger.error(
-                    "qa_event_publish_failed",
-                    event_id=event.event_id,
-                    event_type=event.event_type,
-                    run_id=run_id,
-                    error=str(exc),
-                )
-                failed += 1
-
-        return {
-            "sent": failed == 0,
-            "published": published,
-            "failed": failed,
-        }
-
-    async def _mark_qa_event_published(self, event: Event) -> None:
-        """Best-effort mark for a successfully published outbox event."""
-        try:
-            await self._outbox_store.mark_published(event.event_id)
-        except Exception as exc:
-            logger.warning(
-                "qa_outbox_mark_published_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                error=str(exc),
-            )
-
-    async def _mark_qa_event_failed(self, event: Event, error: Exception) -> None:
-        """Best-effort failure recording for an outbox event publish attempt."""
-        try:
-            await self._outbox_store.mark_failed(event.event_id, str(error))
-        except Exception as exc:
-            logger.warning(
-                "qa_outbox_mark_failed_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                publish_error=str(error),
-                error=str(exc),
-            )
+        return await self._outbox_delivery_use_case().publish_staged_events(
+            events,
+            run_id=run_id,
+        )
 
     def _build_acceptance_events(
         self,
