@@ -7,13 +7,12 @@ from typing import TYPE_CHECKING
 
 from shared.config import settings
 from shared.control_plane import ApprovalGateService
-from shared.core import EventPublisher, request_error
+from shared.core import EventPublisher
 from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
 from shared.infra.llm_gateway import LLMGateway
-from shared.observability.outbox import record_outbox_pending_age
 from shared.schemas.agent import BaseAgent
-from shared.schemas.event import Event, EventMetadata, EventTypes
+from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
 from ..adapters.agentforge_client import ForgeClient, ForgeClientError
@@ -23,11 +22,13 @@ from ..app.metrics import (
 )
 from ..core.event_use_cases import DevEventUseCase
 from ..core.health_ports import DevHealthStore
+from ..core.health_use_cases import DevHealthUseCase
 from ..core.input_sanitizer import InputSanitizer
 from ..core.notifier import DevNotifier
+from ..core.outbox_delivery_use_cases import DevOutboxDeliveryUseCase
 from ..core.outbox_ports import DevEventOutboxStore
 from ..core.repositories import DevTaskRepositoryPort, DevWorkflowLogRepositoryPort
-from ..core.request_use_cases import DevRequestUseCase
+from ..core.request_use_cases import DevRequestBoundaryUseCase, DevRequestUseCase
 from ..core.result_collector import ResultCollector
 from ..core.risk_assessor import TaskRiskAssessor
 from ..core.security_scanner import SecurityScanner
@@ -194,24 +195,15 @@ class DevAgent(BaseAgent):
         )
 
     async def handle_request(self, request: dict) -> dict:
-        standard = await self.handle_standard_request(request)
-        if standard is not None:
-            return standard
-        action = request.get("action")
+        return await self._request_boundary_use_case().handle(request)
 
-        if not self._has_db():
-            if action in ("list_active_workflows", "list_failed"):
-                return {"workflows": []}
-            return request_error("Database not initialized", "database_not_initialized")
-
-        async with self._get_unit_of_work() as uow:
-            request_use_case = self._request_use_case(
-                uow.tasks,
-                uow.workflow_logs,
-            )
-            result = await request_use_case.handle(request)
-            await uow.commit()
-            return result
+    def _request_boundary_use_case(self) -> DevRequestBoundaryUseCase:
+        return DevRequestBoundaryUseCase(
+            standard_request_handler=self,
+            has_db=self._has_db,
+            uow_factory=self._get_unit_of_work,
+            request_use_case_factory=self._request_use_case,
+        )
 
     def _request_use_case(
         self,
@@ -226,23 +218,20 @@ class DevAgent(BaseAgent):
         )
 
     async def health_check(self) -> dict[str, bool]:
-        """Return readiness checks for the development execution boundary."""
-        checks = {
-            "database": False,
-            "notifier": self._notifier is not None,
-        }
-        if settings.agentforge_api_url:
-            checks["agentforge_client"] = self._forge is not None
-        if settings.dev_gitlab_api_url and settings.dev_gitlab_project_id:
-            checks["gitlab_client"] = self._gitlab_client is not None
+        return await self._health_use_case().check()
 
-        health_store = self._get_health_store()
-        if health_store is not None:
-            checks["database"] = await health_store.is_database_ready()
-        elif self._repo is not None:
-            checks["database"] = True
-
-        return checks
+    def _health_use_case(self) -> DevHealthUseCase:
+        return DevHealthUseCase(
+            health_store=self._get_health_store(),
+            repository_available=self._repo is not None,
+            notifier=self._notifier,
+            forge=self._forge,
+            gitlab_client=self._gitlab_client,
+            agentforge_required=bool(settings.agentforge_api_url),
+            gitlab_required=bool(
+                settings.dev_gitlab_api_url and settings.dev_gitlab_project_id
+            ),
+        )
 
     def _get_health_store(self) -> DevHealthStore | None:
         if self._health_store is not None:
@@ -253,121 +242,23 @@ class DevAgent(BaseAgent):
         return self._health_store
 
     async def publish_pending_dev_events(self, limit: int = 100) -> dict[str, int]:
-        """Retry pending Dev outbox events."""
-        outbox_store = self._get_outbox_store()
-        if outbox_store is None:
-            raise RuntimeError("dev_outbox_store_not_started")
-
-        rows = await outbox_store.list_pending(limit=limit)
-        record_outbox_pending_age("dev-agent", rows)
-
-        published = 0
-        failed = 0
-        for row in rows:
-            event = self._event_from_outbox(row)
-            if await self.publish_staged_dev_event(event):
-                published += 1
-            else:
-                failed += 1
-
-        logger.info(
-            "dev_outbox_dispatch_completed",
-            total=len(rows),
-            published=published,
-            failed=failed,
-        )
-        return {"total": len(rows), "published": published, "failed": failed}
+        return await self._outbox_delivery_use_case().publish_pending_events(limit=limit)
 
     async def publish_staged_dev_events(self, events: list[Event]) -> dict[str, int]:
-        """Publish Dev events already committed to the local outbox."""
-        published = 0
-        failed = 0
-        for event in events:
-            if await self.publish_staged_dev_event(event):
-                published += 1
-            else:
-                failed += 1
-        return {"total": len(events), "published": published, "failed": failed}
+        return await self._outbox_delivery_use_case().publish_staged_events(events)
 
     async def publish_event_via_outbox(self, event: Event) -> bool:
-        """Stage a runtime-produced Dev event before EventBus delivery."""
+        return await self._outbox_delivery_use_case().publish_event_via_outbox(event)
+
+    def _outbox_delivery_use_case(self) -> DevOutboxDeliveryUseCase:
         outbox_store = self._get_outbox_store()
         if outbox_store is None:
             raise RuntimeError("dev_outbox_store_not_started")
-        await outbox_store.add(event)
-        return await self.publish_staged_dev_event(event)
-
-    async def publish_staged_dev_event(self, event: Event) -> bool:
-        """Publish one outbox-staged Dev event and record its delivery status."""
-        try:
-            await self._event_bus.connect()
-            ok = await self._event_publisher.publish(event)
-            if not ok:
-                raise RuntimeError("event_bus_publish_returned_false")
-            await self._mark_dev_event_published(event)
-            return True
-        except Exception as exc:
-            await self._mark_dev_event_failed(event, exc)
-            logger.error(
-                "dev_outbox_publish_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                error=str(exc),
-            )
-            return False
-
-    def _event_from_outbox(self, row) -> Event:
-        """Rebuild an immutable Event from a Dev outbox row."""
-        return Event(
-            event_id=row.event_id,
-            event_type=row.event_type,
-            timestamp=row.created_at,
-            source_agent=row.source_agent,
-            payload=row.payload,
-            schema_version=row.schema_version,
-            metadata=EventMetadata(
-                trace_id=row.trace_id,
-                correlation_id=row.correlation_id,
-                retry_count=row.retry_count,
-            ),
+        return DevOutboxDeliveryUseCase(
+            outbox_store=outbox_store,
+            event_bus=self._event_bus,
+            event_publisher=self._event_publisher,
         )
-
-    async def _mark_dev_event_published(self, event: Event) -> None:
-        """Best-effort mark for a successfully published Dev outbox event."""
-        outbox_store = self._get_outbox_store()
-        if outbox_store is None:
-            logger.warning("dev_outbox_mark_published_skipped", event_id=event.event_id)
-            return
-        try:
-            await outbox_store.mark_published(event.event_id)
-        except Exception as exc:
-            logger.warning(
-                "dev_outbox_mark_published_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                error=str(exc),
-            )
-
-    async def _mark_dev_event_failed(self, event: Event, error: Exception) -> None:
-        """Best-effort failure recording for a Dev outbox publish attempt."""
-        outbox_store = self._get_outbox_store()
-        if outbox_store is None:
-            logger.warning(
-                "dev_outbox_mark_failed_skipped",
-                event_id=event.event_id,
-                publish_error=str(error),
-            )
-            return
-        try:
-            await outbox_store.mark_failed(event.event_id, str(error))
-        except Exception as exc:
-            logger.warning(
-                "dev_outbox_mark_failed_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                publish_error=str(error),
-                error=str(exc),
-            )
 
     def _get_outbox_store(self) -> DevEventOutboxStore | None:
         """Return the Dev outbox store, creating the SQLAlchemy adapter lazily."""

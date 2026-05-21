@@ -1,6 +1,7 @@
 """Application use cases for Dev agent request dispatch."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, Protocol
 
 from shared.control_plane import ApprovalRequiredError
@@ -11,8 +12,19 @@ from shared.utils.logger import get_logger
 from ..models.schemas import WorkflowPlan
 from .domain.lifecycle.task_lifecycle import AWAITING_APPROVAL, FAILED
 from .repositories import DevTaskRepositoryPort, DevWorkflowLogRepositoryPort
+from .unit_of_work_ports import DevUnitOfWorkFactory
 
 logger = get_logger("dev_agent.request_use_cases")
+
+NO_DATABASE_LIST_ACTIONS = frozenset({"list_active_workflows", "list_failed"})
+
+
+class DevStandardRequestHandlerPort(Protocol):
+    async def handle_standard_request(
+        self,
+        request: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        ...
 
 
 class DevApprovalGatePort(Protocol):
@@ -225,3 +237,49 @@ class DevRequestUseCase:
             "workflow_started": bool(exec_events),
             "control_plane_approval_id": resolved_approval_id,
         }
+
+
+class DevRequestUseCaseFactoryPort(Protocol):
+    def __call__(
+        self,
+        repo: DevTaskRepositoryPort,
+        log_repo: DevWorkflowLogRepositoryPort,
+    ) -> DevRequestUseCase:
+        ...
+
+
+class DevRequestBoundaryUseCase:
+    """Handle Dev request entry concerns outside the runtime service shell."""
+
+    def __init__(
+        self,
+        *,
+        standard_request_handler: DevStandardRequestHandlerPort,
+        has_db: Callable[[], bool],
+        uow_factory: DevUnitOfWorkFactory,
+        request_use_case_factory: DevRequestUseCaseFactoryPort,
+    ) -> None:
+        self._standard_request_handler = standard_request_handler
+        self._has_db = has_db
+        self._uow_factory = uow_factory
+        self._request_use_case_factory = request_use_case_factory
+
+    async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
+        standard = await self._standard_request_handler.handle_standard_request(request)
+        if standard is not None:
+            return standard
+
+        action = request.get("action")
+        if not self._has_db():
+            if action in NO_DATABASE_LIST_ACTIONS:
+                return {"workflows": []}
+            return request_error("Database not initialized", "database_not_initialized")
+
+        async with self._uow_factory() as uow:
+            request_use_case = self._request_use_case_factory(
+                uow.tasks,
+                uow.workflow_logs,
+            )
+            result = await request_use_case.handle(request)
+            await uow.commit()
+            return result

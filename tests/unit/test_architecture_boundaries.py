@@ -2168,16 +2168,29 @@ def test_dev_agent_request_dispatch_delegates_to_application_use_case() -> None:
     assert "class DevApprovalGatePort(Protocol)" in use_case_source
     assert "class DevWorkflowExecutorPort(Protocol)" in use_case_source
     assert "class DevRequestUseCase" in use_case_source
+    assert "class DevRequestBoundaryUseCase" in use_case_source
+    assert "class DevStandardRequestHandlerPort(Protocol)" in use_case_source
+    assert "class DevRequestUseCaseFactoryPort(Protocol)" in use_case_source
     assert "async def _approve_workflow" in use_case_source
     assert "WorkflowPlan.model_validate" in use_case_source
     assert "approve_workflow_control_plane_required" in use_case_source
+    assert "NO_DATABASE_LIST_ACTIONS" in use_case_source
+    assert "database_not_initialized" in use_case_source
+    assert "async with self._uow_factory() as uow" in use_case_source
+    assert "await uow.commit()" in use_case_source
 
     assert "_dispatch_action" not in service_source
     assert "DevRequestUseCase" in service_source
+    assert "DevRequestBoundaryUseCase" in service_source
     assert "def _request_use_case" in service_source
-    assert ".handle(request)" in handle_source
-    assert "async with self._get_unit_of_work() as uow" in handle_source
-    assert "await uow.commit()" in handle_source
+    assert "def _request_boundary_use_case" in service_source
+    assert "return await self._request_boundary_use_case().handle(request)" in (
+        handle_source
+    )
+    assert "async with self._get_unit_of_work() as uow" not in handle_source
+    assert "await uow.commit()" not in handle_source
+    assert "database_not_initialized" not in handle_source
+    assert "list_active_workflows" not in handle_source
     assert "await session.commit()" not in handle_source
     assert "if action == \"get_task_status\"" not in handle_source
     assert "if action == \"approve_workflow\"" not in handle_source
@@ -3441,6 +3454,9 @@ def test_dev_result_collection_events_have_durable_outbox_contract() -> None:
     model_source = Path("agents/dev_agent/models/dev.py").read_text()
     repository_source = Path("agents/dev_agent/db/repository.py").read_text()
     port_source = Path("agents/dev_agent/core/outbox_ports.py").read_text()
+    delivery_source = Path(
+        "agents/dev_agent/core/outbox_delivery_use_cases.py"
+    ).read_text()
     adapter_source = Path("agents/dev_agent/db/outbox_store.py").read_text()
     workflow_log_adapter_source = Path("agents/dev_agent/db/workflow_log_store.py").read_text()
     service_source = Path("agents/dev_agent/service/agent.py").read_text()
@@ -3453,6 +3469,12 @@ def test_dev_result_collection_events_have_durable_outbox_contract() -> None:
     assert "class DevAgentEventOutbox" in model_source
     assert "class DevEventOutboxRepository" in repository_source
     assert "class DevEventOutboxStore" in port_source
+    assert "class DevOutboxDeliveryUseCase" in delivery_source
+    assert "class DevOutboxEventBusPort(Protocol)" in delivery_source
+    assert "class DevOutboxEventPublisherPort(Protocol)" in delivery_source
+    assert "def event_from_outbox" in delivery_source
+    assert "await self._event_publisher.publish(event)" in delivery_source
+    assert "dev_outbox_publish_failed" in delivery_source
     assert "SqlAlchemyDevEventOutboxStore" in adapter_source
     assert "SqlAlchemyDevWorkflowLogStore" in workflow_log_adapter_source
     assert "DevWorkflowLogRepository" in workflow_log_adapter_source
@@ -3463,7 +3485,21 @@ def test_dev_result_collection_events_have_durable_outbox_contract() -> None:
     assert "publish_staged_dev_events" in service_source
     assert "DevEventOutboxRepository" not in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
-    assert "await self._event_publisher.publish(event)" in service_source
+    assert "def _outbox_delivery_use_case" in service_source
+    assert (
+        "return await self._outbox_delivery_use_case().publish_pending_events"
+        in _function_source(service_source, "publish_pending_dev_events")
+    )
+    assert (
+        "return await self._outbox_delivery_use_case().publish_staged_events(events)"
+        in _function_source(service_source, "publish_staged_dev_events")
+    )
+    assert (
+        "return await self._outbox_delivery_use_case().publish_event_via_outbox(event)"
+        in _function_source(service_source, "publish_event_via_outbox")
+    )
+    assert "await self._event_publisher.publish(event)" not in service_source
+    assert "dev_outbox_publish_failed" not in service_source
     assert "await self._event_bus.publish(event)" not in service_source
     assert "SqlAlchemyDevEventOutboxSessionStore" in adapter_source
     assert "DevEventOutboxRepository(session)" not in app_source
@@ -3938,6 +3974,7 @@ def test_dev_and_coordinator_health_checks_use_health_store_ports() -> None:
     """Dev and Coordinator readiness should delegate database probing to adapters."""
     dev_service = Path("agents/dev_agent/service/agent.py").read_text()
     dev_port = Path("agents/dev_agent/core/health_ports.py").read_text()
+    dev_use_case = Path("agents/dev_agent/core/health_use_cases.py").read_text()
     dev_adapter = Path("agents/dev_agent/db/health_store.py").read_text()
     coordinator_service = Path(
         "services/orchestration/coordinator/service/agent.py"
@@ -3950,13 +3987,18 @@ def test_dev_and_coordinator_health_checks_use_health_store_ports() -> None:
     ).read_text()
 
     assert "class DevHealthStore(Protocol)" in dev_port
+    assert "class DevHealthUseCase" in dev_use_case
     assert "SqlAlchemyDevHealthStore" in dev_adapter
     assert "text(\"SELECT 1\")" in dev_adapter
     assert "from sqlalchemy import text" not in dev_service
     assert "text(\"SELECT 1\")" not in dev_service
     assert "health_store" in dev_service
     assert "SqlAlchemyDevHealthStore(self._db_manager)" in dev_service
-    assert "is_database_ready" in dev_service
+    assert "is_database_ready" in dev_use_case
+    assert "return await self._health_use_case().check()" in _function_source(
+        dev_service,
+        "health_check",
+    )
 
     assert "class CoordinatorHealthStore(Protocol)" in coordinator_port
     assert "SqlAlchemyCoordinatorHealthStore" in coordinator_adapter

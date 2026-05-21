@@ -87,8 +87,6 @@ async def test_publish_pending_dev_events_marks_success():
         event_publisher=publisher,
         outbox_store=outbox_store,
     )
-    agent._mark_dev_event_published = AsyncMock()
-    agent._mark_dev_event_failed = AsyncMock()
 
     result = await agent.publish_pending_dev_events(limit=5)
 
@@ -98,8 +96,8 @@ async def test_publish_pending_dev_events_marks_success():
     event = publisher.publish.await_args.args[0]
     assert event.event_id == "evt_dev_01"
     assert event.event_type == EventTypes.DEV_MR_CREATED
-    agent._mark_dev_event_published.assert_awaited_once_with(event)
-    agent._mark_dev_event_failed.assert_not_awaited()
+    assert outbox_store.published == ["evt_dev_01"]
+    assert outbox_store.failed == []
     assert result == {"total": 1, "published": 1, "failed": 0}
 
 
@@ -110,9 +108,12 @@ async def test_publish_staged_dev_events_marks_failure_and_continues():
     bus.publish = AsyncMock(return_value=True)
     publisher = MagicMock()
     publisher.publish = AsyncMock(side_effect=[False, True])
-    agent = DevAgent(bus=bus, event_publisher=publisher)
-    agent._mark_dev_event_published = AsyncMock()
-    agent._mark_dev_event_failed = AsyncMock()
+    outbox_store = FakeDevEventOutboxStore()
+    agent = DevAgent(
+        bus=bus,
+        event_publisher=publisher,
+        outbox_store=outbox_store,
+    )
 
     failed_event = Event.create(
         event_type=EventTypes.DEV_TASK_FAILED,
@@ -129,6 +130,8 @@ async def test_publish_staged_dev_events_marks_failure_and_continues():
 
     assert publisher.publish.await_count == 2
     bus.publish.assert_not_awaited()
-    agent._mark_dev_event_failed.assert_awaited_once()
-    agent._mark_dev_event_published.assert_awaited_once_with(ok_event)
+    assert outbox_store.failed == [
+        (failed_event.event_id, "event_bus_publish_returned_false")
+    ]
+    assert outbox_store.published == [ok_event.event_id]
     assert result == {"total": 2, "published": 1, "failed": 1}
