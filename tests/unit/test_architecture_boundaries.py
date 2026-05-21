@@ -3304,6 +3304,9 @@ def test_pjm_decomposition_api_events_have_durable_outbox_contract() -> None:
     outbox_port_source = Path("agents/pjm_agent/core/outbox_ports.py").read_text()
     outbox_store_source = Path("agents/pjm_agent/db/outbox_store.py").read_text()
     orchestrator_source = Path("agents/pjm_agent/core/decomposition_orchestrator.py").read_text()
+    approval_workflow_source = Path(
+        "agents/pjm_agent/core/decomposition_approval_workflow.py"
+    ).read_text()
     event_use_case_source = Path("agents/pjm_agent/core/event_use_cases.py").read_text()
     doc_source = Path("docs/guides/backend-boundaries.md").read_text()
 
@@ -3325,8 +3328,15 @@ def test_pjm_decomposition_api_events_have_durable_outbox_contract() -> None:
     assert "DecompositionRepository" not in orchestrator_source
     assert "DatabaseManager" not in orchestrator_source
     assert "PJMEventOutboxRepository" not in orchestrator_source
-    assert "await self._stage_pjm_event(decomposition, completion_event)" in orchestrator_source
-    assert "await decomposition.commit()" in orchestrator_source
+    assert "class DecompositionApprovalWorkflow" in approval_workflow_source
+    assert "class PJMOpenProjectWriterPort(Protocol)" in approval_workflow_source
+    assert "async def approve_decomposition" in approval_workflow_source
+    assert "async def reject_decomposition" in approval_workflow_source
+    assert "await self._stage_event(decomposition, completion_event)" in approval_workflow_source
+    assert "await decomposition.commit()" in approval_workflow_source
+    assert "write_wbs(" not in orchestrator_source
+    assert "write_task_subtasks(" not in orchestrator_source
+    assert "_build_dev_tasks" not in orchestrator_source
     assert "await self._publish_staged_pjm_event" in orchestrator_source
     assert "publish_event_via_outbox" in orchestrator_source
     assert "publish_pending_pjm_events" in orchestrator_source

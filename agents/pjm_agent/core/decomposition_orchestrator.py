@@ -3,7 +3,6 @@
 from shared.control_plane import (
     ApprovalCategory,
     ApprovalGateService,
-    ApprovalRequiredError,
 )
 from shared.core import (
     EventPublisher,
@@ -20,6 +19,7 @@ from ..models.schemas import DecomposePayload
 from .card_ports import PJMCardRendererPort
 from .config import PJMCoreConfig
 from .decompose import DecomposeError, DecomposeService
+from .decomposition_approval_workflow import DecompositionApprovalWorkflow
 from .decomposition_ports import PJMDecompositionStore, PJMDecompositionTransaction
 from .domain.lifecycle.decomposition_lifecycle import (
     APPROVED,
@@ -85,6 +85,15 @@ class DecompositionOrchestrator:
         if self._decomposition_store is None:
             raise RuntimeError("pjm_decomposition_store_not_configured")
         return self._decomposition_store
+
+    def _approval_workflow(self) -> DecompositionApprovalWorkflow:
+        return DecompositionApprovalWorkflow(
+            decomposition_store=self._require_decomposition_store(),
+            approval_gate=self._approval_gate,
+            op_writer=self._op_writer,
+            push_service=self._push,
+            create_event_fn=self._create_event,
+        )
 
     async def publish_pending_pjm_events(self, limit: int = 100) -> dict[str, int]:
         """
@@ -471,184 +480,14 @@ class DecompositionOrchestrator:
             )
         ]
 
-    def _build_dev_tasks(self, wp_id: int, decompose_result: dict) -> list[dict]:
-        """Build the dev-agent handoff payload from an approved decomposition."""
-        is_refinement = decompose_result.get("type") == "task_refinement"
-        if is_refinement:
-            return [
-                {
-                    "id": wp_id * 10000 + idx + 1,
-                    "title": task.get("subject", ""),
-                    "description": "",
-                    "estimated_hours": task.get("estimated_hours", 8),
-                    "parent_story": "",
-                    "related_files": [],
-                }
-                for idx, task in enumerate(decompose_result.get("subtasks", []))
-            ]
-
-        dev_tasks = []
-        child_idx = 0
-        for story in decompose_result.get("subtasks", []):
-            for child in story.get("children", []):
-                child_idx += 1
-                dev_tasks.append(
-                    {
-                        "id": wp_id * 10000 + child_idx,
-                        "title": child.get("subject", ""),
-                        "description": "",
-                        "estimated_hours": child.get("estimated_hours", 8),
-                        "parent_story": story.get("subject", ""),
-                        "related_files": [],
-                    }
-                )
-        return dev_tasks
-
     async def approve_decomposition(self, wp_id: int, approved_by: str) -> dict | None:
-        async with self._require_decomposition_store().transaction() as decomposition:
-            record = await decomposition.get_by_wp_id(wp_id)
-            if not record or record.status != PENDING:
-                return None
-            approval_id = (record.decompose_result or {}).get("control_plane_approval_id")
-            if approval_id and not approved_by:
-                return request_error(
-                    "approved_by required for control-plane approval",
-                    "control_plane_approval_resolver_required",
-                    wp_id=wp_id,
-                    control_plane_approval_id=approval_id,
-                )
-            try:
-                await self._approval_gate.approve_for_sensitive_action(
-                    approval_id,
-                    resolved_by=approved_by,
-                )
-            except ApprovalRequiredError as exc:
-                logger.warning(
-                    "decompose_control_plane_approval_required",
-                    wp_id=wp_id,
-                    approval_id=approval_id,
-                    error=str(exc),
-                )
-                return request_error(
-                    str(exc),
-                    "control_plane_approval_required",
-                    wp_id=wp_id,
-                )
-            # Transition to "writing" before attempting OP write
-            await decomposition.update_status(wp_id, WRITING, approved_by=approved_by)
-            # Extract data while session is still active
-            wbs_result = record.decompose_result
-            project_id = record.project_id
-            assignee_id = record.assignee_id
-            await decomposition.commit()
-
-        is_task_refinement = wbs_result.get("type") == "task_refinement"
-
-        staged_events: list[Event] = []
-
-        # Write to OpenProject
-        try:
-            if is_task_refinement:
-                op_result = await self._op_writer.write_task_subtasks(
-                    parent_wp_id=wp_id,
-                    project_id=project_id,
-                    subtasks=wbs_result.get("subtasks", []),
-                    assignee_id=assignee_id,
-                )
-                story_count = 0
-                task_count = op_result.get("tasks_created", 0)
-            else:
-                op_result = await self._op_writer.write_wbs(
-                    parent_wp_id=wp_id,
-                    project_id=project_id,
-                    wbs_result=wbs_result,
-                    assignee_id=assignee_id,
-                )
-                story_count = len(wbs_result.get("subtasks", []))
-                task_count = sum(len(s.get("children", [])) for s in wbs_result.get("subtasks", []))
-            logger.info(
-                "decompose_written_to_op",
-                wp_id=wp_id,
-                story_count=story_count,
-                task_count=task_count,
-                result_keys=sorted(op_result.keys()),
-            )
-            final_status = APPROVED if task_count > 0 or story_count > 0 else WRITE_FAILED
-            completion_event = self._create_event(
-                EventTypes.PM_DECOMPOSE_COMPLETED,
-                {
-                    "wp_id": wp_id,
-                    "status": final_status,
-                    "user_story_count": story_count,
-                    "task_count": task_count,
-                },
-            )
-            dev_event = None
-            if final_status == APPROVED:
-                dev_tasks = self._build_dev_tasks(wp_id, wbs_result)
-                if dev_tasks:
-                    dev_event = Event.create(
-                        event_type=EventTypes.PM_TASKS_READY_FOR_DEV,
-                        source_agent="pjm-agent",
-                        payload={
-                            "wp_id": wp_id,
-                            "tasks": dev_tasks,
-                        },
-                    )
-                else:
-                    logger.warning("no_dev_tasks_extracted", wp_id=wp_id)
-
-            # Write succeeded — transition to "approved" and stage outgoing events.
-            async with self._require_decomposition_store().transaction() as decomposition:
-                await decomposition.update_status(wp_id, final_status)
-                await self._stage_pjm_event(decomposition, completion_event)
-                staged_events.append(completion_event)
-                if dev_event is not None:
-                    await self._stage_pjm_event(decomposition, dev_event)
-                    staged_events.append(dev_event)
-                await decomposition.commit()
-        except Exception as e:
-            logger.error("decompose_op_write_failed", wp_id=wp_id, error=str(e))
-            completion_event = self._create_event(
-                EventTypes.PM_DECOMPOSE_COMPLETED,
-                {
-                    "wp_id": wp_id,
-                    "status": "write_failed",
-                    "user_story_count": 0,
-                    "task_count": 0,
-                },
-            )
-            # Write failed — transition to "write_failed"
-            try:
-                async with self._require_decomposition_store().transaction() as decomposition:
-                    await decomposition.update_status(wp_id, WRITE_FAILED)
-                    await self._stage_pjm_event(decomposition, completion_event)
-                    staged_events.append(completion_event)
-                    await decomposition.commit()
-            except Exception as inner_e:
-                logger.error(
-                    "decompose_write_failed_status_update_error", wp_id=wp_id, error=str(inner_e)
-                )
-            # Notify about write failure via Feishu
-            try:
-                await self._push.send_decompose_failure(
-                    wp_id=wp_id,
-                    subject=wbs_result.get("summary", f"WP#{wp_id}"),
-                    error_message=f"OP write failed: {e}",
-                )
-            except Exception as notify_err:
-                logger.warning("write_failed_notify_error", wp_id=wp_id, error=str(notify_err))
-            story_count = 0
-            task_count = 0
-
-        for staged_event in staged_events:
-            await self._publish_staged_pjm_event(staged_event, wp_id=wp_id)
-
-        return {
-            "subject": wbs_result.get("summary", ""),
-            "story_count": story_count,
-            "task_count": task_count,
-        }
+        result = await self._approval_workflow().approve_decomposition(
+            wp_id,
+            approved_by,
+        )
+        for staged_event in result.staged_events:
+            await self._publish_staged_pjm_event(staged_event.event, wp_id=staged_event.wp_id)
+        return result.response
 
     async def _request_decomposition_approval(
         self,
@@ -793,57 +632,11 @@ class DecompositionOrchestrator:
     async def reject_decomposition(
         self, wp_id: int, rejected_by: str, reason: str = ""
     ) -> dict | None:
-        event: Event | None = None
-        async with self._require_decomposition_store().transaction() as decomposition:
-            record = await decomposition.get_by_wp_id(wp_id)
-            if not record or record.status != PENDING:
-                return None
-            subject = (record.decompose_result or {}).get("summary", "")
-            approval_id = (record.decompose_result or {}).get("control_plane_approval_id")
-            if approval_id and not rejected_by:
-                return request_error(
-                    "rejected_by required for control-plane rejection",
-                    "control_plane_rejection_resolver_required",
-                    wp_id=wp_id,
-                    control_plane_approval_id=approval_id,
-                )
-            try:
-                await self._approval_gate.reject_for_sensitive_action(
-                    approval_id,
-                    resolved_by=rejected_by,
-                )
-            except ApprovalRequiredError as exc:
-                logger.warning(
-                    "decompose_control_plane_rejection_required",
-                    wp_id=wp_id,
-                    approval_id=approval_id,
-                    error=str(exc),
-                )
-                return request_error(
-                    str(exc),
-                    "control_plane_rejection_required",
-                    wp_id=wp_id,
-                )
-            await decomposition.update_status(wp_id, REJECTED, approved_by=rejected_by)
-            event = self._create_event(
-                EventTypes.PM_DECOMPOSE_COMPLETED,
-                {
-                    "wp_id": wp_id,
-                    "status": "rejected",
-                    "reason": reason,
-                    "user_story_count": 0,
-                    "task_count": 0,
-                },
-            )
-            await self._stage_pjm_event(decomposition, event)
-            await decomposition.commit()
-
-        logger.info(
-            "decompose_rejected",
-            wp_id=wp_id,
-            operator_hash=hash_identifier(rejected_by),
-            reason_hash=hash_identifier(reason),
-            reason_length=len(reason),
+        result = await self._approval_workflow().reject_decomposition(
+            wp_id,
+            rejected_by,
+            reason,
         )
-        await self._publish_staged_pjm_event(event, wp_id=wp_id)
-        return {"subject": subject}
+        for staged_event in result.staged_events:
+            await self._publish_staged_pjm_event(staged_event.event, wp_id=staged_event.wp_id)
+        return result.response
