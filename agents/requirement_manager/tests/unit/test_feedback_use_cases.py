@@ -28,38 +28,44 @@ def _uow_factory(uow):
 
 @pytest.mark.asyncio
 async def test_confirm_requirement_commits_uow_and_publishes_side_effects():
-    agent = AsyncMock()
+    workflow = AsyncMock()
+    side_effects = AsyncMock()
     mutation_result = SimpleNamespace(entity=object())
-    agent.confirm_requirement_with_uow = AsyncMock(return_value=mutation_result)
-    agent.publish_requirement_mutation_side_effects = AsyncMock()
+    workflow.confirm_requirement = AsyncMock(return_value=mutation_result)
+    side_effects.publish_requirement_mutation_side_effects = AsyncMock()
     uow = FakeUnitOfWork()
 
     await RequirementFeedbackUseCase(
-        agent=agent,
+        mutation_workflow=workflow,
+        side_effects=side_effects,
         uow_factory=_uow_factory(uow),
     ).confirm_requirement(
         requirement_id="req_1",
         confirmed_by="pm",
     )
 
-    agent.confirm_requirement_with_uow.assert_awaited_once_with(
+    workflow.confirm_requirement.assert_awaited_once_with(
         requirement_id="req_1",
         confirmed_by="pm",
         uow=uow,
     )
     assert uow.committed is True
-    agent.publish_requirement_mutation_side_effects.assert_awaited_once_with(mutation_result)
+    side_effects.publish_requirement_mutation_side_effects.assert_awaited_once_with(
+        mutation_result
+    )
 
 
 @pytest.mark.asyncio
 async def test_answer_question_commits_uow_without_side_effect_publish():
-    agent = AsyncMock()
-    agent.answer_question_with_uow = AsyncMock(return_value=SimpleNamespace(entity=object()))
-    agent.publish_requirement_mutation_side_effects = AsyncMock()
+    workflow = AsyncMock()
+    side_effects = AsyncMock()
+    workflow.answer_question = AsyncMock(return_value=SimpleNamespace(entity=object()))
+    side_effects.publish_requirement_mutation_side_effects = AsyncMock()
     uow = FakeUnitOfWork()
 
     await RequirementFeedbackUseCase(
-        agent=agent,
+        mutation_workflow=workflow,
+        side_effects=side_effects,
         uow_factory=_uow_factory(uow),
     ).answer_question(
         "q_1",
@@ -67,21 +73,22 @@ async def test_answer_question_commits_uow_without_side_effect_publish():
         answered_by="pm",
     )
 
-    agent.answer_question_with_uow.assert_awaited_once_with(
+    workflow.answer_question.assert_awaited_once_with(
         "q_1",
         answer="US first",
         answered_by="pm",
         uow=uow,
     )
     assert uow.committed is True
-    agent.publish_requirement_mutation_side_effects.assert_not_awaited()
+    side_effects.publish_requirement_mutation_side_effects.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_batch_confirm_returns_summary():
-    agent = AsyncMock()
+    workflow = AsyncMock()
+    side_effects = AsyncMock()
     mutation_result = SimpleNamespace(entity=object())
-    agent.batch_confirm_requirements_with_uow = AsyncMock(
+    workflow.batch_confirm_requirements = AsyncMock(
         return_value=(
             [
                 {"requirement_id": "req_1", "success": True},
@@ -90,11 +97,12 @@ async def test_batch_confirm_returns_summary():
             [mutation_result],
         )
     )
-    agent.publish_requirement_mutation_side_effects = AsyncMock()
+    side_effects.publish_requirement_mutation_side_effects = AsyncMock()
     uow = FakeUnitOfWork()
 
     result = await RequirementFeedbackUseCase(
-        agent=agent,
+        mutation_workflow=workflow,
+        side_effects=side_effects,
         uow_factory=_uow_factory(uow),
     ).batch_confirm_requirements(
         requirement_ids=["req_1", "req_2"],
@@ -106,4 +114,6 @@ async def test_batch_confirm_returns_summary():
     assert result.failed == 1
     assert result.results[1]["error"] == "missing"
     assert uow.committed is True
-    agent.publish_requirement_mutation_side_effects.assert_awaited_once_with(mutation_result)
+    side_effects.publish_requirement_mutation_side_effects.assert_awaited_once_with(
+        mutation_result
+    )

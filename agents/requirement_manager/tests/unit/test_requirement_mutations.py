@@ -29,14 +29,16 @@ def _uow_factory(uow):
 
 @pytest.mark.asyncio
 async def test_update_requirement_commits_uow_and_publishes_side_effects():
-    agent = AsyncMock()
+    workflow = AsyncMock()
+    side_effects = AsyncMock()
     mutation_result = SimpleNamespace(entity=object())
-    agent.update_requirement_with_uow = AsyncMock(return_value=mutation_result)
-    agent.publish_requirement_mutation_side_effects = AsyncMock()
+    workflow.update_requirement = AsyncMock(return_value=mutation_result)
+    side_effects.publish_requirement_mutation_side_effects = AsyncMock()
     uow = FakeUnitOfWork()
 
     result = await RequirementMutationUseCase(
-        agent=agent,
+        mutation_workflow=workflow,
+        side_effects=side_effects,
         uow_factory=_uow_factory(uow),
     ).update_requirement(
         requirement_id="req_1",
@@ -44,25 +46,29 @@ async def test_update_requirement_commits_uow_and_publishes_side_effects():
     )
 
     assert result is not None
-    agent.update_requirement_with_uow.assert_awaited_once_with(
+    workflow.update_requirement.assert_awaited_once_with(
         requirement_id="req_1",
         changes={"title": "New title"},
         uow=uow,
     )
     assert uow.committed is True
-    agent.publish_requirement_mutation_side_effects.assert_awaited_once_with(mutation_result)
+    side_effects.publish_requirement_mutation_side_effects.assert_awaited_once_with(
+        mutation_result
+    )
 
 
 @pytest.mark.asyncio
 async def test_delete_requirement_commits_uow_and_publishes_side_effects():
-    agent = AsyncMock()
+    workflow = AsyncMock()
+    side_effects = AsyncMock()
     mutation_result = SimpleNamespace(entity=object())
-    agent.delete_requirement_with_uow = AsyncMock(return_value=mutation_result)
-    agent.publish_requirement_mutation_side_effects = AsyncMock()
+    workflow.delete_requirement = AsyncMock(return_value=mutation_result)
+    side_effects.publish_requirement_mutation_side_effects = AsyncMock()
     uow = FakeUnitOfWork()
 
     result = await RequirementMutationUseCase(
-        agent=agent,
+        mutation_workflow=workflow,
+        side_effects=side_effects,
         uow_factory=_uow_factory(uow),
     ).delete_requirement(
         requirement_id="req_1",
@@ -70,10 +76,12 @@ async def test_delete_requirement_commits_uow_and_publishes_side_effects():
     )
 
     assert result is not None
-    agent.delete_requirement_with_uow.assert_awaited_once_with(
+    workflow.delete_requirement.assert_awaited_once_with(
         requirement_id="req_1",
         deleted_by="pm",
         uow=uow,
     )
     assert uow.committed is True
-    agent.publish_requirement_mutation_side_effects.assert_awaited_once_with(mutation_result)
+    side_effects.publish_requirement_mutation_side_effects.assert_awaited_once_with(
+        mutation_result
+    )

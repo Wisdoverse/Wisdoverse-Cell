@@ -111,7 +111,8 @@ def get_ingest_use_case() -> IngestUseCase:
 def get_requirement_feedback_use_case() -> RequirementFeedbackUseCase:
     agent = get_agent()
     return RequirementFeedbackUseCase(
-        agent=agent,
+        mutation_workflow=agent.mutation_workflow,
+        side_effects=agent,
         uow_factory=agent.get_unit_of_work,
     )
 
@@ -119,7 +120,8 @@ def get_requirement_feedback_use_case() -> RequirementFeedbackUseCase:
 def get_requirement_mutation_use_case() -> RequirementMutationUseCase:
     agent = get_agent()
     return RequirementMutationUseCase(
-        agent=agent,
+        mutation_workflow=agent.mutation_workflow,
+        side_effects=agent,
         uow_factory=agent.get_unit_of_work,
     )
 
