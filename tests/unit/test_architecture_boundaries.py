@@ -2397,10 +2397,7 @@ def test_control_plane_run_api_delegates_to_query_use_cases() -> None:
 def test_control_plane_command_routes_use_explicit_unit_of_work() -> None:
     """Control-plane command routes must use the explicit transaction seam."""
     api_path = Path("shared/control_plane/api.py")
-    route_paths = (
-        api_path,
-        Path("shared/control_plane/api_routes/work_items.py"),
-    )
+    route_paths = (api_path, *sorted(Path("shared/control_plane/api_routes").glob("*.py")))
     route_sources = {path: path.read_text() for path in route_paths}
     api_source = route_sources[api_path]
     uow_source = Path("shared/control_plane/unit_of_work.py").read_text()
@@ -2440,6 +2437,7 @@ def test_control_plane_command_routes_use_explicit_unit_of_work() -> None:
 def test_control_plane_company_api_delegates_to_use_cases() -> None:
     """Control-plane company routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
+    route_source = Path("shared/control_plane/api_routes/companies.py").read_text()
     port_source = Path("shared/control_plane/company_ports.py").read_text()
     adapter_source = Path("shared/control_plane/company_store.py").read_text()
     use_case_source = Path("shared/control_plane/company_use_cases.py").read_text()
@@ -2451,6 +2449,8 @@ def test_control_plane_company_api_delegates_to_use_cases() -> None:
     assert "create_company_with_audit" in use_case_source
     assert "update_company_with_audit" in use_case_source
     assert "append_audit_event" in use_case_source
+    assert "create_company_router" in api_source
+    assert "class CompanyCreateRequest" not in api_source
 
     for function_name in (
         "list_companies",
@@ -2458,7 +2458,7 @@ def test_control_plane_company_api_delegates_to_use_cases() -> None:
         "get_company",
         "update_company",
     ):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "ControlPlaneRepository" not in function_source
         # AsyncSession must not appear in the route signature; reads depend on
         # ControlPlaneStores and commands depend on ControlPlaneUnitOfWork.
@@ -2466,7 +2466,7 @@ def test_control_plane_company_api_delegates_to_use_cases() -> None:
         assert "stores.companies" in function_source
 
     for function_name in ("create_company", "update_company"):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "AuditEvent(" not in function_source
         assert "append_audit_event" not in function_source
 
@@ -2474,6 +2474,7 @@ def test_control_plane_company_api_delegates_to_use_cases() -> None:
 def test_control_plane_goal_api_delegates_to_use_cases() -> None:
     """Control-plane goal routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
+    route_source = Path("shared/control_plane/api_routes/goals.py").read_text()
     port_source = Path("shared/control_plane/goal_ports.py").read_text()
     adapter_source = Path("shared/control_plane/goal_store.py").read_text()
     use_case_source = Path("shared/control_plane/goal_use_cases.py").read_text()
@@ -2486,6 +2487,8 @@ def test_control_plane_goal_api_delegates_to_use_cases() -> None:
     assert "update_goal_status_with_audit" in use_case_source
     assert "append_audit_event" in use_case_source
     assert "ParentGoalNotFoundError" in use_case_source
+    assert "create_goal_router" in api_source
+    assert "class GoalCreateRequest" not in api_source
 
     for function_name in (
         "list_goals",
@@ -2493,13 +2496,13 @@ def test_control_plane_goal_api_delegates_to_use_cases() -> None:
         "get_goal",
         "update_goal_status",
     ):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "ControlPlaneRepository" not in function_source
         assert "stores.goals" in function_source
         assert "AsyncSession" not in function_source
 
     for function_name in ("create_goal", "update_goal_status"):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "AuditEvent(" not in function_source
         assert "append_audit_event" not in function_source
 
@@ -2572,6 +2575,7 @@ def test_control_plane_work_item_api_delegates_to_use_cases() -> None:
 def test_control_plane_decision_api_delegates_to_use_cases() -> None:
     """Control-plane decision routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
+    route_source = Path("shared/control_plane/api_routes/decisions.py").read_text()
     port_source = Path("shared/control_plane/decision_ports.py").read_text()
     adapter_source = Path("shared/control_plane/decision_store.py").read_text()
     use_case_source = Path(
@@ -2586,6 +2590,8 @@ def test_control_plane_decision_api_delegates_to_use_cases() -> None:
     assert "update_decision_status_with_audit" in use_case_source
     assert "append_audit_event" in use_case_source
     assert "DecisionLinkMismatchError" in use_case_source
+    assert "create_decision_router" in api_source
+    assert "class DecisionCreateRequest" not in api_source
 
     for function_name in (
         "list_decisions",
@@ -2593,13 +2599,13 @@ def test_control_plane_decision_api_delegates_to_use_cases() -> None:
         "get_decision",
         "update_decision_status",
     ):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "ControlPlaneRepository" not in function_source
         assert "stores.decisions" in function_source
         assert "AsyncSession" not in function_source
 
     for function_name in ("create_decision", "update_decision_status"):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "AuditEvent(" not in function_source
         assert "append_audit_event" not in function_source
         assert "validate_execution_links" not in function_source
@@ -2608,6 +2614,7 @@ def test_control_plane_decision_api_delegates_to_use_cases() -> None:
 def test_control_plane_artifact_api_delegates_to_use_cases() -> None:
     """Control-plane artifact routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
+    route_source = Path("shared/control_plane/api_routes/artifacts.py").read_text()
     port_source = Path("shared/control_plane/artifact_ports.py").read_text()
     adapter_source = Path("shared/control_plane/artifact_store.py").read_text()
     use_case_source = Path(
@@ -2621,18 +2628,20 @@ def test_control_plane_artifact_api_delegates_to_use_cases() -> None:
     assert "create_artifact_with_audit" in use_case_source
     assert "append_audit_event" in use_case_source
     assert "ArtifactLinkMismatchError" in use_case_source
+    assert "create_artifact_router" in api_source
+    assert "class ArtifactCreateRequest" not in api_source
 
     for function_name in (
         "list_artifacts",
         "create_artifact",
         "get_artifact",
     ):
-        function_source = _function_source(api_source, function_name)
+        function_source = _function_source(route_source, function_name)
         assert "ControlPlaneRepository" not in function_source
         assert "stores.artifacts" in function_source
         assert "AsyncSession" not in function_source
 
-    function_source = _function_source(api_source, "create_artifact")
+    function_source = _function_source(route_source, "create_artifact")
     assert "AuditEvent(" not in function_source
     assert "append_audit_event" not in function_source
     assert "validate_execution_links" not in function_source

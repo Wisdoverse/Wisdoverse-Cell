@@ -3,7 +3,6 @@
 from collections.abc import AsyncGenerator, Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import asdict
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -54,6 +53,10 @@ from .agent_run_use_cases import (
     list_agent_runs as list_agent_runs_from_store,
 )
 from .agent_runner import AgentWakeupError
+from .api_routes.artifacts import create_artifact_router
+from .api_routes.companies import create_company_router
+from .api_routes.decisions import create_decision_router
+from .api_routes.goals import create_goal_router
 from .api_routes.work_items import create_work_item_router
 from .api_serialization import row_to_dict as _row_to_dict
 from .api_serialization import serialize_value as _serialize
@@ -62,20 +65,6 @@ from .approval_use_cases import (
     list_approvals as list_approvals_from_store,
 )
 from .approval_use_cases import resolve_approval_and_sync_proposal
-from .artifact_use_cases import (
-    ArtifactGoalNotFoundError,
-    ArtifactLinkMismatchError,
-    ArtifactNotFoundError,
-    ArtifactRunNotFoundError,
-    ArtifactWorkItemNotFoundError,
-    create_artifact_with_audit,
-)
-from .artifact_use_cases import (
-    get_artifact as get_artifact_from_store,
-)
-from .artifact_use_cases import (
-    list_artifacts as list_artifacts_from_store,
-)
 from .audit_timeline_use_cases import TimelineScopeRequiredError
 from .audit_timeline_use_cases import build_timeline as build_timeline_from_store
 from .audit_timeline_use_cases import (
@@ -96,34 +85,7 @@ from .budget_use_cases import (
 from .budget_use_cases import (
     list_budget_usage as list_budget_usage_from_store,
 )
-from .company_use_cases import (
-    CompanyAlreadyExistsError,
-    CompanyNotFoundError,
-    create_company_with_audit,
-    update_company_with_audit,
-)
-from .company_use_cases import (
-    get_company as get_company_from_store,
-)
-from .company_use_cases import (
-    list_companies as list_companies_from_store,
-)
 from .database import control_plane_db_manager
-from .decision_use_cases import (
-    DecisionGoalNotFoundError,
-    DecisionLinkMismatchError,
-    DecisionNotFoundError,
-    DecisionRunNotFoundError,
-    DecisionWorkItemNotFoundError,
-    create_decision_with_audit,
-    update_decision_status_with_audit,
-)
-from .decision_use_cases import (
-    get_decision as get_decision_from_store,
-)
-from .decision_use_cases import (
-    list_decisions as list_decisions_from_store,
-)
 from .evolution_proposal_use_cases import (
     EvolutionProposalApprovalNotFoundError,
     EvolutionProposalApprovalRequiredError,
@@ -137,35 +99,17 @@ from .evolution_proposal_use_cases import (
 from .evolution_proposal_use_cases import (
     list_evolution_proposals as list_evolution_proposals_from_store,
 )
-from .goal_use_cases import (
-    GoalNotFoundError,
-    ParentGoalNotFoundError,
-    create_goal_with_audit,
-    update_goal_status_with_audit,
-)
-from .goal_use_cases import (
-    get_goal as get_goal_from_store,
-)
-from .goal_use_cases import (
-    list_goals as list_goals_from_store,
-)
 from .models import (
     AgentInteractionMode,
     AgentKind,
     AgentRole,
     ApprovalStatus,
-    Artifact,
-    ArtifactType,
     BudgetPeriod,
     BudgetPolicy,
     BudgetScope,
-    Decision,
-    DecisionStatus,
     EvolutionProposal,
     EvolutionRolloutState,
     EvolutionTier,
-    Goal,
-    GoalStatus,
 )
 from .store_factory import ControlPlaneStores
 from .unit_of_work import ControlPlaneUnitOfWork
@@ -176,170 +120,6 @@ BUDGET_POLICY_STATUSES = {"active", "paused", "archived"}
 
 class ApprovalActionRequest(BaseModel):
     resolved_by: str = Field(default="api", min_length=1, max_length=128)
-
-
-class CompanyCreateRequest(BaseModel):
-    company_id: str | None = Field(default=None, min_length=1, max_length=48)
-    name: str = Field(min_length=1, max_length=256)
-    mission: str = Field(default="", max_length=10_000)
-    created_by: str = Field(default="api", min_length=1, max_length=128)
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-    @field_validator("name", "mission", "created_by", mode="before")
-    @classmethod
-    def _clean_string(cls, value: Any) -> str:
-        return str(value or "").strip()
-
-    @field_validator("company_id", mode="before")
-    @classmethod
-    def _clean_optional_string(cls, value: Any) -> str | None:
-        if value is None:
-            return None
-        cleaned = str(value).strip()
-        return cleaned or None
-
-
-class CompanyUpdateRequest(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=256)
-    mission: str | None = Field(default=None, max_length=10_000)
-    actor_id: str = Field(default="api", min_length=1, max_length=128)
-    metadata: dict[str, Any] | None = None
-
-    @field_validator("name", "mission", mode="before")
-    @classmethod
-    def _clean_optional_string(cls, value: Any) -> str | None:
-        if value is None:
-            return None
-        cleaned = str(value).strip()
-        return cleaned or None
-
-    @field_validator("actor_id", mode="before")
-    @classmethod
-    def _clean_actor_id(cls, value: Any) -> str:
-        return str(value or "api").strip() or "api"
-
-    @model_validator(mode="after")
-    def _require_change(self) -> "CompanyUpdateRequest":
-        if self.name is None and self.mission is None and self.metadata is None:
-            raise ValueError("at least one company field must be provided")
-        return self
-
-
-class GoalCreateRequest(BaseModel):
-    company_id: str | None = Field(default=None, min_length=1, max_length=48)
-    title: str = Field(min_length=1, max_length=256)
-    description: str = Field(default="", max_length=10_000)
-    status: GoalStatus = GoalStatus.DRAFT
-    parent_goal_id: str | None = Field(default=None, max_length=48)
-    owner_agent_id: str | None = Field(default=None, max_length=64)
-    owner_user_id: str | None = Field(default=None, max_length=64)
-    success_metric: str = Field(default="", max_length=2_000)
-    target_value: float | None = None
-    current_value: float | None = None
-    due_at: datetime | None = None
-    tags: list[str] = Field(default_factory=list, max_length=50)
-    created_by: str = Field(default="api", min_length=1, max_length=128)
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-    @field_validator("title", "description", "success_metric", "created_by", mode="before")
-    @classmethod
-    def _clean_string(cls, value: Any) -> str:
-        return str(value or "").strip()
-
-    @field_validator("parent_goal_id", "owner_agent_id", "owner_user_id", mode="before")
-    @classmethod
-    def _clean_optional_string(cls, value: Any) -> str | None:
-        if value is None:
-            return None
-        cleaned = str(value).strip()
-        return cleaned or None
-
-    @field_validator("tags", mode="before")
-    @classmethod
-    def _clean_tags(cls, value: Any) -> list[str]:
-        return _clean_string_list(value)
-
-
-class GoalStatusUpdateRequest(BaseModel):
-    status: GoalStatus
-    current_value: float | None = None
-    actor_id: str = Field(default="api", min_length=1, max_length=128)
-
-
-class DecisionCreateRequest(BaseModel):
-    company_id: str | None = Field(default=None, min_length=1, max_length=48)
-    title: str = Field(min_length=1, max_length=256)
-    rationale: str = Field(min_length=1, max_length=20_000)
-    status: DecisionStatus = DecisionStatus.PROPOSED
-    run_id: str | None = Field(default=None, max_length=48)
-    work_item_id: str | None = Field(default=None, max_length=48)
-    goal_id: str | None = Field(default=None, max_length=48)
-    options: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
-    selected_option: str | None = Field(default=None, max_length=128)
-    decided_by: str | None = Field(default=None, max_length=128)
-    created_by: str = Field(default="api", min_length=1, max_length=128)
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-    @field_validator("title", "rationale", "created_by", mode="before")
-    @classmethod
-    def _clean_string(cls, value: Any) -> str:
-        return str(value or "").strip()
-
-    @field_validator(
-        "run_id",
-        "work_item_id",
-        "goal_id",
-        "selected_option",
-        "decided_by",
-        mode="before",
-    )
-    @classmethod
-    def _clean_optional_string(cls, value: Any) -> str | None:
-        if value is None:
-            return None
-        cleaned = str(value).strip()
-        return cleaned or None
-
-
-class DecisionStatusUpdateRequest(BaseModel):
-    status: DecisionStatus
-    selected_option: str | None = Field(default=None, max_length=128)
-    decided_by: str | None = Field(default=None, max_length=128)
-    actor_id: str = Field(default="api", min_length=1, max_length=128)
-
-
-class ArtifactCreateRequest(BaseModel):
-    company_id: str | None = Field(default=None, min_length=1, max_length=48)
-    artifact_type: ArtifactType = ArtifactType.OTHER
-    title: str = Field(min_length=1, max_length=256)
-    uri: str = Field(min_length=1, max_length=4_000)
-    content_hash: str | None = Field(default=None, max_length=128)
-    run_id: str | None = Field(default=None, max_length=48)
-    work_item_id: str | None = Field(default=None, max_length=48)
-    goal_id: str | None = Field(default=None, max_length=48)
-    created_by_agent_id: str | None = Field(default=None, max_length=64)
-    created_by: str = Field(default="api", min_length=1, max_length=128)
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-    @field_validator("title", "uri", "created_by", mode="before")
-    @classmethod
-    def _clean_string(cls, value: Any) -> str:
-        return str(value or "").strip()
-
-    @field_validator(
-        "content_hash",
-        "run_id",
-        "work_item_id",
-        "goal_id",
-        "created_by_agent_id",
-        mode="before",
-    )
-    @classmethod
-    def _clean_optional_string(cls, value: Any) -> str | None:
-        if value is None:
-            return None
-        cleaned = str(value).strip()
-        return cleaned or None
 
 
 class BudgetPolicyCreateRequest(BaseModel):
@@ -657,168 +437,20 @@ def create_control_plane_router(
     def resolve_company(company_id: str | None) -> str:
         return company_id or settings.control_plane_company_id
 
-    @router.get("/companies")
-    async def list_companies(
-        search: str | None = None,
-        limit: int = Query(default=100, ge=1, le=500),
-        stores: ControlPlaneStores = Depends(get_stores),
-    ):
-        rows = await list_companies_from_store(stores.companies, search=search, limit=limit)
-        return {"companies": [_row_to_dict(row) for row in rows], "total": len(rows)}
-
-    @router.post(
-        "/companies",
-        status_code=http_status.HTTP_201_CREATED,
-    )
-    async def create_company(
-        body: CompanyCreateRequest,
-        uow: ControlPlaneUnitOfWork = Depends(get_uow),
-    ):
-        stores = uow.stores
-        try:
-            row = await create_company_with_audit(
-                stores.companies,
-                company_id=body.company_id,
-                name=body.name,
-                mission=body.mission,
-                metadata=body.metadata,
-                created_by=body.created_by,
-            )
-        except CompanyAlreadyExistsError:
-            raise_control_plane_api_error(status_code=409, detail="company_already_exists")
-        await uow.commit()
-        return _row_to_dict(row)
-
-    @router.get("/companies/{company_id}")
-    async def get_company(
-        company_id: str,
-        stores: ControlPlaneStores = Depends(get_stores),
-    ):
-        try:
-            row = await get_company_from_store(stores.companies, company_id=company_id)
-        except CompanyNotFoundError:
-            raise_control_plane_api_error(status_code=404, detail="company_not_found")
-        return _row_to_dict(row)
-
-    @router.patch("/companies/{company_id}")
-    async def update_company(
-        company_id: str,
-        body: CompanyUpdateRequest,
-        uow: ControlPlaneUnitOfWork = Depends(get_uow),
-    ):
-        stores = uow.stores
-        try:
-            row = await update_company_with_audit(
-                stores.companies,
-                company_id=company_id,
-                name=body.name,
-                mission=body.mission,
-                metadata=body.metadata,
-                actor_id=body.actor_id,
-            )
-        except CompanyNotFoundError:
-            raise_control_plane_api_error(status_code=404, detail="company_not_found")
-        await uow.commit()
-        return _row_to_dict(row)
-
-    @router.get("/goals")
-    async def list_goals(
-        company_id: str | None = None,
-        status: GoalStatus | None = None,
-        owner_agent_id: str | None = None,
-        owner_user_id: str | None = None,
-        search: str | None = None,
-        limit: int = Query(default=100, ge=1, le=500),
-        stores: ControlPlaneStores = Depends(get_stores),
-    ):
-        store = stores.goals
-        rows = await list_goals_from_store(
-            store,
-            company_id=resolve_company(company_id),
-            status=status.value if status else None,
-            owner_agent_id=owner_agent_id,
-            owner_user_id=owner_user_id,
-            search=search,
-            limit=limit,
+    router.include_router(
+        create_company_router(
+            get_stores=get_stores,
+            get_uow=get_uow,
         )
-        return {"goals": [_row_to_dict(row) for row in rows], "total": len(rows)}
-
-    @router.post(
-        "/goals",
-        status_code=http_status.HTTP_201_CREATED,
     )
-    async def create_goal(
-        body: GoalCreateRequest,
-        uow: ControlPlaneUnitOfWork = Depends(get_uow),
-    ):
-        stores = uow.stores
-        store = stores.goals
-        company_id = resolve_company(body.company_id)
-        try:
-            row = await create_goal_with_audit(
-                store,
-                Goal(
-                    company_id=company_id,
-                    title=body.title,
-                    description=body.description,
-                    status=body.status,
-                    parent_goal_id=body.parent_goal_id,
-                    owner_agent_id=body.owner_agent_id,
-                    owner_user_id=body.owner_user_id,
-                    success_metric=body.success_metric,
-                    target_value=body.target_value,
-                    current_value=body.current_value,
-                    due_at=body.due_at,
-                    tags=body.tags,
-                    metadata=body.metadata,
-                ),
-                created_by=body.created_by,
-            )
-        except ParentGoalNotFoundError:
-            raise_control_plane_api_error(status_code=400, detail="parent_goal_not_found")
-        await uow.commit()
-        return _row_to_dict(row)
 
-    @router.get("/goals/{goal_id}")
-    async def get_goal(
-        goal_id: str,
-        company_id: str | None = None,
-        stores: ControlPlaneStores = Depends(get_stores),
-    ):
-        store = stores.goals
-        try:
-            row = await get_goal_from_store(
-                store,
-                company_id=resolve_company(company_id),
-                goal_id=goal_id,
-            )
-        except GoalNotFoundError:
-            raise_control_plane_api_error(status_code=404, detail="goal_not_found")
-        return _row_to_dict(row)
-
-    @router.patch("/goals/{goal_id}/status")
-    async def update_goal_status(
-        goal_id: str,
-        body: GoalStatusUpdateRequest,
-        company_id: str | None = None,
-        uow: ControlPlaneUnitOfWork = Depends(get_uow),
-    ):
-        stores = uow.stores
-        store = stores.goals
-        resolved_company_id = resolve_company(company_id)
-        try:
-            row = await update_goal_status_with_audit(
-                store,
-                company_id=resolved_company_id,
-                goal_id=goal_id,
-                status=body.status,
-                current_value=body.current_value,
-                actor_id=body.actor_id,
-            )
-        except GoalNotFoundError:
-            raise_control_plane_api_error(status_code=404, detail="goal_not_found")
-        await uow.commit()
-        return _row_to_dict(row)
+    router.include_router(
+        create_goal_router(
+            get_stores=get_stores,
+            get_uow=get_uow,
+            resolve_company=resolve_company,
+        )
+    )
 
     router.include_router(
         create_work_item_router(
@@ -828,189 +460,21 @@ def create_control_plane_router(
         )
     )
 
-    @router.get("/decisions")
-    async def list_decisions(
-        company_id: str | None = None,
-        status: DecisionStatus | None = None,
-        run_id: str | None = None,
-        goal_id: str | None = None,
-        work_item_id: str | None = None,
-        limit: int = Query(default=50, ge=1, le=200),
-        stores: ControlPlaneStores = Depends(get_stores),
-    ):
-        store = stores.decisions
-        rows = await list_decisions_from_store(
-            store,
-            company_id=resolve_company(company_id),
-            status=status.value if status else None,
-            run_id=run_id,
-            goal_id=goal_id,
-            work_item_id=work_item_id,
-            limit=limit,
+    router.include_router(
+        create_decision_router(
+            get_stores=get_stores,
+            get_uow=get_uow,
+            resolve_company=resolve_company,
         )
-        return {"decisions": [_row_to_dict(row) for row in rows], "total": len(rows)}
-
-    @router.post(
-        "/decisions",
-        status_code=http_status.HTTP_201_CREATED,
     )
-    async def create_decision(
-        body: DecisionCreateRequest,
-        uow: ControlPlaneUnitOfWork = Depends(get_uow),
-    ):
-        stores = uow.stores
-        store = stores.decisions
-        company_id = resolve_company(body.company_id)
-        try:
-            row = await create_decision_with_audit(
-                store,
-                Decision(
-                    company_id=company_id,
-                    title=body.title,
-                    rationale=body.rationale,
-                    status=body.status,
-                    run_id=body.run_id,
-                    work_item_id=body.work_item_id,
-                    goal_id=body.goal_id,
-                    options=body.options,
-                    selected_option=body.selected_option,
-                    decided_by=body.decided_by,
-                    metadata=body.metadata,
-                ),
-                created_by=body.created_by,
-            )
-        except DecisionRunNotFoundError:
-            raise_control_plane_api_error(status_code=400, detail="run_not_found")
-        except DecisionWorkItemNotFoundError:
-            raise_control_plane_api_error(status_code=400, detail="work_item_not_found")
-        except DecisionGoalNotFoundError:
-            raise_control_plane_api_error(status_code=400, detail="goal_not_found")
-        except DecisionLinkMismatchError:
-            raise_control_plane_api_error(status_code=400, detail="link_mismatch")
-        await uow.commit()
-        return _row_to_dict(row)
 
-    @router.get("/decisions/{decision_id}")
-    async def get_decision(
-        decision_id: str,
-        company_id: str | None = None,
-        stores: ControlPlaneStores = Depends(get_stores),
-    ):
-        store = stores.decisions
-        try:
-            row = await get_decision_from_store(
-                store,
-                company_id=resolve_company(company_id),
-                decision_id=decision_id,
-            )
-        except DecisionNotFoundError:
-            raise_control_plane_api_error(status_code=404, detail="decision_not_found")
-        return _row_to_dict(row)
-
-    @router.patch("/decisions/{decision_id}/status")
-    async def update_decision_status(
-        decision_id: str,
-        body: DecisionStatusUpdateRequest,
-        company_id: str | None = None,
-        uow: ControlPlaneUnitOfWork = Depends(get_uow),
-    ):
-        stores = uow.stores
-        store = stores.decisions
-        resolved_company_id = resolve_company(company_id)
-        try:
-            row = await update_decision_status_with_audit(
-                store,
-                company_id=resolved_company_id,
-                decision_id=decision_id,
-                status=body.status,
-                selected_option=body.selected_option,
-                decided_by=body.decided_by,
-                actor_id=body.actor_id,
-            )
-        except DecisionNotFoundError:
-            raise_control_plane_api_error(status_code=404, detail="decision_not_found")
-        await uow.commit()
-        return _row_to_dict(row)
-
-    @router.get("/artifacts")
-    async def list_artifacts(
-        company_id: str | None = None,
-        artifact_type: ArtifactType | None = None,
-        run_id: str | None = None,
-        goal_id: str | None = None,
-        work_item_id: str | None = None,
-        created_by_agent_id: str | None = None,
-        limit: int = Query(default=50, ge=1, le=200),
-        stores: ControlPlaneStores = Depends(get_stores),
-    ):
-        store = stores.artifacts
-        rows = await list_artifacts_from_store(
-            store,
-            company_id=resolve_company(company_id),
-            artifact_type=artifact_type.value if artifact_type else None,
-            run_id=run_id,
-            goal_id=goal_id,
-            work_item_id=work_item_id,
-            created_by_agent_id=created_by_agent_id,
-            limit=limit,
+    router.include_router(
+        create_artifact_router(
+            get_stores=get_stores,
+            get_uow=get_uow,
+            resolve_company=resolve_company,
         )
-        return {"artifacts": [_row_to_dict(row) for row in rows], "total": len(rows)}
-
-    @router.post(
-        "/artifacts",
-        status_code=http_status.HTTP_201_CREATED,
     )
-    async def create_artifact(
-        body: ArtifactCreateRequest,
-        uow: ControlPlaneUnitOfWork = Depends(get_uow),
-    ):
-        stores = uow.stores
-        store = stores.artifacts
-        company_id = resolve_company(body.company_id)
-        try:
-            row = await create_artifact_with_audit(
-                store,
-                Artifact(
-                    company_id=company_id,
-                    artifact_type=body.artifact_type,
-                    title=body.title,
-                    uri=body.uri,
-                    content_hash=body.content_hash,
-                    run_id=body.run_id,
-                    work_item_id=body.work_item_id,
-                    goal_id=body.goal_id,
-                    created_by_agent_id=body.created_by_agent_id,
-                    metadata=body.metadata,
-                ),
-                created_by=body.created_by,
-            )
-        except ArtifactRunNotFoundError:
-            raise_control_plane_api_error(status_code=400, detail="run_not_found")
-        except ArtifactWorkItemNotFoundError:
-            raise_control_plane_api_error(status_code=400, detail="work_item_not_found")
-        except ArtifactGoalNotFoundError:
-            raise_control_plane_api_error(status_code=400, detail="goal_not_found")
-        except ArtifactLinkMismatchError:
-            raise_control_plane_api_error(status_code=400, detail="link_mismatch")
-        await uow.commit()
-        return _row_to_dict(row)
-
-    @router.get("/artifacts/{artifact_id}")
-    async def get_artifact(
-        artifact_id: str,
-        company_id: str | None = None,
-        stores: ControlPlaneStores = Depends(get_stores),
-    ):
-        store = stores.artifacts
-        try:
-            row = await get_artifact_from_store(
-                store,
-                company_id=resolve_company(company_id),
-                artifact_id=artifact_id,
-            )
-        except ArtifactNotFoundError:
-            raise_control_plane_api_error(status_code=404, detail="artifact_not_found")
-        return _row_to_dict(row)
 
     @router.get("/evolution-proposals")
     async def list_evolution_proposals(

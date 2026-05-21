@@ -1,6 +1,5 @@
 """Work Item HTTP routes for the Control Plane API."""
 
-from collections.abc import AsyncGenerator, Callable
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -38,20 +37,7 @@ from ..work_item_use_cases import (
 )
 from ..work_item_use_cases import get_work_item as get_work_item_from_store
 from ..work_item_use_cases import list_work_items as list_work_items_from_store
-
-StoresDependency = Callable[[], AsyncGenerator[ControlPlaneStores, None]]
-UnitOfWorkDependency = Callable[[], AsyncGenerator[ControlPlaneUnitOfWork, None]]
-CompanyResolver = Callable[[str | None], str]
-
-
-def _clean_string_list(value: Any) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, str):
-        value = [value]
-    if not isinstance(value, list):
-        raise ValueError("must be a list")
-    return [str(item).strip() for item in value if str(item).strip()]
+from .dependencies import CompanyResolver, StoresDependency, UnitOfWorkDependency, clean_string_list
 
 
 class WorkItemCreateRequest(BaseModel):
@@ -92,7 +78,7 @@ class WorkItemCreateRequest(BaseModel):
     @field_validator("dependencies", mode="before")
     @classmethod
     def _clean_dependencies(cls, value: Any) -> list[str]:
-        return _clean_string_list(value)
+        return clean_string_list(value)
 
 
 class WorkItemStatusUpdateRequest(BaseModel):

@@ -27,7 +27,7 @@ independently deployable agent services. The shape is:
 | Layer | Code locations | Responsibility |
 |-------|----------------|----------------|
 | Edge plane | `rust/gateway/` (out of scope here) | TLS termination, webhook verification, gRPC fan-out |
-| Operator / control plane API | `shared/control_plane/api.py` plus per-aggregate route modules such as `shared/control_plane/api_routes/work_items.py` | `/api/v1/control-plane/*` over the ledger |
+| Operator / control plane API | `shared/control_plane/api.py` plus per-aggregate route modules under `shared/control_plane/api_routes/` | `/api/v1/control-plane/*` over the ledger |
 | Business runtime agents | `agents/requirement_manager/`, `agents/pjm_agent/`, `agents/qa_agent/`, `agents/dev_agent/` | Domain workflows behind explicit service boundaries |
 | Gateways | `services/gateways/user_interaction/`, `services/gateways/channel/` | Chat/webhook inbound, outbound messaging |
 | Orchestration | `services/orchestration/coordinator/` | Cross-boundary dispatch decisions |
@@ -286,7 +286,7 @@ concrete file citations from §4 / §5.
 
 | # | Problem | Severity | Evidence |
 |---|---------|----------|----------|
-| M1 | Partially closed: Work Item routes are split into `shared/control_plane/api_routes/work_items.py`, but most aggregate handlers still live in the main API module | Medium | `shared/control_plane/api.py`, `shared/control_plane/api_routes/work_items.py` |
+| M1 | Partially closed: companies, goals, work items, decisions, and artifacts are split into `shared/control_plane/api_routes/`, but agent, run, approval, budget, evolution, and audit handlers still live in the main API module | Medium | `shared/control_plane/api.py`, `shared/control_plane/api_routes/*.py` |
 | M2 | Domain layer is implicit; lifecycle helpers, ports, and use cases co-exist under `core/` without a separate `core/domain/` | Medium | `agents/<agent>/core/`, `shared/control_plane/agent_run_lifecycle.py` |
 | M3 | Closed: compatibility surfaces `shared/services/*`, root `skills/*`, and `shared.grpc.server` have been retired | Low | `tests/unit/test_architecture_boundaries.py` |
 | M4 | Sync capability hosts OpenProject and Feishu Bitable in one runtime; sub-boundaries exist only inside `core/` | Medium | `shared/capabilities/sync/core/engine.py`, `shared/capabilities/sync/core/progress.py` |
@@ -425,8 +425,8 @@ the status rows current when an audit item changes. Concrete verification:
 - Key baseline facts re-checked at write time:
   - `shared/control_plane/repository.py` = 902 LOC
   - `shared/control_plane/api.py` remains the main Control Plane router;
-    Work Item routes have been moved to
-    `shared/control_plane/api_routes/work_items.py`
+    company, goal, work item, decision, and artifact routes have been moved
+    to `shared/control_plane/api_routes/`
   - `tests/unit/test_architecture_boundaries.py` = 4583 LOC
   - `migrations/versions/` = 19 files
   - `grep "session.begin" agents/ services/ shared/` = 0 hits

@@ -40,7 +40,7 @@ Closed Phase 1 audit gaps:
 | P0-4 (optional tracing) | Runtime tracing now installs a provider in non-production even without an exporter; production settings fail closed without `OTEL_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` |
 | H8 / P1-4 (no contract tests) | ✓ event-catalog tests #153 |
 | H9 / P1-5 (no Identity boundary) | Closed at design layer #142 |
-| M1 (large Control Plane api.py) | Partially closed: the Work Item route family now lives in `shared/control_plane/api_routes/work_items.py`; continue by aggregate route family rather than one-use-case slices. |
+| M1 (large Control Plane api.py) | Partially closed: companies, goals, work items, decisions, and artifacts now live under `shared/control_plane/api_routes/`; continue by aggregate route family rather than one-use-case slices. |
 | M2 (no domain layer) | Closed — every runtime has `core/domain/` with aggregate/value object |
 | M5 (Analysis source-table drift) | Documented; no current drift, no projection layer needed yet |
 | M6 (non-uniform error envelope) | Structured runtime envelope landed at the `create_agent_app()` boundary; base consumer contract tests now cover auth, HTTPException, validation, and unexpected failures. Route-specific consumer tests remain incremental. |
