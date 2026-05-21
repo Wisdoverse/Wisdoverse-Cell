@@ -23,6 +23,8 @@ class PJMDecompositionRecord(Protocol):
 class PJMDecompositionTransaction(Protocol):
     """Transaction-scoped decomposition persistence operations."""
 
+    completed: bool
+
     async def create(
         self,
         wp_id: int,
@@ -48,6 +50,12 @@ class PJMDecompositionTransaction(Protocol):
 
     async def stage_event(self, event: Event) -> None:
         """Stage an integration event in the same local transaction."""
+
+    async def commit(self) -> None:
+        """Commit decomposition and staged-event mutations."""
+
+    async def rollback(self) -> None:
+        """Rollback incomplete or failed decomposition mutations."""
 
 
 class PJMDecompositionStore(Protocol):

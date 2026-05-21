@@ -14,8 +14,10 @@ class _SqlAlchemyPJMDecompositionTransaction(PJMDecompositionTransaction):
     """SQLAlchemy-backed transaction-scoped decomposition operations."""
 
     def __init__(self, session):
+        self._session = session
         self._decompositions = DecompositionRepository(session)
         self._outbox = PJMEventOutboxRepository(session)
+        self.completed = False
 
     async def create(
         self,
@@ -52,6 +54,14 @@ class _SqlAlchemyPJMDecompositionTransaction(PJMDecompositionTransaction):
     async def stage_event(self, event: Event) -> None:
         await self._outbox.add(event)
 
+    async def commit(self) -> None:
+        await self._session.commit()
+        self.completed = True
+
+    async def rollback(self) -> None:
+        await self._session.rollback()
+        self.completed = True
+
 
 class SqlAlchemyPJMDecompositionStore(PJMDecompositionStore):
     """SQLAlchemy-backed decomposition workflow store."""
@@ -61,8 +71,17 @@ class SqlAlchemyPJMDecompositionStore(PJMDecompositionStore):
 
     @asynccontextmanager
     async def transaction(self) -> AsyncIterator[PJMDecompositionTransaction]:
-        async with self._db_manager.session() as session:
-            yield _SqlAlchemyPJMDecompositionTransaction(session)
+        async with self._db_manager.async_session() as session:
+            transaction = _SqlAlchemyPJMDecompositionTransaction(session)
+            try:
+                yield transaction
+            except Exception:
+                if not transaction.completed:
+                    await transaction.rollback()
+                raise
+            finally:
+                if not transaction.completed:
+                    await transaction.rollback()
 
     async def list_stale_pending(
         self,

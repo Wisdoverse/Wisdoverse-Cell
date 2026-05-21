@@ -3222,7 +3222,11 @@ def test_pjm_decomposition_api_events_have_durable_outbox_contract() -> None:
     assert "class PJMAlertLogStore(Protocol)" in alert_port_source
     assert "class SqlAlchemyPJMAlertLogStore" in alert_store_source
     assert "class PJMDecompositionStore(Protocol)" in decomposition_port_source
+    assert "async def commit(self) -> None" in decomposition_port_source
+    assert "async def rollback(self) -> None" in decomposition_port_source
     assert "class SqlAlchemyPJMDecompositionStore" in decomposition_store_source
+    assert "self._db_manager.async_session()" in decomposition_store_source
+    assert "await transaction.rollback()" in decomposition_store_source
     assert "class PJMEventOutboxStore(Protocol)" in outbox_port_source
     assert "class SqlAlchemyPJMEventOutboxStore" in outbox_store_source
     assert "from ..db." not in orchestrator_source
@@ -3230,6 +3234,7 @@ def test_pjm_decomposition_api_events_have_durable_outbox_contract() -> None:
     assert "DatabaseManager" not in orchestrator_source
     assert "PJMEventOutboxRepository" not in orchestrator_source
     assert "await self._stage_pjm_event(decomposition, completion_event)" in orchestrator_source
+    assert "await decomposition.commit()" in orchestrator_source
     assert "await self._publish_staged_pjm_event" in orchestrator_source
     assert "publish_event_via_outbox" in orchestrator_source
     assert "publish_pending_pjm_events" in orchestrator_source
