@@ -90,11 +90,32 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 | Company context | `/api/v1/control-plane/companies` exposes durable company name, mission, metadata, and audit evidence | [API Reference](../guides/api-reference.md#control-plane-api) |
 | Workbench | `/[locale]/workflows` uses Feature-Sliced Design slices for goals, agents, approvals, budgets, runs, and timeline evidence | [API Reference](../guides/api-reference.md#control-plane-api), [Operations](../guides/operations.md#10-control-plane-operations) |
 | Agent creation | Operators can create `AgentRole` records with kind, interaction mode, context sources, reporting line, adapter type/config, capabilities, responsibilities, subscribed/published events, permissions, and status | [API Reference](../guides/api-reference.md#post-apiv1control-planeagents) |
-| Agent execution | Manual wakeup and heartbeat ticks create normal `AgentRun` records through the adapter registry | [Operations](../guides/operations.md#10-control-plane-operations) |
+| Work item execution | `/api/v1/control-plane/work-items/{work_item_id}/run` resolves the owner agent, creates an `AgentRun`, updates task state, and appends evidence on the same timeline | [API Reference](../guides/api-reference.md#control-plane-api), [Operations](../guides/operations.md#10-control-plane-operations) |
+| Agent execution | Internal manual wakeup and heartbeat ticks create normal `AgentRun` records through the adapter registry | [Operations](../guides/operations.md#10-control-plane-operations) |
 | Governance | Approval and budget gates append durable evidence before or during sensitive execution | [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
 | Cost controls | Operators can manage scoped budget policies and inspect usage evidence | [API Reference](../guides/api-reference.md#control-plane-api), [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
 | Evolution proposals | L1/L2/L3 self-evolution proposals are durable records with approval and rollout state; approval gates synchronize linked proposal state | [API Reference](../guides/api-reference.md#control-plane-api) |
 | Audit | Timeline combines run, budget, approval, artifact, and audit events by trace or run | [API Reference](../guides/api-reference.md#control-plane-api) |
+
+## Operator Experience Gap and Direction
+
+The current product foundation is strong on durable control-plane objects, but
+the operator experience still exposes too many implementation concepts. External
+benchmarks show that the next improvement should be task-first rather than
+agent-first.
+
+Do not name or link the external benchmark product in public product copy or
+operator-facing docs. Keep the benchmark as an internal reference only.
+
+| Gap | Product Direction |
+|-----|-------------------|
+| Work starts from several separate primitives: goal, work item, agent, run, artifact, and timeline. | Make the work item the default operator command center: create, assign, run, inspect evidence, retry, and close from one place. |
+| Manual execution historically required choosing an agent wakeup path. | Prefer `/api/v1/control-plane/work-items/{work_item_id}/run` for operator flows; keep direct agent wakeups as an internal service action. |
+| Runtime output is technically complete but hard to scan. | Show a compact run card with status, owner, input summary, output summary, evidence artifact, trace, and next action. |
+| Errors are adapter/API shaped. | Translate adapter failures, policy blocks, missing owners, and approval requirements into stable operator actions such as assign owner, request approval, retry, or inspect evidence. |
+| The next step after a run is not obvious. | Add first-class actions for retry, reassign, mark blocked, split work, create decision, attach artifact, and close. |
+| Evidence exists across timeline, audit, run, and artifact views. | Keep the ledger model, but project it into a single work-item activity feed for the UI. |
+| Setup and first success require too much domain knowledge. | Provide templates that create a goal, work item, owner agent, budget policy, and execution defaults together. |
 
 ---
 

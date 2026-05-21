@@ -1206,6 +1206,197 @@ async def test_control_plane_api_wakes_process_agent_definition(
 
 
 @pytest.mark.asyncio
+async def test_control_plane_api_runs_work_item_with_owner_agent(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        "shared.control_plane.agent_runner.settings.control_plane_local_adapter_enabled",
+        True,
+    )
+    monkeypatch.setattr(
+        "shared.control_plane.agent_runner.settings.control_plane_local_adapter_allowlist",
+        "process:work-runner",
+    )
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        goal = await client.post(
+            "/api/v1/control-plane/goals",
+            json={"company_id": "cmp_work_run", "title": "Execute work item"},
+        )
+        goal_id = goal.json()["goal_id"]
+        work_item = await client.post(
+            "/api/v1/control-plane/work-items",
+            json={
+                "company_id": "cmp_work_run",
+                "title": "Execute API",
+                "status": "ready",
+                "goal_id": goal_id,
+                "owner_agent_id": "work-runner",
+            },
+        )
+        work_item_id = work_item.json()["work_item_id"]
+        await client.post(
+            "/api/v1/control-plane/agents",
+            json={
+                "company_id": "cmp_work_run",
+                "agent_id": "work-runner",
+                "display_name": "Work Runner",
+                "adapter_type": "process",
+                "adapter_config": {
+                    "command": [
+                        sys.executable,
+                        "-c",
+                        (
+                            "import json,sys; data=json.load(sys.stdin); "
+                            "print(data['work_item_id'] + '|' + "
+                            "data['input']['work_item']['title'])"
+                        ),
+                    ],
+                    "timeout_sec": 10,
+                },
+            },
+        )
+        executed = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/run",
+            json={
+                "company_id": "cmp_work_run",
+                "actor_id": "human:operator",
+                "trace_id": "trace-work-run",
+                "input": {"operator_note": "ship"},
+            },
+        )
+        runs = await client.get(
+            "/api/v1/control-plane/runs",
+            params={"company_id": "cmp_work_run", "agent_id": "work-runner"},
+        )
+        audits = await client.get(
+            "/api/v1/control-plane/audit-events",
+            params={"company_id": "cmp_work_run", "target_type": "work_item"},
+        )
+
+    assert executed.status_code == 200
+    assert executed.json()["work_item"]["status"] == "completed"
+    assert executed.json()["work_item"]["owner_agent_id"] == "work-runner"
+    assert executed.json()["run"]["status"] == "succeeded"
+    assert executed.json()["run"]["goal_id"] == goal_id
+    assert executed.json()["run"]["work_item_id"] == work_item_id
+    assert executed.json()["output"]["stdout"].strip() == f"{work_item_id}|Execute API"
+    assert runs.status_code == 200
+    assert runs.json()["runs"][0]["input_event"]["payload"]["work_item_id"] == (
+        work_item_id
+    )
+    assert audits.status_code == 200
+    status_updates = [
+        item["detail"]["status"]
+        for item in audits.json()["audit_events"]
+        if item["action"] == EventTypes.WORK_ITEM_UPDATED
+    ]
+    assert set(status_updates) == {"running", "completed"}
+
+
+@pytest.mark.asyncio
+async def test_control_plane_api_rejects_work_item_run_without_agent(
+    db_session: AsyncSession,
+):
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        work_item = await client.post(
+            "/api/v1/control-plane/work-items",
+            json={"company_id": "cmp_work_run_missing_agent", "title": "Unassigned"},
+        )
+        work_item_id = work_item.json()["work_item_id"]
+        executed = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/run",
+            json={"company_id": "cmp_work_run_missing_agent"},
+        )
+        fetched = await client.get(
+            f"/api/v1/control-plane/work-items/{work_item_id}",
+            params={"company_id": "cmp_work_run_missing_agent"},
+        )
+        runs = await client.get(
+            "/api/v1/control-plane/runs",
+            params={"company_id": "cmp_work_run_missing_agent"},
+        )
+
+    assert executed.status_code == 400
+    assert executed.json()["detail"] == "agent_required"
+    assert executed.headers[ERROR_CODE_HEADER] == "control_plane.agent_required"
+    assert fetched.json()["status"] == "queued"
+    assert runs.json()["runs"] == []
+
+
+@pytest.mark.asyncio
+async def test_control_plane_api_marks_work_item_failed_when_execution_fails(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        "shared.control_plane.agent_runner.settings.control_plane_local_adapter_enabled",
+        False,
+    )
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        work_item = await client.post(
+            "/api/v1/control-plane/work-items",
+            json={
+                "company_id": "cmp_work_run_failure",
+                "title": "Blocked local execution",
+                "status": "ready",
+                "owner_agent_id": "local-runner",
+            },
+        )
+        work_item_id = work_item.json()["work_item_id"]
+        await client.post(
+            "/api/v1/control-plane/agents",
+            json={
+                "company_id": "cmp_work_run_failure",
+                "agent_id": "local-runner",
+                "display_name": "Local Runner",
+                "adapter_type": "process",
+                "adapter_config": {"command": [sys.executable, "-c", "print('no')"]},
+            },
+        )
+        executed = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/run",
+            json={
+                "company_id": "cmp_work_run_failure",
+                "trace_id": "trace-work-run-failure",
+            },
+        )
+        fetched = await client.get(
+            f"/api/v1/control-plane/work-items/{work_item_id}",
+            params={"company_id": "cmp_work_run_failure"},
+        )
+        runs = await client.get(
+            "/api/v1/control-plane/runs",
+            params={"company_id": "cmp_work_run_failure", "agent_id": "local-runner"},
+        )
+
+    assert executed.status_code == 403
+    assert executed.json()["detail"] == "local_adapter_disabled"
+    assert fetched.json()["status"] == "failed"
+    assert runs.json()["runs"][0]["status"] == "failed"
+    assert runs.json()["runs"][0]["work_item_id"] == work_item_id
+    assert runs.json()["runs"][0]["error_category"] == "adapter_disabled"
+
+
+@pytest.mark.asyncio
 async def test_control_plane_service_actions_require_internal_key(
     db_session: AsyncSession,
 ):

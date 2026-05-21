@@ -63,8 +63,9 @@ Communication primitives in production today:
   (ADR-0001). At-least-once delivery; consumers must be idempotent.
 - **Durable outbox** per runtime (10 outbox tables — see §4) drained by a
   background runtime plugin every 30 s in batches of 100.
-- **Control-plane wakeups** through `/agent/request` on each
-  `create_agent_app()` service.
+- **Control-plane work-item execution** through the operator command surface,
+  which resolves owner agents and then wakes deployed `create_agent_app()`
+  services through `/agent/request`.
 - **gRPC** for selected internal RPCs (e.g., requirement_manager
   `HealthCheck`).
 
