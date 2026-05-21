@@ -39,11 +39,13 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
         *,
         company_id: str,
         trace_id: str | None = None,
+        work_item_id: str | None = None,
         limit: int = 50,
     ) -> list[AgentRun]:
         return await self._agent_runs.list_agent_runs(
             company_id=company_id,
             trace_id=trace_id,
+            work_item_id=work_item_id,
             limit=limit,
         )
 
@@ -53,6 +55,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
         company_id: str,
         trace_id: str | None = None,
         run_id: str | None = None,
+        work_item_id: str | None = None,
         target_type: str | None = None,
         target_id: str | None = None,
         limit: int = 100,
@@ -61,6 +64,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
             company_id=company_id,
             trace_id=trace_id,
             run_id=run_id,
+            work_item_id=work_item_id,
             target_type=target_type,
             target_id=target_id,
             limit=limit,
@@ -72,12 +76,14 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
         company_id: str,
         run_id: str | None = None,
         trace_id: str | None = None,
+        work_item_id: str | None = None,
         limit: int = 50,
     ) -> list[ApprovalRequest]:
         return await self._approvals.list_approvals(
             company_id=company_id,
             run_id=run_id,
             trace_id=trace_id,
+            work_item_id=work_item_id,
             limit=limit,
         )
 
@@ -102,12 +108,14 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
         company_id: str,
         run_id: str | None = None,
         run_ids: list[str] | None = None,
+        work_item_id: str | None = None,
         limit: int = 50,
     ) -> list[Decision]:
         return await self._decisions.list_decisions(
             company_id=company_id,
             run_id=run_id,
             run_ids=run_ids,
+            work_item_id=work_item_id,
             limit=limit,
         )
 
@@ -117,11 +125,13 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
         company_id: str,
         run_id: str | None = None,
         run_ids: list[str] | None = None,
+        work_item_id: str | None = None,
         limit: int = 50,
     ) -> list[Artifact]:
         return await self._artifacts.list_artifacts(
             company_id=company_id,
             run_id=run_id,
             run_ids=run_ids,
+            work_item_id=work_item_id,
             limit=limit,
         )

@@ -25,6 +25,7 @@ class ControlPlaneApprovalStore(Protocol):
         status: str | None = None,
         run_id: str | None = None,
         trace_id: str | None = None,
+        work_item_id: str | None = None,
         limit: int = 50,
     ) -> list[ApprovalRequest]:
         """Return approval requests for one company."""

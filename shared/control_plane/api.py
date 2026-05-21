@@ -76,6 +76,9 @@ from .artifact_use_cases import (
 from .audit_timeline_use_cases import TimelineScopeRequiredError
 from .audit_timeline_use_cases import build_timeline as build_timeline_from_store
 from .audit_timeline_use_cases import (
+    build_work_item_activity as build_work_item_activity_from_store,
+)
+from .audit_timeline_use_cases import (
     list_audit_events as list_audit_events_from_store,
 )
 from .budget_use_cases import (
@@ -172,6 +175,13 @@ from .unit_of_work import ControlPlaneUnitOfWork
 from .work_item_execution_use_cases import (
     WorkItemExecutionAgentRequiredError,
     run_work_item_with_agent,
+)
+from .work_item_operation_use_cases import (
+    WorkItemAssigneeRequiredError,
+    WorkItemCloseStatusError,
+    block_work_item,
+    close_work_item,
+    reassign_work_item,
 )
 from .work_item_use_cases import (
     WorkItemDependencyNotFoundError,
@@ -339,6 +349,70 @@ class WorkItemRunRequest(BaseModel):
     trace_id: str | None = Field(default=None, max_length=96)
 
     @field_validator("company_id", "agent_id", "trace_id", mode="before")
+    @classmethod
+    def _clean_optional_string(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        cleaned = str(value).strip()
+        return cleaned or None
+
+    @field_validator("actor_id", mode="before")
+    @classmethod
+    def _clean_actor_id(cls, value: Any) -> str:
+        return str(value or "api").strip() or "api"
+
+
+class WorkItemRetryRequest(WorkItemRunRequest):
+    pass
+
+
+class WorkItemReassignRequest(BaseModel):
+    company_id: str | None = Field(default=None, min_length=1, max_length=48)
+    owner_agent_id: str | None = Field(default=None, max_length=64)
+    owner_user_id: str | None = Field(default=None, max_length=64)
+    actor_id: str = Field(default="api", min_length=1, max_length=128)
+    reason: str | None = Field(default=None, max_length=2_000)
+
+    @field_validator("company_id", "owner_agent_id", "owner_user_id", "reason", mode="before")
+    @classmethod
+    def _clean_optional_string(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        cleaned = str(value).strip()
+        return cleaned or None
+
+    @field_validator("actor_id", mode="before")
+    @classmethod
+    def _clean_actor_id(cls, value: Any) -> str:
+        return str(value or "api").strip() or "api"
+
+
+class WorkItemBlockRequest(BaseModel):
+    company_id: str | None = Field(default=None, min_length=1, max_length=48)
+    reason: str = Field(min_length=1, max_length=2_000)
+    actor_id: str = Field(default="api", min_length=1, max_length=128)
+
+    @field_validator("company_id", mode="before")
+    @classmethod
+    def _clean_optional_string(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        cleaned = str(value).strip()
+        return cleaned or None
+
+    @field_validator("reason", "actor_id", mode="before")
+    @classmethod
+    def _clean_string(cls, value: Any) -> str:
+        return str(value or "").strip()
+
+
+class WorkItemCloseRequest(BaseModel):
+    company_id: str | None = Field(default=None, min_length=1, max_length=48)
+    status: WorkItemStatus = WorkItemStatus.COMPLETED
+    actor_id: str = Field(default="api", min_length=1, max_length=128)
+    reason: str | None = Field(default=None, max_length=2_000)
+
+    @field_validator("company_id", "reason", mode="before")
     @classmethod
     def _clean_optional_string(cls, value: Any) -> str | None:
         if value is None:
@@ -1070,6 +1144,148 @@ def create_control_plane_router(
             "evidence_artifact_id": result.agent_wakeup.wakeup.evidence_artifact_id,
         }
 
+    @router.post("/work-items/{work_item_id}/retry")
+    async def retry_work_item(
+        work_item_id: str,
+        body: WorkItemRetryRequest,
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
+    ):
+        stores = uow.stores
+        try:
+            result = await run_work_item_with_agent(
+                stores.work_items,
+                stores.agent_operations,
+                company_id=resolve_company(body.company_id),
+                work_item_id=work_item_id,
+                agent_id=body.agent_id,
+                input_payload=body.input,
+                actor_id=body.actor_id,
+                trace_id=body.trace_id,
+            )
+        except WorkItemNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
+        except WorkItemExecutionAgentRequiredError:
+            raise_control_plane_api_error(status_code=400, detail="agent_required")
+        except AgentDefinitionNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="agent_not_found")
+        except AgentWakeupError as exc:
+            await uow.commit()
+            raise_control_plane_api_error(status_code=exc.status_code, detail=exc.detail)
+
+        await uow.commit()
+        return {
+            "work_item": _row_to_dict(result.work_item),
+            "run": (
+                _row_to_dict(result.agent_wakeup.run)
+                if result.agent_wakeup.run is not None
+                else {"run_id": result.agent_wakeup.wakeup.run_id}
+            ),
+            "output": result.agent_wakeup.wakeup.output,
+            "evidence_artifact_id": result.agent_wakeup.wakeup.evidence_artifact_id,
+        }
+
+    @router.post("/work-items/{work_item_id}/reassign")
+    async def reassign_work_item_route(
+        work_item_id: str,
+        body: WorkItemReassignRequest,
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
+    ):
+        stores = uow.stores
+        try:
+            row = await reassign_work_item(
+                stores.work_items,
+                company_id=resolve_company(body.company_id),
+                work_item_id=work_item_id,
+                owner_agent_id=body.owner_agent_id,
+                owner_user_id=body.owner_user_id,
+                actor_id=body.actor_id,
+                reason=body.reason,
+            )
+        except WorkItemNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
+        except WorkItemAssigneeRequiredError:
+            raise_control_plane_api_error(status_code=400, detail="assignee_required")
+        await uow.commit()
+        return _row_to_dict(row)
+
+    @router.post("/work-items/{work_item_id}/block")
+    async def block_work_item_route(
+        work_item_id: str,
+        body: WorkItemBlockRequest,
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
+    ):
+        stores = uow.stores
+        try:
+            row = await block_work_item(
+                stores.work_items,
+                company_id=resolve_company(body.company_id),
+                work_item_id=work_item_id,
+                actor_id=body.actor_id,
+                reason=body.reason,
+            )
+        except WorkItemNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
+        await uow.commit()
+        return _row_to_dict(row)
+
+    @router.post("/work-items/{work_item_id}/close")
+    async def close_work_item_route(
+        work_item_id: str,
+        body: WorkItemCloseRequest,
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
+    ):
+        stores = uow.stores
+        try:
+            row = await close_work_item(
+                stores.work_items,
+                company_id=resolve_company(body.company_id),
+                work_item_id=work_item_id,
+                status=body.status,
+                actor_id=body.actor_id,
+                reason=body.reason,
+            )
+        except WorkItemNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
+        except WorkItemCloseStatusError:
+            raise_control_plane_api_error(status_code=400, detail="invalid_close_status")
+        await uow.commit()
+        return _row_to_dict(row)
+
+    @router.get("/work-items/{work_item_id}/activity")
+    async def get_work_item_activity(
+        work_item_id: str,
+        company_id: str | None = None,
+        limit: int = Query(default=100, ge=1, le=500),
+        stores: ControlPlaneStores = Depends(get_stores),
+    ):
+        resolved_company_id = resolve_company(company_id)
+        try:
+            work_item = await get_work_item_from_store(
+                stores.work_items,
+                company_id=resolved_company_id,
+                work_item_id=work_item_id,
+            )
+        except WorkItemNotFoundError:
+            raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
+        items = await build_work_item_activity_from_store(
+            stores.audit_timeline,
+            company_id=resolved_company_id,
+            work_item_id=work_item_id,
+            limit=limit,
+        )
+        return {
+            "work_item": _row_to_dict(work_item),
+            "activity": [
+                {
+                    "type": item.item_type,
+                    "at": _serialize(item.at),
+                    "data": _row_to_dict(item.data),
+                }
+                for item in items
+            ],
+            "total": len(items),
+        }
+
     @router.get("/decisions")
     async def list_decisions(
         company_id: str | None = None,
@@ -1658,6 +1874,7 @@ def create_control_plane_router(
         status: str | None = None,
         run_id: str | None = None,
         trace_id: str | None = None,
+        work_item_id: str | None = None,
         limit: int = Query(default=50, ge=1, le=200),
         stores: ControlPlaneStores = Depends(get_stores),
     ):
@@ -1668,6 +1885,7 @@ def create_control_plane_router(
             status=status,
             run_id=run_id,
             trace_id=trace_id,
+            work_item_id=work_item_id,
             limit=limit,
         )
         return {"approvals": [_row_to_dict(row) for row in rows]}
@@ -1852,6 +2070,7 @@ def create_control_plane_router(
         company_id: str | None = None,
         trace_id: str | None = None,
         run_id: str | None = None,
+        work_item_id: str | None = None,
         target_type: str | None = None,
         target_id: str | None = None,
         limit: int = Query(default=100, ge=1, le=500),
@@ -1863,6 +2082,7 @@ def create_control_plane_router(
             company_id=resolve_company(company_id),
             trace_id=trace_id,
             run_id=run_id,
+            work_item_id=work_item_id,
             target_type=target_type,
             target_id=target_id,
             limit=limit,

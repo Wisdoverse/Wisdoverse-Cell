@@ -24,6 +24,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
         *,
         company_id: str,
         trace_id: str | None = None,
+        work_item_id: str | None = None,
         limit: int = 50,
     ) -> list[AgentRun]:
         """Return agent runs for one company."""
@@ -34,6 +35,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
         company_id: str,
         trace_id: str | None = None,
         run_id: str | None = None,
+        work_item_id: str | None = None,
         target_type: str | None = None,
         target_id: str | None = None,
         limit: int = 100,
@@ -46,6 +48,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
         company_id: str,
         run_id: str | None = None,
         trace_id: str | None = None,
+        work_item_id: str | None = None,
         limit: int = 50,
     ) -> list[ApprovalRequest]:
         """Return approval requests."""
@@ -66,6 +69,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
         company_id: str,
         run_id: str | None = None,
         run_ids: list[str] | None = None,
+        work_item_id: str | None = None,
         limit: int = 50,
     ) -> list[Decision]:
         """Return decisions."""
@@ -76,6 +80,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
         company_id: str,
         run_id: str | None = None,
         run_ids: list[str] | None = None,
+        work_item_id: str | None = None,
         limit: int = 50,
     ) -> list[Artifact]:
         """Return artifacts."""

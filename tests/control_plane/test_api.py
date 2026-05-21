@@ -1397,6 +1397,279 @@ async def test_control_plane_api_marks_work_item_failed_when_execution_fails(
 
 
 @pytest.mark.asyncio
+async def test_control_plane_api_manages_work_item_operations_and_activity(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        "shared.control_plane.agent_runner.settings.control_plane_local_adapter_enabled",
+        True,
+    )
+    monkeypatch.setattr(
+        "shared.control_plane.agent_runner.settings.control_plane_local_adapter_allowlist",
+        "process:ops-runner",
+    )
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        goal = await client.post(
+            "/api/v1/control-plane/goals",
+            json={"company_id": "cmp_work_ops", "title": "Operate work item"},
+        )
+        goal_id = goal.json()["goal_id"]
+        work_item = await client.post(
+            "/api/v1/control-plane/work-items",
+            json={
+                "company_id": "cmp_work_ops",
+                "title": "Ship operator path",
+                "status": "ready",
+                "goal_id": goal_id,
+                "owner_agent_id": "ops-runner",
+            },
+        )
+        work_item_id = work_item.json()["work_item_id"]
+        await client.post(
+            "/api/v1/control-plane/agents",
+            json={
+                "company_id": "cmp_work_ops",
+                "agent_id": "ops-runner",
+                "display_name": "Ops Runner",
+                "adapter_type": "process",
+                "adapter_config": {
+                    "command": [
+                        sys.executable,
+                        "-c",
+                        "import json,sys; data=json.load(sys.stdin); print(data['run_id'])",
+                    ],
+                    "timeout_sec": 10,
+                },
+            },
+        )
+        executed = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/run",
+            json={"company_id": "cmp_work_ops", "trace_id": "trace-work-ops"},
+        )
+        run_id = executed.json()["run"]["run_id"]
+        decision = await client.post(
+            "/api/v1/control-plane/decisions",
+            json={
+                "company_id": "cmp_work_ops",
+                "title": "Accept work output",
+                "rationale": "Evidence is present",
+                "run_id": run_id,
+                "work_item_id": work_item_id,
+                "goal_id": goal_id,
+            },
+        )
+        artifact = await client.post(
+            "/api/v1/control-plane/artifacts",
+            json={
+                "company_id": "cmp_work_ops",
+                "artifact_type": "report",
+                "title": "Operator handoff",
+                "uri": "artifact://work-ops/handoff",
+                "run_id": run_id,
+                "work_item_id": work_item_id,
+                "goal_id": goal_id,
+                "created_by_agent_id": "ops-runner",
+            },
+        )
+        await ControlPlaneStores(db_session).approvals.request_approval(
+            ApprovalRequest(
+                company_id="cmp_work_ops",
+                category=ApprovalCategory.TECHNICAL,
+                requested_by="agent:ops-runner",
+                source_agent_id="ops-runner",
+                proposed_action="Close work item",
+                reason="Operator wants final closure",
+                risk="Premature closure",
+                rollback_note="Reopen the work item",
+                affected_resources=["control-plane:work-item"],
+                run_id=run_id,
+                work_item_id=work_item_id,
+                goal_id=goal_id,
+                trace_id="trace-work-ops",
+            )
+        )
+        reassigned = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/reassign",
+            json={
+                "company_id": "cmp_work_ops",
+                "owner_agent_id": "qa-agent",
+                "actor_id": "human:operator",
+                "reason": "QA owns final review",
+            },
+        )
+        blocked = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/block",
+            json={
+                "company_id": "cmp_work_ops",
+                "reason": "Waiting for customer approval",
+                "actor_id": "human:operator",
+            },
+        )
+        closed = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/close",
+            json={
+                "company_id": "cmp_work_ops",
+                "status": "completed",
+                "reason": "Customer approved",
+                "actor_id": "human:operator",
+            },
+        )
+        activity = await client.get(
+            f"/api/v1/control-plane/work-items/{work_item_id}/activity",
+            params={"company_id": "cmp_work_ops"},
+        )
+        audits = await client.get(
+            "/api/v1/control-plane/audit-events",
+            params={"company_id": "cmp_work_ops", "work_item_id": work_item_id},
+        )
+
+    assert executed.status_code == 200
+    assert decision.status_code == 201
+    assert artifact.status_code == 201
+    assert reassigned.status_code == 200
+    assert reassigned.json()["owner_agent_id"] == "qa-agent"
+    assert blocked.status_code == 200
+    assert blocked.json()["status"] == "blocked"
+    assert closed.status_code == 200
+    assert closed.json()["status"] == "completed"
+    assert activity.status_code == 200
+    assert activity.json()["work_item"]["work_item_id"] == work_item_id
+    activity_types = {item["type"] for item in activity.json()["activity"]}
+    assert {"agent_run", "approval", "artifact", "audit_event", "decision"}.issubset(
+        activity_types
+    )
+    assert audits.status_code == 200
+    audit_details = [
+        item["detail"]
+        for item in audits.json()["audit_events"]
+        if item["action"] == EventTypes.WORK_ITEM_UPDATED
+    ]
+    assert any(
+        detail.get("command") == "reassign"
+        and detail.get("reason") == "QA owns final review"
+        for detail in audit_details
+    )
+    assert any(
+        detail.get("command") == "block"
+        and detail.get("reason") == "Waiting for customer approval"
+        for detail in audit_details
+    )
+    assert any(
+        detail.get("command") == "close"
+        and detail.get("reason") == "Customer approved"
+        for detail in audit_details
+    )
+
+
+@pytest.mark.asyncio
+async def test_control_plane_api_retries_work_item_execution(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        "shared.control_plane.agent_runner.settings.control_plane_local_adapter_enabled",
+        True,
+    )
+    monkeypatch.setattr(
+        "shared.control_plane.agent_runner.settings.control_plane_local_adapter_allowlist",
+        "process:retry-runner",
+    )
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        work_item = await client.post(
+            "/api/v1/control-plane/work-items",
+            json={
+                "company_id": "cmp_work_retry",
+                "title": "Retryable work",
+                "owner_agent_id": "retry-runner",
+            },
+        )
+        work_item_id = work_item.json()["work_item_id"]
+        await client.post(
+            "/api/v1/control-plane/agents",
+            json={
+                "company_id": "cmp_work_retry",
+                "agent_id": "retry-runner",
+                "display_name": "Retry Runner",
+                "adapter_type": "process",
+                "adapter_config": {
+                    "command": [
+                        sys.executable,
+                        "-c",
+                        (
+                            "import json,sys; data=json.load(sys.stdin); "
+                            "print(data['input'].get('attempt'))"
+                        ),
+                    ],
+                    "timeout_sec": 10,
+                },
+            },
+        )
+        first = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/run",
+            json={"company_id": "cmp_work_retry", "input": {"attempt": "first"}},
+        )
+        retry = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/retry",
+            json={"company_id": "cmp_work_retry", "input": {"attempt": "second"}},
+        )
+        runs = await client.get(
+            "/api/v1/control-plane/runs",
+            params={"company_id": "cmp_work_retry", "work_item_id": work_item_id},
+        )
+
+    assert first.status_code == 200
+    assert first.json()["output"]["stdout"].strip() == "first"
+    assert retry.status_code == 200
+    assert retry.json()["output"]["stdout"].strip() == "second"
+    assert runs.status_code == 200
+    assert len(runs.json()["runs"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_control_plane_api_rejects_invalid_work_item_operations(
+    db_session: AsyncSession,
+):
+    app = FastAPI()
+    app.include_router(
+        create_control_plane_router(session_provider=_session_provider(db_session))
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        work_item = await client.post(
+            "/api/v1/control-plane/work-items",
+            json={"company_id": "cmp_work_ops_invalid", "title": "Invalid ops"},
+        )
+        work_item_id = work_item.json()["work_item_id"]
+        missing_assignee = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/reassign",
+            json={"company_id": "cmp_work_ops_invalid"},
+        )
+        invalid_close = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/close",
+            json={"company_id": "cmp_work_ops_invalid", "status": "running"},
+        )
+
+    assert missing_assignee.status_code == 400
+    assert missing_assignee.json()["detail"] == "assignee_required"
+    assert invalid_close.status_code == 400
+    assert invalid_close.json()["detail"] == "invalid_close_status"
+
+
+@pytest.mark.asyncio
 async def test_control_plane_service_actions_require_internal_key(
     db_session: AsyncSession,
 ):

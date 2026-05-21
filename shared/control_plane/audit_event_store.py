@@ -35,6 +35,7 @@ class SqlAlchemyControlPlaneAuditEventStore:
         company_id: str,
         trace_id: str | None = None,
         run_id: str | None = None,
+        work_item_id: str | None = None,
         target_type: str | None = None,
         target_id: str | None = None,
         limit: int = 100,
@@ -44,6 +45,8 @@ class SqlAlchemyControlPlaneAuditEventStore:
             query = query.where(AuditEventTable.trace_id == trace_id)
         if run_id:
             query = query.where(AuditEventTable.run_id == run_id)
+        if work_item_id:
+            query = query.where(AuditEventTable.work_item_id == work_item_id)
         if target_type:
             query = query.where(AuditEventTable.target_type == target_type)
         if target_id:

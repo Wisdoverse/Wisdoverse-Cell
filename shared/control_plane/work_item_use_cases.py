@@ -113,6 +113,8 @@ async def update_work_item_status_with_audit(
     owner_agent_id: str | None,
     owner_user_id: str | None,
     actor_id: str,
+    command: str | None = None,
+    reason: str | None = None,
 ) -> WorkItem:
     """Update a work-item status and record its audit event."""
     existing = await store.get_work_item(work_item_id)
@@ -129,6 +131,16 @@ async def update_work_item_status_with_audit(
     if updated is None:
         raise WorkItemNotFoundError(work_item_id)
 
+    detail = {
+        "status": updated.status,
+        "owner_agent_id": updated.owner_agent_id,
+        "owner_user_id": updated.owner_user_id,
+    }
+    if command:
+        detail["command"] = command
+    if reason:
+        detail["reason"] = reason
+
     await store.append_audit_event(
         AuditEvent(
             company_id=company_id,
@@ -138,11 +150,7 @@ async def update_work_item_status_with_audit(
             actor_type="user",
             actor_id=actor_id,
             work_item_id=updated.work_item_id,
-            detail={
-                "status": updated.status,
-                "owner_agent_id": updated.owner_agent_id,
-                "owner_user_id": updated.owner_user_id,
-            },
+            detail=detail,
         )
     )
     return updated
