@@ -1112,7 +1112,7 @@ def test_requirement_feedback_api_delegates_to_use_case() -> None:
     assert "get_requirement_feedback_use_case" in dependency_source
     assert "agent = get_agent()" in dependency_source
     assert "mutation_workflow=agent.mutation_workflow" in dependency_source
-    assert "side_effects=agent" in dependency_source
+    assert "side_effects=agent.mutation_side_effects" in dependency_source
     assert "uow_factory=agent.get_unit_of_work" in dependency_source
     assert "class RequirementFeedbackUseCase" in use_case_source
     assert "RequirementMutationWorkflow" in use_case_source
@@ -1146,7 +1146,7 @@ def test_requirement_mutation_routes_delegate_to_use_case() -> None:
     assert "get_requirement_mutation_use_case" in dependency_source
     assert "agent = get_agent()" in dependency_source
     assert "mutation_workflow=agent.mutation_workflow" in dependency_source
-    assert "side_effects=agent" in dependency_source
+    assert "side_effects=agent.mutation_side_effects" in dependency_source
     assert "uow_factory=agent.get_unit_of_work" in dependency_source
     assert "class RequirementMutationUseCase" in use_case_source
     assert "RequirementMutationWorkflow" in use_case_source
@@ -1178,6 +1178,62 @@ def test_requirement_mutation_rules_live_in_core_workflow() -> None:
     assert "record_updated(" not in agent_source
     assert "def _create_requirement_confirmed_event" not in agent_source
     assert "SqlAlchemyRequirementFeedbackStore" not in feedback_source
+
+
+def test_requirement_agent_mutation_commands_delegate_to_application_use_case() -> None:
+    """Requirement service shell should not own command transactions or side effects."""
+    agent_source = Path("agents/requirement_manager/service/agent.py").read_text()
+    command_source = Path(
+        "agents/requirement_manager/core/requirement_command_use_cases.py"
+    ).read_text()
+    side_effect_source = Path(
+        "agents/requirement_manager/core/mutation_side_effect_use_cases.py"
+    ).read_text()
+
+    assert "class RequirementCommandUseCase" in command_source
+    assert "async def confirm_requirement" in command_source
+    assert "async def reject_requirement" in command_source
+    assert "async def update_requirement" in command_source
+    assert "async def delete_requirement" in command_source
+    assert "async def answer_question" in command_source
+    assert "async def batch_confirm_requirements" in command_source
+    assert "async def batch_reject_requirements" in command_source
+    assert "async with self._uow_factory() as active_uow" in command_source
+    assert "await active_uow.commit()" in command_source
+    assert "publish_requirement_mutation_side_effects(result)" in command_source
+
+    assert "class RequirementMutationSideEffectUseCase" in side_effect_source
+    assert "class RequirementVectorDeletePort(Protocol)" in side_effect_source
+    assert "class RequirementStagedEventPublisherPort(Protocol)" in side_effect_source
+    assert "delete_requirement_vector_record" in side_effect_source
+    assert "vector_store_delete_failed" in side_effect_source
+    assert "await self._event_publisher.publish_staged_event" in side_effect_source
+
+    assert "RequirementCommandUseCase" in agent_source
+    assert "RequirementMutationSideEffectUseCase" in agent_source
+    assert "def _command_use_case" in agent_source
+    assert "def _mutation_side_effect_use_case" in agent_source
+    assert "def mutation_side_effects" in agent_source
+
+    for function_name, delegated_call in (
+        ("confirm_requirement", ".confirm_requirement("),
+        ("reject_requirement", ".reject_requirement("),
+        ("update_requirement", ".update_requirement("),
+        ("delete_requirement", ".delete_requirement("),
+        ("answer_question", ".answer_question("),
+        ("batch_confirm_requirements", ".batch_confirm_requirements("),
+        ("batch_reject_requirements", ".batch_reject_requirements("),
+    ):
+        function_source = _function_source(agent_source, function_name)
+        assert "self._command_use_case()" in function_source
+        assert delegated_call in function_source
+        assert "async with self.get_unit_of_work() as uow" not in function_source
+        assert "await uow.commit()" not in function_source
+        assert "publish_requirement_mutation_side_effects(result)" not in function_source
+
+    assert "vector_store_delete_failed" not in agent_source
+    assert "delete_requirement_vector_record" not in agent_source
+    assert "self._vector_store.delete_requirement" not in agent_source
 
 
 def test_webui_read_routes_delegate_to_query_use_case() -> None:
@@ -3394,7 +3450,7 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
     assert "await self._agent._stage_requirement_event(self._session, event)" in service_source
     assert "RequirementEventOutboxRepository" not in service_source
     assert "await self._agent._commit_requirement_mutation" in service_source
-    assert "await self.publish_requirement_mutation_side_effects(result)" in service_source
+    assert "RequirementMutationSideEffectUseCase" in service_source
     assert "await self._publish_staged_requirement_event" in service_source
     assert "publish_pending_requirement_events" in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
