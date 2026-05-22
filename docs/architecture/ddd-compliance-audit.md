@@ -754,7 +754,7 @@ not operational risk. Stage mapping is to
 | DDD-017 | User Interaction Gateway | application purity | **high** | Wrap `shared.infra.conversation_engine` behind a port consumed by `core/chat_service.py`; remove infrastructure import from core | 2 | DDD-016 |
 | DDD-018 | Coordinator | durability | **high** | Decide and document `CoordinatorStateStore` durable adapter (Postgres-backed or Redis-backed); add operator replay tooling; closes Phase 1 audit §11 open question 2 | 2 | — |
 | DDD-019 | Coordinator | ACL | medium | Wrap LLM thinker callable behind a typed port that translates LLM responses into typed domain decisions (`ThinkerDecision` value object) | 2 | — |
-| DDD-020 | Requirement Manager, Dev Agent | layering | medium | Delete legacy `core/requirement_lifecycle.py` and `core/task_lifecycle.py` once import-rewrite confirms no caller depends on the legacy path | 1 | — |
+| DDD-020 | Requirement Manager, Dev Agent | layering | medium | ✅ Landed `27a5a5d24`. Six callers migrated to `core/domain/lifecycle/`; both shims deleted; architecture-boundary tests updated to require the canonical path | 1 | done |
 | DDD-021 | QA Agent | aggregate | medium | Decide whether `AcceptanceRun` is an aggregate (with FSM `REQUESTED → RUNNING → VERDICT_RENDERED → CLOSED`) or stays as a one-shot computation. If aggregate, model run-state transitions; if not, document the decision in QA README | 2 | — |
 | DDD-022 | Integration Plane | port coverage | medium | Add a dedicated `WecomMessengerPort`; add `OpenClawIntegrationPort` (currently raw dict params); make `OpenProjectWorkPackagePort` return typed records instead of `dict[str, Any]` | 2 | DDD-013 |
 
