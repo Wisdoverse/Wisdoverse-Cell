@@ -2,17 +2,16 @@
 from typing import Any
 
 from shared.config import settings
-from shared.core import EventPublisher, unknown_action_error
+from shared.core import EventPublisher
 from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
 from shared.infra.llm_gateway import llm_gateway
 from shared.infra.scratchpad import Scratchpad
-from shared.observability.outbox import record_outbox_pending_age
 from shared.schemas.agent import BaseAgent
-from shared.schemas.event import Event, EventMetadata, EventTypes
+from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
-from ..core.event_use_cases import CoordinatorEventUseCase
+from ..core.application_facade import CoordinatorApplicationFacade
 from ..core.health_ports import CoordinatorHealthStore
 from ..core.models import Decision
 from ..core.outbox_ports import CoordinatorEventOutboxStore
@@ -70,6 +69,18 @@ class CoordinatorAgent(BaseAgent):
             self._outbox_store = SqlAlchemyCoordinatorEventOutboxStore(
                 self._db_manager
             )
+        self._application = CoordinatorApplicationFacade(
+            standard_request_handler=self.handle_standard_request,
+            scratchpad_provider=lambda: self._scratchpad,
+            state_store_provider=lambda: self._state_store,
+            thinker_provider=lambda: self._think,
+            llm_gateway_provider=lambda: self._llm,
+            database_enabled=self._db_manager is not None,
+            health_store_provider=self._get_health_store_if_configured,
+            outbox_store_provider=lambda: self._outbox_store,
+            event_bus=self._event_bus,
+            event_publisher=self._event_publisher,
+        )
 
     async def startup(self) -> None:
         await self._scratchpad.initialize()
@@ -88,33 +99,20 @@ class CoordinatorAgent(BaseAgent):
 
     async def handle_event(self, event: Event) -> list[Event]:
         """Single entry point for all events."""
-        return await self._event_use_case().handle(event)
-
-    def _event_use_case(self) -> CoordinatorEventUseCase:
-        return CoordinatorEventUseCase(
-            scratchpad=self._scratchpad,
-            state_store=self._state_store,
-            thinker=self._think,
-        )
+        return await self._application.handle_event(event)
 
     async def handle_request(self, request: dict) -> dict:
         """Handle governance API requests."""
-        result = await self.handle_standard_request(request)
-        if result is not None:
-            return result
-        return unknown_action_error(action=request.get("action"))
+        return await self._application.handle_request(request)
 
     async def health_check(self) -> dict[str, bool]:
         """Return readiness checks for the coordinator runtime boundary."""
-        checks = {
-            "scratchpad": self._scratchpad.is_initialized(),
-            "state_store": self._state_store is not None,
-            "llm_gateway": self._llm is not None,
-        }
-        if self._db_manager is not None:
-            checks["database"] = False
-            checks["database"] = await self._get_health_store().is_database_ready()
-        return checks
+        return await self._application.health_check()
+
+    def _get_health_store_if_configured(self) -> CoordinatorHealthStore | None:
+        if self._db_manager is None:
+            return None
+        return self._get_health_store()
 
     def _get_health_store(self) -> CoordinatorHealthStore:
         if self._health_store is None:
@@ -128,99 +126,13 @@ class CoordinatorAgent(BaseAgent):
         limit: int = 100,
     ) -> dict[str, int]:
         """Retry pending Coordinator outbox events."""
-        if self._outbox_store is None:
-            raise RuntimeError("coordinator_outbox_store_not_started")
-
-        rows = await self._outbox_store.list_pending(limit=limit)
-        record_outbox_pending_age("coordinator", rows)
-
-        published = 0
-        failed = 0
-        for row in rows:
-            event = self._event_from_outbox(row)
-            if await self._publish_staged_coordinator_event(event):
-                published += 1
-            else:
-                failed += 1
-
-        logger.info(
-            "coordinator_outbox_dispatch_completed",
-            total=len(rows),
-            published=published,
-            failed=failed,
+        return await self._application.publish_pending_coordinator_events(
+            limit=limit,
         )
-        return {"total": len(rows), "published": published, "failed": failed}
 
     async def publish_event_via_outbox(self, event: Event) -> bool:
         """Stage a runtime-produced Coordinator event before EventBus delivery."""
-        if self._outbox_store is None:
-            raise RuntimeError("coordinator_outbox_store_not_started")
-        await self._outbox_store.add(event)
-        return await self._publish_staged_coordinator_event(event)
-
-    def _event_from_outbox(self, row) -> Event:
-        """Rebuild an immutable Event from a Coordinator outbox row."""
-        return Event(
-            event_id=row.event_id,
-            event_type=row.event_type,
-            timestamp=row.created_at,
-            source_agent=row.source_agent,
-            payload=row.payload,
-            schema_version=row.schema_version,
-            metadata=EventMetadata(
-                trace_id=row.trace_id,
-                correlation_id=row.correlation_id,
-                retry_count=row.retry_count,
-            ),
-        )
-
-    async def _publish_staged_coordinator_event(self, event: Event) -> bool:
-        """Publish one event already persisted in the Coordinator outbox."""
-        try:
-            await self._event_bus.connect()
-            ok = await self._event_publisher.publish(event)
-            if not ok:
-                raise RuntimeError("event_bus_publish_returned_false")
-            await self._mark_coordinator_event_published(event)
-            return True
-        except Exception as exc:
-            await self._mark_coordinator_event_failed(event, exc)
-            logger.error(
-                "coordinator_outbox_publish_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                error=str(exc),
-            )
-            return False
-
-    async def _mark_coordinator_event_published(self, event: Event) -> None:
-        """Best-effort mark for a successfully published Coordinator event."""
-        if self._outbox_store is None:
-            return
-        try:
-            await self._outbox_store.mark_published(event.event_id)
-        except Exception as exc:
-            logger.warning(
-                "coordinator_outbox_mark_published_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                error=str(exc),
-            )
-
-    async def _mark_coordinator_event_failed(self, event: Event, error: Exception) -> None:
-        """Best-effort failure recording for a Coordinator publish attempt."""
-        if self._outbox_store is None:
-            return
-        try:
-            await self._outbox_store.mark_failed(event.event_id, str(error))
-        except Exception as exc:
-            logger.warning(
-                "coordinator_outbox_mark_failed_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                publish_error=str(error),
-                error=str(exc),
-            )
+        return await self._application.publish_event_via_outbox(event)
 
     async def _think(self, context: dict[str, Any]) -> list[Decision]:
         """LLM synthesis — calls think engine with current LLM gateway."""
