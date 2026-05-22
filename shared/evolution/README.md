@@ -2,6 +2,15 @@
 
 > Agents that learn from their own execution traces.
 
+**Sibling package**: [`shared/capabilities/evolution/`](../capabilities/evolution/README.md)
+is the **L2 capability service** built on top of this runtime. This package
+(`shared/evolution/`) provides the runtime primitives every evolving agent
+uses (trace collector, evaluator, skill optimizer, evolution guard, canary
+router, kill switch). The capability service consumes these primitives to
+run global analysis cycles and produce `EvolutionProposal` records. The
+split is intentional — runtime primitives vs. capability flow.
+See [DDD compliance audit row DDD-005](../../docs/architecture/ddd-compliance-audit.md).
+
 ## Overview
 
 The self-evolution system enables Wisdoverse Cell agents to autonomously improve their skills (prompts, parameters, few-shot examples) based on execution data, human feedback, and cross-agent collaboration patterns. All changes are gated by safety mechanisms -- agents cannot modify their own code, only their skill configurations.
