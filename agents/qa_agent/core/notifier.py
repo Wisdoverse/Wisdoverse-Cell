@@ -15,7 +15,7 @@ from shared.utils.logger import get_logger
 
 from .card_ports import QualityCardRendererPort
 from .config import QACoreConfig
-from .domain.acceptance_verdicts import (
+from .domain.acceptance_vocabulary import (
     is_blocking_finding,
     is_warning_finding,
 )
