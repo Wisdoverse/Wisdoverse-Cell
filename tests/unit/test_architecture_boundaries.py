@@ -902,6 +902,9 @@ def test_requirement_conflict_route_delegates_to_use_case() -> None:
 def test_requirement_extractor_uses_runtime_injected_llm() -> None:
     """Requirement extraction core should not own LLM gateway wiring."""
     extractor_source = Path("agents/requirement_manager/core/extractor.py").read_text()
+    ingest_workflow_source = Path(
+        "agents/requirement_manager/core/meeting_ingest_workflow.py"
+    ).read_text()
     core_init_source = Path("agents/requirement_manager/core/__init__.py").read_text()
     agent_source = Path("agents/requirement_manager/service/agent.py").read_text()
 
@@ -913,7 +916,9 @@ def test_requirement_extractor_uses_runtime_injected_llm() -> None:
     assert "requirement_extractor: Optional[RequirementExtractor]" in agent_source
     assert "RequirementExtractor(" in agent_source
     assert "system_prompt_resolver=resolve_agent_system_prompt" in agent_source
-    assert "await self._extractor.extract(" in agent_source
+    assert "extractor=self._extractor" in agent_source
+    assert "await self._extractor.extract(" in ingest_workflow_source
+    assert "await self._extractor.extract(" not in agent_source
     assert "await extractor.extract(" not in agent_source
 
 
@@ -1013,12 +1018,25 @@ def test_requirement_agent_event_dispatch_delegates_to_application_use_case() ->
 def test_requirement_ingest_uses_explicit_unit_of_work_boundary() -> None:
     """Requirement ingestion should stage events and commit through an explicit UOW."""
     port_source = Path("agents/requirement_manager/core/unit_of_work_ports.py").read_text()
+    workflow_source = Path(
+        "agents/requirement_manager/core/meeting_ingest_workflow.py"
+    ).read_text()
     adapter_source = Path("agents/requirement_manager/db/unit_of_work.py").read_text()
     service_source = Path("agents/requirement_manager/service/agent.py").read_text()
 
     assert "class RequirementUnitOfWork(Protocol)" in port_source
     assert "class RequirementUnitOfWorkFactory(Protocol)" in port_source
     assert "class RequirementOutboxWriter(Protocol)" in port_source
+    assert "class IngestResult" in workflow_source
+    assert "class RequirementExtractorPort(Protocol)" in workflow_source
+    assert "class RequirementVectorIndexPort(Protocol)" in workflow_source
+    assert "class RequirementMeetingIngestWorkflow" in workflow_source
+    assert "Meeting(" in workflow_source
+    assert "Requirement(" in workflow_source
+    assert "OpenQuestion(" in workflow_source
+    assert "create_requirements_extracted_event" in workflow_source
+    assert "await uow.outbox.stage(extracted_event)" in workflow_source
+    assert "await self._vector_index.add_requirements_batch" in workflow_source
     assert "class SqlAlchemyRequirementUnitOfWork" in adapter_source
     assert "SqlAlchemyRequirementMeetingStore(session)" in adapter_source
     assert "SqlAlchemyRequirementStore(session)" in adapter_source
@@ -1031,10 +1049,51 @@ def test_requirement_ingest_uses_explicit_unit_of_work_boundary() -> None:
     assert "self._session.rollback()" in adapter_source
 
     assert "SqlAlchemyRequirementUnitOfWorkFactory(self._db_manager)" in service_source
+    assert "RequirementMeetingIngestWorkflow(" in service_source
     assert "def get_unit_of_work" in service_source
     assert "async def ingest_meeting_with_uow" in service_source
-    assert "await uow.outbox.stage(extracted_event)" in service_source
+    assert (
+        "return await self._ingest_workflow.ingest_meeting("
+        in _function_source(service_source, "ingest_meeting_with_uow")
+    )
+    assert "Meeting(" not in service_source
+    assert "Requirement(" not in service_source
+    assert "OpenQuestion(" not in service_source
+    assert "await uow.outbox.stage(extracted_event)" not in service_source
+    assert "await self._vector_store.add_requirements_batch" not in service_source
     assert "await self.publish_ingest_side_effects(result)" in service_source
+
+
+def test_requirement_session_extraction_delegates_to_application_use_case() -> None:
+    """Session extraction should not live in the Requirement service shell."""
+    service_source = Path("agents/requirement_manager/service/agent.py").read_text()
+    use_case_source = Path(
+        "agents/requirement_manager/core/session_extraction_use_cases.py"
+    ).read_text()
+
+    assert "class RequirementSessionExtractionUseCase" in use_case_source
+    assert "class RequirementSessionExtractionAgent(Protocol)" in use_case_source
+    assert "def format_messages_for_extraction" in use_case_source
+    assert "await uow.messages.get_by_session(session_id)" in use_case_source
+    assert "await uow.messages.mark_extracted" in use_case_source
+    assert "requirement.context_message_ids = message_ids" in use_case_source
+    assert "await self._agent.publish_ingest_side_effects(result)" in use_case_source
+    assert "await self._agent.send_session_extraction_card" in use_case_source
+
+    assert "RequirementSessionExtractionUseCase" in service_source
+    assert "def _session_extraction_use_case" in service_source
+    assert (
+        "return await self._session_extraction_use_case().extract_from_session"
+        in _function_source(service_source, "extract_from_session")
+    )
+    assert (
+        "return format_messages_for_extraction(messages)"
+        in _function_source(service_source, "_format_messages_for_extraction")
+    )
+    assert "await uow.messages.get_by_session(session_id)" not in service_source
+    assert "await uow.messages.mark_extracted" not in service_source
+    assert "context_message_ids" not in service_source
+    assert "extract_from_session_starting" not in service_source
 
 
 def test_requirement_feedback_api_delegates_to_use_case() -> None:
