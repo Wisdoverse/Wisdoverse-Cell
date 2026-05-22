@@ -13,16 +13,13 @@ from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
+from ..core.application_facade import AnalysisApplicationFacade
 from ..core.config import AnalysisCoreConfig
 from ..core.daily_report import DailyReportGenerator
-from ..core.event_use_cases import AnalysisEventUseCase
 from ..core.health_ports import AnalysisHealthStore
-from ..core.health_use_cases import AnalysisHealthUseCase
 from ..core.milestone_checker import MilestoneChecker
-from ..core.outbox_delivery_use_cases import AnalysisOutboxDeliveryUseCase
 from ..core.outbox_ports import AnalysisEventOutboxStore
 from ..core.quality_evaluator import QualityEvaluator
-from ..core.request_use_cases import AnalysisRequestUseCase
 from ..core.weekly_report import WeeklyReportGenerator
 from ..db.database import DatabaseManager, db_manager
 from ..db.health_store import SqlAlchemyAnalysisHealthStore
@@ -80,6 +77,19 @@ class AnalysisModule(BaseAgent):
         self._weekly: WeeklyReportGenerator | None = None
         self._milestone: MilestoneChecker | None = None
         self._quality: QualityEvaluator | None = None
+        self._application = AnalysisApplicationFacade(
+            standard_request_handler=self.handle_standard_request,
+            daily_provider=lambda: self._daily,
+            weekly_provider=lambda: self._weekly,
+            milestone_provider=lambda: self._milestone,
+            quality_provider=lambda: self._quality,
+            event_factory=self,
+            metrics=_AnalysisMetrics(),
+            health_store_provider=lambda: self._health_store,
+            event_bus=self._event_bus,
+            outbox_store_provider=lambda: self._outbox_store,
+            event_publisher=self._event_publisher,
+        )
 
     async def startup(self):
         logger.info("agent_starting", agent_id=self.agent_id)
@@ -133,74 +143,24 @@ class AnalysisModule(BaseAgent):
         logger.info("agent_stopped", agent_id=self.agent_id)
 
     async def handle_event(self, event: Event) -> list[Event]:
-        return await self._event_use_case().handle(event)
-
-    def _event_use_case(self) -> AnalysisEventUseCase:
-        return AnalysisEventUseCase(
-            daily=self._daily,
-            weekly=self._weekly,
-            milestone=self._milestone,
-            quality=self._quality,
-            event_factory=self,
-            metrics=_AnalysisMetrics(),
-        )
+        return await self._application.handle_event(event)
 
     async def handle_request(self, request: dict) -> dict:
-        standard_response = await self.handle_standard_request(request)
-        if standard_response is not None:
-            return standard_response
-
-        return await self._request_use_case().handle(request)
-
-    def _request_use_case(self) -> AnalysisRequestUseCase:
-        return AnalysisRequestUseCase(
-            daily=self._daily,
-            weekly=self._weekly,
-            milestone=self._milestone,
-        )
+        return await self._application.handle_request(request)
 
     async def health_check(self) -> dict[str, bool]:
         """Public health check for readiness probes."""
-        return await self._health_use_case().check()
-
-    def _health_use_case(self) -> AnalysisHealthUseCase:
-        return AnalysisHealthUseCase(
-            health_store=self._health_store,
-            event_bus=self._event_bus,
-        )
+        return await self._application.health_check()
 
     async def publish_pending_analysis_events(self, limit: int = 100) -> dict[str, int]:
         """Retry pending Analysis outbox events."""
-        return await self._outbox_delivery_use_case().publish_pending_events(
+        return await self._application.publish_pending_analysis_events(
             limit=limit,
         )
 
     async def publish_event_via_outbox(self, event: Event) -> bool:
         """Stage a runtime-produced Analysis event before EventBus delivery."""
-        return await self._outbox_delivery_use_case().publish_event_via_outbox(event)
-
-    def _outbox_delivery_use_case(self) -> AnalysisOutboxDeliveryUseCase:
-        return AnalysisOutboxDeliveryUseCase(
-            outbox_store=self._outbox_store,
-            event_bus=self._event_bus,
-            event_publisher=self._event_publisher,
-        )
-
-    def _event_from_outbox(self, row) -> Event:
-        """Rebuild an immutable Event from an Analysis outbox row."""
-        return self._outbox_delivery_use_case().event_from_outbox(row)
-
-    async def _publish_staged_analysis_event(self, event: Event) -> bool:
-        """Publish one event already persisted in the Analysis outbox."""
-        return await self._outbox_delivery_use_case().publish_staged_event(event)
-
-    async def _mark_analysis_event_published(self, event: Event) -> None:
-        """Best-effort mark for a successfully published Analysis outbox event."""
-        await self._outbox_delivery_use_case().mark_event_published(event)
-
-    async def _mark_analysis_event_failed(self, event: Event, error: Exception) -> None:
-        """Best-effort failure recording for an Analysis outbox publish attempt."""
-        await self._outbox_delivery_use_case().mark_event_failed(event, error)
+        return await self._application.publish_event_via_outbox(event)
 
 agent = AnalysisModule()
 

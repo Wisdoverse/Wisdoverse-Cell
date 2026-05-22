@@ -2008,11 +2008,15 @@ def test_analysis_agent_request_dispatch_delegates_to_application_use_case() -> 
     service_source = Path(
         "shared/capabilities/analysis/service/agent.py"
     ).read_text()
+    facade_source = Path(
+        "shared/capabilities/analysis/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "shared/capabilities/analysis/core/request_use_cases.py"
     ).read_text()
     handle_source = _function_source(service_source, "handle_request")
 
+    assert "class AnalysisApplicationFacade" in facade_source
     assert "class AnalysisRequestUseCase" in use_case_source
     assert "class AnalysisReportGeneratorPort(Protocol)" in use_case_source
     assert "class AnalysisMilestoneCheckerPort(Protocol)" in use_case_source
@@ -2021,8 +2025,11 @@ def test_analysis_agent_request_dispatch_delegates_to_application_use_case() -> 
     assert 'action == "check_milestones"' in use_case_source
     assert "unknown_action_error()" in use_case_source
 
-    assert "AnalysisRequestUseCase" in service_source
-    assert "return await self._request_use_case().handle(request)" in handle_source
+    assert "AnalysisRequestUseCase" not in service_source
+    assert "def _request_use_case" not in service_source
+    assert "return await self._application.handle_request(request)" in handle_source
+    assert "def _request_use_case" in facade_source
+    assert "return await self._request_use_case().handle(request)" in facade_source
     assert 'action == "daily_report"' not in handle_source
     assert 'action == "weekly_report"' not in handle_source
     assert 'action == "check_milestones"' not in handle_source
@@ -2037,11 +2044,15 @@ def test_analysis_agent_event_dispatch_delegates_to_application_use_case() -> No
     service_source = Path(
         "shared/capabilities/analysis/service/agent.py"
     ).read_text()
+    facade_source = Path(
+        "shared/capabilities/analysis/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "shared/capabilities/analysis/core/event_use_cases.py"
     ).read_text()
     handle_source = _function_source(service_source, "handle_event")
 
+    assert "class AnalysisApplicationFacade" in facade_source
     assert "class AnalysisEventUseCase" in use_case_source
     assert "class AnalysisEventFactoryPort(Protocol)" in use_case_source
     assert "class AnalysisMetricsPort(Protocol)" in use_case_source
@@ -2055,9 +2066,11 @@ def test_analysis_agent_event_dispatch_delegates_to_application_use_case() -> No
     assert "quality_eval_failed" in use_case_source
     assert "weekly_report_failed" in use_case_source
 
-    assert "AnalysisEventUseCase" in service_source
-    assert "def _event_use_case" in service_source
-    assert "return await self._event_use_case().handle(event)" in handle_source
+    assert "AnalysisEventUseCase" not in service_source
+    assert "def _event_use_case" not in service_source
+    assert "return await self._application.handle_event(event)" in handle_source
+    assert "def _event_use_case" in facade_source
+    assert "return await self._event_use_case().handle(event)" in facade_source
     assert "EventTypes.SYNC_COMPLETED" not in handle_source
     assert "_on_sync_completed" not in service_source
     assert "REPORT_DAILY_GENERATED" not in handle_source
@@ -2072,10 +2085,14 @@ def test_analysis_outbox_delivery_delegates_to_application_use_case() -> None:
     service_source = Path(
         "shared/capabilities/analysis/service/agent.py"
     ).read_text()
+    facade_source = Path(
+        "shared/capabilities/analysis/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "shared/capabilities/analysis/core/outbox_delivery_use_cases.py"
     ).read_text()
 
+    assert "class AnalysisApplicationFacade" in facade_source
     assert "class AnalysisOutboxDeliveryUseCase" in use_case_source
     assert "class AnalysisOutboxEventBusPort(Protocol)" in use_case_source
     assert "class AnalysisOutboxEventPublisherPort(Protocol)" in use_case_source
@@ -2087,20 +2104,30 @@ def test_analysis_outbox_delivery_delegates_to_application_use_case() -> None:
     assert "await self._event_publisher.publish(event)" in use_case_source
     assert "analysis_outbox_publish_failed" in use_case_source
 
-    assert "AnalysisOutboxDeliveryUseCase" in service_source
-    assert "def _outbox_delivery_use_case" in service_source
+    assert "AnalysisOutboxDeliveryUseCase" not in service_source
+    assert "def _outbox_delivery_use_case" not in service_source
+    assert "def _outbox_delivery_use_case" in facade_source
     assert (
-        "return await self._outbox_delivery_use_case().publish_pending_events"
+        "return await self._application.publish_pending_analysis_events"
         in _function_source(service_source, "publish_pending_analysis_events")
     )
     assert (
-        "return await self._outbox_delivery_use_case().publish_event_via_outbox(event)"
+        "return await self._application.publish_event_via_outbox(event)"
         in _function_source(service_source, "publish_event_via_outbox")
     )
-    staged_source = _function_source(service_source, "_publish_staged_analysis_event")
     assert "rows = await self._outbox_store.list_pending" not in service_source
-    assert "await self._event_bus.connect()" not in staged_source
-    assert "await self._event_publisher.publish(event)" not in staged_source
+    assert "def _event_from_outbox" not in service_source
+    assert "def _publish_staged_analysis_event" not in service_source
+    assert "def _mark_analysis_event_published" not in service_source
+    assert "def _mark_analysis_event_failed" not in service_source
+    assert "await self._event_bus.connect()" not in _function_source(
+        service_source,
+        "publish_event_via_outbox",
+    )
+    assert "await self._event_publisher.publish(event)" not in _function_source(
+        service_source,
+        "publish_event_via_outbox",
+    )
     assert "analysis_outbox_publish_failed" not in service_source
 
 
@@ -2285,11 +2312,15 @@ def test_evolution_agent_request_dispatch_delegates_to_application_use_case() ->
     service_source = Path(
         "shared/capabilities/evolution/service/agent.py"
     ).read_text()
+    facade_source = Path(
+        "shared/capabilities/evolution/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "shared/capabilities/evolution/core/request_use_cases.py"
     ).read_text()
     handle_source = _function_source(service_source, "handle_request")
 
+    assert "class EvolutionApplicationFacade" in facade_source
     assert "class EvolutionRequestUseCase" in use_case_source
     assert "class EvolutionAnalyzerPort(Protocol)" in use_case_source
     assert 'request.get("action") == "trigger_analysis"' in use_case_source
@@ -2297,8 +2328,11 @@ def test_evolution_agent_request_dispatch_delegates_to_application_use_case() ->
     assert "self._attach_proposal_approval(proposal)" in use_case_source
     assert 'return {"status": "ok"}' in use_case_source
 
-    assert "EvolutionRequestUseCase" in service_source
-    assert "return await self._request_use_case().handle(request)" in handle_source
+    assert "EvolutionRequestUseCase" not in service_source
+    assert "def _request_use_case" not in service_source
+    assert "return await self._application.handle_request(request)" in handle_source
+    assert "def _request_use_case" in facade_source
+    assert "return await self._request_use_case().handle(request)" in facade_source
     assert 'request.get("action") == "trigger_analysis"' not in handle_source
     assert "self._analyzer.analyze" not in handle_source
     assert "self._attach_proposal_approval" not in handle_source
@@ -2310,11 +2344,15 @@ def test_evolution_agent_event_dispatch_delegates_to_application_use_case() -> N
     service_source = Path(
         "shared/capabilities/evolution/service/agent.py"
     ).read_text()
+    facade_source = Path(
+        "shared/capabilities/evolution/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "shared/capabilities/evolution/core/event_use_cases.py"
     ).read_text()
     handle_source = _function_source(service_source, "handle_event")
 
+    assert "class EvolutionApplicationFacade" in facade_source
     assert "class EvolutionEventUseCase" in use_case_source
     assert "class EvolutionApprovalServicePort(Protocol)" in use_case_source
     assert "class EvolutionPatternApprovalGatewayPort(Protocol)" in use_case_source
@@ -2329,9 +2367,11 @@ def test_evolution_agent_event_dispatch_delegates_to_application_use_case() -> N
     assert "pattern_control_plane_resolver_required" in use_case_source
     assert "pattern_approval_processed" in use_case_source
 
-    assert "EvolutionEventUseCase" in service_source
-    assert "def _event_use_case" in service_source
-    assert "return await self._event_use_case().handle(event)" in handle_source
+    assert "EvolutionEventUseCase" not in service_source
+    assert "def _event_use_case" not in service_source
+    assert "return await self._application.handle_event(event)" in handle_source
+    assert "def _event_use_case" in facade_source
+    assert "return await self._event_use_case().handle(event)" in facade_source
     assert "if event.event_type == EventTypes.EVOLUTION_CYCLE_TRIGGERED" not in (
         handle_source
     )
@@ -2349,10 +2389,14 @@ def test_evolution_outbox_delivery_delegates_to_application_use_case() -> None:
     service_source = Path(
         "shared/capabilities/evolution/service/agent.py"
     ).read_text()
+    facade_source = Path(
+        "shared/capabilities/evolution/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "shared/capabilities/evolution/core/outbox_delivery_use_cases.py"
     ).read_text()
 
+    assert "class EvolutionApplicationFacade" in facade_source
     assert "class EvolutionOutboxDeliveryUseCase" in use_case_source
     assert "class EvolutionOutboxEventBusPort(Protocol)" in use_case_source
     assert "class EvolutionOutboxEventPublisherPort(Protocol)" in use_case_source
@@ -2364,20 +2408,30 @@ def test_evolution_outbox_delivery_delegates_to_application_use_case() -> None:
     assert "await self._event_publisher.publish(event)" in use_case_source
     assert "evolution_outbox_publish_failed" in use_case_source
 
-    assert "EvolutionOutboxDeliveryUseCase" in service_source
-    assert "def _outbox_delivery_use_case" in service_source
+    assert "EvolutionOutboxDeliveryUseCase" not in service_source
+    assert "def _outbox_delivery_use_case" not in service_source
+    assert "def _outbox_delivery_use_case" in facade_source
     assert (
-        "return await self._outbox_delivery_use_case().publish_pending_events"
+        "return await self._application.publish_pending_evolution_events"
         in _function_source(service_source, "publish_pending_evolution_events")
     )
     assert (
-        "return await self._outbox_delivery_use_case().publish_event_via_outbox(event)"
+        "return await self._application.publish_event_via_outbox(event)"
         in _function_source(service_source, "publish_event_via_outbox")
     )
-    staged_source = _function_source(service_source, "_publish_staged_evolution_event")
     assert "rows = await self._outbox_store.list_pending" not in service_source
-    assert "await self._event_bus.connect()" not in staged_source
-    assert "await self._event_publisher.publish(event)" not in staged_source
+    assert "def _event_from_outbox" not in service_source
+    assert "def _publish_staged_evolution_event" not in service_source
+    assert "def _mark_evolution_event_published" not in service_source
+    assert "def _mark_evolution_event_failed" not in service_source
+    assert "await self._event_bus.connect()" not in _function_source(
+        service_source,
+        "publish_event_via_outbox",
+    )
+    assert "await self._event_publisher.publish(event)" not in _function_source(
+        service_source,
+        "publish_event_via_outbox",
+    )
     assert "evolution_outbox_publish_failed" not in service_source
 
 
@@ -4047,6 +4101,9 @@ def test_analysis_events_have_durable_outbox_contract() -> None:
     adapter_source = Path("shared/capabilities/analysis/db/outbox_store.py").read_text()
     port_source = Path("shared/capabilities/analysis/core/outbox_ports.py").read_text()
     service_source = Path("shared/capabilities/analysis/service/agent.py").read_text()
+    facade_source = Path(
+        "shared/capabilities/analysis/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "shared/capabilities/analysis/core/outbox_delivery_use_cases.py"
     ).read_text()
@@ -4063,7 +4120,14 @@ def test_analysis_events_have_durable_outbox_contract() -> None:
     assert "publish_pending_analysis_events" in service_source
     assert "publish_event_via_outbox" in service_source
     assert "await self._event_publisher.publish(event)" in use_case_source
-    assert "publish_staged_event(event)" in service_source
+    assert "publish_staged_event(event)" in use_case_source
+    assert "def _outbox_delivery_use_case" in facade_source
+    assert "return await self._application.publish_pending_analysis_events" in (
+        service_source
+    )
+    assert "return await self._application.publish_event_via_outbox(event)" in (
+        service_source
+    )
     assert "AnalysisEventOutboxRepository" not in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
     assert "await self._event_publisher.publish(event)" not in service_source
@@ -4150,6 +4214,9 @@ def test_evolution_events_have_durable_outbox_contract() -> None:
     port_source = Path("shared/capabilities/evolution/core/outbox_ports.py").read_text()
     adapter_source = Path("shared/capabilities/evolution/db/outbox_store.py").read_text()
     service_source = Path("shared/capabilities/evolution/service/agent.py").read_text()
+    facade_source = Path(
+        "shared/capabilities/evolution/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "shared/capabilities/evolution/core/outbox_delivery_use_cases.py"
     ).read_text()
@@ -4165,7 +4232,14 @@ def test_evolution_events_have_durable_outbox_contract() -> None:
     assert "SqlAlchemyEvolutionEventOutboxStore" in adapter_source
     assert "publish_pending_evolution_events" in service_source
     assert "publish_event_via_outbox" in service_source
-    assert "publish_staged_event(event)" in service_source
+    assert "publish_staged_event(event)" in use_case_source
+    assert "def _outbox_delivery_use_case" in facade_source
+    assert "return await self._application.publish_pending_evolution_events" in (
+        service_source
+    )
+    assert "return await self._application.publish_event_via_outbox(event)" in (
+        service_source
+    )
     assert "EvolutionEventOutboxRepository" not in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
     assert "await self._event_publisher.publish(event)" in use_case_source
@@ -4209,6 +4283,9 @@ def test_evolution_global_analyzer_uses_trace_analysis_store_port() -> None:
 def test_evolution_seed_bootstrap_uses_skill_seed_store_port() -> None:
     """Evolution startup should delegate seed persistence to a DB adapter."""
     service_source = Path("shared/capabilities/evolution/service/agent.py").read_text()
+    facade_source = Path(
+        "shared/capabilities/evolution/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "shared/capabilities/evolution/core/seed_bootstrap_use_cases.py"
     ).read_text()
@@ -4229,8 +4306,10 @@ def test_evolution_seed_bootstrap_uses_skill_seed_store_port() -> None:
     assert "skill_seed_bootstrap_failed" in use_case_source
     assert "seed_store" in service_source
     assert "SqlAlchemyEvolutionSkillSeedStore(self._db_manager)" in service_source
-    assert "def _seed_bootstrap_use_case" in service_source
-    assert "return await self._seed_bootstrap_use_case().bootstrap()" in service_source
+    assert "def _seed_bootstrap_use_case" not in service_source
+    assert "return await self._application.bootstrap_seeds()" in service_source
+    assert "def _seed_bootstrap_use_case" in facade_source
+    assert "return await self._seed_bootstrap_use_case().bootstrap()" in facade_source
     assert "seed_missing_active_skills" not in service_source
     assert "shared.evolution.seeds" not in service_source
 
@@ -4238,6 +4317,9 @@ def test_evolution_seed_bootstrap_uses_skill_seed_store_port() -> None:
 def test_evolution_health_check_uses_health_store_port() -> None:
     """Evolution readiness should delegate database probing to an adapter."""
     service_source = Path("shared/capabilities/evolution/service/agent.py").read_text()
+    facade_source = Path(
+        "shared/capabilities/evolution/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "shared/capabilities/evolution/core/health_use_cases.py"
     ).read_text()
@@ -4259,8 +4341,10 @@ def test_evolution_health_check_uses_health_store_port() -> None:
     assert "text(\"SELECT 1\")" not in service_source
     assert "health_store" in service_source
     assert "SqlAlchemyEvolutionHealthStore(self._db_manager)" in service_source
-    assert "def _health_use_case" in service_source
-    assert "return await self._health_use_case().check()" in service_source
+    assert "def _health_use_case" not in service_source
+    assert "return await self._application.health_check()" in service_source
+    assert "def _health_use_case" in facade_source
+    assert "return await self._health_use_case().check()" in facade_source
     assert "is_database_ready" not in service_source
     assert "collaboration_approval_gateway" not in service_source
 
@@ -4268,6 +4352,9 @@ def test_evolution_health_check_uses_health_store_port() -> None:
 def test_analysis_and_sync_health_checks_use_health_store_ports() -> None:
     """Analysis and Sync readiness should delegate database probing to adapters."""
     analysis_service = Path("shared/capabilities/analysis/service/agent.py").read_text()
+    analysis_facade = Path(
+        "shared/capabilities/analysis/core/application_facade.py"
+    ).read_text()
     analysis_port = Path("shared/capabilities/analysis/core/health_ports.py").read_text()
     analysis_use_case = Path(
         "shared/capabilities/analysis/core/health_use_cases.py"
@@ -4293,8 +4380,10 @@ def test_analysis_and_sync_health_checks_use_health_store_ports() -> None:
     assert "text(\"SELECT 1\")" not in analysis_service
     assert "health_store" in analysis_service
     assert "SqlAlchemyAnalysisHealthStore(" in analysis_service
-    assert "def _health_use_case" in analysis_service
-    assert "return await self._health_use_case().check()" in analysis_service
+    assert "def _health_use_case" not in analysis_service
+    assert "return await self._application.health_check()" in analysis_service
+    assert "def _health_use_case" in analysis_facade
+    assert "return await self._health_use_case().check()" in analysis_facade
     assert "is_database_ready" not in analysis_service
 
     assert "class SyncHealthStore(Protocol)" in sync_port
