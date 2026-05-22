@@ -7,17 +7,13 @@ from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
 from shared.integrations.feishu.bitable import bitable_service
 from shared.integrations.openproject.client import get_op_client
-from shared.observability.outbox import record_outbox_pending_age
 from shared.schemas.agent import BaseAgent
-from shared.schemas.event import Event, EventMetadata, EventTypes
+from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
+from ..core.application_facade import SyncApplicationFacade
 from ..core.engine import SyncEngine
-from ..core.event_use_cases import SyncEventUseCase
 from ..core.health_ports import SyncHealthStore
-from ..core.health_use_cases import SyncHealthUseCase
-from ..core.request_use_cases import SyncRequestUseCase
-from ..core.scope_execution_use_cases import SyncScopeExecutionUseCase
 from ..core.sync_ports import SyncEventOutboxStore
 from ..db.database import DatabaseManager, db_manager
 from ..db.health_store import SqlAlchemySyncHealthStore
@@ -72,6 +68,16 @@ class SyncModule(BaseAgent):
             self._decompose_project_ids = {
                 int(x.strip()) for x in app_settings.decompose_project_ids.split(",") if x.strip()
             }
+        self._application = SyncApplicationFacade(
+            agent_id=self.agent_id,
+            standard_request_handler=self.handle_standard_request,
+            sync_engine_provider=lambda: self._sync_engine,
+            health_store=self._health_store,
+            outbox_store_provider=lambda: self._outbox_store,
+            event_factory=self,
+            event_publisher=self._event_publisher,
+            metrics=self,
+        )
 
     async def startup(self):
         logger.info("agent_starting", agent_id=self.agent_id)
@@ -108,27 +114,14 @@ class SyncModule(BaseAgent):
         logger.info("agent_stopped", agent_id=self.agent_id)
 
     async def handle_event(self, event: Event) -> list[Event]:
-        return await self._event_use_case().handle(event)
-
-    def _event_use_case(self) -> SyncEventUseCase:
-        return SyncEventUseCase(sync_runner=self)
+        return await self._application.handle_event(event)
 
     async def handle_request(self, request: dict) -> dict:
-        standard_response = await self.handle_standard_request(request)
-        if standard_response is not None:
-            return standard_response
-
-        return await self._request_use_case().handle(request)
-
-    def _request_use_case(self) -> SyncRequestUseCase:
-        return SyncRequestUseCase(sync_runner=self, agent_id=self.agent_id)
+        return await self._application.handle_request(request)
 
     async def health_check(self) -> dict[str, bool]:
         """Public health check for readiness probes."""
-        return await self._health_use_case().check()
-
-    def _health_use_case(self) -> SyncHealthUseCase:
-        return SyncHealthUseCase(health_store=self._health_store)
+        return await self._application.health_check()
 
     def _should_decompose(self, project_id: int) -> bool:
         return project_id in self._decompose_project_ids
@@ -139,11 +132,9 @@ class SyncModule(BaseAgent):
         trace_id: str | None = None,
     ) -> dict:
         """Run both sync boundaries and publish compatibility sync events."""
-        return await self._run_sync_scope(
-            scope="full",
+        return await self._application.trigger_sync(
             triggered_by=triggered_by,
             trace_id=trace_id,
-            runner=lambda: self._sync_engine.full_sync(trace_id=trace_id),
         )
 
     async def trigger_openproject_sync(
@@ -152,11 +143,9 @@ class SyncModule(BaseAgent):
         trace_id: str | None = None,
     ) -> dict:
         """Run the OpenProject-to-Bitable projection sync only."""
-        return await self._run_sync_scope(
-            scope="openproject",
+        return await self._application.trigger_openproject_sync(
             triggered_by=triggered_by,
             trace_id=trace_id,
-            runner=lambda: self._sync_engine.sync_op_to_feishu(trace_id=trace_id),
         )
 
     async def trigger_feishu_bitable_sync(
@@ -165,11 +154,9 @@ class SyncModule(BaseAgent):
         trace_id: str | None = None,
     ) -> dict:
         """Run the Feishu Bitable-to-OpenProject progress sync only."""
-        return await self._run_sync_scope(
-            scope="feishu_bitable",
+        return await self._application.trigger_feishu_bitable_sync(
             triggered_by=triggered_by,
             trace_id=trace_id,
-            runner=lambda: self._sync_engine.sync_feishu_to_op(trace_id=trace_id),
         )
 
     async def _run_sync_scope(
@@ -179,22 +166,15 @@ class SyncModule(BaseAgent):
         trace_id: str | None,
         runner,
     ) -> dict:
-        return await self._scope_execution_use_case().run_scope(
+        return await self._application.run_sync_scope(
             scope=scope,
             triggered_by=triggered_by,
             trace_id=trace_id,
             runner=runner,
         )
 
-    def _scope_execution_use_case(self) -> SyncScopeExecutionUseCase:
-        return SyncScopeExecutionUseCase(
-            event_factory=self,
-            event_publisher=self,
-            metrics=self,
-        )
-
     async def publish_sync_event_via_outbox(self, event: Event) -> None:
-        await self._publish_sync_event_via_outbox(event)
+        await self._application.publish_sync_event_via_outbox(event)
 
     def record_sync_success(
         self,
@@ -222,92 +202,15 @@ class SyncModule(BaseAgent):
         Runtime plugins and future workers can reuse this without depending on
         persistence details.
         """
-        rows = await self._outbox_store.list_pending(limit=limit)
-        record_outbox_pending_age("sync-module", rows)
-
-        published = 0
-        failed = 0
-        for row in rows:
-            event = self._event_from_outbox(row)
-            try:
-                ok = await self._event_publisher.publish(event)
-                if not ok:
-                    raise RuntimeError("event_bus_publish_returned_false")
-                await self._mark_sync_event_published(event)
-                published += 1
-            except Exception as exc:
-                await self._mark_sync_event_failed(event, exc)
-                failed += 1
-
-        logger.info(
-            "sync_outbox_dispatch_completed",
-            total=len(rows),
-            published=published,
-            failed=failed,
-        )
-        return {"total": len(rows), "published": published, "failed": failed}
+        return await self._application.publish_pending_sync_events(limit=limit)
 
     async def _publish_sync_event_via_outbox(self, event: Event) -> None:
         """Stage a Sync event in its outbox, then publish after local commit."""
-        await self._outbox_store.add(event)
-        await self._publish_staged_sync_event(event)
+        await self._application.publish_sync_event_via_outbox(event)
 
     async def publish_event_via_outbox(self, event: Event) -> bool:
         """Stage a runtime-produced Sync event before EventBus delivery."""
-        await self._publish_sync_event_via_outbox(event)
-        return True
-
-    def _event_from_outbox(self, row) -> Event:
-        """Rebuild an immutable Event from a Sync outbox row."""
-        return Event(
-            event_id=row.event_id,
-            event_type=row.event_type,
-            timestamp=row.created_at,
-            source_agent=row.source_agent,
-            payload=row.payload,
-            schema_version=row.schema_version,
-            metadata=EventMetadata(
-                trace_id=row.trace_id,
-                correlation_id=row.correlation_id,
-                retry_count=row.retry_count,
-            ),
-        )
-
-    async def _publish_staged_sync_event(self, event: Event) -> None:
-        """Publish a Sync event already persisted in the outbox."""
-        try:
-            ok = await self._event_publisher.publish(event)
-            if not ok:
-                raise RuntimeError("event_bus_publish_returned_false")
-            await self._mark_sync_event_published(event)
-        except Exception as exc:
-            await self._mark_sync_event_failed(event, exc)
-            raise
-
-    async def _mark_sync_event_published(self, event: Event) -> None:
-        """Best-effort mark for a successfully published outbox event."""
-        try:
-            await self._outbox_store.mark_published(event.event_id)
-        except Exception as exc:
-            logger.warning(
-                "sync_outbox_mark_published_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                error=str(exc),
-            )
-
-    async def _mark_sync_event_failed(self, event: Event, error: Exception) -> None:
-        """Best-effort failure recording for an outbox event publish attempt."""
-        try:
-            await self._outbox_store.mark_failed(event.event_id, str(error))
-        except Exception as exc:
-            logger.warning(
-                "sync_outbox_mark_failed_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                publish_error=str(error),
-                error=str(exc),
-            )
+        return await self._application.publish_event_via_outbox(event)
 
 
 # Global capability singleton.

@@ -1,13 +1,41 @@
 """Unit tests for SyncModule lifecycle wiring."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from shared.app import UNKNOWN_ACTION_ERROR_CODE
+from shared.capabilities.sync.core.sync_ports import SyncEventOutboxStore
 from shared.capabilities.sync.service.agent import SyncModule
 from shared.schemas.event import Event, EventTypes
+
+
+class _NoopSyncEventOutboxStore(SyncEventOutboxStore):
+    async def add(self, event: Event) -> None:
+        pass
+
+    async def list_pending(self, limit: int = 100) -> list[object]:
+        return []
+
+    async def mark_published(self, event_id: str) -> None:
+        pass
+
+    async def mark_failed(self, event_id: str, error: str) -> None:
+        pass
+
+
+def _sync_module(sync_engine=None) -> SyncModule:
+    publisher = MagicMock()
+    publisher.publish = AsyncMock(return_value=True)
+    agent = SyncModule(
+        db=AsyncMock(),
+        bus=AsyncMock(),
+        event_publisher=publisher,
+        outbox_store=_NoopSyncEventOutboxStore(),
+    )
+    agent._sync_engine = sync_engine
+    return agent
 
 
 def _sync_trigger_event(payload: dict, trace_id: str = "trace_sync") -> Event:
@@ -46,24 +74,28 @@ async def test_shutdown_closes_injected_openproject_port() -> None:
 
 @pytest.mark.asyncio
 async def test_handle_request_can_trigger_openproject_boundary() -> None:
-    agent = SyncModule(db=AsyncMock(), bus=AsyncMock())
-    agent.trigger_openproject_sync = AsyncMock(return_value={"status": "success"})
+    sync_engine = SimpleNamespace(
+        sync_op_to_feishu=AsyncMock(return_value={"status": "success"})
+    )
+    agent = _sync_module(sync_engine)
 
     result = await agent.handle_request({"action": "sync_openproject"})
 
     assert result == {"status": "success"}
-    agent.trigger_openproject_sync.assert_awaited_once_with(triggered_by="manual")
+    sync_engine.sync_op_to_feishu.assert_awaited_once_with(trace_id=None)
 
 
 @pytest.mark.asyncio
 async def test_handle_request_can_trigger_feishu_bitable_boundary() -> None:
-    agent = SyncModule(db=AsyncMock(), bus=AsyncMock())
-    agent.trigger_feishu_bitable_sync = AsyncMock(return_value={"status": "success"})
+    sync_engine = SimpleNamespace(
+        sync_feishu_to_op=AsyncMock(return_value={"status": "success"})
+    )
+    agent = _sync_module(sync_engine)
 
     result = await agent.handle_request({"action": "sync_feishu_bitable"})
 
     assert result == {"status": "success"}
-    agent.trigger_feishu_bitable_sync.assert_awaited_once_with(triggered_by="manual")
+    sync_engine.sync_feishu_to_op.assert_awaited_once_with(trace_id=None)
 
 
 @pytest.mark.asyncio
@@ -80,57 +112,61 @@ async def test_handle_request_unknown_action_uses_shared_error_contract() -> Non
 
 @pytest.mark.asyncio
 async def test_handle_event_sync_trigger_defaults_to_full_sync() -> None:
-    agent = SyncModule(db=AsyncMock(), bus=AsyncMock())
-    agent.trigger_sync = AsyncMock(return_value={"status": "success"})
+    sync_engine = SimpleNamespace(
+        full_sync=AsyncMock(return_value={"status": "success"})
+    )
+    agent = _sync_module(sync_engine)
 
     result = await agent.handle_event(
         _sync_trigger_event({"triggered_by": "chat_tool"})
     )
 
     assert result == []
-    agent.trigger_sync.assert_awaited_once_with(
-        triggered_by="chat_tool",
-        trace_id="trace_sync",
-    )
+    sync_engine.full_sync.assert_awaited_once_with(trace_id="trace_sync")
 
 
 @pytest.mark.asyncio
 async def test_handle_event_sync_trigger_can_run_openproject_boundary() -> None:
-    agent = SyncModule(db=AsyncMock(), bus=AsyncMock())
-    agent.trigger_openproject_sync = AsyncMock(return_value={"status": "success"})
+    sync_engine = SimpleNamespace(
+        sync_op_to_feishu=AsyncMock(return_value={"status": "success"})
+    )
+    agent = _sync_module(sync_engine)
 
     result = await agent.handle_event(
         _sync_trigger_event({"triggered_by": "operator", "scope": "openproject"})
     )
 
     assert result == []
-    agent.trigger_openproject_sync.assert_awaited_once_with(
-        triggered_by="operator",
-        trace_id="trace_sync",
-    )
+    sync_engine.sync_op_to_feishu.assert_awaited_once_with(trace_id="trace_sync")
 
 
 @pytest.mark.asyncio
 async def test_handle_event_sync_trigger_can_run_feishu_bitable_boundary() -> None:
-    agent = SyncModule(db=AsyncMock(), bus=AsyncMock())
-    agent.trigger_feishu_bitable_sync = AsyncMock(return_value={"status": "success"})
+    sync_engine = SimpleNamespace(
+        sync_feishu_to_op=AsyncMock(return_value={"status": "success"})
+    )
+    agent = _sync_module(sync_engine)
 
     result = await agent.handle_event(
         _sync_trigger_event({"triggered_by": "operator", "scope": "feishu-bitable"})
     )
 
     assert result == []
-    agent.trigger_feishu_bitable_sync.assert_awaited_once_with(
-        triggered_by="operator",
-        trace_id="trace_sync",
-    )
+    sync_engine.sync_feishu_to_op.assert_awaited_once_with(trace_id="trace_sync")
 
 
 @pytest.mark.asyncio
 async def test_trigger_openproject_sync_passes_trace_id_to_split_engine() -> None:
     bus = AsyncMock()
     bus.publish = AsyncMock()
-    agent = SyncModule(db=AsyncMock(), bus=bus)
+    publisher = MagicMock()
+    publisher.publish = AsyncMock(return_value=True)
+    agent = SyncModule(
+        db=AsyncMock(),
+        bus=bus,
+        event_publisher=publisher,
+        outbox_store=_NoopSyncEventOutboxStore(),
+    )
     agent._sync_engine = SimpleNamespace(
         sync_op_to_feishu=AsyncMock(return_value={"status": "success", "processed": 0})
     )

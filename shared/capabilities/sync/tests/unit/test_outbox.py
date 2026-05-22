@@ -87,8 +87,6 @@ async def test_publish_pending_sync_events_marks_success():
         event_publisher=publisher,
         outbox_store=outbox_store,
     )
-    agent._mark_sync_event_published = AsyncMock()
-    agent._mark_sync_event_failed = AsyncMock()
 
     result = await agent.publish_pending_sync_events(limit=5)
 
@@ -99,8 +97,8 @@ async def test_publish_pending_sync_events_marks_success():
     assert event.event_id == "evt_sync_01"
     assert event.event_type == EventTypes.SYNC_COMPLETED
     assert event.payload["scope"] == "openproject"
-    agent._mark_sync_event_published.assert_awaited_once_with(event)
-    agent._mark_sync_event_failed.assert_not_awaited()
+    assert outbox_store.published == [event.event_id]
+    assert outbox_store.failed == []
     assert result == {"total": 1, "published": 1, "failed": 0}
 
 
@@ -120,15 +118,13 @@ async def test_publish_pending_sync_events_marks_failure_and_continues():
         event_publisher=publisher,
         outbox_store=outbox_store,
     )
-    agent._mark_sync_event_published = AsyncMock()
-    agent._mark_sync_event_failed = AsyncMock()
 
     result = await agent.publish_pending_sync_events(limit=2)
 
     assert publisher.publish.await_count == 2
     bus.publish.assert_not_awaited()
-    agent._mark_sync_event_failed.assert_awaited_once()
-    agent._mark_sync_event_published.assert_awaited_once()
+    assert outbox_store.failed[0][0] == "evt_failed"
+    assert outbox_store.published == ["evt_ok"]
     assert result == {"total": 2, "published": 1, "failed": 1}
 
 
@@ -145,8 +141,6 @@ async def test_sync_lifecycle_event_is_staged_before_publish():
         event_publisher=publisher,
         outbox_store=outbox_store,
     )
-    agent._mark_sync_event_published = AsyncMock()
-    agent._mark_sync_event_failed = AsyncMock()
 
     event = Event.create(
         event_type=EventTypes.SYNC_STARTED,
@@ -159,5 +153,5 @@ async def test_sync_lifecycle_event_is_staged_before_publish():
     assert outbox_store.added == [event]
     publisher.publish.assert_awaited_once_with(event)
     bus.publish.assert_not_awaited()
-    agent._mark_sync_event_published.assert_awaited_once_with(event)
-    agent._mark_sync_event_failed.assert_not_awaited()
+    assert outbox_store.published == [event.event_id]
+    assert outbox_store.failed == []
