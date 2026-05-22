@@ -164,21 +164,25 @@ class TestEvolutionModuleHandleEvent:
     @pytest.mark.asyncio
     async def test_dispatches_cycle_triggered(self, agent):
         event = _make_event(EventTypes.EVOLUTION_CYCLE_TRIGGERED, {"days": 3})
-        event_use_case = AsyncMock()
-        event_use_case.handle = AsyncMock(return_value=[])
-        with patch.object(agent, "_event_use_case", return_value=event_use_case):
+        with patch.object(
+            agent._application,
+            "handle_event",
+            new=AsyncMock(return_value=[]),
+        ) as handle_event:
             result = await agent.handle_event(event)
-        event_use_case.handle.assert_awaited_once_with(event)
+        handle_event.assert_awaited_once_with(event)
         assert result == []
 
     @pytest.mark.asyncio
     async def test_dispatches_human_feedback(self, agent):
         event = _make_event(EventTypes.EVOLUTION_HUMAN_FEEDBACK, {"approved": True})
-        event_use_case = AsyncMock()
-        event_use_case.handle = AsyncMock(return_value=[])
-        with patch.object(agent, "_event_use_case", return_value=event_use_case):
+        with patch.object(
+            agent._application,
+            "handle_event",
+            new=AsyncMock(return_value=[]),
+        ) as handle_event:
             result = await agent.handle_event(event)
-        event_use_case.handle.assert_awaited_once_with(event)
+        handle_event.assert_awaited_once_with(event)
         assert result == []
 
     @pytest.mark.asyncio

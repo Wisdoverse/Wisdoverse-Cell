@@ -26,15 +26,11 @@ from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
 from ..core.analysis_ports import EvolutionTraceAnalysisStore
+from ..core.application_facade import EvolutionApplicationFacade
 from ..core.control_plane_ports import EvolutionControlPlaneProposalStore
-from ..core.event_use_cases import EvolutionEventUseCase
 from ..core.health_ports import EvolutionHealthStore
-from ..core.health_use_cases import EvolutionHealthUseCase
-from ..core.outbox_delivery_use_cases import EvolutionOutboxDeliveryUseCase
 from ..core.outbox_ports import EvolutionEventOutboxStore
 from ..core.proposal_approval_use_cases import EvolutionProposalApprovalUseCase
-from ..core.request_use_cases import EvolutionRequestUseCase
-from ..core.seed_bootstrap_use_cases import EvolutionSeedBootstrapUseCase
 from ..core.seed_ports import EvolutionSkillSeedStore
 from ..db.control_plane_store import (
     SqlAlchemyEvolutionControlPlaneProposalStore,
@@ -113,6 +109,23 @@ class EvolutionModule(BaseAgent):
             session_provider=control_plane_session_provider,
             enabled=control_plane_enabled,
         )
+        self._application = EvolutionApplicationFacade(
+            standard_request_handler=self.handle_standard_request,
+            analyzer_provider=lambda: self._analyzer,
+            attach_proposal_approval=self._attach_proposal_approval,
+            event_factory=self,
+            approval_service_provider=lambda: self._control_plane_approvals,
+            approval_gateway_provider=lambda: self._approval_gateway,
+            collaboration_enabled_provider=(
+                lambda: evolution_settings.collaboration_enabled
+            ),
+            health_store_provider=lambda: self._health_store,
+            event_bus=self._event_bus,
+            llm_gateway_provider=lambda: self._llm,
+            seed_store_provider=lambda: self._seed_store,
+            outbox_store_provider=lambda: self._outbox_store,
+            event_publisher=self._event_publisher,
+        )
 
     async def startup(self) -> None:
         logger.info("agent_starting", agent_id=self.agent_id)
@@ -137,87 +150,31 @@ class EvolutionModule(BaseAgent):
 
     async def _bootstrap_seeds(self) -> int:
         """Load skill seed configs into DB if not already present."""
-        return await self._seed_bootstrap_use_case().bootstrap()
-
-    def _seed_bootstrap_use_case(self) -> EvolutionSeedBootstrapUseCase:
-        return EvolutionSeedBootstrapUseCase(seed_store=self._seed_store)
+        return await self._application.bootstrap_seeds()
 
     def set_approval_gateway(self, gateway) -> None:
         """Inject ApprovalGateway for processing pattern approvals."""
         self._approval_gateway = gateway
 
     async def handle_event(self, event: Event) -> list[Event]:
-        return await self._event_use_case().handle(event)
-
-    def _event_use_case(self) -> EvolutionEventUseCase:
-        return EvolutionEventUseCase(
-            analyzer=self._analyzer,
-            attach_proposal_approval=self._attach_proposal_approval,
-            event_factory=self,
-            approval_service=self._control_plane_approvals,
-            approval_gateway=self._approval_gateway,
-            collaboration_enabled=evolution_settings.collaboration_enabled,
-        )
+        return await self._application.handle_event(event)
 
     async def handle_request(self, request: dict) -> dict:
-        standard_response = await self.handle_standard_request(request)
-        if standard_response is not None:
-            return standard_response
-
-        return await self._request_use_case().handle(request)
-
-    def _request_use_case(self) -> EvolutionRequestUseCase:
-        return EvolutionRequestUseCase(
-            analyzer=self._analyzer,
-            attach_proposal_approval=self._attach_proposal_approval,
-        )
+        return await self._application.handle_request(request)
 
     async def health_check(self) -> dict[str, bool]:
         """Return readiness checks for the evolution capability boundary."""
-        return await self._health_use_case().check()
-
-    def _health_use_case(self) -> EvolutionHealthUseCase:
-        return EvolutionHealthUseCase(
-            health_store=self._health_store,
-            event_bus=self._event_bus,
-            llm_gateway=self._llm,
-            approval_service=self._control_plane_approvals,
-            collaboration_enabled=evolution_settings.collaboration_enabled,
-            approval_gateway=self._approval_gateway,
-        )
+        return await self._application.health_check()
 
     async def publish_pending_evolution_events(self, limit: int = 100) -> dict[str, int]:
         """Retry pending Evolution outbox events."""
-        return await self._outbox_delivery_use_case().publish_pending_events(
+        return await self._application.publish_pending_evolution_events(
             limit=limit,
         )
 
     async def publish_event_via_outbox(self, event: Event) -> bool:
         """Stage a runtime-produced Evolution event before EventBus delivery."""
-        return await self._outbox_delivery_use_case().publish_event_via_outbox(event)
-
-    def _outbox_delivery_use_case(self) -> EvolutionOutboxDeliveryUseCase:
-        return EvolutionOutboxDeliveryUseCase(
-            outbox_store=self._outbox_store,
-            event_bus=self._event_bus,
-            event_publisher=self._event_publisher,
-        )
-
-    def _event_from_outbox(self, row) -> Event:
-        """Rebuild an immutable Event from an Evolution outbox row."""
-        return self._outbox_delivery_use_case().event_from_outbox(row)
-
-    async def _publish_staged_evolution_event(self, event: Event) -> bool:
-        """Publish one event already persisted in the Evolution outbox."""
-        return await self._outbox_delivery_use_case().publish_staged_event(event)
-
-    async def _mark_evolution_event_published(self, event: Event) -> None:
-        """Best-effort mark for a successfully published Evolution outbox event."""
-        await self._outbox_delivery_use_case().mark_event_published(event)
-
-    async def _mark_evolution_event_failed(self, event: Event, error: Exception) -> None:
-        """Best-effort failure recording for an Evolution outbox publish attempt."""
-        await self._outbox_delivery_use_case().mark_event_failed(event, error)
+        return await self._application.publish_event_via_outbox(event)
 
     async def _attach_proposal_approval(
         self,
