@@ -132,10 +132,23 @@ several dimensions as `n/a` by design — see §4.9):
 
 | Status | Count | % of 156 cells | % excluding n/a |
 |--------|-------|----------------|-----------------|
-| ✓ Fully compliant | 50 | 32% | 33% |
-| ⚠ Partial | 55 | 35% | 37% |
-| ✗ Missing | 46 | 29% | 30% |
+| ✓ Fully compliant | 62 | 40% | 41% |
+| ⚠ Partial | 53 | 34% | 35% |
+| ✗ Missing | 36 | 23% | 24% |
 | n/a | 5 | 3% | — |
+
+Scoring history (each landed `DDD-NNN` PR updates the totals here):
+
+| PR | Net dimensional change | ✓ total |
+|----|------------------------|---------|
+| `4dcdd89f7` initial audit landing | baseline | 50 |
+| `27a5a5d24` DDD-020 lifecycle cleanup | structural; no scorecard dimension flipped | 50 |
+| DDD-008 (this PR) context-map relationships | dim 12 flipped from ✗/⚠ to ✓ across 12 contexts (Identity and Evolution promoted from ⚠ to ✓; 10 others promoted from ✗ to ✓; QA was already ✓ via its README) | 62 |
+
+Per-context scorecards in §4 below preserve the audit-landing snapshot
+for traceability; live totals above reflect post-remediation state. When
+a `DDD-NNN` PR completes, it updates this scoring-history row and the
+`DDD-NNN` row in §6.
 
 Highest-compliance context: **Evolution** (8 ✓ / 4 ⚠ / 0 ✗). Driven by an
 explicit `EvolutionRolloutState` FSM, port-based stores, pure use cases,
@@ -736,16 +749,16 @@ not operational risk. Stage mapping is to
 | ID | Context | Dimension | Severity | Suggested PR | Stage | Blocks |
 |----|---------|-----------|----------|--------------|-------|--------|
 | DDD-001 | Control Plane | 2 / 8 | high | Move `agent_run_lifecycle.py` into `shared/control_plane/domain/lifecycle/`; promote AgentRun to an explicit aggregate class with FSM | 2 | DDD-006 |
-| DDD-002 | All contexts | 1 | medium | Make `core/domain/` mandatory for every business + capability runtime; add architecture-boundary test that forbids `core/<x>_lifecycle.py` outside `core/domain/lifecycle/` | 1 | DDD-003 |
+| DDD-002 | Business agents (Stage 1 slice) | 1 | medium | ✅ Partially landed `<DDD-002 PR>`. `tests/unit/test_architecture_boundaries.py::test_lifecycle_modules_live_in_canonical_domain_path` blocks `*_lifecycle.py` at `core/` top level across the four business agents. Extends to `shared/control_plane/` after DDD-001 (which removes the `agent_run_lifecycle.py` shim). `core/domain/` mandatory enforcement for capabilities + coordinator + identity is deferred to Stage 2 when aggregates land in those contexts. | 1 | DDD-001, DDD-003 |
 | DDD-003 | Sync (both sub-boundaries) | 2 / 3 / 8 | high | Introduce `SyncOperation` aggregate per sub-boundary; replace `engine.py` string-status branches with typed FSM; one PR per sub-boundary | 2 | D (extraction) |
 | DDD-004 | Analysis | 9 / 11 | high | Introduce explicit projection tables consumed by Analysis use cases; remove source-domain reads (closes P2-2) | 3 | C |
 | DDD-005 | Evolution | 2 / 9 | medium | Promote `EvolutionProposal`, `EvolutionTrace`, `Reflection`, `Experiment` to explicit aggregates with FSMs; consolidate `shared/capabilities/evolution/` and `shared/evolution/` packages | 2 | — |
 | DDD-006 | All business runtimes | 7 | medium | Standardize aggregate-raised domain events per `architecture-principles.md` §4.8; one PR per runtime (Control Plane, PJM, QA, Dev each emit aggregate events; Requirement already does) | 2 | — |
 | DDD-007 | All contexts | 4 / 5 | medium | Introduce identifier value-object wrappers (`NewType`) for `work_item_id`, `run_id`, `approval_id`, `goal_id`, etc.; adopt one identifier per PR | 2 | — |
-| DDD-008 | All product-owning runtimes | 12 | low | Extend `module-boundaries.md` §2.* with Brandolini-style context-map relationship row per context | 1 | — |
-| DDD-009 | Business agents (Stage 1 slice) | 1 | low | ✅ Partially landed `<DDD-009 PR>`. Added per-context READMEs with Ubiquitous Language + Context-Map Relationships + Bounded Context + Aggregate metadata for the three business agents missing them (`requirement_manager`, `pjm_agent`, `dev_agent`). QA already had a README; capabilities + coordinator + gateways extend in a follow-up. | 1 | — |
+| DDD-008 | All product-owning runtimes | 12 | low | ✅ Landed DDD-008 (this PR). Every §2.X subsection in `module-boundaries.md` now has a Brandolini-style "Context-map relationships" row classifying upstream/downstream with Customer/Supplier, Conformist, ACL, Open-Host Service, Published Language, Partnership, Separate Ways terminology | 1 | done |
+| DDD-009 | All product-owning runtimes | 1 | low | Add per-context ubiquitous-language glossary under `<runtime>/README.md`; link to `docs/overview/glossary.md` | 1 | — |
 | DDD-010 | Coordinator, Requirement, Evolution | 3 / Application | medium | Extend explicit `UnitOfWork` adoption to remaining multi-aggregate write paths | 2 | — |
-| DDD-011 | Cross-cutting | application | low | Add architecture-boundary test that `application_facade.py` depends on ports + use cases only (rule already documented in `architecture-principles.md` §4.7) | 1 | — |
+| DDD-011 | Cross-cutting | application | low | ✅ Landed `<DDD-011 PR>`. `tests/unit/test_architecture_boundaries.py::test_application_facade_depends_on_ports_and_use_cases_only` blocks imports from `shared.db`, `shared.infra`, `shared.integrations`, `shared.messaging.inbound/outbound`, and any relative `db`/`adapters`/`service`/`app` modules across all 10 facade files | 1 | done |
 | DDD-012 | QA | 4 | low | Resolve `acceptance_verdict.py` vs `acceptance_verdicts.py` pluralization in QA `core/domain/`; consolidate or rename to distinct concerns | 1 | — |
 | DDD-013 | All adapters | 11 | medium | Audit each agent-local `adapters/` for direct external SDK type leaks; introduce port-typed return values where missing | 2 | — |
 | DDD-014 | Sync runtime | service-boundary | high | Split Sync into two sub-capability runtimes (`sync-openproject`, `sync-feishu-bitable`); each with own outbox, store, runtime plugin; orchestrator endpoint joins via APIs | 4 | D |
