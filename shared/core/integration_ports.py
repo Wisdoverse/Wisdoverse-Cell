@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
+from shared.core.channels import ChannelCard, ChannelMessage
+
 
 @runtime_checkable
 class OpenProjectWorkPackagePort(Protocol):
@@ -121,6 +123,27 @@ class FeishuMessengerPort(Protocol):
 
 
 @runtime_checkable
+class WecomMessengerPort(Protocol):
+    """Messaging operations used by services that notify WeCom.
+
+    Mirrors the named-port pattern established by ``FeishuMessengerPort``.
+    Adapter implementations live under ``shared.integrations.wecom``; the
+    `WecomChannelAdapter` satisfies this Protocol structurally and can be
+    consumed via the port instead of the concrete class. Per
+    ``ddd-compliance-audit.md`` row DDD-022.
+    """
+
+    async def send_message(self, user_id: str, content: ChannelMessage) -> str:
+        """Send a typed message to a WeCom user. Returns the message id."""
+
+    async def send_card(self, user_id: str, card: ChannelCard) -> str:
+        """Send an interactive card to a WeCom user. Returns the message id."""
+
+    async def update_card(self, message_id: str, card: ChannelCard) -> bool:
+        """Update a previously sent card. Returns True on success."""
+
+
+@runtime_checkable
 class FeishuContactLookupPort(Protocol):
     """Feishu contact lookup operations used by user-facing gateways."""
 
@@ -144,6 +167,25 @@ class FeishuWebhookPort(Protocol):
         card: dict[str, Any],
     ) -> bool:
         """Send an interactive card through a Feishu webhook URL."""
+
+
+@runtime_checkable
+class OpenClawIntegrationPort(Protocol):
+    """Messaging operations used by services that notify OpenClaw.
+
+    Adapter implementations live under ``shared.integrations.openclaw``;
+    the `OpenClawChannelAdapter` satisfies this Protocol structurally and
+    can be consumed via the port instead of the concrete class. Per
+    ``ddd-compliance-audit.md`` row DDD-013 / DDD-022, the typed Protocol
+    replaces the previous "raw dict params" pattern at the boundary
+    between core and OpenClaw.
+    """
+
+    async def send_message(self, user_id: str, content: ChannelMessage) -> str:
+        """Send a typed message to an OpenClaw user. Returns the message id."""
+
+    async def send_card(self, user_id: str, card: ChannelCard) -> str:
+        """Send an interactive card to an OpenClaw user. Returns the message id."""
 
 
 @runtime_checkable
