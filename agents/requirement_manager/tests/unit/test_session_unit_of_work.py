@@ -6,6 +6,7 @@ import pytest
 
 from agents.requirement_manager.db.unit_of_work import (
     SqlAlchemyRequirementSessionUnitOfWork,
+    SqlAlchemyRequirementSessionUnitOfWorkFactory,
 )
 from shared.schemas.event import Event, EventTypes
 
@@ -67,4 +68,25 @@ async def test_session_unit_of_work_stages_outbox_in_caller_session():
 
     await uow.outbox.stage(event)
 
+    outbox_store.stage.assert_awaited_once_with(session, event)
+
+
+@pytest.mark.asyncio
+async def test_session_unit_of_work_factory_adapts_caller_session():
+    session = MagicMock()
+    outbox_store = MagicMock()
+    outbox_store.stage = AsyncMock()
+    event = Event.create(
+        event_type=EventTypes.REQUIREMENT_CONFIRMED,
+        source_agent="requirement-manager",
+        payload={"requirement_id": "req_1"},
+    )
+    factory = SqlAlchemyRequirementSessionUnitOfWorkFactory(
+        outbox_store=outbox_store,
+    )
+
+    uow = factory(session)
+
+    assert isinstance(uow, SqlAlchemyRequirementSessionUnitOfWork)
+    await uow.outbox.stage(event)
     outbox_store.stage.assert_awaited_once_with(session, event)

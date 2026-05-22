@@ -7,8 +7,6 @@ logic is coordinated through this class; FastAPI is only the HTTP adapter.
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from shared.config import settings as app_settings
 from shared.control_plane.agent_prompt_config import resolve_agent_system_prompt
 from shared.core import EventPublisher, FeishuMessengerPort
@@ -51,6 +49,7 @@ from ..core.session_extraction_use_cases import (
     format_messages_for_extraction,
 )
 from ..core.unit_of_work_ports import (
+    RequirementSessionUnitOfWorkFactory,
     RequirementUnitOfWork,
     RequirementUnitOfWorkFactory,
 )
@@ -58,7 +57,7 @@ from ..db.database import DatabaseManager, db_manager
 from ..db.health_store import SqlAlchemyRequirementHealthStore
 from ..db.outbox_store import SqlAlchemyRequirementEventOutboxStore
 from ..db.unit_of_work import (
-    SqlAlchemyRequirementSessionUnitOfWork,
+    SqlAlchemyRequirementSessionUnitOfWorkFactory,
     SqlAlchemyRequirementUnitOfWorkFactory,
 )
 from ..db.vector_store import VectorStore, vector_store
@@ -88,6 +87,7 @@ class RequirementManagerAgent(BaseAgent):
         card_renderer: Optional[RequirementCardRendererPort] = None,
         outbox_store: RequirementEventOutboxStore | None = None,
         health_store: RequirementHealthStore | None = None,
+        session_uow_factory: RequirementSessionUnitOfWorkFactory | None = None,
     ):
         super().__init__(
             agent_id="requirement-manager",
@@ -107,6 +107,12 @@ class RequirementManagerAgent(BaseAgent):
         self._event_publisher = event_publisher or EventBusEventPublisher(self._event_bus)
         self._outbox_store = outbox_store or SqlAlchemyRequirementEventOutboxStore(
             self._db_manager
+        )
+        self._session_uow_factory = (
+            session_uow_factory
+            or SqlAlchemyRequirementSessionUnitOfWorkFactory(
+                outbox_store=self._outbox_store,
+            )
         )
         self._uow_factory: RequirementUnitOfWorkFactory = (
             SqlAlchemyRequirementUnitOfWorkFactory(self._db_manager)
@@ -244,7 +250,7 @@ class RequirementManagerAgent(BaseAgent):
         self,
         content: str,
         source: str,
-        session: AsyncSession | None = None,
+        session: object | None = None,
         title: Optional[str] = None,
         meeting_date: Optional[datetime] = None,
         participants: Optional[list[str]] = None,
@@ -329,7 +335,7 @@ class RequirementManagerAgent(BaseAgent):
         self,
         requirement_id: str,
         confirmed_by: str,
-        session: AsyncSession | None = None,
+        session: object | None = None,
     ) -> Optional[Requirement]:
         """
         Confirm a requirement.
@@ -373,7 +379,7 @@ class RequirementManagerAgent(BaseAgent):
         requirement_id: str,
         reason: str,
         rejected_by: str,
-        session: AsyncSession | None = None,
+        session: object | None = None,
     ) -> Optional[Requirement]:
         """
         Reject a requirement.
@@ -421,7 +427,7 @@ class RequirementManagerAgent(BaseAgent):
         self,
         requirement_id: str,
         changes: dict[str, Any],
-        session: AsyncSession | None = None,
+        session: object | None = None,
     ) -> Optional[Requirement]:
         """
         Update a requirement through the application boundary.
@@ -459,7 +465,7 @@ class RequirementManagerAgent(BaseAgent):
         self,
         requirement_id: str,
         deleted_by: str,
-        session: AsyncSession | None = None,
+        session: object | None = None,
     ) -> Optional[Requirement]:
         """
         Delete a requirement.
@@ -505,7 +511,7 @@ class RequirementManagerAgent(BaseAgent):
         question_id: str,
         answer: str,
         answered_by: str,
-        session: AsyncSession | None = None,
+        session: object | None = None,
     ) -> Optional[OpenQuestion]:
         """
         Answer an open clarification question through the application boundary.
@@ -545,7 +551,7 @@ class RequirementManagerAgent(BaseAgent):
 
     async def list_open_questions(
         self,
-        session: AsyncSession | None = None,
+        session: object | None = None,
         *,
         limit: int = 50,
     ) -> list[OpenQuestion]:
@@ -608,13 +614,10 @@ class RequirementManagerAgent(BaseAgent):
 
     def _session_unit_of_work(
         self,
-        session: AsyncSession,
+        session: object,
     ) -> RequirementUnitOfWork:
-        """Adapt a caller-owned legacy SQLAlchemy session to the UOW boundary."""
-        return SqlAlchemyRequirementSessionUnitOfWork(
-            session,
-            outbox_store=self._outbox_store,
-        )
+        """Adapt a caller-owned legacy session to the UOW boundary."""
+        return self._session_uow_factory(session)
 
     # ========== Convenience Methods Without External Sessions ==========
 

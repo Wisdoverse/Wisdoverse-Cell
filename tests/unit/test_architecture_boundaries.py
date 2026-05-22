@@ -1026,6 +1026,7 @@ def test_requirement_ingest_uses_explicit_unit_of_work_boundary() -> None:
 
     assert "class RequirementUnitOfWork(Protocol)" in port_source
     assert "class RequirementUnitOfWorkFactory(Protocol)" in port_source
+    assert "class RequirementSessionUnitOfWorkFactory(Protocol)" in port_source
     assert "class RequirementOutboxWriter(Protocol)" in port_source
     assert "class IngestResult" in workflow_source
     assert "class RequirementExtractorPort(Protocol)" in workflow_source
@@ -1049,6 +1050,9 @@ def test_requirement_ingest_uses_explicit_unit_of_work_boundary() -> None:
     assert "self._session.rollback()" in adapter_source
 
     assert "SqlAlchemyRequirementUnitOfWorkFactory(self._db_manager)" in service_source
+    assert "SqlAlchemyRequirementSessionUnitOfWorkFactory(" in service_source
+    assert "session_uow_factory: RequirementSessionUnitOfWorkFactory" in service_source
+    assert "AsyncSession" not in service_source
     assert "RequirementMeetingIngestWorkflow(" in service_source
     assert "def get_unit_of_work" in service_source
     assert "async def ingest_meeting_with_uow" in service_source
@@ -3513,8 +3517,12 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
     assert "await uow.outbox.stage(event)" in workflow_source
     assert "class SqlAlchemyRequirementSessionOutboxWriter" in uow_source
     assert "await self._outbox_store.stage(self._session, event)" in uow_source
-    assert "SqlAlchemyRequirementSessionUnitOfWork" in service_source
+    assert "class SqlAlchemyRequirementSessionUnitOfWorkFactory" in uow_source
+    assert "SqlAlchemyRequirementSessionUnitOfWorkFactory" in service_source
     assert "def _session_unit_of_work" in service_source
+    assert "return self._session_uow_factory(session)" in service_source
+    assert "SqlAlchemyRequirementSessionUnitOfWork(" not in service_source
+    assert "AsyncSession" not in service_source
     assert "_stage_requirement_event" not in service_source
     assert "RequirementEventOutboxRepository" not in service_source
     assert "_commit_requirement_mutation" not in service_source
