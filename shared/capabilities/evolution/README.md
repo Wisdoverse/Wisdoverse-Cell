@@ -2,6 +2,15 @@
 
 > Global cross-agent analysis and architecture-level optimization suggestions.
 
+**Sibling package**: [`shared/evolution/`](../../evolution/README.md) hosts the
+L1 / L2 / L3 self-evolution **runtime** (trace collector, evaluator, skill
+optimizer, evolution guard, canary router, kill switch). This package
+(`shared/capabilities/evolution/`) is the **L2 capability service** that
+consumes that runtime: it runs cross-agent analysis cycles, produces
+`EvolutionProposal` records, and surfaces approvals through the Control
+Plane. The split is intentional — runtime primitives vs. capability flow.
+See [DDD compliance audit row DDD-005](../../../docs/architecture/ddd-compliance-audit.md).
+
 ## Purpose
 
 The Evolution Module is the L2 (Architecture) component of the self-evolution system. It analyzes execution traces across **all** agents to identify system-wide patterns, bottlenecks, and optimization opportunities. Unlike individual agent self-optimization (L1), this module looks at the bigger picture.

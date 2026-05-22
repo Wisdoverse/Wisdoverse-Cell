@@ -4,6 +4,8 @@ from __future__ import annotations
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import WorkItemId
+
 from .company_store import SqlAlchemyControlPlaneCompanyStore
 from .domain_records import work_item_record
 from .goal_store import SqlAlchemyControlPlaneGoalStore
@@ -36,11 +38,11 @@ class SqlAlchemyControlPlaneWorkItemStore(ControlPlaneWorkItemStore):
         await self._session.flush()
         return work_item_record(row)
 
-    async def get_work_item(self, work_item_id: str) -> WorkItem | None:
+    async def get_work_item(self, work_item_id: WorkItemId) -> WorkItem | None:
         row = await self._get_work_item_row(work_item_id)
         return work_item_record(row) if row is not None else None
 
-    async def _get_work_item_row(self, work_item_id: str) -> WorkItemTable | None:
+    async def _get_work_item_row(self, work_item_id: WorkItemId) -> WorkItemTable | None:
         result = await self._session.execute(
             select(WorkItemTable).where(WorkItemTable.work_item_id == work_item_id)
         )
@@ -85,7 +87,7 @@ class SqlAlchemyControlPlaneWorkItemStore(ControlPlaneWorkItemStore):
 
     async def update_work_item_status(
         self,
-        work_item_id: str,
+        work_item_id: WorkItemId,
         *,
         status: str,
         owner_agent_id: str | None = None,

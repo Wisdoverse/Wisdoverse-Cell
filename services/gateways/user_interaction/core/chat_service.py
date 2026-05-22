@@ -4,11 +4,6 @@ import json
 
 from shared.infra.audit_log import AuditAction, audit_log
 from shared.infra.context_compressor import ContextCompressor, ContextCompressorConfig
-from shared.infra.conversation_engine import (
-    ConversationConfig,
-    ConversationEngine,
-    ToolExecutionEvent,
-)
 from shared.infra.denial_tracker import DenialTracker
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.infra.tool_registry import ToolRegistry, build_tool
@@ -19,6 +14,7 @@ from ..app.metrics import TOOL_CALLS
 from .chat_ports import (
     ChatHistoryStore,
     ChatLLM,
+    ConversationEngineFactory,
     DailyProgressContextStore,
     EmptyDailyProgressContextStore,
     InMemoryChatHistoryStore,
@@ -124,6 +120,7 @@ class ChatService:
         llm: ChatLLM | None = None,
         history_store: ChatHistoryStore | None = None,
         daily_progress_store: DailyProgressContextStore | None = None,
+        engine_factory: ConversationEngineFactory | None = None,
     ):
         self._config = config or UserInteractionCoreConfig()
         self._llm = llm or UnconfiguredChatLLM()
@@ -145,6 +142,51 @@ class ChatService:
                 agent_id="chat-agent",
             ),
             llm=self._llm,
+        )
+        # Conversation engine is wired through the port (DDD-017
+        # implementation). Default factory keeps backward compatibility
+        # for callers that have not yet been migrated; production wires
+        # the real factory at the app/ layer (service/agent.py).
+        self._engine_factory: ConversationEngineFactory = (
+            engine_factory or self._default_engine_factory
+        )
+
+    def _default_engine_factory(
+        self,
+        *,
+        system_prompt: str,
+        history,
+        tools_provider,
+        tool_executor,
+        max_tool_calls: int,
+        agent_id: str,
+    ):
+        """Backward-compatible default: construct a ConversationEngine.
+
+        Imports the concrete engine **inside the function** so the
+        module-level surface of `core/chat_service.py` is free of
+        `shared.infra.conversation_engine` imports. The proper long-term
+        wiring is for `service/agent.py` (app layer) to inject a real
+        factory.
+        """
+        from shared.infra.conversation_engine import (
+            ConversationConfig,
+            ConversationEngine,
+        )
+
+        config = ConversationConfig(
+            model=self._config.chat_model,
+            system_prompt=system_prompt,
+            tools=tools_provider,
+            max_tool_calls=max_tool_calls,
+            agent_id=agent_id,
+        )
+        return ConversationEngine(
+            config,
+            llm_gateway=self._llm,
+            compressor=self._compressor,
+            tool_executor=tool_executor,
+            messages=history,
         )
 
     async def _get_history(self, user_id: str) -> list[dict]:
@@ -251,31 +293,32 @@ class ChatService:
             return result
 
         try:
-            config = ConversationConfig(
-                model=self._config.chat_model,
+            engine = self._engine_factory(
                 system_prompt=system_prompt or default_system,
-                tools=lambda: self._registry.to_anthropic_schemas(active_deferred),
-                max_tool_calls=MAX_TOOL_CALLS,
-                agent_id="chat-agent",
-            )
-            engine = ConversationEngine(
-                config,
-                llm_gateway=self._llm,
-                compressor=self._compressor,
-                tool_executor=_chat_tool_executor,
-                messages=(
+                history=(
                     [*history, {"role": "user", "content": untrusted_context_message}]
                     if untrusted_context_message
                     else history
                 ),
+                tools_provider=lambda: self._registry.to_anthropic_schemas(
+                    active_deferred
+                ),
+                tool_executor=_chat_tool_executor,
+                max_tool_calls=MAX_TOOL_CALLS,
+                agent_id="chat-agent",
             )
 
             card_sent = False
             text = ""
             async for event in engine.run(message):
-                if isinstance(event, ToolExecutionEvent):
-                    if event.tool_name.startswith("propose_"):
-                        card_sent = True
+                # Duck-typed event classification (DDD-017 — eliminates
+                # the isinstance(event, ToolExecutionEvent) check that
+                # required a shared.infra import). Any event with a
+                # `tool_name` attribute is treated as a tool-execution
+                # event for the propose-card detection.
+                tool_name = getattr(event, "tool_name", None)
+                if tool_name and tool_name.startswith("propose_"):
+                    card_sent = True
                 # Capture the final text from TurnCompleteEvent or LLMResponseEvent
                 if hasattr(event, "text") and event.text:
                     text = event.text
