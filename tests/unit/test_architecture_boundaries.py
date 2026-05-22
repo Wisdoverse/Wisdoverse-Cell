@@ -5791,32 +5791,62 @@ def test_api_reference_does_not_duplicate_pjm_decomposition_routes() -> None:
     assert "Alternate decomposition router path" not in api_reference
 
 
-def test_lifecycle_modules_live_in_canonical_domain_path() -> None:
-    """architecture-principles.md §1 Domain layer (DDD-002).
+def test_application_facade_depends_on_ports_and_use_cases_only() -> None:
+    """architecture-principles.md §4.7 — application facade purity (DDD-011).
 
-    Lifecycle helpers (`*_lifecycle.py`) must live under
-    `core/domain/lifecycle/`, never at the `core/` top level. Top-level
-    placement was the legacy location and was removed in DDD-020.
-
-    Scoped to business runtime agents in this PR. `shared.control_plane`
-    still has `agent_run_lifecycle.py` at the top level; that shim is
-    removed when DDD-001 promotes `AgentRun` to an explicit aggregate.
-    Extend this test's coverage to `shared/control_plane` in the
-    DDD-001 PR.
+    The facade composes use cases for the service shell. It must not reach
+    around the application layer into infrastructure (`shared.db`,
+    `shared.infra`, `shared.integrations`, `shared.messaging.inbound/outbound`)
+    or into the runtime shell (`..db`, `..adapters`, `..service`, `..app`).
+    Imports limited to: ports, use cases, in-context DTOs, `shared.core`,
+    `shared.schemas`, and `shared.utils.logger`.
     """
-    business_runtimes = [
-        Path("agents/requirement_manager"),
-        Path("agents/pjm_agent"),
-        Path("agents/qa_agent"),
-        Path("agents/dev_agent"),
+    facade_paths = [
+        Path("agents/requirement_manager/core/application_facade.py"),
+        Path("agents/pjm_agent/core/application_facade.py"),
+        Path("agents/qa_agent/core/application_facade.py"),
+        Path("agents/dev_agent/core/application_facade.py"),
+        Path("services/orchestration/coordinator/core/application_facade.py"),
+        Path("services/gateways/user_interaction/core/application_facade.py"),
+        Path("services/gateways/channel/core/application_facade.py"),
+        Path("shared/capabilities/sync/core/application_facade.py"),
+        Path("shared/capabilities/analysis/core/application_facade.py"),
+        Path("shared/capabilities/evolution/core/application_facade.py"),
     ]
-    for runtime_root in business_runtimes:
-        core_dir = runtime_root / "core"
-        assert core_dir.is_dir(), f"missing core/: {core_dir}"
-        offenders = list(core_dir.glob("*_lifecycle.py"))
-        assert not offenders, (
-            f"{runtime_root.name}: lifecycle module(s) at core/ top level: "
-            f"{[str(p) for p in offenders]}. Move to "
-            f"{core_dir / 'domain' / 'lifecycle'} per "
-            "architecture-principles.md §1 (DDD-002)."
-        )
+
+    forbidden_absolute_prefixes = (
+        "shared.db",
+        "shared.infra",
+        "shared.integrations",
+        "shared.messaging.inbound",
+        "shared.messaging.outbound",
+    )
+    forbidden_relative_modules = {"db", "adapters", "service", "app"}
+    forbidden_relative_prefixes = (
+        "db.",
+        "adapters.",
+        "service.",
+        "app.",
+    )
+
+    for facade_path in facade_paths:
+        assert facade_path.exists(), f"missing application facade: {facade_path}"
+        modules = _imported_modules(facade_path)
+        for module in modules:
+            for prefix in forbidden_absolute_prefixes:
+                assert not module.startswith(prefix), (
+                    f"{facade_path}: facade imports infrastructure module "
+                    f"{module!r}; application facade must depend on ports + use "
+                    "cases only (see architecture-principles.md §4.7)"
+                )
+            assert module not in forbidden_relative_modules, (
+                f"{facade_path}: facade imports {module!r}; application facade "
+                "must not pull from db/adapters/service/app (see "
+                "architecture-principles.md §4.7)"
+            )
+            for prefix in forbidden_relative_prefixes:
+                assert not module.startswith(prefix), (
+                    f"{facade_path}: facade imports {module!r}; application "
+                    "facade must not pull from db/adapters/service/app (see "
+                    "architecture-principles.md §4.7)"
+                )
