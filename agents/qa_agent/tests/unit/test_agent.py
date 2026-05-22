@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from agents.qa_agent.core.acceptance_execution_use_cases import derive_severity
 from agents.qa_agent.db.repository import AcceptanceRunRepository
 from agents.qa_agent.service.agent import QAAgent
 from shared.app import UNKNOWN_ACTION_ERROR_CODE
@@ -237,7 +238,7 @@ class TestHandleEvent:
                 mock_get,
             ),
             patch(
-                "agents.qa_agent.service.agent.QAReportStore.save_execution_result",
+                "agents.qa_agent.db.unit_of_work.SqlAlchemyQAReportStore.save_execution_result",
                 new=AsyncMock(side_effect=duplicate_error),
             ),
         ):
@@ -284,7 +285,11 @@ class TestHandleRequest:
 
     @pytest.mark.asyncio
     async def test_stats_action(self, agent):
-        with patch.object(agent, "get_stats", new_callable=AsyncMock) as mock_stats:
+        with patch.object(
+            agent._application,
+            "get_stats",
+            new_callable=AsyncMock,
+        ) as mock_stats:
             from agents.qa_agent.models.schemas import QARunStats
 
             mock_stats.return_value = QARunStats(
@@ -321,13 +326,13 @@ class TestHandleRequest:
 
 class TestDerriveSeverity:
     def test_l0_fail_is_critical(self):
-        assert QAAgent._derive_severity({"level": "L0", "status": "FAIL"}) == "critical"
+        assert derive_severity({"level": "L0", "status": "FAIL"}) == "critical"
 
     def test_l1_warn_is_medium(self):
-        assert QAAgent._derive_severity({"level": "L1", "status": "WARN"}) == "medium"
+        assert derive_severity({"level": "L1", "status": "WARN"}) == "medium"
 
     def test_l2_is_info(self):
-        assert QAAgent._derive_severity({"level": "L2", "status": "INFO"}) == "info"
+        assert derive_severity({"level": "L2", "status": "INFO"}) == "info"
 
     def test_default_is_low(self):
-        assert QAAgent._derive_severity({"level": "L0", "status": "PASS"}) == "low"
+        assert derive_severity({"level": "L0", "status": "PASS"}) == "low"

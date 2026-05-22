@@ -48,8 +48,19 @@ class QANotifierPort(Protocol):
         """Notify all configured channels."""
 
 
-PublishStagedQAEvents = Callable[[list[Event], str | None], Any]
 RecordQAMetrics = Callable[[str, str, AcceptanceExecutionResult], None]
+
+
+class PublishStagedQAEvents(Protocol):
+    """Publishes QA events already staged in the transactional outbox."""
+
+    async def __call__(
+        self,
+        events: list[Event],
+        *,
+        run_id: str | None,
+    ) -> dict[str, Any]:
+        """Publish staged events for a persisted acceptance run."""
 
 
 class QAAcceptanceExecutionUseCase:
@@ -136,7 +147,10 @@ class QAAcceptanceExecutionUseCase:
             staged_events = []
 
         result.run_id = run_id or ""
-        eventbus_summary = await self._publish_staged_events(staged_events, run_id)
+        eventbus_summary = await self._publish_staged_events(
+            staged_events,
+            run_id=run_id,
+        )
         notification_summary = await self._notify(
             request,
             agent_name,

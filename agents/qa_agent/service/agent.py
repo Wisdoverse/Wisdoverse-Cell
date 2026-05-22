@@ -7,8 +7,6 @@ Returns [] from handle_event (side effects only, no response events in return li
 
 from __future__ import annotations
 
-import inspect
-from contextlib import asynccontextmanager
 from typing import Any, Optional
 
 from sqlalchemy.exc import IntegrityError
@@ -22,11 +20,9 @@ from shared.utils.logger import get_logger
 
 from ..core.acceptance_execution_use_cases import (
     QAAcceptanceExecutionUseCase,
-    build_acceptance_events,
-    derive_severity,
-    result_from_run,
 )
 from ..core.acceptance_runner import AcceptanceRunnerService
+from ..core.application_facade import QAApplicationFacade
 from ..core.event_use_cases import QAEventUseCase
 from ..core.health_ports import QAHealthStore
 from ..core.health_use_cases import QAHealthUseCase
@@ -35,13 +31,15 @@ from ..core.outbox_delivery_use_cases import QAOutboxDeliveryUseCase
 from ..core.outbox_ports import QAEventOutboxStore
 from ..core.request_use_cases import QARequestUseCase
 from ..core.run_query_use_cases import QARunQueryUseCase
-from ..core.run_store import QAAcceptanceRunRecord, QAAcceptanceRunStore
+from ..core.run_store import QAAcceptanceRunStore
 from ..db.database import DatabaseManager, db_manager
 from ..db.health_store import SqlAlchemyQAHealthStore
 from ..db.outbox_store import SqlAlchemyQAEventOutboxStore
-from ..db.report_store import SqlAlchemyQAReportStore as QAReportStore
 from ..db.run_store import SqlAlchemyQAAcceptanceRunStore
-from ..db.unit_of_work import SqlAlchemyQAUnitOfWorkFactory
+from ..db.unit_of_work import (
+    SqlAlchemyQASessionUnitOfWorkFactory,
+    SqlAlchemyQAUnitOfWorkFactory,
+)
 from ..models.schemas import (
     AcceptanceExecutionResult,
     QARunRequest,
@@ -50,41 +48,6 @@ from ..models.schemas import (
 from .notifier_factory import build_qa_core_config, build_qa_notifier
 
 logger = get_logger("qa_agent.service")
-
-
-class _SessionQAOutboxWriter:
-    """Compatibility outbox writer for mocked session factories in tests."""
-
-    def __init__(self, stage_event, session) -> None:
-        self._stage_event = stage_event
-        self._session = session
-
-    async def stage(self, event: Event) -> None:
-        await self._stage_event(self._session, event)
-
-
-class _SessionQAUnitOfWork:
-    """Compatibility UOW for session factories without async_session."""
-
-    def __init__(self, *, session, stage_event) -> None:
-        self._session = session
-        self.reports = QAReportStore(session)
-        self.outbox = _SessionQAOutboxWriter(stage_event, session)
-        self.completed = False
-
-    async def commit(self) -> None:
-        result = self._session.commit()
-        if inspect.isawaitable(result):
-            await result
-        self.completed = True
-
-    async def rollback(self) -> None:
-        rollback = getattr(self._session, "rollback", None)
-        if rollback is not None:
-            result = rollback()
-            if inspect.isawaitable(result):
-                await result
-        self.completed = True
 
 
 class QAAgent(BaseAgent):
@@ -125,6 +88,26 @@ class QAAgent(BaseAgent):
             bus=self._event_bus,
             config=core_config,
         )
+        self._acceptance_uow_factory = self._build_acceptance_uow_factory()
+        self._outbox_delivery = QAOutboxDeliveryUseCase(
+            outbox_store=self._outbox_store,
+            event_publisher=self._event_publisher,
+        )
+        self._run_query_use_case = QARunQueryUseCase(run_store=self._run_store)
+        self._acceptance_execution = QAAcceptanceExecutionUseCase(
+            uow_factory=self._acceptance_uow_factory,
+            runner=self._runner,
+            notifier=self._notifier,
+            run_store=self._run_store,
+            publish_staged_events=self._outbox_delivery.publish_staged_events,
+            record_metrics=self._record_metrics,
+            duplicate_persist_error_types=(IntegrityError,),
+        )
+        self._application = QAApplicationFacade(
+            acceptance_execution=self._acceptance_execution,
+            run_queries=self._run_query_use_case,
+            outbox_delivery=self._outbox_delivery,
+        )
 
     async def startup(self) -> None:
         logger.info("qa_agent_starting")
@@ -141,7 +124,7 @@ class QAAgent(BaseAgent):
         return await self._event_use_case().handle(event)
 
     def _event_use_case(self) -> QAEventUseCase:
-        return QAEventUseCase(runner=self)
+        return QAEventUseCase(runner=self._application)
 
     async def handle_request(self, request: dict[str, Any]) -> dict[str, Any]:
         """Handle API/RPC requests."""
@@ -152,7 +135,7 @@ class QAAgent(BaseAgent):
         return await self._request_use_case().handle(request)
 
     def _request_use_case(self) -> QARequestUseCase:
-        return QARequestUseCase(self)
+        return QARequestUseCase(self._application)
 
     async def health_check(self) -> dict[str, bool]:
         return await self._health_use_case().check()
@@ -171,52 +154,20 @@ class QAAgent(BaseAgent):
         trace_id: str | None = None,
         trigger_event_id: str | None = None,
     ) -> AcceptanceExecutionResult:
-        return await self._acceptance_execution_use_case().run_acceptance(
+        return await self._application.run_acceptance(
             request,
             trace_id=trace_id,
             trigger_event_id=trigger_event_id,
         )
 
-    def _acceptance_execution_use_case(self) -> QAAcceptanceExecutionUseCase:
-        return QAAcceptanceExecutionUseCase(
-            uow_factory=self._get_acceptance_unit_of_work,
-            runner=self._runner,
-            notifier=self._notifier,
-            run_store=self._run_store,
-            publish_staged_events=self._publish_staged_qa_events_for_use_case,
-            record_metrics=self._record_metrics,
-            duplicate_persist_error_types=(IntegrityError,),
-        )
-
-    def _get_acceptance_unit_of_work(self):
+    def _build_acceptance_uow_factory(self):
         """Open a QA acceptance unit-of-work context."""
         if "async_session" in vars(self._db_manager):
-            return SqlAlchemyQAUnitOfWorkFactory(self._db_manager)()
-        return self._session_acceptance_unit_of_work()
-
-    @asynccontextmanager
-    async def _session_acceptance_unit_of_work(self):
-        async with self._db_manager.session() as session:
-            uow = _SessionQAUnitOfWork(
-                session=session,
-                stage_event=self._stage_qa_event,
-            )
-            try:
-                yield uow
-            except Exception:
-                if not uow.completed:
-                    await uow.rollback()
-                raise
-            finally:
-                if not uow.completed:
-                    await uow.rollback()
-
-    async def _publish_staged_qa_events_for_use_case(
-        self,
-        events: list[Event],
-        run_id: str | None,
-    ) -> dict[str, Any]:
-        return await self._publish_staged_qa_events(events, run_id=run_id)
+            return SqlAlchemyQAUnitOfWorkFactory(self._db_manager)
+        return SqlAlchemyQASessionUnitOfWorkFactory(
+            self._db_manager,
+            outbox_store=self._outbox_store,
+        )
 
     async def list_runs(
         self,
@@ -225,14 +176,14 @@ class QAAgent(BaseAgent):
         limit: int = 20,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        return await self._run_query_use_case().list_runs(
+        return await self._application.list_runs(
             agent_name=agent_name,
             limit=limit,
             offset=offset,
         )
 
     async def get_run(self, run_id: str) -> dict[str, Any] | None:
-        return await self._run_query_use_case().get_run(run_id)
+        return await self._application.get_run(run_id)
 
     async def get_stats(
         self,
@@ -240,76 +191,20 @@ class QAAgent(BaseAgent):
         agent_name: str | None = None,
         days: int = 30,
     ) -> QARunStats:
-        return await self._run_query_use_case().get_stats(
+        return await self._application.get_stats(
             agent_name=agent_name,
             days=days,
         )
 
-    def _run_query_use_case(self) -> QARunQueryUseCase:
-        return QARunQueryUseCase(run_store=self._run_store)
-
     async def publish_pending_qa_events(self, limit: int = 100) -> dict[str, int]:
-        return await self._outbox_delivery_use_case().publish_pending_events(
-            limit=limit,
-        )
+        return await self._application.publish_pending_qa_events(limit=limit)
 
     async def publish_event_via_outbox(self, event: Event) -> bool:
-        return await self._outbox_delivery_use_case().publish_event_via_outbox(event)
-
-    def _outbox_delivery_use_case(self) -> QAOutboxDeliveryUseCase:
-        return QAOutboxDeliveryUseCase(
-            outbox_store=self._outbox_store,
-            event_publisher=self._event_publisher,
-        )
+        return await self._application.publish_event_via_outbox(event)
 
     # ---------------------------------------------------------------
     # Private helpers
     # ---------------------------------------------------------------
-
-    async def _stage_qa_event(self, session, event: Event) -> Event:
-        """Persist an integration event in the local QA outbox."""
-        await self._outbox_store.stage(session, event)
-        return event
-
-    async def _publish_staged_qa_events(
-        self,
-        events: list[Event],
-        *,
-        run_id: str | None,
-    ) -> dict[str, Any]:
-        return await self._outbox_delivery_use_case().publish_staged_events(
-            events,
-            run_id=run_id,
-        )
-
-    def _build_acceptance_events(
-        self,
-        *,
-        run_id: str,
-        request: QARunRequest,
-        result: AcceptanceExecutionResult,
-        summary: dict,
-        findings: list[dict],
-        report_markdown: str | None,
-        trace_id: str | None,
-    ) -> list[Event]:
-        return build_acceptance_events(
-            run_id=run_id,
-            request=request,
-            result=result,
-            summary=summary,
-            findings=findings,
-            report_markdown=report_markdown,
-            trace_id=trace_id,
-        )
-
-    @staticmethod
-    def _result_from_run(run: QAAcceptanceRunRecord) -> AcceptanceExecutionResult:
-        return result_from_run(run)
-
-    @staticmethod
-    def _derive_severity(finding: dict) -> str:
-        return derive_severity(finding)
 
     @staticmethod
     def _record_metrics(

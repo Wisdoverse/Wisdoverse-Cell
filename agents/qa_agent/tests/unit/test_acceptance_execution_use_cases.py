@@ -202,7 +202,7 @@ async def test_run_acceptance_persists_stages_publishes_and_notifies() -> None:
         EventTypes.QA_ACCEPTANCE_COMPLETED,
         EventTypes.QA_GATE_FAILED,
     ]
-    context.publish_staged.assert_awaited_once_with(staged_events, "run_1")
+    context.publish_staged.assert_awaited_once_with(staged_events, run_id="run_1")
     context.notifier.notify_all.assert_awaited_once()
     assert context.notifier.notify_all.await_args.kwargs["eventbus_summary"] == {
         "sent": True,
