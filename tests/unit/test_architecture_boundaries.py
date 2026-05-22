@@ -1838,9 +1838,11 @@ def test_pjm_api_delegates_to_application_use_case() -> None:
 def test_pjm_agent_request_dispatch_delegates_to_application_use_case() -> None:
     """PJM service shell should not own request action orchestration."""
     service_source = Path("agents/pjm_agent/service/agent.py").read_text()
+    facade_source = Path("agents/pjm_agent/core/application_facade.py").read_text()
     use_case_source = Path("agents/pjm_agent/core/request_use_cases.py").read_text()
     handle_source = _function_source(service_source, "handle_request")
 
+    assert "class PJMApplicationFacade" in facade_source
     assert "class PJMRequestUseCase" in use_case_source
     assert "class PJMConfigPort(Protocol)" in use_case_source
     assert "class PJMAlertPort(Protocol)" in use_case_source
@@ -1859,8 +1861,14 @@ def test_pjm_agent_request_dispatch_delegates_to_application_use_case() -> None:
     assert "unknown_action_error()" in use_case_source
     assert "request_error(\"report_failed\", \"report_failed\")" in use_case_source
 
-    assert "PJMRequestUseCase" in service_source
-    assert "return await self._request_use_case().handle(request)" in handle_source
+    assert "PJMRequestUseCase" not in service_source
+    assert "def _request_use_case" not in service_source
+    assert "PJMRequestUseCase" in facade_source
+    assert "return await self._application.handle_request(request)" in handle_source
+    assert "return await self._request_use_case().handle(request)" not in handle_source
+    assert "standard_response = await self._standard_request_handler(request)" in (
+        facade_source
+    )
     assert 'action == "config"' not in handle_source
     assert 'action == "alerts"' not in handle_source
     assert 'action == "retry_decompose"' not in handle_source
@@ -1872,9 +1880,11 @@ def test_pjm_agent_request_dispatch_delegates_to_application_use_case() -> None:
 def test_pjm_agent_event_dispatch_delegates_to_application_use_case() -> None:
     """PJM service shell should not own event workflow branching."""
     service_source = Path("agents/pjm_agent/service/agent.py").read_text()
+    facade_source = Path("agents/pjm_agent/core/application_facade.py").read_text()
     use_case_source = Path("agents/pjm_agent/core/event_use_cases.py").read_text()
     handle_source = _function_source(service_source, "handle_event")
 
+    assert "class PJMApplicationFacade" in facade_source
     assert "class PJMEventUseCase" in use_case_source
     assert "class PJMEventConfigPort(Protocol)" in use_case_source
     assert "class PJMEventAlertPort(Protocol)" in use_case_source
@@ -1892,9 +1902,11 @@ def test_pjm_agent_event_dispatch_delegates_to_application_use_case() -> None:
     assert "chat_query_failed" in use_case_source
     assert "decomposition_failed_notify_failed" in use_case_source
 
-    assert "PJMEventUseCase" in service_source
-    assert "def _event_use_case" in service_source
-    assert "return await self._event_use_case().handle(event)" in handle_source
+    assert "PJMEventUseCase" not in service_source
+    assert "def _event_use_case" not in service_source
+    assert "PJMEventUseCase" in facade_source
+    assert "return await self._application.handle_event(event)" in handle_source
+    assert "return await self._event_use_case().handle(event)" not in handle_source
     assert "if event.event_type == EventTypes.SYNC_COMPLETED" not in handle_source
     assert "if event.event_type == EventTypes.CHAT_PM_QUERY" not in handle_source
     assert "if event.event_type == EventTypes.SYNC_TASK_NEEDS_DECOMPOSE" not in (
@@ -3658,6 +3670,9 @@ def test_pjm_decomposition_api_events_have_durable_outbox_contract() -> None:
         "agents/pjm_agent/core/decomposition_recovery_workflow.py"
     ).read_text()
     event_use_case_source = Path("agents/pjm_agent/core/event_use_cases.py").read_text()
+    application_facade_source = Path(
+        "agents/pjm_agent/core/application_facade.py"
+    ).read_text()
     doc_source = Path("docs/guides/backend-boundaries.md").read_text()
 
     assert migration_path.exists()
@@ -3718,12 +3733,17 @@ def test_pjm_decomposition_api_events_have_durable_outbox_contract() -> None:
     assert "SqlAlchemyPJMAlertLogStore(self._db_manager)" in service_source
     assert "DecompositionRepository" not in service_source
     assert "AlertLogRepository" not in service_source
-    assert "self._decomposition_store.list_stale_pending" in service_source
+    assert "self._decomposition_store.list_stale_pending" not in service_source
+    assert "self._decomposition_store_provider().list_stale_pending" in (
+        application_facade_source
+    )
     assert "self._alert_log_store.record_alerts" in event_use_case_source
     assert "await self._decomposition.publish_event_via_outbox(failure_event)" in (
         event_use_case_source
     )
-    assert "await self._publish_pjm_event_via_outbox(timeout_event)" in service_source
+    assert "await self.publish_event_via_outbox(timeout_event)" in (
+        application_facade_source
+    )
     assert "self._event_bus.publish(" not in service_source
     assert "self._event_bus.publish(" not in event_use_case_source
     assert "`pjm_agent_event_outbox`" in doc_source
@@ -4241,8 +4261,11 @@ def test_qa_and_pjm_health_checks_use_health_store_ports() -> None:
     assert "text(\"SELECT 1\")" not in pjm_service
     assert "health_store" in pjm_service
     assert "SqlAlchemyPJMHealthStore(" in pjm_service
-    assert "def _health_use_case" in pjm_service
-    assert "return await self._health_use_case().check()" in pjm_service
+    pjm_facade = Path("agents/pjm_agent/core/application_facade.py").read_text()
+    assert "def _health_use_case" not in pjm_service
+    assert "return await self._application.health_check()" in pjm_service
+    assert "def _health_use_case" in pjm_facade
+    assert "return await self._health_use_case().check()" in pjm_facade
     assert "is_database_ready" not in pjm_service
     assert "len(self._config.members)" not in pjm_service
 

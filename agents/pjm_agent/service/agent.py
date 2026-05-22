@@ -6,7 +6,6 @@ sync.task-needs-decompose. Handles alert checks, risk notifications, PM query
 responses, and automated task decomposition.
 """
 
-from datetime import UTC, datetime, timedelta
 from typing import Optional
 
 from shared.config import settings as app_settings
@@ -23,17 +22,16 @@ from shared.utils.logger import get_logger
 from ..adapters.feishu_cards import FeishuPJMCardRenderer
 from ..core.alert_ports import PJMAlertLogStore
 from ..core.alert_service import AlertService
+from ..core.application_facade import PJMApplicationFacade
 from ..core.config_service import PMConfigService
 from ..core.decompose import DecomposeService
 from ..core.decomposition_orchestrator import DecompositionOrchestrator
 from ..core.decomposition_ports import PJMDecompositionStore
-from ..core.event_use_cases import PJMEventUseCase, PJMMetricsPort
+from ..core.event_use_cases import PJMMetricsPort
 from ..core.health_ports import PJMHealthStore
-from ..core.health_use_cases import PJMHealthUseCase
 from ..core.op_writer import OPWriterService
 from ..core.push_service import PushService
 from ..core.report_service import ReportService
-from ..core.request_use_cases import PJMRequestUseCase
 from ..db.alert_log_store import SqlAlchemyPJMAlertLogStore
 from ..db.database import DatabaseManager, db_manager
 from ..db.decomposition_store import SqlAlchemyPJMDecompositionStore
@@ -49,10 +47,6 @@ except ImportError:
     _metrics_available = False
 
 logger = get_logger("pjm_agent.service")
-
-# --- Named constants (formerly magic numbers) ---
-STALE_APPROVAL_HOURS = 24  # Hours before a pending approval is considered stale
-
 
 class _PJMMetrics(PJMMetricsPort):
     def record_alert_triggered(self, *, alert_type: str, severity: str) -> None:
@@ -104,6 +98,19 @@ class PMAgent(BaseAgent):
         self._report: ReportService | None = None
         self._decomposition_orchestrator: DecompositionOrchestrator | None = None
         self._core_config = build_pjm_core_config()
+        self._application = PJMApplicationFacade(
+            standard_request_handler=self.handle_standard_request,
+            config_provider=lambda: self._config,
+            alert_provider=lambda: self._alert,
+            push_provider=lambda: self._push,
+            report_provider=lambda: self._report,
+            decomposition_provider=lambda: self._decomposition_orchestrator,
+            decomposition_store_provider=lambda: self._decomposition_store,
+            alert_log_store=self._alert_log_store,
+            health_store=self._health_store,
+            event_factory=self,
+            metrics=_PJMMetrics(),
+        )
 
     async def startup(self):
         logger.info("agent_starting", agent_id=self.agent_id)
@@ -163,52 +170,18 @@ class PMAgent(BaseAgent):
         logger.info("agent_stopped", agent_id=self.agent_id)
 
     async def handle_event(self, event: Event) -> list[Event]:
-        return await self._event_use_case().handle(event)
-
-    def _event_use_case(self) -> PJMEventUseCase:
-        return PJMEventUseCase(
-            agent_id=self.agent_id,
-            config=self._config,
-            alert=self._alert,
-            push=self._push,
-            alert_log_store=self._alert_log_store,
-            decomposition=self._decomposition_orchestrator,
-            event_factory=self,
-            metrics=_PJMMetrics(),
-        )
+        return await self._application.handle_event(event)
 
     async def handle_request(self, request: dict) -> dict:
-        standard_response = await self.handle_standard_request(request)
-        if standard_response is not None:
-            return standard_response
-
-        return await self._request_use_case().handle(request)
-
-    def _request_use_case(self) -> PJMRequestUseCase:
-        return PJMRequestUseCase(
-            config=self._config,
-            alert=self._alert,
-            push=self._push,
-            report=self._report,
-            decomposition=self._decomposition_orchestrator,
-            decomposition_store=self._decomposition_store,
-        )
+        return await self._application.handle_request(request)
 
     async def health_check(self) -> dict[str, bool]:
         """Public health check for readiness probes."""
-        return await self._health_use_case().check()
-
-    def _health_use_case(self) -> PJMHealthUseCase:
-        return PJMHealthUseCase(
-            health_store=self._health_store,
-            config=self._config,
-        )
+        return await self._application.health_check()
 
     async def publish_pending_pjm_events(self, limit: int = 100) -> dict[str, int]:
         """Retry pending PJM outbox events through the decomposition boundary."""
-        if self._decomposition_orchestrator is None:
-            raise RuntimeError("decomposition_orchestrator_not_started")
-        return await self._decomposition_orchestrator.publish_pending_pjm_events(limit=limit)
+        return await self._application.publish_pending_pjm_events(limit=limit)
 
     async def publish_event_via_outbox(self, event: Event) -> bool:
         """Stage a runtime-produced PJM event before EventBus delivery."""
@@ -222,52 +195,21 @@ class PMAgent(BaseAgent):
         wp_id: int | None = None,
     ) -> None:
         """Publish a PJM notification through the durable outbox boundary."""
-        if self._decomposition_orchestrator is None:
-            raise RuntimeError("decomposition_orchestrator_not_started")
-        await self._decomposition_orchestrator.publish_event_via_outbox(
-            event,
-            wp_id=wp_id,
-        )
+        await self._application.publish_event_via_outbox(event, wp_id=wp_id)
 
     async def check_approval_timeouts(self):
         """Scan for pending approvals older than 24h and send reminders."""
-        pending = await self._decomposition_store.list_stale_pending(
-            older_than_hours=STALE_APPROVAL_HOURS
-        )
-        now = datetime.now(UTC)
-        for record in pending:
-            if hasattr(record, "created_at") and record.created_at:
-                age = now - record.created_at
-                if age > timedelta(hours=STALE_APPROVAL_HOURS):
-                    logger.warning(
-                        "approval_timeout",
-                        record_id=record.id,
-                        age_hours=age.total_seconds() / 3600,
-                    )
-                    timeout_event = Event.create(
-                        event_type=EventTypes.PM_APPROVAL_TIMEOUT,
-                        source_agent=self.agent_id,
-                        payload={
-                            "record_id": str(record.id),
-                            "age_hours": round(age.total_seconds() / 3600, 1),
-                        },
-                    )
-                    try:
-                        await self._publish_pjm_event_via_outbox(timeout_event)
-                    except Exception as e:
-                        logger.error("approval_timeout_notify_failed", error=str(e))
+        await self._application.check_approval_timeouts()
 
     async def approve_decomposition(self, wp_id: int, approved_by: str) -> dict | None:
         """Delegate to DecompositionOrchestrator."""
-        return await self._decomposition_orchestrator.approve_decomposition(wp_id, approved_by)
+        return await self._application.approve_decomposition(wp_id, approved_by)
 
     async def reject_decomposition(
         self, wp_id: int, rejected_by: str, reason: str = ""
     ) -> dict | None:
         """Delegate to DecompositionOrchestrator."""
-        return await self._decomposition_orchestrator.reject_decomposition(
-            wp_id, rejected_by, reason=reason
-        )
+        return await self._application.reject_decomposition(wp_id, rejected_by, reason=reason)
 
 
 agent = PMAgent()
