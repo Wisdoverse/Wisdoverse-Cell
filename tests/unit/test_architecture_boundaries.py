@@ -1754,6 +1754,8 @@ def test_qa_agent_acceptance_execution_delegates_to_application_use_case() -> No
     use_case_source = Path(
         "agents/qa_agent/core/acceptance_execution_use_cases.py"
     ).read_text()
+    application_source = Path("agents/qa_agent/core/application_facade.py").read_text()
+    uow_adapter_source = Path("agents/qa_agent/db/unit_of_work.py").read_text()
     uow_source = Path("agents/qa_agent/core/unit_of_work_ports.py").read_text()
     run_source = _function_source(service_source, "run_acceptance")
 
@@ -1778,12 +1780,20 @@ def test_qa_agent_acceptance_execution_delegates_to_application_use_case() -> No
     assert "self._db_manager.session()" not in use_case_source
     assert "session, event" not in use_case_source
 
+    assert "class QAApplicationFacade" in application_source
     assert "QAAcceptanceExecutionUseCase" in service_source
-    assert "def _acceptance_execution_use_case" in service_source
-    assert "return await self._acceptance_execution_use_case().run_acceptance" in (
-        run_source
+    assert "QAApplicationFacade(" in service_source
+    assert "return await self._acceptance_execution.run_acceptance" in (
+        _function_source(application_source, "run_acceptance")
     )
+    assert "return await self._application.run_acceptance" in run_source
+    assert "def _acceptance_execution_use_case" not in service_source
     assert "SqlAlchemyQAUnitOfWorkFactory(self._db_manager)" in service_source
+    assert "class SqlAlchemyQASessionUnitOfWorkFactory" in uow_adapter_source
+    assert "class SqlAlchemyQASessionUnitOfWork" in uow_adapter_source
+    assert "SqlAlchemyQASessionUnitOfWorkFactory(" in service_source
+    assert "class _SessionQAUnitOfWork" not in service_source
+    assert "class _SessionQAOutboxWriter" not in service_source
     assert "AcceptanceSummary(" not in service_source
     assert "AcceptanceFinding(" not in service_source
     assert "await self._runner.run_json" not in service_source
@@ -4362,6 +4372,8 @@ def test_qa_acceptance_events_have_durable_outbox_contract() -> None:
     run_query_source = Path("agents/qa_agent/core/run_query_use_cases.py").read_text()
     run_adapter_source = Path("agents/qa_agent/db/run_store.py").read_text()
     service_source = Path("agents/qa_agent/service/agent.py").read_text()
+    application_source = Path("agents/qa_agent/core/application_facade.py").read_text()
+    uow_source = Path("agents/qa_agent/db/unit_of_work.py").read_text()
     execution_use_case_source = Path(
         "agents/qa_agent/core/acceptance_execution_use_cases.py"
     ).read_text()
@@ -4384,7 +4396,8 @@ def test_qa_acceptance_events_have_durable_outbox_contract() -> None:
     assert "AcceptanceRunRepository" not in report_port_source
     assert "AcceptanceResultRepository" not in report_port_source
     assert "SqlAlchemyQAReportStore" in report_adapter_source
-    assert "from ..db.report_store import SqlAlchemyQAReportStore as QAReportStore" in service_source
+    assert "SqlAlchemyQAReportStore" not in service_source
+    assert "SqlAlchemyQAReportStore" in uow_source
     assert "class QAAcceptanceRunStore(Protocol)" in run_port_source
     assert "class QARunQueryUseCase" in run_query_source
     assert "AcceptanceRunRepository" not in run_port_source
@@ -4393,12 +4406,21 @@ def test_qa_acceptance_events_have_durable_outbox_contract() -> None:
     assert "self._run_store.list_runs" in run_query_source
     assert "self._run_store.get_by_id" in run_query_source
     assert "raw_report.get(\"results\"" in run_query_source
-    assert "def _run_query_use_case" in service_source
-    assert "return await self._run_query_use_case().list_runs" in _function_source(
+    assert "class QAApplicationFacade" in application_source
+    assert "def _run_query_use_case" not in service_source
+    assert "return await self._run_queries.list_runs" in _function_source(
+        application_source,
+        "list_runs",
+    )
+    assert "return await self._application.list_runs" in _function_source(
         service_source,
         "list_runs",
     )
-    assert "return await self._run_query_use_case().get_run(run_id)" in _function_source(
+    assert "return await self._run_queries.get_run(run_id)" in _function_source(
+        application_source,
+        "get_run",
+    )
+    assert "return await self._application.get_run(run_id)" in _function_source(
         service_source,
         "get_run",
     )
@@ -4406,16 +4428,27 @@ def test_qa_acceptance_events_have_durable_outbox_contract() -> None:
     assert "self._run_store.get_by_trigger_event_id" in execution_use_case_source
     assert "await uow.outbox.stage(event)" in execution_use_case_source
     assert "QAEventOutboxRepository" not in service_source
-    assert "await self._publish_staged_qa_events" in service_source
+    assert "publish_staged_events=self._outbox_delivery.publish_staged_events" in (
+        service_source
+    )
     assert "publish_pending_qa_events" in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
-    assert "def _outbox_delivery_use_case" in service_source
+    assert "def _outbox_delivery_use_case" not in service_source
+    assert "QAOutboxDeliveryUseCase" in application_source
     assert (
-        "return await self._outbox_delivery_use_case().publish_pending_events"
+        "return await self._outbox_delivery.publish_pending_events"
+        in _function_source(application_source, "publish_pending_qa_events")
+    )
+    assert (
+        "return await self._application.publish_pending_qa_events"
         in _function_source(service_source, "publish_pending_qa_events")
     )
     assert (
-        "return await self._outbox_delivery_use_case().publish_event_via_outbox(event)"
+        "return await self._outbox_delivery.publish_event_via_outbox(event)"
+        in _function_source(application_source, "publish_event_via_outbox")
+    )
+    assert (
+        "return await self._application.publish_event_via_outbox(event)"
         in _function_source(service_source, "publish_event_via_outbox")
     )
     assert "await self._event_publisher.publish(event)" not in service_source
