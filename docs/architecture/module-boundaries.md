@@ -199,7 +199,12 @@ When you add a new context, you must add a row to this document **and** to
 - Outbound dependencies: Control Plane (proposals, approvals); runtime
   agents (traces).
 - Boundary clarity: medium. Code split between `shared/evolution/` and
-  `shared/capabilities/evolution/` historically.
+  `shared/capabilities/evolution/` is intentional — runtime primitives
+  (trace collector, evaluator, skill optimizer, evolution guard, canary
+  router, kill switch) live in `shared/evolution/`; the L2 capability
+  service (analysis cycles + `EvolutionProposal` flow + approval gate)
+  lives in `shared/capabilities/evolution/`. The split is documented in
+  both READMEs and the DDD audit row DDD-005.
 - Split fitness: keep guarded. Only split after approval/rollback contracts
   are hardened.
 - Context-map relationships: Open-Host Service to all runtime agents on trace and reflection ingestion. Customer/Supplier to Control Plane on `EvolutionProposal` records (proposals surface via the approval gate). Anti-Corruption Layer to LLM via `shared.infra.llm_gateway`. Conformist to Control Plane on approval enforcement semantics.
