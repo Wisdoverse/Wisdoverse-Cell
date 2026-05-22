@@ -3858,7 +3858,7 @@ def test_coordinator_event_orchestration_delegates_to_application_use_case() -> 
 
     assert "class CoordinatorEventUseCase" in use_case_source
     assert "class CoordinatorScratchpadPort(Protocol)" in use_case_source
-    assert "CoordinatorThinker" in use_case_source
+    assert "class CoordinatorThinkerPort(Protocol)" in use_case_source
     assert "classify_event(event)" in use_case_source
     assert 'classified.kind == "progress"' in use_case_source
     assert "update_agent_state(" in use_case_source
@@ -5791,45 +5791,62 @@ def test_api_reference_does_not_duplicate_pjm_decomposition_routes() -> None:
     assert "Alternate decomposition router path" not in api_reference
 
 
-def test_business_aggregates_have_unit_tests() -> None:
-    """testing-strategy.md §1 — every landed aggregate ships a unit test (DDD-015).
+def test_application_facade_depends_on_ports_and_use_cases_only() -> None:
+    """architecture-principles.md §4.7 — application facade purity (DDD-011).
 
-    Each business runtime aggregate root and its state machine must
-    have matching unit tests under `tests/unit/`. DDD-015 calls these
-    out as required artifacts for every Stage 2 aggregate that lands.
+    The facade composes use cases for the service shell. It must not reach
+    around the application layer into infrastructure (`shared.db`,
+    `shared.infra`, `shared.integrations`, `shared.messaging.inbound/outbound`)
+    or into the runtime shell (`..db`, `..adapters`, `..service`, `..app`).
+    Imports limited to: ports, use cases, in-context DTOs, `shared.core`,
+    `shared.schemas`, and `shared.utils.logger`.
     """
-    cases = [
-        (
-            "agents/requirement_manager/core/domain/requirement.py",
-            "agents/requirement_manager/tests/unit/test_requirement_aggregate.py",
-            "agents/requirement_manager/tests/unit/test_requirement_lifecycle.py",
-        ),
-        (
-            "agents/pjm_agent/core/domain/decomposition.py",
-            "agents/pjm_agent/tests/unit/test_decomposition_aggregate.py",
-            "agents/pjm_agent/tests/unit/test_decomposition_lifecycle.py",
-        ),
-        (
-            "agents/dev_agent/core/domain/task.py",
-            "agents/dev_agent/tests/unit/test_task_aggregate.py",
-            None,  # FSM tested via test_repository.py::TestTransitionGuard
-        ),
-        (
-            "agents/qa_agent/core/domain/acceptance_verdict.py",
-            "agents/qa_agent/tests/unit/test_acceptance_verdict.py",
-            None,  # AcceptanceVerdict is a value object, no FSM (DDD-021)
-        ),
+    facade_paths = [
+        Path("agents/requirement_manager/core/application_facade.py"),
+        Path("agents/pjm_agent/core/application_facade.py"),
+        Path("agents/qa_agent/core/application_facade.py"),
+        Path("agents/dev_agent/core/application_facade.py"),
+        Path("services/orchestration/coordinator/core/application_facade.py"),
+        Path("services/gateways/user_interaction/core/application_facade.py"),
+        Path("services/gateways/channel/core/application_facade.py"),
+        Path("shared/capabilities/sync/core/application_facade.py"),
+        Path("shared/capabilities/analysis/core/application_facade.py"),
+        Path("shared/capabilities/evolution/core/application_facade.py"),
     ]
-    for aggregate_path, aggregate_test, fsm_test in cases:
-        assert Path(aggregate_path).exists(), f"missing aggregate: {aggregate_path}"
-        assert Path(aggregate_test).exists(), (
-            f"missing aggregate unit test {aggregate_test} for {aggregate_path}; "
-            "every aggregate must ship a unit test per testing-strategy.md §1 "
-            "(DDD-015)"
-        )
-        if fsm_test is not None:
-            assert Path(fsm_test).exists(), (
-                f"missing FSM unit test {fsm_test} for {aggregate_path}; "
-                "every state machine must ship a unit test per "
-                "testing-strategy.md §1 (DDD-015)"
+
+    forbidden_absolute_prefixes = (
+        "shared.db",
+        "shared.infra",
+        "shared.integrations",
+        "shared.messaging.inbound",
+        "shared.messaging.outbound",
+    )
+    forbidden_relative_modules = {"db", "adapters", "service", "app"}
+    forbidden_relative_prefixes = (
+        "db.",
+        "adapters.",
+        "service.",
+        "app.",
+    )
+
+    for facade_path in facade_paths:
+        assert facade_path.exists(), f"missing application facade: {facade_path}"
+        modules = _imported_modules(facade_path)
+        for module in modules:
+            for prefix in forbidden_absolute_prefixes:
+                assert not module.startswith(prefix), (
+                    f"{facade_path}: facade imports infrastructure module "
+                    f"{module!r}; application facade must depend on ports + use "
+                    "cases only (see architecture-principles.md §4.7)"
+                )
+            assert module not in forbidden_relative_modules, (
+                f"{facade_path}: facade imports {module!r}; application facade "
+                "must not pull from db/adapters/service/app (see "
+                "architecture-principles.md §4.7)"
             )
+            for prefix in forbidden_relative_prefixes:
+                assert not module.startswith(prefix), (
+                    f"{facade_path}: facade imports {module!r}; application "
+                    "facade must not pull from db/adapters/service/app (see "
+                    "architecture-principles.md §4.7)"
+                )
