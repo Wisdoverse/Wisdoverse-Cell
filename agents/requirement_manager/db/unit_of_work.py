@@ -3,6 +3,7 @@
 import inspect
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -133,6 +134,19 @@ class SqlAlchemyRequirementSessionUnitOfWork(RequirementUnitOfWork):
         if inspect.isawaitable(result):
             await result
         self.completed = True
+
+
+class SqlAlchemyRequirementSessionUnitOfWorkFactory:
+    """Adapt caller-owned legacy sessions to SQLAlchemy Requirement UOWs."""
+
+    def __init__(self, *, outbox_store: RequirementEventOutboxStore) -> None:
+        self._outbox_store = outbox_store
+
+    def __call__(self, session: object) -> RequirementUnitOfWork:
+        return SqlAlchemyRequirementSessionUnitOfWork(
+            cast(AsyncSession, session),
+            outbox_store=self._outbox_store,
+        )
 
 
 class SqlAlchemyRequirementUnitOfWorkFactory:

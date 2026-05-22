@@ -42,3 +42,10 @@ class RequirementUnitOfWorkFactory(Protocol):
 
     def __call__(self) -> AbstractAsyncContextManager[RequirementUnitOfWork]:
         """Open one Requirement unit-of-work context."""
+
+
+class RequirementSessionUnitOfWorkFactory(Protocol):
+    """Factory for adapting caller-owned legacy sessions to Requirement UOWs."""
+
+    def __call__(self, session: object) -> RequirementUnitOfWork:
+        """Adapt one caller-owned persistence session to the UOW boundary."""

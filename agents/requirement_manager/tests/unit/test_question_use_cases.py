@@ -66,7 +66,6 @@ async def test_answer_question_with_uow_returns_empty_result_for_missing_questio
 @pytest.mark.asyncio
 async def test_list_open_questions_uses_question_store_without_commit():
     """Open-question reads are delegated to the persistence port."""
-    agent = RequirementManagerAgent(db=MagicMock(), bus=MagicMock(), vectors=MagicMock())
     session = MagicMock()
     session.commit = AsyncMock()
 
@@ -76,12 +75,18 @@ async def test_list_open_questions_uses_question_store_without_commit():
 
     uow = MagicMock()
     uow.questions = question_store
-    agent._session_unit_of_work = MagicMock(return_value=uow)
+    session_uow_factory = MagicMock(return_value=uow)
+    agent = RequirementManagerAgent(
+        db=MagicMock(),
+        bus=MagicMock(),
+        vectors=MagicMock(),
+        session_uow_factory=session_uow_factory,
+    )
     result = await agent.list_open_questions(session=session, limit=10)
 
     assert result is questions
     question_store.list_open.assert_awaited_once_with(limit=10)
-    agent._session_unit_of_work.assert_called_once_with(session)
+    session_uow_factory.assert_called_once_with(session)
     session.commit.assert_not_awaited()
 
 
