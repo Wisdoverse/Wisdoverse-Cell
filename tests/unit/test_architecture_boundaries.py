@@ -4343,6 +4343,9 @@ def test_requirement_and_user_interaction_health_checks_use_health_store_ports()
         "services/gateways/user_interaction/core/health_use_cases.py"
     ).read_text()
     chat_adapter = Path("services/gateways/user_interaction/db/health_store.py").read_text()
+    chat_facade = Path(
+        "services/gateways/user_interaction/core/application_facade.py"
+    ).read_text()
 
     assert "class RequirementHealthStore(Protocol)" in req_port
     assert "SqlAlchemyRequirementHealthStore" in req_adapter
@@ -4373,8 +4376,10 @@ def test_requirement_and_user_interaction_health_checks_use_health_store_ports()
     assert "text(\"SELECT 1\")" not in chat_service
     assert "health_store" in chat_service
     assert "SqlAlchemyUserInteractionHealthStore(" in chat_service
-    assert "def _health_use_case" in chat_service
-    assert "return await self._health_use_case().check()" in chat_service
+    assert "def _health_use_case" not in chat_service
+    assert "return await self._application.health_check()" in chat_service
+    assert "def _health_use_case" in chat_facade
+    assert "return await self._health_use_case().check()" in chat_facade
     assert "is_database_ready" not in chat_service
 
 
@@ -4665,6 +4670,12 @@ def test_user_interaction_sync_trigger_events_have_durable_outbox_contract() -> 
     service_source = Path(
         "services/gateways/user_interaction/service/agent.py"
     ).read_text()
+    facade_source = Path(
+        "services/gateways/user_interaction/core/application_facade.py"
+    ).read_text()
+    outbox_use_case_source = Path(
+        "services/gateways/user_interaction/core/outbox_delivery_use_cases.py"
+    ).read_text()
     tools_source = Path(
         "services/gateways/user_interaction/core/tools.py"
     ).read_text()
@@ -4679,11 +4690,28 @@ def test_user_interaction_sync_trigger_events_have_durable_outbox_contract() -> 
     assert "SqlAlchemyUserInteractionEventOutboxStore" in adapter_source
     assert "event_publisher: GatewayEventPublisherPort" in tools_source
     assert "await deps.event_publisher.publish_sync_trigger" in tools_source
-    assert "EventTypes.SYNC_TRIGGER" in service_source
+    assert "EventTypes.SYNC_TRIGGER" in facade_source
+    assert "class UserInteractionOutboxDeliveryUseCase" in outbox_use_case_source
+    assert 'record_outbox_pending_age("chat-agent", rows)' in outbox_use_case_source
+    assert "def event_from_outbox" in outbox_use_case_source
+    assert "await self._event_bus.connect()" in outbox_use_case_source
+    assert "await self._event_publisher.publish(event)" in outbox_use_case_source
     assert "publish_pending_user_interaction_events" in service_source
-    assert "_publish_gateway_event_via_outbox" in service_source
+    assert "return await self._application.publish_pending_user_interaction_events" in (
+        service_source
+    )
+    assert "return await self._application.publish_event_via_outbox(event)" in (
+        service_source
+    )
     assert "UserInteractionEventOutboxRepository" not in service_source
+    assert "EventMetadata" not in service_source
+    assert "record_outbox_pending_age" not in service_source
+    assert "def _event_from_outbox" not in service_source
+    assert "def _publish_staged_gateway_event" not in service_source
+    assert "def _mark_gateway_event_published" not in service_source
+    assert "def _mark_gateway_event_failed" not in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
+    assert "await self._event_publisher.publish(event)" not in service_source
     assert "self._event_bus.publish(" not in service_source
     assert "`chat_agent_event_outbox`" in doc_source
     assert "`chat_agent_event_outbox`" in event_catalog_source
@@ -5045,6 +5073,9 @@ def test_user_interaction_agent_request_dispatch_delegates_to_application_use_ca
     service_source = Path(
         "services/gateways/user_interaction/service/agent.py"
     ).read_text()
+    facade_source = Path(
+        "services/gateways/user_interaction/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "services/gateways/user_interaction/core/request_use_cases.py"
     ).read_text()
@@ -5058,8 +5089,14 @@ def test_user_interaction_agent_request_dispatch_delegates_to_application_use_ca
     assert 'action == "cleanup_conversations"' in use_case_source
     assert "unknown_action_error()" in use_case_source
 
-    assert "UserInteractionRequestUseCase" in service_source
-    assert "return await self._request_use_case().handle(request)" in handle_source
+    assert "class UserInteractionApplicationFacade" in facade_source
+    assert "UserInteractionRequestUseCase" in facade_source
+    assert "def _request_use_case" in facade_source
+    assert "return await self._request_use_case().handle(request)" in facade_source
+    assert "UserInteractionRequestUseCase" not in service_source
+    assert "def _request_use_case" not in service_source
+    assert "return await self._application.handle_request(request)" in handle_source
+    assert "return await self._request_use_case().handle(request)" not in handle_source
     assert 'action == "chat"' not in handle_source
     assert "chat_with_user_assistant" not in handle_source
     assert "clear_history" not in handle_source
@@ -5071,6 +5108,9 @@ def test_user_interaction_agent_request_dispatch_delegates_to_application_use_ca
 def test_user_interaction_agent_event_dispatch_delegates_to_application_use_case() -> None:
     service_source = Path(
         "services/gateways/user_interaction/service/agent.py"
+    ).read_text()
+    facade_source = Path(
+        "services/gateways/user_interaction/core/application_facade.py"
     ).read_text()
     use_case_source = Path(
         "services/gateways/user_interaction/core/event_use_cases.py"
@@ -5084,9 +5124,13 @@ def test_user_interaction_agent_event_dispatch_delegates_to_application_use_case
     assert "coordinator_response_received" in use_case_source
     assert "hash_identifier(user_id)" in use_case_source
 
-    assert "UserInteractionEventUseCase" in service_source
-    assert "def _event_use_case" in service_source
-    assert "return await self._event_use_case().handle(event)" in handle_source
+    assert "UserInteractionEventUseCase" in facade_source
+    assert "def _event_use_case" in facade_source
+    assert "return await self._event_use_case().handle(event)" in facade_source
+    assert "UserInteractionEventUseCase" not in service_source
+    assert "def _event_use_case" not in service_source
+    assert "return await self._application.handle_event(event)" in handle_source
+    assert "return await self._event_use_case().handle(event)" not in handle_source
     assert "EventTypes.CHAT_PM_RESPONSE" not in handle_source
     assert "EventTypes.COORDINATOR_RESPONSE" not in handle_source
     assert "project_management_response_received" not in service_source
