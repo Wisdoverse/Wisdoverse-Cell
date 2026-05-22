@@ -1405,7 +1405,7 @@ def test_requirement_question_use_cases_use_persistence_port() -> None:
 
     for function_name in ("answer_question", "list_open_questions"):
         function_source = _function_source(agent_source, function_name)
-        assert "_RequirementSessionUnitOfWork" in function_source or "get_unit_of_work" in function_source
+        assert "_session_unit_of_work" in function_source or "get_unit_of_work" in function_source
         assert "QuestionRepository(" not in function_source
 
     answer_with_uow_source = _function_source(workflow_source, "answer_question")
@@ -1424,12 +1424,15 @@ def test_requirement_agent_uses_requirement_store_port() -> None:
     agent_source = Path("agents/requirement_manager/service/agent.py").read_text()
     port_source = Path("agents/requirement_manager/core/requirement_ports.py").read_text()
     adapter_source = Path("agents/requirement_manager/db/requirement_store.py").read_text()
+    uow_source = Path("agents/requirement_manager/db/unit_of_work.py").read_text()
 
     assert "class RequirementStore(Protocol)" in port_source
     assert "class SqlAlchemyRequirementStore" in adapter_source
     assert "RequirementRepository" in adapter_source
+    assert "SqlAlchemyRequirementStore(session)" in uow_source
     assert "RequirementRepository" not in agent_source
-    assert "_get_requirement_store" in agent_source
+    assert "SqlAlchemyRequirementStore" not in agent_source
+    assert "_get_requirement_store" not in agent_source
 
 
 def test_requirement_agent_uses_meeting_and_message_store_ports() -> None:
@@ -1439,18 +1442,23 @@ def test_requirement_agent_uses_meeting_and_message_store_ports() -> None:
     meeting_adapter_source = Path("agents/requirement_manager/db/meeting_store.py").read_text()
     message_port_source = Path("agents/requirement_manager/core/message_ports.py").read_text()
     message_adapter_source = Path("agents/requirement_manager/db/message_store.py").read_text()
+    uow_source = Path("agents/requirement_manager/db/unit_of_work.py").read_text()
 
     assert "class RequirementMeetingStore(Protocol)" in meeting_port_source
     assert "class SqlAlchemyRequirementMeetingStore" in meeting_adapter_source
     assert "MeetingRepository" in meeting_adapter_source
+    assert "SqlAlchemyRequirementMeetingStore(session)" in uow_source
     assert "MeetingRepository" not in agent_source
-    assert "_get_meeting_store" in agent_source
+    assert "SqlAlchemyRequirementMeetingStore" not in agent_source
+    assert "_get_meeting_store" not in agent_source
 
     assert "class RequirementMessageStore(Protocol)" in message_port_source
     assert "class SqlAlchemyRequirementMessageStore" in message_adapter_source
     assert "MessageRepository" in message_adapter_source
+    assert "SqlAlchemyRequirementMessageStore(session)" in uow_source
     assert "MessageRepository" not in agent_source
-    assert "_get_message_store" in agent_source
+    assert "SqlAlchemyRequirementMessageStore" not in agent_source
+    assert "_get_message_store" not in agent_source
     assert "from ..db.repository import" not in agent_source
 
 
@@ -3484,6 +3492,7 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
         "agents/requirement_manager/core/outbox_delivery_use_cases.py"
     ).read_text()
     adapter_source = Path("agents/requirement_manager/db/outbox_store.py").read_text()
+    uow_source = Path("agents/requirement_manager/db/unit_of_work.py").read_text()
     workflow_source = Path(
         "agents/requirement_manager/core/requirement_mutation_workflow.py"
     ).read_text()
@@ -3502,9 +3511,13 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
     assert "event_publish_failed" in delivery_source
     assert "SqlAlchemyRequirementEventOutboxStore" in adapter_source
     assert "await uow.outbox.stage(event)" in workflow_source
-    assert "await self._agent._stage_requirement_event(self._session, event)" in service_source
+    assert "class SqlAlchemyRequirementSessionOutboxWriter" in uow_source
+    assert "await self._outbox_store.stage(self._session, event)" in uow_source
+    assert "SqlAlchemyRequirementSessionUnitOfWork" in service_source
+    assert "def _session_unit_of_work" in service_source
+    assert "_stage_requirement_event" not in service_source
     assert "RequirementEventOutboxRepository" not in service_source
-    assert "await self._agent._commit_requirement_mutation" in service_source
+    assert "_commit_requirement_mutation" not in service_source
     assert "RequirementMutationSideEffectUseCase" in service_source
     assert "RequirementIngestSideEffectUseCase" in service_source
     assert "publish_pending_requirement_events" in service_source

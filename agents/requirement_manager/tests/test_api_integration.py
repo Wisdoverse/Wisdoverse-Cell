@@ -21,6 +21,22 @@ from httpx import ASGITransport, AsyncClient
 from agents.requirement_manager.core.ingest_use_cases import IngestUseCaseResult
 
 
+def _session_uow_patch(test_agent, session, **stores):
+    from agents.requirement_manager.db.unit_of_work import (
+        SqlAlchemyRequirementSessionUnitOfWork,
+    )
+
+    def make_uow(active_session):
+        assert active_session is session
+        return SqlAlchemyRequirementSessionUnitOfWork(
+            active_session,
+            outbox_store=test_agent._outbox_store,
+            **stores,
+        )
+
+    return patch.object(test_agent, "_session_unit_of_work", side_effect=make_uow)
+
+
 class TestIngestAPI:
     """Ingest API tests."""
 
@@ -221,10 +237,10 @@ class TestAgentEventPublishing:
 
         mock_requirement_store = MagicMock()
         mock_requirement_store.confirm = AsyncMock(return_value=mock_requirement)
-        with patch.object(
+        with _session_uow_patch(
             test_agent,
-            "_get_requirement_store",
-            return_value=mock_requirement_store,
+            mock_session,
+            requirements=mock_requirement_store,
         ):
             await test_agent.confirm_requirement(
                 requirement_id="req_123",
@@ -272,10 +288,10 @@ class TestAgentEventPublishing:
 
         mock_requirement_store = MagicMock()
         mock_requirement_store.confirm = AsyncMock(return_value=mock_requirement)
-        with patch.object(
+        with _session_uow_patch(
             test_agent,
-            "_get_requirement_store",
-            return_value=mock_requirement_store,
+            mock_session,
+            requirements=mock_requirement_store,
         ):
             # Should not raise.
             result = await test_agent.confirm_requirement(

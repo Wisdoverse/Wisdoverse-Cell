@@ -8,6 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.schemas.event import Event
 
+from ..core.feedback_ports import RequirementFeedbackStore
+from ..core.meeting_ports import RequirementMeetingStore
+from ..core.message_ports import RequirementMessageStore
+from ..core.outbox_ports import RequirementEventOutboxStore
+from ..core.question_ports import RequirementQuestionStore
+from ..core.requirement_ports import RequirementStore
 from ..core.unit_of_work_ports import RequirementOutboxWriter, RequirementUnitOfWork
 from .database import DatabaseManager
 from .feedback_store import SqlAlchemyRequirementFeedbackStore
@@ -28,6 +34,22 @@ class SqlAlchemyRequirementOutboxWriter(RequirementOutboxWriter):
         await self._outbox.add(event)
 
 
+class SqlAlchemyRequirementSessionOutboxWriter(RequirementOutboxWriter):
+    """Outbox writer for a caller-owned legacy session."""
+
+    def __init__(
+        self,
+        *,
+        session: AsyncSession,
+        outbox_store: RequirementEventOutboxStore,
+    ) -> None:
+        self._session = session
+        self._outbox_store = outbox_store
+
+    async def stage(self, event: Event) -> None:
+        await self._outbox_store.stage(self._session, event)
+
+
 class SqlAlchemyRequirementUnitOfWork(RequirementUnitOfWork):
     """Session-scoped Requirement stores with explicit commit and rollback."""
 
@@ -39,6 +61,65 @@ class SqlAlchemyRequirementUnitOfWork(RequirementUnitOfWork):
         self.messages = SqlAlchemyRequirementMessageStore(session)
         self.feedback = SqlAlchemyRequirementFeedbackStore(session)
         self.outbox = SqlAlchemyRequirementOutboxWriter(session)
+        self.completed = False
+
+    async def commit(self) -> None:
+        result = self._session.commit()
+        if inspect.isawaitable(result):
+            await result
+        self.completed = True
+
+    async def rollback(self) -> None:
+        result = self._session.rollback()
+        if inspect.isawaitable(result):
+            await result
+        self.completed = True
+
+
+class SqlAlchemyRequirementSessionUnitOfWork(RequirementUnitOfWork):
+    """Compatibility UOW for callers that still own the SQLAlchemy session."""
+
+    def __init__(
+        self,
+        session: AsyncSession,
+        *,
+        outbox_store: RequirementEventOutboxStore,
+        meetings: RequirementMeetingStore | None = None,
+        requirements: RequirementStore | None = None,
+        questions: RequirementQuestionStore | None = None,
+        messages: RequirementMessageStore | None = None,
+        feedback: RequirementFeedbackStore | None = None,
+    ) -> None:
+        self._session = session
+        self.meetings = (
+            meetings
+            if meetings is not None
+            else SqlAlchemyRequirementMeetingStore(session)
+        )
+        self.requirements = (
+            requirements
+            if requirements is not None
+            else SqlAlchemyRequirementStore(session)
+        )
+        self.questions = (
+            questions
+            if questions is not None
+            else SqlAlchemyRequirementQuestionStore(session)
+        )
+        self.messages = (
+            messages
+            if messages is not None
+            else SqlAlchemyRequirementMessageStore(session)
+        )
+        self.feedback = (
+            feedback
+            if feedback is not None
+            else SqlAlchemyRequirementFeedbackStore(session)
+        )
+        self.outbox = SqlAlchemyRequirementSessionOutboxWriter(
+            session=session,
+            outbox_store=outbox_store,
+        )
         self.completed = False
 
     async def commit(self) -> None:

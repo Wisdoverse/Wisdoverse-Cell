@@ -4,7 +4,6 @@ RequirementManagerAgent core.
 Inherits BaseAgent and implements the standard Agent interface. All business
 logic is coordinated through this class; FastAPI is only the HTTP adapter.
 """
-import inspect
 from datetime import datetime
 from typing import Any, Optional
 
@@ -37,12 +36,9 @@ from ..core.meeting_ingest_workflow import (
     IngestResult,
     RequirementMeetingIngestWorkflow,
 )
-from ..core.meeting_ports import RequirementMeetingStore
-from ..core.message_ports import RequirementMessageStore
 from ..core.mutation_side_effect_use_cases import RequirementMutationSideEffectUseCase
 from ..core.outbox_delivery_use_cases import RequirementOutboxDeliveryUseCase
 from ..core.outbox_ports import RequirementEventOutboxStore
-from ..core.question_ports import RequirementQuestionStore
 from ..core.read_query_use_cases import RequirementReadQueryUseCase
 from ..core.request_use_cases import RequirementManagerRequestUseCase
 from ..core.requirement_command_use_cases import RequirementCommandUseCase
@@ -50,68 +46,25 @@ from ..core.requirement_mutation_workflow import (
     RequirementMutationResult,
     RequirementMutationWorkflow,
 )
-from ..core.requirement_ports import RequirementStore
 from ..core.session_extraction_use_cases import (
     RequirementSessionExtractionUseCase,
     format_messages_for_extraction,
 )
 from ..core.unit_of_work_ports import (
-    RequirementOutboxWriter,
     RequirementUnitOfWork,
     RequirementUnitOfWorkFactory,
 )
 from ..db.database import DatabaseManager, db_manager
-from ..db.feedback_store import SqlAlchemyRequirementFeedbackStore
 from ..db.health_store import SqlAlchemyRequirementHealthStore
-from ..db.meeting_store import SqlAlchemyRequirementMeetingStore
-from ..db.message_store import SqlAlchemyRequirementMessageStore
 from ..db.outbox_store import SqlAlchemyRequirementEventOutboxStore
-from ..db.question_store import SqlAlchemyRequirementQuestionStore
-from ..db.requirement_store import SqlAlchemyRequirementStore
-from ..db.unit_of_work import SqlAlchemyRequirementUnitOfWorkFactory
+from ..db.unit_of_work import (
+    SqlAlchemyRequirementSessionUnitOfWork,
+    SqlAlchemyRequirementUnitOfWorkFactory,
+)
 from ..db.vector_store import VectorStore, vector_store
 from ..models import Meeting, OpenQuestion, Requirement
 
 logger = get_logger("requirement-manager.agent")
-
-
-class _RequirementSessionOutboxWriter(RequirementOutboxWriter):
-    """Adapter for staging outbox rows in a caller-owned legacy session."""
-
-    def __init__(self, agent: "RequirementManagerAgent", session: AsyncSession):
-        self._agent = agent
-        self._session = session
-
-    async def stage(self, event: Event) -> None:
-        await self._agent._stage_requirement_event(self._session, event)
-
-
-class _RequirementSessionUnitOfWork(RequirementUnitOfWork):
-    """Compatibility UOW for existing callers that still pass a session."""
-
-    def __init__(self, agent: "RequirementManagerAgent", session: AsyncSession):
-        self._agent = agent
-        self._session = session
-        self.meetings = agent._get_meeting_store(session)
-        self.requirements = agent._get_requirement_store(session)
-        self.questions = agent._get_question_store(session)
-        self.messages = agent._get_message_store(session)
-        self.feedback = SqlAlchemyRequirementFeedbackStore(session)
-        self.outbox = _RequirementSessionOutboxWriter(agent, session)
-        self.completed = False
-
-    async def commit(self) -> None:
-        await self._agent._commit_requirement_mutation(
-            self._session,
-            use_case="requirement_mutation",
-        )
-        self.completed = True
-
-    async def rollback(self) -> None:
-        result = self._session.rollback()
-        if inspect.isawaitable(result):
-            await result
-        self.completed = True
 
 
 class RequirementManagerAgent(BaseAgent):
@@ -315,7 +268,7 @@ class RequirementManagerAgent(BaseAgent):
             IngestResult with extracted requirement and question counts.
         """
         if session is not None:
-            uow = _RequirementSessionUnitOfWork(self, session)
+            uow = self._session_unit_of_work(session)
             result = await self.ingest_meeting_with_uow(
                 content=content,
                 source=source,
@@ -390,7 +343,7 @@ class RequirementManagerAgent(BaseAgent):
             Confirmed requirement, or None if it does not exist.
         """
         if session is not None:
-            uow = _RequirementSessionUnitOfWork(self, session)
+            uow = self._session_unit_of_work(session)
             return await self._command_use_case().confirm_requirement(
                 requirement_id=requirement_id,
                 confirmed_by=confirmed_by,
@@ -435,7 +388,7 @@ class RequirementManagerAgent(BaseAgent):
             Rejected requirement, or None if it does not exist.
         """
         if session is not None:
-            uow = _RequirementSessionUnitOfWork(self, session)
+            uow = self._session_unit_of_work(session)
             return await self._command_use_case().reject_requirement(
                 requirement_id=requirement_id,
                 reason=reason,
@@ -477,7 +430,7 @@ class RequirementManagerAgent(BaseAgent):
         history recording, feedback learning, and event publication.
         """
         if session is not None:
-            uow = _RequirementSessionUnitOfWork(self, session)
+            uow = self._session_unit_of_work(session)
             return await self._command_use_case().update_requirement(
                 requirement_id=requirement_id,
                 changes=changes,
@@ -522,7 +475,7 @@ class RequirementManagerAgent(BaseAgent):
             Deleted requirement, or None if it does not exist.
         """
         if session is not None:
-            uow = _RequirementSessionUnitOfWork(self, session)
+            uow = self._session_unit_of_work(session)
             return await self._command_use_case().delete_requirement(
                 requirement_id=requirement_id,
                 deleted_by=deleted_by,
@@ -561,7 +514,7 @@ class RequirementManagerAgent(BaseAgent):
         write transaction and keeps the route layer free of persistence rules.
         """
         if session is not None:
-            uow = _RequirementSessionUnitOfWork(self, session)
+            uow = self._session_unit_of_work(session)
             return await self._command_use_case().answer_question(
                 question_id,
                 answer=answer,
@@ -598,7 +551,7 @@ class RequirementManagerAgent(BaseAgent):
     ) -> list[OpenQuestion]:
         """List unanswered clarification questions through the application facade."""
         if session is not None:
-            uow = _RequirementSessionUnitOfWork(self, session)
+            uow = self._session_unit_of_work(session)
             return await self._read_query_use_case().list_open_questions_with_uow(
                 uow,
                 limit=limit,
@@ -653,54 +606,15 @@ class RequirementManagerAgent(BaseAgent):
             uow_factory=self.get_unit_of_work,
         )
 
-    async def _stage_requirement_event(
+    def _session_unit_of_work(
         self,
         session: AsyncSession,
-        event: Event,
-    ) -> Event:
-        """Persist an integration event in the local Requirement outbox."""
-        await self._outbox_store.stage(session, event)
-        return event
-
-    async def _commit_requirement_mutation(
-        self,
-        session: AsyncSession,
-        *,
-        use_case: str,
-    ) -> None:
-        """Commit the local requirement transaction before external side effects."""
-        result = session.commit()
-        if inspect.isawaitable(result):
-            await result
-        logger.debug("requirement_mutation_committed", use_case=use_case)
-
-    def _get_requirement_store(
-        self,
-        session: AsyncSession,
-    ) -> RequirementStore:
-        """Build the persistence adapter for requirement use cases."""
-        return SqlAlchemyRequirementStore(session)
-
-    def _get_meeting_store(
-        self,
-        session: AsyncSession,
-    ) -> RequirementMeetingStore:
-        """Build the persistence adapter for meeting use cases."""
-        return SqlAlchemyRequirementMeetingStore(session)
-
-    def _get_message_store(
-        self,
-        session: AsyncSession,
-    ) -> RequirementMessageStore:
-        """Build the persistence adapter for chat-message use cases."""
-        return SqlAlchemyRequirementMessageStore(session)
-
-    def _get_question_store(
-        self,
-        session: AsyncSession,
-    ) -> RequirementQuestionStore:
-        """Build the persistence adapter for question use cases."""
-        return SqlAlchemyRequirementQuestionStore(session)
+    ) -> RequirementUnitOfWork:
+        """Adapt a caller-owned legacy SQLAlchemy session to the UOW boundary."""
+        return SqlAlchemyRequirementSessionUnitOfWork(
+            session,
+            outbox_store=self._outbox_store,
+        )
 
     # ========== Convenience Methods Without External Sessions ==========
 

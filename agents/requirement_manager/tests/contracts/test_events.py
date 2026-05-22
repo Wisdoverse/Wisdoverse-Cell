@@ -30,6 +30,23 @@ from shared.schemas.event_payloads import (
 )
 
 
+def _session_uow_patch(test_agent, session, **stores):
+    """Patch the legacy session adapter while keeping real commit/outbox behavior."""
+    from agents.requirement_manager.db.unit_of_work import (
+        SqlAlchemyRequirementSessionUnitOfWork,
+    )
+
+    def make_uow(active_session):
+        assert active_session is session
+        return SqlAlchemyRequirementSessionUnitOfWork(
+            active_session,
+            outbox_store=test_agent._outbox_store,
+            **stores,
+        )
+
+    return patch.object(test_agent, "_session_unit_of_work", side_effect=make_uow)
+
+
 class TestEventPayloadModels:
     """Event payload model tests."""
 
@@ -206,7 +223,7 @@ class TestAgentEventContracts:
         mock_repo = MagicMock(spec=RequirementRepository)
         mock_repo.confirm = AsyncMock(return_value=mock_requirement)
 
-        with patch.object(test_agent, "_get_requirement_store", return_value=mock_repo):
+        with _session_uow_patch(test_agent, mock_session, requirements=mock_repo):
             await test_agent.confirm_requirement(
                 requirement_id="req_123",
                 confirmed_by="测试用户",
@@ -249,7 +266,7 @@ class TestAgentEventContracts:
         mock_repo.get_by_id = AsyncMock(return_value=mock_requirement)
         mock_repo.reject = AsyncMock(return_value=mock_requirement)
 
-        with patch.object(test_agent, "_get_requirement_store", return_value=mock_repo):
+        with _session_uow_patch(test_agent, mock_session, requirements=mock_repo):
             await test_agent.reject_requirement(
                 requirement_id="req_456",
                 reason="不符合产品方向",
@@ -303,10 +320,10 @@ class TestAgentEventContracts:
         mock_feedback = MagicMock()
         mock_feedback.record_correction = AsyncMock()
 
-        with patch.object(
+        with _session_uow_patch(
             test_agent,
-            "_get_requirement_store",
-            return_value=mock_repo,
+            mock_session,
+            requirements=mock_repo,
         ), patch(
             "agents.requirement_manager.core.requirement_mutation_workflow.FeedbackLearningService",
             return_value=mock_feedback,
@@ -353,7 +370,7 @@ class TestAgentEventContracts:
         mock_repo = MagicMock(spec=RequirementRepository)
         mock_repo.delete = AsyncMock(return_value=mock_requirement)
 
-        with patch.object(test_agent, "_get_requirement_store", return_value=mock_repo):
+        with _session_uow_patch(test_agent, mock_session, requirements=mock_repo):
             await test_agent.delete_requirement(
                 requirement_id="req_789",
                 deleted_by="管理员",
@@ -408,7 +425,7 @@ class TestAgentEventContracts:
         mock_repo = MagicMock(spec=RequirementRepository)
         mock_repo.confirm = AsyncMock(return_value=mock_requirement)
 
-        with patch.object(test_agent, "_get_requirement_store", return_value=mock_repo):
+        with _session_uow_patch(test_agent, mock_session, requirements=mock_repo):
             await test_agent.confirm_requirement(
                 requirement_id="req_commit_order",
                 confirmed_by="测试用户",
@@ -443,10 +460,10 @@ class TestAgentEventContracts:
         mock_repo = MagicMock(spec=RequirementRepository)
         mock_repo.confirm = AsyncMock(return_value=mock_requirement)
 
-        with patch.object(
+        with _session_uow_patch(
             test_agent,
-            "_get_requirement_store",
-            return_value=mock_repo,
+            mock_session,
+            requirements=mock_repo,
         ), pytest.raises(RuntimeError, match="db commit failed"):
             await test_agent.confirm_requirement(
                 requirement_id="req_commit_failed",
