@@ -1303,6 +1303,46 @@ def test_requirement_agent_uses_meeting_and_message_store_ports() -> None:
     assert "from ..db.repository import" not in agent_source
 
 
+def test_requirement_agent_read_facade_delegates_to_application_use_case() -> None:
+    """Requirement service shell should not own agent-facing read projections."""
+    agent_source = Path("agents/requirement_manager/service/agent.py").read_text()
+    use_case_source = Path(
+        "agents/requirement_manager/core/agent_read_use_cases.py"
+    ).read_text()
+
+    assert "class RequirementAgentReadUseCase" in use_case_source
+    assert "def list_pending_requirements" in use_case_source
+    assert "def get_confirmed_requirements" in use_case_source
+    assert "def get_requirement" in use_case_source
+    assert "def get_meeting" in use_case_source
+    assert "def list_open_questions" in use_case_source
+    assert "status=\"PENDING\"" in use_case_source
+    assert "status=\"CONFIRMED\"" in use_case_source
+
+    assert "RequirementAgentReadUseCase" in agent_source
+    assert "def _read_use_case_for_session" in agent_source
+    assert "def _read_use_case_for_uow" in agent_source
+    assert (
+        ".list_pending_requirements(" in _function_source(
+            agent_source,
+            "list_pending_requirements",
+        )
+    )
+    assert (
+        ".get_confirmed_requirements()" in _function_source(
+            agent_source,
+            "get_confirmed_requirements",
+        )
+    )
+    assert (
+        ".get_requirement(" in _function_source(agent_source, "get_requirement")
+    )
+    assert ".get_meeting(" in _function_source(agent_source, "get_meeting")
+    assert "status=\"PENDING\"" not in agent_source
+    assert "status=\"CONFIRMED\"" not in agent_source
+    assert '"source_quote": r.source_quote' not in agent_source
+
+
 def test_feishu_message_integration_uses_message_store_port() -> None:
     """Feishu integration should not directly construct chat-message repositories."""
     recorder_source = Path(
@@ -3270,6 +3310,9 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
     model_source = Path("agents/requirement_manager/models/requirement.py").read_text()
     repository_source = Path("agents/requirement_manager/db/repository.py").read_text()
     port_source = Path("agents/requirement_manager/core/outbox_ports.py").read_text()
+    delivery_source = Path(
+        "agents/requirement_manager/core/outbox_delivery_use_cases.py"
+    ).read_text()
     adapter_source = Path("agents/requirement_manager/db/outbox_store.py").read_text()
     workflow_source = Path(
         "agents/requirement_manager/core/requirement_mutation_workflow.py"
@@ -3282,6 +3325,11 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
     assert "class RequirementEventOutbox" in model_source
     assert "class RequirementEventOutboxRepository" in repository_source
     assert "class RequirementEventOutboxStore" in port_source
+    assert "class RequirementOutboxDeliveryUseCase" in delivery_source
+    assert "class RequirementOutboxEventPublisherPort(Protocol)" in delivery_source
+    assert "def event_from_outbox" in delivery_source
+    assert "await self._event_publisher.publish(event)" in delivery_source
+    assert "event_publish_failed" in delivery_source
     assert "SqlAlchemyRequirementEventOutboxStore" in adapter_source
     assert "await uow.outbox.stage(event)" in workflow_source
     assert "await self._agent._stage_requirement_event(self._session, event)" in service_source
@@ -3291,8 +3339,18 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
     assert "await self._publish_staged_requirement_event" in service_source
     assert "publish_pending_requirement_events" in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
-    assert "await self._event_publisher.publish(event)" in service_source
+    assert "def _outbox_delivery_use_case" in service_source
+    assert (
+        "return await self._outbox_delivery_use_case().publish_pending_events"
+        in _function_source(service_source, "publish_pending_requirement_events")
+    )
+    assert (
+        "return await self._outbox_delivery_use_case().publish_event_via_outbox(event)"
+        in _function_source(service_source, "publish_event_via_outbox")
+    )
+    assert "await self._event_publisher.publish(event)" not in service_source
     assert "await self._event_bus.publish(event)" not in service_source
+    assert "event_publish_failed" not in service_source
     assert "`requirement_event_outbox`" in doc_source
     _assert_documented_outbox_delivery_gap(doc_source)
 

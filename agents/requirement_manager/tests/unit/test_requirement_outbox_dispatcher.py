@@ -75,8 +75,6 @@ async def test_publish_pending_requirement_events_marks_success():
         vectors=MagicMock(),
         outbox_store=outbox_store,
     )
-    agent._mark_requirement_event_published = AsyncMock()
-    agent._mark_requirement_event_failed = AsyncMock()
 
     result = await agent.publish_pending_requirement_events(limit=10)
 
@@ -87,8 +85,8 @@ async def test_publish_pending_requirement_events_marks_success():
     assert event.event_id == "evt_01"
     assert event.event_type == EventTypes.REQUIREMENT_CONFIRMED
     assert event.payload["requirement_id"] == "req_123"
-    agent._mark_requirement_event_published.assert_awaited_once_with(event)
-    agent._mark_requirement_event_failed.assert_not_awaited()
+    assert outbox_store.published == ["evt_01"]
+    assert outbox_store.failed == []
     assert result == {"total": 1, "published": 1, "failed": 0}
 
 
@@ -110,13 +108,11 @@ async def test_publish_pending_requirement_events_marks_failure_and_continues():
         vectors=MagicMock(),
         outbox_store=outbox_store,
     )
-    agent._mark_requirement_event_published = AsyncMock()
-    agent._mark_requirement_event_failed = AsyncMock()
 
     result = await agent.publish_pending_requirement_events(limit=2)
 
     assert publisher.publish.await_count == 2
     bus.publish.assert_not_awaited()
-    agent._mark_requirement_event_failed.assert_awaited_once()
-    agent._mark_requirement_event_published.assert_awaited_once()
+    assert outbox_store.failed == [("evt_failed", "broker down")]
+    assert outbox_store.published == ["evt_ok"]
     assert result == {"total": 2, "published": 1, "failed": 1}
