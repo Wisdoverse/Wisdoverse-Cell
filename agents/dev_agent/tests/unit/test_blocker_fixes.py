@@ -450,11 +450,10 @@ class TestChildTaskUniqueIDs:
             },
         )
 
-        with (
-            patch.object(agent, "_get_repo", return_value=mock_repo),
-            patch.object(agent, "_get_log_repo", return_value=mock_log_repo),
-        ):
-            await agent.handle_event(event)
+        agent.set_repository(mock_repo)
+        agent.set_log_repository(mock_log_repo)
+
+        await agent.handle_event(event)
 
         # Each task should trigger create_task with its own wp_id (from "id" field)
         assert mock_repo.create_task.call_count == 3
@@ -497,13 +496,12 @@ class TestApprovalMissingPlan:
         mock_log_repo = AsyncMock(spec=DevWorkflowLogRepository)
         mock_log_repo.get_by_task_id = AsyncMock(return_value=None)  # No log!
 
-        with (
-            patch.object(agent, "_get_repo", return_value=mock_repo),
-            patch.object(agent, "_get_log_repo", return_value=mock_log_repo),
-        ):
-            result = await agent.handle_request(
-                {"action": "approve_workflow", "task_id": "dev-high-1"}
-            )
+        agent.set_repository(mock_repo)
+        agent.set_log_repository(mock_log_repo)
+
+        result = await agent.handle_request(
+            {"action": "approve_workflow", "task_id": "dev-high-1"}
+        )
 
         assert "error" in result
         # Should NOT have updated status to executing

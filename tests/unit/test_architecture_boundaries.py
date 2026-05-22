@@ -496,6 +496,7 @@ def test_dev_agent_core_uses_repository_ports() -> None:
     result_collector_path = Path("agents/dev_agent/core/result_collector.py")
     service_source = Path("agents/dev_agent/service/agent.py").read_text()
     adapter_source = Path("agents/dev_agent/db/task_store.py").read_text()
+    uow_source = Path("agents/dev_agent/db/unit_of_work.py").read_text()
 
     assert port_path.exists()
     port_source = port_path.read_text()
@@ -507,7 +508,7 @@ def test_dev_agent_core_uses_repository_ports() -> None:
     assert "DevTaskRepository" in adapter_source
     assert "from ..db.repository import DevTaskRepository" not in service_source
     assert "DevTaskRepository(" not in service_source
-    assert "SqlAlchemyDevTaskStore(session)" in service_source
+    assert "SqlAlchemyDevTaskStore(session)" in uow_source
     assert "repositories" in _imported_modules(result_collector_path)
 
     app_source = Path("agents/dev_agent/app/main.py").read_text()
@@ -2431,6 +2432,7 @@ def test_dev_api_delegates_to_application_use_case() -> None:
 def test_dev_agent_request_dispatch_delegates_to_application_use_case() -> None:
     """Dev agent service should not own request action business branching."""
     service_source = Path("agents/dev_agent/service/agent.py").read_text()
+    application_source = Path("agents/dev_agent/core/application_facade.py").read_text()
     use_case_source = Path("agents/dev_agent/core/request_use_cases.py").read_text()
     handle_source = _function_source(service_source, "handle_request")
 
@@ -2449,12 +2451,16 @@ def test_dev_agent_request_dispatch_delegates_to_application_use_case() -> None:
     assert "await uow.commit()" in use_case_source
 
     assert "_dispatch_action" not in service_source
-    assert "DevRequestUseCase" in service_source
-    assert "DevRequestBoundaryUseCase" in service_source
-    assert "def _request_use_case" in service_source
-    assert "def _request_boundary_use_case" in service_source
-    assert "return await self._request_boundary_use_case().handle(request)" in (
-        handle_source
+    assert "class DevApplicationFacade" in application_source
+    assert "DevRequestUseCase" in application_source
+    assert "DevRequestBoundaryUseCase" in application_source
+    assert "DevApplicationFacade(" in service_source
+    assert "def _request_use_case" not in service_source
+    assert "def _request_boundary_use_case" not in service_source
+    assert "return await self._application.handle_request(request)" in handle_source
+    assert (
+        "return await self._request_boundary_use_case().handle(request)"
+        in _function_source(application_source, "handle_request")
     )
     assert "async with self._get_unit_of_work() as uow" not in handle_source
     assert "await uow.commit()" not in handle_source
@@ -2470,6 +2476,7 @@ def test_dev_agent_request_dispatch_delegates_to_application_use_case() -> None:
 def test_dev_agent_event_dispatch_delegates_to_application_use_case() -> None:
     """Dev agent service should not own inbound event workflow branching."""
     service_source = Path("agents/dev_agent/service/agent.py").read_text()
+    application_source = Path("agents/dev_agent/core/application_facade.py").read_text()
     use_case_source = Path("agents/dev_agent/core/event_use_cases.py").read_text()
     handle_source = _function_source(service_source, "handle_event")
 
@@ -2486,9 +2493,14 @@ def test_dev_agent_event_dispatch_delegates_to_application_use_case() -> None:
     assert "qa_result_received" in use_case_source
     assert "result_collector_not_available" in use_case_source
 
-    assert "DevEventUseCase" in service_source
-    assert "def _event_use_case" in service_source
-    assert "return await self._event_use_case().handle(event)" in handle_source
+    assert "DevEventUseCase" in application_source
+    assert "DevApplicationFacade(" in service_source
+    assert "def _event_use_case" not in service_source
+    assert "return await self._application.handle_event(event)" in handle_source
+    assert (
+        "return await self._event_use_case().handle(event)"
+        in _function_source(application_source, "handle_event")
+    )
     assert "if event.event_type == EventTypes.PM_TASKS_READY_FOR_DEV" not in (
         handle_source
     )
@@ -2505,6 +2517,7 @@ def test_dev_agent_event_dispatch_delegates_to_application_use_case() -> None:
 def test_dev_agent_event_use_case_uses_explicit_unit_of_work() -> None:
     """Dev event writes should use an explicit runtime transaction seam."""
     service_source = Path("agents/dev_agent/service/agent.py").read_text()
+    application_source = Path("agents/dev_agent/core/application_facade.py").read_text()
     use_case_source = Path("agents/dev_agent/core/event_use_cases.py").read_text()
     port_source = Path("agents/dev_agent/core/unit_of_work_ports.py").read_text()
     adapter_source = Path("agents/dev_agent/db/unit_of_work.py").read_text()
@@ -2517,6 +2530,8 @@ def test_dev_agent_event_use_case_uses_explicit_unit_of_work() -> None:
     assert "self._db_manager.async_session()" in adapter_source
     assert "await self._session.commit()" in adapter_source
     assert "await self._session.rollback()" in adapter_source
+    assert "class InjectedDevUnitOfWorkFactory" in adapter_source
+    assert "class SqlAlchemyDevSessionUnitOfWorkFactory" in adapter_source
 
     assert "DevUnitOfWorkFactory" in use_case_source
     assert "uow_factory" in use_case_source
@@ -2528,12 +2543,19 @@ def test_dev_agent_event_use_case_uses_explicit_unit_of_work() -> None:
     assert "await session.commit()" not in use_case_source
 
     assert "SqlAlchemyDevUnitOfWorkFactory" in service_source
+    assert "InjectedDevUnitOfWorkFactory(" in service_source
+    assert "SqlAlchemyDevSessionUnitOfWorkFactory(" in service_source
     assert "uow_factory=self._get_unit_of_work" in service_source
+    assert "uow_factory: DevUnitOfWorkFactory" in application_source
+    assert "class _InjectedDevUnitOfWork" not in service_source
+    assert "class _SessionDevUnitOfWork" not in service_source
+    assert "def _session_unit_of_work" not in service_source
 
 
 def test_dev_agent_workflow_execution_delegates_to_application_use_case() -> None:
     """Dev service shell should not own task planning or AgentForge submission."""
     service_source = Path("agents/dev_agent/service/agent.py").read_text()
+    application_source = Path("agents/dev_agent/core/application_facade.py").read_text()
     use_case_source = Path(
         "agents/dev_agent/core/workflow_execution_use_cases.py"
     ).read_text()
@@ -2551,8 +2573,9 @@ def test_dev_agent_workflow_execution_delegates_to_application_use_case() -> Non
     assert "Start high-risk AgentForge workflow" in use_case_source
     assert "EventTypes.DEV_WORKFLOW_CREATED" in use_case_source
 
-    assert "DevWorkflowExecutionUseCase" in service_source
-    assert "def _workflow_execution_use_case" in service_source
+    assert "DevWorkflowExecutionUseCase" in application_source
+    assert "def _workflow_execution_use_case" in application_source
+    assert "def _workflow_execution_use_case" not in service_source
     for function_name in (
         "_process_single_task",
         "_plan_and_execute",
@@ -2560,7 +2583,7 @@ def test_dev_agent_workflow_execution_delegates_to_application_use_case() -> Non
         "_execute_workflow",
     ):
         function_source = _function_source(service_source, function_name)
-        assert "self._workflow_execution_use_case()" in function_source
+        assert "self._application." in function_source
 
     assert "await repo.create_task(" not in service_source
     assert "Workflow planning failed" not in service_source
@@ -3768,6 +3791,7 @@ def test_dev_result_collection_events_have_durable_outbox_contract() -> None:
     adapter_source = Path("agents/dev_agent/db/outbox_store.py").read_text()
     workflow_log_adapter_source = Path("agents/dev_agent/db/workflow_log_store.py").read_text()
     service_source = Path("agents/dev_agent/service/agent.py").read_text()
+    application_source = Path("agents/dev_agent/core/application_facade.py").read_text()
     app_source = Path("agents/dev_agent/app/main.py").read_text()
     doc_source = Path("docs/guides/backend-boundaries.md").read_text()
     event_catalog_source = Path("docs/guides/event-catalog.md").read_text()
@@ -3788,22 +3812,37 @@ def test_dev_result_collection_events_have_durable_outbox_contract() -> None:
     assert "DevWorkflowLogRepository" in workflow_log_adapter_source
     assert "from ..db.repository import DevWorkflowLogRepository" not in service_source
     assert "DevWorkflowLogRepository(session)" not in service_source
-    assert "self._get_log_repo(session)" in service_source
+    assert "SqlAlchemyDevWorkflowLogStore(session)" in Path(
+        "agents/dev_agent/db/unit_of_work.py"
+    ).read_text()
     assert "publish_pending_dev_events" in service_source
     assert "publish_staged_dev_events" in service_source
     assert "DevEventOutboxRepository" not in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
-    assert "def _outbox_delivery_use_case" in service_source
+    assert "def _outbox_delivery_use_case" not in service_source
+    assert "def _outbox_delivery_use_case" in application_source
     assert (
         "return await self._outbox_delivery_use_case().publish_pending_events"
+        in _function_source(application_source, "publish_pending_dev_events")
+    )
+    assert (
+        "return await self._application.publish_pending_dev_events"
         in _function_source(service_source, "publish_pending_dev_events")
     )
     assert (
         "return await self._outbox_delivery_use_case().publish_staged_events(events)"
+        in _function_source(application_source, "publish_staged_dev_events")
+    )
+    assert (
+        "return await self._application.publish_staged_dev_events"
         in _function_source(service_source, "publish_staged_dev_events")
     )
     assert (
         "return await self._outbox_delivery_use_case().publish_event_via_outbox(event)"
+        in _function_source(application_source, "publish_event_via_outbox")
+    )
+    assert (
+        "return await self._application.publish_event_via_outbox(event)"
         in _function_source(service_source, "publish_event_via_outbox")
     )
     assert "await self._event_publisher.publish(event)" not in service_source
