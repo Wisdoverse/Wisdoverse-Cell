@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .acceptance_verdicts import (
+from .acceptance_vocabulary import (
     GATE_FAIL,
     GATE_PASS,
     GATE_VALUES,

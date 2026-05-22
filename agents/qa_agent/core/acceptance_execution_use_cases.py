@@ -14,7 +14,7 @@ from ..models.schemas import (
     AcceptanceSummary,
     QARunRequest,
 )
-from .domain.acceptance_verdicts import (
+from .domain.acceptance_vocabulary import (
     is_blocking_finding,
     is_warning_finding,
 )

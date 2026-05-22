@@ -8,7 +8,7 @@ from agents.qa_agent.core.domain.acceptance_verdict import (
     AcceptanceVerdict,
     InvalidAcceptanceVerdictError,
 )
-from agents.qa_agent.core.domain.acceptance_verdicts import (
+from agents.qa_agent.core.domain.acceptance_vocabulary import (
     GATE_ERROR,
     GATE_FAIL,
     GATE_PASS,
