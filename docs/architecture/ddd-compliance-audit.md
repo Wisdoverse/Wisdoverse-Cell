@@ -132,10 +132,23 @@ several dimensions as `n/a` by design — see §4.9):
 
 | Status | Count | % of 156 cells | % excluding n/a |
 |--------|-------|----------------|-----------------|
-| ✓ Fully compliant | 50 | 32% | 33% |
-| ⚠ Partial | 55 | 35% | 37% |
-| ✗ Missing | 46 | 29% | 30% |
+| ✓ Fully compliant | 62 | 40% | 41% |
+| ⚠ Partial | 53 | 34% | 35% |
+| ✗ Missing | 36 | 23% | 24% |
 | n/a | 5 | 3% | — |
+
+Scoring history (each landed `DDD-NNN` PR updates the totals here):
+
+| PR | Net dimensional change | ✓ total |
+|----|------------------------|---------|
+| `4dcdd89f7` initial audit landing | baseline | 50 |
+| `27a5a5d24` DDD-020 lifecycle cleanup | structural; no scorecard dimension flipped | 50 |
+| DDD-008 (this PR) context-map relationships | dim 12 flipped from ✗/⚠ to ✓ across 12 contexts (Identity and Evolution promoted from ⚠ to ✓; 10 others promoted from ✗ to ✓; QA was already ✓ via its README) | 62 |
+
+Per-context scorecards in §4 below preserve the audit-landing snapshot
+for traceability; live totals above reflect post-remediation state. When
+a `DDD-NNN` PR completes, it updates this scoring-history row and the
+`DDD-NNN` row in §6.
 
 Highest-compliance context: **Evolution** (8 ✓ / 4 ⚠ / 0 ✗). Driven by an
 explicit `EvolutionRolloutState` FSM, port-based stores, pure use cases,
@@ -742,7 +755,7 @@ not operational risk. Stage mapping is to
 | DDD-005 | Evolution | 2 / 9 | medium | Promote `EvolutionProposal`, `EvolutionTrace`, `Reflection`, `Experiment` to explicit aggregates with FSMs; consolidate `shared/capabilities/evolution/` and `shared/evolution/` packages | 2 | — |
 | DDD-006 | All business runtimes | 7 | medium | Standardize aggregate-raised domain events per `architecture-principles.md` §4.8; one PR per runtime (Control Plane, PJM, QA, Dev each emit aggregate events; Requirement already does) | 2 | — |
 | DDD-007 | All contexts | 4 / 5 | medium | Introduce identifier value-object wrappers (`NewType`) for `work_item_id`, `run_id`, `approval_id`, `goal_id`, etc.; adopt one identifier per PR | 2 | — |
-| DDD-008 | All product-owning runtimes | 12 | low | Extend `module-boundaries.md` §2.* with Brandolini-style context-map relationship row per context | 1 | — |
+| DDD-008 | All product-owning runtimes | 12 | low | ✅ Landed DDD-008 (this PR). Every §2.X subsection in `module-boundaries.md` now has a Brandolini-style "Context-map relationships" row classifying upstream/downstream with Customer/Supplier, Conformist, ACL, Open-Host Service, Published Language, Partnership, Separate Ways terminology | 1 | done |
 | DDD-009 | All product-owning runtimes | 1 | low | Add per-context ubiquitous-language glossary under `<runtime>/README.md`; link to `docs/overview/glossary.md` | 1 | — |
 | DDD-010 | Coordinator, Requirement, Evolution | 3 / Application | medium | Extend explicit `UnitOfWork` adoption to remaining multi-aggregate write paths | 2 | — |
 | DDD-011 | Cross-cutting | application | low | Add architecture-boundary test that `application_facade.py` depends on ports + use cases only (rule already documented in `architecture-principles.md` §4.7) | 1 | — |
