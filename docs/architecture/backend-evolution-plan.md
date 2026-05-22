@@ -1,6 +1,6 @@
 # Backend Evolution Follow-Up Plan
 
-Last updated: 2026-05-21 (refreshed for high-throughput backend refactoring)
+Last updated: 2026-05-22 (DDD compliance audit reconciled)
 
 Status: Forward-looking plan. The plan below was originally drafted after
 PR #121 modularized service boundaries. Since then, Stages 0–3 of the
@@ -191,7 +191,11 @@ that guide, it is called out explicitly.
 | Analysis can drift into source-table reads | Reporting code can become an implicit write owner of other domains | `backend-boundaries.md` §6 |
 | Error response contract tests are still uneven at route level | Runtime APIs expose a structured envelope and base consumer tests prove the shared failure modes, but route-specific provider/consumer tests are not yet routine | `backend-boundaries.md` §6 |
 | `users` lacks a dedicated public user/profile API boundary | Identity data can become shared mutable state if unrelated modules write directly | `backend-boundaries.md` §6 |
-| Agent `core/` mixes use cases with domain rules and lifecycle helpers | Without an explicit domain layer, ports and use cases pick up domain invariants and can leak into adapters | Section 5 below |
+| Agent `core/` mixes use cases with domain rules and lifecycle helpers (partial: 4 business agents and Control Plane have `core/domain/`; sync, analysis, evolution, coordinator, gateways do not) | Without an explicit domain layer per product-owning context, ports and use cases pick up domain invariants and can leak into adapters | [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §5.1 and DDD-002 |
+| User Interaction Gateway owns product-domain tables (`chat_agent_*`) | Gateway boundary violation: ownership belongs to a chat-agent runtime, not a gateway | [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §5.12 and DDD-016 |
+| User Interaction core imports `shared.infra.conversation_engine` directly | Application-layer purity violation; LLM SDK leaks into core via infra | [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §5.13 and DDD-017 |
+| Coordinator `CoordinatorStateStore` is in-memory by default | No operator replay tooling for in-flight coordination state; closes Phase 1 audit §11 open question 2 | [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §5.14 and DDD-018 |
+| Aggregates are anemic (Control Plane all 13; Sync; Analysis; Identity) | Domain logic lives in lifecycle modules and use cases, not on aggregates; weak invariants | [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §5.6 and DDD-001, DDD-003, DDD-005 |
 | Sync capability still hosts OpenProject and Feishu Bitable in one runtime | The sub-boundaries are split inside `core/`, but a single runtime makes targeted scaling and failure isolation impossible | `architecture.md` §3.1, `SPEC.md` §4.1.3 |
 | Each agent runtime still depends on shared Alembic migrations | A per-runtime migration story is required before any independent deployment | `backend-boundaries.md` §5 |
 | Cross-agent contract tests are thin | Architecture import tests are strong; provider/consumer event and HTTP contract tests are not yet routine | Section 8 below |
@@ -208,7 +212,7 @@ are part of PR #121.
 | Phase | Goal | Exit Criteria |
 |-------|------|---------------|
 | Phase A — Uniform Error Contract | Extend the `X-Error-Code` header and structured error model from Requirement APIs to PJM, QA, Dev, gateways, and capability modules | Runtime envelope is implemented through `create_agent_app()`; remaining exit criteria are consumer tests that assert classification and OpenAPI/API-reference alignment |
-| Phase B — Domain Layer Per Agent | Introduce an explicit `core/domain/` layer per agent for invariants, value objects, and aggregates separate from `*_use_cases.py` | `core/` no longer mixes lifecycle math with orchestration; architecture tests block use-case modules from importing adapters |
+| Phase B — Domain Layer Per Agent | Introduce an explicit `core/domain/` layer per product-owning runtime (agents, capabilities, control plane, coordinator) for invariants, value objects, aggregates, and state machines separate from `*_use_cases.py`. Per-context exit criteria are tracked in [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §6 (DDD-001 through DDD-022). | `core/` no longer mixes lifecycle math with orchestration; architecture tests block use-case modules from importing adapters; every aggregate raises in-memory domain events drained by the use case |
 | Phase C — Read-Model / Projection Boundary | Add an explicit projection layer that Analysis and reporting consume, instead of source tables | Analysis module imports only projection ports; backend-boundaries gap closed |
 | Phase D — Sync Sub-Capability Split | Promote OpenProject sync and Feishu Bitable sync to two distinct capability runtimes (still under `shared/capabilities/sync/` package roots, but separately deployable) | Each sub-capability has its own outbox, repository module, and runtime plugin; compatibility endpoint orchestrates both |
 | Phase E — Identity / User Boundary | Define a public user/profile service boundary and route all writes through it | `users` table has a single write owner; backend-boundaries gap closed |
@@ -224,30 +228,30 @@ are landed and stable.
 
 ## 5. DDD / Clean Architecture Follow-Up Tasks
 
-Strategic DDD is already declared at the boundary rule level (`AGENTS.md`,
-`SPEC.md`). Tactical DDD inside each agent service is still incomplete. The
-following tasks tighten that.
+Strategic DDD is declared at the boundary rule level (`AGENTS.md`,
+`SPEC.md`). Tactical DDD coverage is now measured per context in
+[`ddd-compliance-audit.md`](./ddd-compliance-audit.md). The audit's §6
+remediation roadmap (rows DDD-001 through DDD-022) is the authoritative
+follow-up list; this section keeps the same headlines in summary form to
+avoid drift.
 
-1. Introduce `agents/<agent>/core/domain/` for each business agent. This
-   directory hosts entities, value objects, domain services, and invariants.
-   `*_use_cases.py` should orchestrate domain objects, not redefine them.
-2. Move lifecycle and state-transition helpers (for example
-   `task_lifecycle.py`, `requirement_lifecycle.py`,
-   `agent_run_lifecycle.py`) into the new `domain/` directory once the
-   ports/use-case split is stable.
-3. Define an explicit ubiquitous-language glossary per bounded context. This
-   should live next to each agent's `README.md` and link back to
-   [`docs/overview/glossary.md`](../overview/glossary.md).
-4. Audit every `*_use_cases.py` for hidden infrastructure imports (HTTP, ORM,
-   environment access). Use cases should depend on ports only.
-5. Treat `shared/control_plane/` as one bounded context for now. Do not split
-   it further until the use-case modules added in PR #121 have lived through at
-   least one full integration cycle.
+1. Make `core/domain/` mandatory for every product-owning runtime; today
+   only 4 of 13 contexts have it (audit §5.1, DDD-002).
+2. Finish lifecycle module moves into `core/domain/lifecycle/`; delete
+   legacy duplicates `core/requirement_lifecycle.py` and
+   `core/task_lifecycle.py` (audit §5.2, DDD-020).
+3. Add per-context ubiquitous-language glossary under each runtime's
+   `README.md` linked to [`docs/overview/glossary.md`](../overview/glossary.md)
+   (audit §5.11, DDD-009).
+4. Audit every `*_use_cases.py` for hidden infrastructure imports
+   (audit §5.13, DDD-017; recurring violation in User Interaction).
+5. Treat `shared/control_plane/` as one bounded context with 13 aggregates;
+   do not split until aggregate roots and state machines are explicit
+   (audit §4.1, DDD-001).
 6. Document each aggregate root and its lifecycle in
-   `docs/guides/backend-boundaries.md` §3 alongside its table ownership row.
-7. Add an architecture rule that forbids `agents/<a>/core/**` from importing
-   `agents/<b>/core/**` for `a != b`. Enforce in
-   `tests/unit/test_architecture_boundaries.py`.
+   `docs/guides/backend-boundaries.md` §3 alongside table ownership.
+7. Add the cross-agent core import block plus the new boundary tests
+   listed in the audit §6 PRs (DDD-002, DDD-011, DDD-014, DDD-016).
 
 ---
 

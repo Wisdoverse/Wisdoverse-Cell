@@ -10,7 +10,7 @@ from shared.utils.logger import get_logger
 
 from ..models import OpenQuestion, Requirement
 from .feedback_learning import FeedbackLearningService
-from .requirement_lifecycle import record_updated
+from .domain.lifecycle.requirement_lifecycle import record_updated
 from .unit_of_work_ports import RequirementUnitOfWork
 
 logger = get_logger("requirement_manager.mutations")

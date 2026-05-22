@@ -477,7 +477,7 @@ def test_event_publisher_port_lives_in_shared_core() -> None:
 def test_dev_agent_repository_uses_core_lifecycle_policy() -> None:
     """Dev persistence must not own or import DTO-level lifecycle rules."""
     repository_path = Path("agents/dev_agent/db/repository.py")
-    assert "core.task_lifecycle" in _imported_modules(repository_path)
+    assert "core.domain.lifecycle.task_lifecycle" in _imported_modules(repository_path)
 
     for path in _python_files(Path("agents/dev_agent/db")):
         for module in _imported_modules(path):
@@ -486,7 +486,7 @@ def test_dev_agent_repository_uses_core_lifecycle_policy() -> None:
                 "agents.dev_agent.models.schemas",
             }, (
                 f"{path} imports {module}; task lifecycle rules belong in "
-                "agents.dev_agent.core.task_lifecycle"
+                "agents.dev_agent.core.domain.lifecycle.task_lifecycle"
             )
 
 
@@ -1373,7 +1373,7 @@ def test_requirement_repository_uses_core_lifecycle_policy() -> None:
     modules = _imported_modules(repository_path)
     source = repository_path.read_text()
 
-    assert "core.requirement_lifecycle" in modules
+    assert "core.domain.lifecycle.requirement_lifecycle" in modules
     assert "RequirementStatus" not in source
     assert "vector_store" not in source
     assert ".add_history(" not in source

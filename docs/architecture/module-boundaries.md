@@ -1,6 +1,6 @@
 # Module Boundaries
 
-Last updated: 2026-05-20
+Last updated: 2026-05-22
 
 Status: Foundation document.
 
@@ -31,6 +31,11 @@ For each bounded context, the catalog lists:
 - **Boundary clarity**: how well the boundary is enforced today.
 - **Split fitness**: whether the context is a candidate for runtime
   extraction; if so, the gating pre-conditions.
+- **Context-map relationships**: classification of upstream and downstream
+  contexts using Brandolini terminology (customer/supplier, conformist,
+  ACL, partnership, shared kernel, separate ways). The DDD compliance
+  audit ([`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §4)
+  tracks per-context coverage.
 
 When you add a new context, you must add a row to this document **and** to
 `docs/guides/backend-boundaries.md` §3 in the same PR.
@@ -232,6 +237,14 @@ When you add a new context, you must add a row to this document **and** to
    row.
 5. Integration events are the preferred cross-context contract.
 6. ORM `*Table` types must not appear in cross-context boundaries.
+7. Every product-owning context materializes an explicit `core/domain/`
+   package per `architecture-principles.md` §1. Gateways are excluded
+   (they own no product-domain records).
+8. Gateways must not own product-domain records. If a table belongs to a
+   product context, it lives in that runtime even if the gateway is the
+   external touchpoint. See
+   [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) DDD-016 for the
+   current open violation.
 
 ---
 

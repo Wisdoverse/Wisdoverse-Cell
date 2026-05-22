@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agents.dev_agent.core.task_lifecycle import VALID_TRANSITIONS as VALID_TRANSITIONS
+from agents.dev_agent.core.domain.lifecycle.task_lifecycle import VALID_TRANSITIONS as VALID_TRANSITIONS
 
 
 class RiskLevel(str, Enum):

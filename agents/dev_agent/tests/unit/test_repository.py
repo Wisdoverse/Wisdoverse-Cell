@@ -1,5 +1,5 @@
 
-from agents.dev_agent.core.task_lifecycle import can_transition
+from agents.dev_agent.core.domain.lifecycle.task_lifecycle import can_transition
 
 
 class TestTransitionGuard:
