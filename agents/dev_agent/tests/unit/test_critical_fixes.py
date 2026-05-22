@@ -103,9 +103,12 @@ class TestRuntimeWiring:
     async def test_handle_request_unknown_action_uses_error_code(self):
         agent, _ = _make_agent_with_db()
         mock_repo = AsyncMock(spec=DevTaskRepository)
+        mock_log_repo = AsyncMock(spec=DevWorkflowLogRepository)
 
-        with patch.object(agent, "_get_repo", return_value=mock_repo):
-            result = await agent.handle_request({"action": "nonexistent"})
+        agent.set_repository(mock_repo)
+        agent.set_log_repository(mock_log_repo)
+
+        result = await agent.handle_request({"action": "nonexistent"})
 
         assert result == {
             "error": "Unknown action: nonexistent",
@@ -392,13 +395,12 @@ class TestApprovalContinuation:
         mock_forge.run_workflow = AsyncMock()
         agent._forge = mock_forge
 
-        with (
-            patch.object(agent, "_get_repo", return_value=mock_repo),
-            patch.object(agent, "_get_log_repo", return_value=mock_log_repo),
-        ):
-            result = await agent.handle_request(
-                {"action": "approve_workflow", "task_id": "dev-high-1"}
-            )
+        agent.set_repository(mock_repo)
+        agent.set_log_repository(mock_log_repo)
+
+        result = await agent.handle_request(
+            {"action": "approve_workflow", "task_id": "dev-high-1"}
+        )
 
         assert result["success"] is True
         mock_forge.create_workflow.assert_called_once()
@@ -433,13 +435,12 @@ class TestApprovalContinuation:
         agent._approval_gate = MagicMock()
         agent._approval_gate.approve_for_sensitive_action = AsyncMock()
 
-        with (
-            patch.object(agent, "_get_repo", return_value=mock_repo),
-            patch.object(agent, "_get_log_repo", return_value=mock_log_repo),
-        ):
-            result = await agent.handle_request(
-                {"action": "approve_workflow", "task_id": "dev-high-1"}
-            )
+        agent.set_repository(mock_repo)
+        agent.set_log_repository(mock_log_repo)
+
+        result = await agent.handle_request(
+            {"action": "approve_workflow", "task_id": "dev-high-1"}
+        )
 
         assert result == {
             "error": "approved_by required for control-plane approval",
@@ -484,17 +485,16 @@ class TestApprovalContinuation:
             return_value=SimpleNamespace(approval_id="appr_dev_1")
         )
 
-        with (
-            patch.object(agent, "_get_repo", return_value=mock_repo),
-            patch.object(agent, "_get_log_repo", return_value=mock_log_repo),
-        ):
-            result = await agent.handle_request(
-                {
-                    "action": "approve_workflow",
-                    "task_id": "dev-high-1",
-                    "approved_by": "human:lead",
-                }
-            )
+        agent.set_repository(mock_repo)
+        agent.set_log_repository(mock_log_repo)
+
+        result = await agent.handle_request(
+            {
+                "action": "approve_workflow",
+                "task_id": "dev-high-1",
+                "approved_by": "human:lead",
+            }
+        )
 
         assert result["success"] is True
         agent._approval_gate.approve_for_sensitive_action.assert_awaited_once_with(
@@ -592,11 +592,14 @@ class TestAPIParameterConsistency:
         agent, _ = _make_agent_with_db()
         mock_repo = AsyncMock(spec=DevTaskRepository)
         mock_repo.update_status = AsyncMock(return_value=True)
+        mock_log_repo = AsyncMock(spec=DevWorkflowLogRepository)
 
-        with patch.object(agent, "_get_repo", return_value=mock_repo):
-            result = await agent.handle_request(
-                {"action": "cancel_workflow", "task_id": "dev-001"}
-            )
+        agent.set_repository(mock_repo)
+        agent.set_log_repository(mock_log_repo)
+
+        result = await agent.handle_request(
+            {"action": "cancel_workflow", "task_id": "dev-001"}
+        )
         assert result["success"] is True
 
     @pytest.mark.asyncio
@@ -605,9 +608,12 @@ class TestAPIParameterConsistency:
         agent, _ = _make_agent_with_db()
         mock_repo = AsyncMock(spec=DevTaskRepository)
         mock_repo.list_failed_tasks = AsyncMock(return_value=[])
+        mock_log_repo = AsyncMock(spec=DevWorkflowLogRepository)
 
-        with patch.object(agent, "_get_repo", return_value=mock_repo):
-            result = await agent.handle_request({"action": "list_failed"})
+        agent.set_repository(mock_repo)
+        agent.set_log_repository(mock_log_repo)
+
+        result = await agent.handle_request({"action": "list_failed"})
         assert "workflows" in result
 
 
