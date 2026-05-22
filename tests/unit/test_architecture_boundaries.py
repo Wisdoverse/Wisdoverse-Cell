@@ -5789,3 +5789,47 @@ def test_api_reference_does_not_duplicate_pjm_decomposition_routes() -> None:
 
     assert len(method_paths) == len(set(method_paths))
     assert "Alternate decomposition router path" not in api_reference
+
+
+def test_business_aggregates_have_unit_tests() -> None:
+    """testing-strategy.md §1 — every landed aggregate ships a unit test (DDD-015).
+
+    Each business runtime aggregate root and its state machine must
+    have matching unit tests under `tests/unit/`. DDD-015 calls these
+    out as required artifacts for every Stage 2 aggregate that lands.
+    """
+    cases = [
+        (
+            "agents/requirement_manager/core/domain/requirement.py",
+            "agents/requirement_manager/tests/unit/test_requirement_aggregate.py",
+            "agents/requirement_manager/tests/unit/test_requirement_lifecycle.py",
+        ),
+        (
+            "agents/pjm_agent/core/domain/decomposition.py",
+            "agents/pjm_agent/tests/unit/test_decomposition_aggregate.py",
+            "agents/pjm_agent/tests/unit/test_decomposition_lifecycle.py",
+        ),
+        (
+            "agents/dev_agent/core/domain/task.py",
+            "agents/dev_agent/tests/unit/test_task_aggregate.py",
+            None,  # FSM tested via test_repository.py::TestTransitionGuard
+        ),
+        (
+            "agents/qa_agent/core/domain/acceptance_verdict.py",
+            "agents/qa_agent/tests/unit/test_acceptance_verdict.py",
+            None,  # AcceptanceVerdict is a value object, no FSM (DDD-021)
+        ),
+    ]
+    for aggregate_path, aggregate_test, fsm_test in cases:
+        assert Path(aggregate_path).exists(), f"missing aggregate: {aggregate_path}"
+        assert Path(aggregate_test).exists(), (
+            f"missing aggregate unit test {aggregate_test} for {aggregate_path}; "
+            "every aggregate must ship a unit test per testing-strategy.md §1 "
+            "(DDD-015)"
+        )
+        if fsm_test is not None:
+            assert Path(fsm_test).exists(), (
+                f"missing FSM unit test {fsm_test} for {aggregate_path}; "
+                "every state machine must ship a unit test per "
+                "testing-strategy.md §1 (DDD-015)"
+            )
