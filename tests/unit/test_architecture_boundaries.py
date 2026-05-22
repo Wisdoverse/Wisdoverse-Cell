@@ -2132,6 +2132,9 @@ def test_sync_api_delegates_trigger_and_status_to_application_use_case() -> None
 def test_sync_agent_request_dispatch_delegates_to_application_use_case() -> None:
     """Sync service shell should not own request action orchestration."""
     service_source = Path("shared/capabilities/sync/service/agent.py").read_text()
+    facade_source = Path(
+        "shared/capabilities/sync/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "shared/capabilities/sync/core/request_use_cases.py"
     ).read_text()
@@ -2145,8 +2148,14 @@ def test_sync_agent_request_dispatch_delegates_to_application_use_case() -> None
     assert 'action == "status"' in use_case_source
     assert "unknown_action_error()" in use_case_source
 
-    assert "SyncRequestUseCase" in service_source
-    assert "return await self._request_use_case().handle(request)" in handle_source
+    assert "class SyncApplicationFacade" in facade_source
+    assert "SyncRequestUseCase" in facade_source
+    assert "def _request_use_case" in facade_source
+    assert "return await self._request_use_case().handle(request)" in facade_source
+    assert "SyncRequestUseCase" not in service_source
+    assert "def _request_use_case" not in service_source
+    assert "return await self._application.handle_request(request)" in handle_source
+    assert "return await self._request_use_case().handle(request)" not in handle_source
     assert 'action == "sync_now"' not in handle_source
     assert 'action == "sync_openproject"' not in handle_source
     assert 'action == "sync_feishu_bitable"' not in handle_source
@@ -2160,6 +2169,9 @@ def test_sync_agent_request_dispatch_delegates_to_application_use_case() -> None
 def test_sync_agent_event_dispatch_delegates_to_application_use_case() -> None:
     """Sync service shell should not own sync.trigger event parsing."""
     service_source = Path("shared/capabilities/sync/service/agent.py").read_text()
+    facade_source = Path(
+        "shared/capabilities/sync/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "shared/capabilities/sync/core/event_use_cases.py"
     ).read_text()
@@ -2175,9 +2187,13 @@ def test_sync_agent_event_dispatch_delegates_to_application_use_case() -> None:
     assert "trigger_sync(" in use_case_source
     assert "def _normalize_sync_scope" in use_case_source
 
-    assert "SyncEventUseCase" in service_source
-    assert "def _event_use_case" in service_source
-    assert "return await self._event_use_case().handle(event)" in handle_source
+    assert "SyncEventUseCase" in facade_source
+    assert "def _event_use_case" in facade_source
+    assert "return await self._event_use_case().handle(event)" in facade_source
+    assert "SyncEventUseCase" not in service_source
+    assert "def _event_use_case" not in service_source
+    assert "return await self._application.handle_event(event)" in handle_source
+    assert "return await self._event_use_case().handle(event)" not in handle_source
     assert "SyncTriggerPayload" not in service_source
     assert "ValidationError" not in service_source
     assert "sync_invalid_trigger_payload" not in handle_source
@@ -2188,6 +2204,9 @@ def test_sync_agent_event_dispatch_delegates_to_application_use_case() -> None:
 def test_sync_scope_execution_delegates_to_application_use_case() -> None:
     """Sync service shell should not own scoped lifecycle event orchestration."""
     service_source = Path("shared/capabilities/sync/service/agent.py").read_text()
+    facade_source = Path(
+        "shared/capabilities/sync/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "shared/capabilities/sync/core/scope_execution_use_cases.py"
     ).read_text()
@@ -2207,9 +2226,13 @@ def test_sync_scope_execution_delegates_to_application_use_case() -> None:
     assert "def _sync_errors" in use_case_source
     assert "def _synced_count" in use_case_source
 
-    assert "SyncScopeExecutionUseCase" in service_source
-    assert "def _scope_execution_use_case" in service_source
-    assert "return await self._scope_execution_use_case().run_scope" in run_source
+    assert "SyncScopeExecutionUseCase" in facade_source
+    assert "def _scope_execution_use_case" in facade_source
+    assert "return await self._scope_execution_use_case().run_scope" in facade_source
+    assert "SyncScopeExecutionUseCase" not in service_source
+    assert "def _scope_execution_use_case" not in service_source
+    assert "return await self._application.run_sync_scope(" in run_source
+    assert "return await self._scope_execution_use_case().run_scope" not in run_source
     assert "async def publish_sync_event_via_outbox" in service_source
     assert "def record_sync_success" in service_source
     assert "def record_sync_failure" in service_source
@@ -4229,6 +4252,9 @@ def test_analysis_and_sync_health_checks_use_health_store_ports() -> None:
         "shared/capabilities/sync/core/health_use_cases.py"
     ).read_text()
     sync_adapter = Path("shared/capabilities/sync/db/health_store.py").read_text()
+    sync_facade = Path(
+        "shared/capabilities/sync/core/application_facade.py"
+    ).read_text()
 
     assert "class AnalysisHealthStore(Protocol)" in analysis_port
     assert "SqlAlchemyAnalysisHealthStore" in analysis_adapter
@@ -4253,8 +4279,10 @@ def test_analysis_and_sync_health_checks_use_health_store_ports() -> None:
     assert "text(\"SELECT 1\")" not in sync_service
     assert "health_store" in sync_service
     assert "SqlAlchemySyncHealthStore(" in sync_service
-    assert "def _health_use_case" in sync_service
-    assert "return await self._health_use_case().check()" in sync_service
+    assert "def _health_use_case" not in sync_service
+    assert "return await self._application.health_check()" in sync_service
+    assert "def _health_use_case" in sync_facade
+    assert "return await self._health_use_case().check()" in sync_facade
     assert "is_database_ready" not in sync_service
 
 
@@ -4567,6 +4595,9 @@ def test_sync_events_have_durable_outbox_contract() -> None:
     use_case_source = Path(
         "shared/capabilities/sync/core/scope_execution_use_cases.py"
     ).read_text()
+    outbox_use_case_source = Path(
+        "shared/capabilities/sync/core/outbox_delivery_use_cases.py"
+    ).read_text()
     openproject_source = Path("shared/capabilities/sync/core/openproject_sync.py").read_text()
     engine_source = Path("shared/capabilities/sync/core/engine.py").read_text()
     port_source = Path("shared/capabilities/sync/core/sync_ports.py").read_text()
@@ -4582,12 +4613,24 @@ def test_sync_events_have_durable_outbox_contract() -> None:
     assert "await self._event_publisher.publish_sync_event_via_outbox(event)" in (
         use_case_source
     )
+    assert "class SyncOutboxDeliveryUseCase" in outbox_use_case_source
+    assert 'record_outbox_pending_age("sync-module", rows)' in outbox_use_case_source
+    assert "def event_from_outbox" in outbox_use_case_source
+    assert "await self._event_publisher.publish(event)" in outbox_use_case_source
+    assert "await self.mark_event_published(event)" in outbox_use_case_source
+    assert "await self.mark_event_failed(event, exc)" in outbox_use_case_source
     assert "async def publish_sync_event_via_outbox" in service_source
     assert "publish_pending_sync_events" in service_source
     assert "SyncEventOutboxRepository" not in service_source
+    assert "EventMetadata" not in service_source
+    assert "record_outbox_pending_age" not in service_source
+    assert "def _event_from_outbox" not in service_source
+    assert "def _publish_staged_sync_event" not in service_source
+    assert "def _mark_sync_event_published" not in service_source
+    assert "def _mark_sync_event_failed" not in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
     assert "event_publisher=self._event_publisher" in service_source
-    assert "await self._event_publisher.publish(event)" in service_source
+    assert "await self._event_publisher.publish(event)" not in service_source
     assert "await self._event_bus.publish(event)" not in service_source
     assert "await store.stage_event(decompose_event)" in openproject_source
     assert "await self._outbox_repo.add(event)" in adapter_source
