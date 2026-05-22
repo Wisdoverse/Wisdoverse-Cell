@@ -7,7 +7,7 @@ from typing import Any
 from shared.core import unknown_action_error
 from shared.schemas.event import Event
 
-from .event_use_cases import CoordinatorEventUseCase, CoordinatorThinker
+from .event_use_cases import CoordinatorEventUseCase, CoordinatorThinkerPort
 from .health_ports import CoordinatorHealthStore
 from .health_use_cases import CoordinatorHealthUseCase
 from .outbox_delivery_use_cases import CoordinatorOutboxDeliveryUseCase
@@ -26,7 +26,7 @@ class CoordinatorApplicationFacade:
         standard_request_handler: StandardRequestHandler,
         scratchpad_provider: Callable[[], Any],
         state_store_provider: Callable[[], CoordinatorStateStorePort],
-        thinker_provider: Callable[[], CoordinatorThinker],
+        thinker_provider: Callable[[], CoordinatorThinkerPort],
         llm_gateway_provider: Callable[[], Any],
         database_enabled: bool,
         health_store_provider: Callable[[], CoordinatorHealthStore | None],
