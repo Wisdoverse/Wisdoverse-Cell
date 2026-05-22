@@ -18,6 +18,7 @@ from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
+from ..core.application_facade import RequirementApplicationFacade
 from ..core.card_ports import RequirementCardRendererPort
 from ..core.event_use_cases import (
     SUBSCRIBED_EVENTS,
@@ -28,7 +29,6 @@ from ..core.health_ports import RequirementHealthStore
 from ..core.health_use_cases import RequirementHealthUseCase
 from ..core.ingest_side_effect_use_cases import (
     RequirementIngestSideEffectUseCase,
-    RequirementSessionExtractionCardUseCase,
 )
 from ..core.meeting_ingest_workflow import (
     IngestResult,
@@ -132,10 +132,44 @@ class RequirementManagerAgent(BaseAgent):
         self._mutation_workflow = RequirementMutationWorkflow()
         self._messenger = messenger
         self._card_renderer = card_renderer
+        self._outbox_delivery = RequirementOutboxDeliveryUseCase(
+            outbox_store=self._outbox_store,
+            event_publisher=self._event_publisher,
+        )
+        self._mutation_side_effects = RequirementMutationSideEffectUseCase(
+            vector_index=self._vector_store,
+            event_publisher=self._outbox_delivery,
+        )
+        self._ingest_side_effects = RequirementIngestSideEffectUseCase(
+            event_publisher=self._outbox_delivery,
+            notifier=notification_service,
+            notification_channel=NotificationChannel.FEISHU,
+        )
+        self._command_use_case = RequirementCommandUseCase(
+            mutation_workflow=self._mutation_workflow,
+            side_effects=self._mutation_side_effects,
+            uow_factory=lambda: self.get_unit_of_work(),
+        )
+        self._read_query_use_case = RequirementReadQueryUseCase(
+            uow_factory=lambda: self.get_unit_of_work(),
+        )
+        self._application = RequirementApplicationFacade(
+            uow_factory=lambda: self.get_unit_of_work(),
+            session_uow_factory=lambda session: self._session_unit_of_work(session),
+            ingest_workflow=self._ingest_workflow,
+            command_use_case=self._command_use_case,
+            read_query_use_case=self._read_query_use_case,
+            mutation_side_effects=self._mutation_side_effects,
+            ingest_side_effects=self._ingest_side_effects,
+            outbox_delivery=self._outbox_delivery,
+            messenger=self._messenger,
+            card_renderer=self._card_renderer,
+        )
 
     def configure_messenger(self, messenger: FeishuMessengerPort | None) -> None:
         """Wire the outbound messaging adapter at the service entry point."""
         self._messenger = messenger
+        self._application.configure_messenger(messenger)
 
     def configure_card_renderer(
         self,
@@ -143,6 +177,7 @@ class RequirementManagerAgent(BaseAgent):
     ) -> None:
         """Wire the outbound card renderer at the service entry point."""
         self._card_renderer = card_renderer
+        self._application.configure_card_renderer(card_renderer)
 
     @property
     def mutation_workflow(self) -> RequirementMutationWorkflow:
@@ -152,7 +187,7 @@ class RequirementManagerAgent(BaseAgent):
     @property
     def mutation_side_effects(self) -> RequirementMutationSideEffectUseCase:
         """Expose committed-mutation side effects for HTTP use-case composition."""
-        return self._mutation_side_effect_use_case()
+        return self._mutation_side_effects
 
     # ========== Lifecycle ==========
 
@@ -205,8 +240,8 @@ class RequirementManagerAgent(BaseAgent):
 
     def _event_use_case(self) -> RequirementManagerEventUseCase:
         return RequirementManagerEventUseCase(
-            agent=self,
-            uow_factory=self.get_unit_of_work,
+            agent=self._application,
+            uow_factory=lambda: self.get_unit_of_work(),
         )
 
     async def handle_request(self, request: dict) -> dict:
@@ -224,8 +259,8 @@ class RequirementManagerAgent(BaseAgent):
 
     def _request_use_case(self) -> RequirementManagerRequestUseCase:
         return RequirementManagerRequestUseCase(
-            agent=self,
-            uow_factory=self.get_unit_of_work,
+            agent=self._application,
+            uow_factory=lambda: self.get_unit_of_work(),
         )
 
     def get_unit_of_work(self):
@@ -273,35 +308,16 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             IngestResult with extracted requirement and question counts.
         """
-        if session is not None:
-            uow = self._session_unit_of_work(session)
-            result = await self.ingest_meeting_with_uow(
-                content=content,
-                source=source,
-                uow=uow,
-                title=title,
-                meeting_date=meeting_date,
-                participants=participants,
-                context=context,
-                source_id=source_id,
-            )
-            await uow.commit()
-        else:
-            async with self.get_unit_of_work() as uow:
-                result = await self.ingest_meeting_with_uow(
-                    content=content,
-                    source=source,
-                    uow=uow,
-                    title=title,
-                    meeting_date=meeting_date,
-                    participants=participants,
-                    context=context,
-                    source_id=source_id,
-                )
-                await uow.commit()
-
-        await self.publish_ingest_side_effects(result)
-        return result
+        return await self._application.ingest_meeting(
+            content=content,
+            source=source,
+            session=session,
+            title=title,
+            meeting_date=meeting_date,
+            participants=participants,
+            context=context,
+            source_id=source_id,
+        )
 
     async def ingest_meeting_with_uow(
         self,
@@ -316,7 +332,7 @@ class RequirementManagerAgent(BaseAgent):
         source_id: Optional[str] = None,
     ) -> IngestResult:
         """Ingest meeting content inside an explicit Requirement unit of work."""
-        return await self._ingest_workflow.ingest_meeting(
+        return await self._application.ingest_meeting_with_uow(
             content=content,
             source=source,
             uow=uow,
@@ -329,7 +345,7 @@ class RequirementManagerAgent(BaseAgent):
 
     async def publish_ingest_side_effects(self, result: IngestResult) -> None:
         """Publish integration and notification side effects after ingest commit."""
-        await self._ingest_side_effect_use_case().publish_ingest_side_effects(result)
+        await self._application.publish_ingest_side_effects(result)
 
     async def confirm_requirement(
         self,
@@ -348,16 +364,10 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             Confirmed requirement, or None if it does not exist.
         """
-        if session is not None:
-            uow = self._session_unit_of_work(session)
-            return await self._command_use_case().confirm_requirement(
-                requirement_id=requirement_id,
-                confirmed_by=confirmed_by,
-                uow=uow,
-            )
-        return await self._command_use_case().confirm_requirement(
-            requirement_id=requirement_id,
-            confirmed_by=confirmed_by,
+        return await self._application.confirm_requirement(
+            requirement_id,
+            confirmed_by,
+            session=session,
         )
 
     async def confirm_requirement_with_uow(
@@ -368,7 +378,7 @@ class RequirementManagerAgent(BaseAgent):
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         """Confirm one requirement through the application workflow."""
-        return await self._command_use_case().confirm_requirement_with_uow(
+        return await self._application.confirm_requirement_with_uow(
             requirement_id=requirement_id,
             confirmed_by=confirmed_by,
             uow=uow,
@@ -393,18 +403,11 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             Rejected requirement, or None if it does not exist.
         """
-        if session is not None:
-            uow = self._session_unit_of_work(session)
-            return await self._command_use_case().reject_requirement(
-                requirement_id=requirement_id,
-                reason=reason,
-                rejected_by=rejected_by,
-                uow=uow,
-            )
-        return await self._command_use_case().reject_requirement(
-            requirement_id=requirement_id,
-            reason=reason,
-            rejected_by=rejected_by,
+        return await self._application.reject_requirement(
+            requirement_id,
+            reason,
+            rejected_by,
+            session=session,
         )
 
     async def reject_requirement_with_uow(
@@ -416,7 +419,7 @@ class RequirementManagerAgent(BaseAgent):
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         """Reject one requirement through the application workflow."""
-        return await self._command_use_case().reject_requirement_with_uow(
+        return await self._application.reject_requirement_with_uow(
             requirement_id=requirement_id,
             reason=reason,
             rejected_by=rejected_by,
@@ -435,16 +438,10 @@ class RequirementManagerAgent(BaseAgent):
         HTTP/RPC adapters pass validated DTO data here. This use case owns
         history recording, feedback learning, and event publication.
         """
-        if session is not None:
-            uow = self._session_unit_of_work(session)
-            return await self._command_use_case().update_requirement(
-                requirement_id=requirement_id,
-                changes=changes,
-                uow=uow,
-            )
-        return await self._command_use_case().update_requirement(
-            requirement_id=requirement_id,
-            changes=changes,
+        return await self._application.update_requirement(
+            requirement_id,
+            changes,
+            session=session,
         )
 
     async def update_requirement_with_uow(
@@ -455,7 +452,7 @@ class RequirementManagerAgent(BaseAgent):
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         """Update one requirement through the application workflow."""
-        return await self._command_use_case().update_requirement_with_uow(
+        return await self._application.update_requirement_with_uow(
             requirement_id=requirement_id,
             changes=changes,
             uow=uow,
@@ -480,16 +477,10 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             Deleted requirement, or None if it does not exist.
         """
-        if session is not None:
-            uow = self._session_unit_of_work(session)
-            return await self._command_use_case().delete_requirement(
-                requirement_id=requirement_id,
-                deleted_by=deleted_by,
-                uow=uow,
-            )
-        return await self._command_use_case().delete_requirement(
-            requirement_id=requirement_id,
-            deleted_by=deleted_by,
+        return await self._application.delete_requirement(
+            requirement_id,
+            deleted_by,
+            session=session,
         )
 
     async def delete_requirement_with_uow(
@@ -500,7 +491,7 @@ class RequirementManagerAgent(BaseAgent):
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         """Delete one requirement through the application workflow."""
-        return await self._command_use_case().delete_requirement_with_uow(
+        return await self._application.delete_requirement_with_uow(
             requirement_id=requirement_id,
             deleted_by=deleted_by,
             uow=uow,
@@ -519,18 +510,11 @@ class RequirementManagerAgent(BaseAgent):
         HTTP/RPC adapters pass validated DTO data here. This use case owns the
         write transaction and keeps the route layer free of persistence rules.
         """
-        if session is not None:
-            uow = self._session_unit_of_work(session)
-            return await self._command_use_case().answer_question(
-                question_id,
-                answer=answer,
-                answered_by=answered_by,
-                uow=uow,
-            )
-        return await self._command_use_case().answer_question(
+        return await self._application.answer_question(
             question_id,
-            answer=answer,
-            answered_by=answered_by,
+            answer,
+            answered_by,
+            session=session,
         )
 
     async def answer_question_with_uow(
@@ -542,7 +526,7 @@ class RequirementManagerAgent(BaseAgent):
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         """Answer one open question through the application workflow."""
-        return await self._command_use_case().answer_question_with_uow(
+        return await self._application.answer_question_with_uow(
             question_id,
             answer=answer,
             answered_by=answered_by,
@@ -556,61 +540,21 @@ class RequirementManagerAgent(BaseAgent):
         limit: int = 50,
     ) -> list[OpenQuestion]:
         """List unanswered clarification questions through the application facade."""
-        if session is not None:
-            uow = self._session_unit_of_work(session)
-            return await self._read_query_use_case().list_open_questions_with_uow(
-                uow,
-                limit=limit,
-            )
-
-        return await self._read_query_use_case().list_open_questions(limit=limit)
+        return await self._application.list_open_questions(session=session, limit=limit)
 
     async def publish_requirement_mutation_side_effects(
         self,
         result: RequirementMutationResult,
     ) -> None:
-        await self._mutation_side_effect_use_case().publish_requirement_mutation_side_effects(
+        await self._application.publish_requirement_mutation_side_effects(
             result,
         )
 
-    def _command_use_case(self) -> RequirementCommandUseCase:
-        return RequirementCommandUseCase(
-            mutation_workflow=self._mutation_workflow,
-            side_effects=self._mutation_side_effect_use_case(),
-            uow_factory=self.get_unit_of_work,
-        )
-
-    def _mutation_side_effect_use_case(self) -> RequirementMutationSideEffectUseCase:
-        return RequirementMutationSideEffectUseCase(
-            vector_index=self._vector_store,
-            event_publisher=self._outbox_delivery_use_case(),
-        )
-
-    def _ingest_side_effect_use_case(self) -> RequirementIngestSideEffectUseCase:
-        return RequirementIngestSideEffectUseCase(
-            event_publisher=self._outbox_delivery_use_case(),
-            notifier=notification_service,
-            notification_channel=NotificationChannel.FEISHU,
-        )
-
     async def publish_pending_requirement_events(self, limit: int = 100) -> dict[str, int]:
-        return await self._outbox_delivery_use_case().publish_pending_events(
-            limit=limit,
-        )
+        return await self._application.publish_pending_requirement_events(limit=limit)
 
     async def publish_event_via_outbox(self, event: Event) -> bool:
-        return await self._outbox_delivery_use_case().publish_event_via_outbox(event)
-
-    def _outbox_delivery_use_case(self) -> RequirementOutboxDeliveryUseCase:
-        return RequirementOutboxDeliveryUseCase(
-            outbox_store=self._outbox_store,
-            event_publisher=self._event_publisher,
-        )
-
-    def _read_query_use_case(self) -> RequirementReadQueryUseCase:
-        return RequirementReadQueryUseCase(
-            uow_factory=self.get_unit_of_work,
-        )
+        return await self._application.publish_event_via_outbox(event)
 
     def _session_unit_of_work(
         self,
@@ -626,13 +570,13 @@ class RequirementManagerAgent(BaseAgent):
         page: int = 1,
         page_size: int = 5,
     ) -> tuple[list[dict], int, int]:
-        return await self._read_query_use_case().list_pending_requirements(
+        return await self._application.list_pending_requirements(
             page=page,
             page_size=page_size,
         )
 
     async def get_confirmed_requirements(self) -> list[dict]:
-        return await self._read_query_use_case().get_confirmed_requirements()
+        return await self._application.get_confirmed_requirements()
 
     async def batch_confirm_requirements(
         self,
@@ -649,7 +593,7 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             Operation results; each item contains requirement_id, success, and error.
         """
-        return await self._command_use_case().batch_confirm_requirements(
+        return await self._application.batch_confirm_requirements(
             requirement_ids=requirement_ids,
             confirmed_by=confirmed_by,
         )
@@ -662,7 +606,7 @@ class RequirementManagerAgent(BaseAgent):
         uow: RequirementUnitOfWork,
     ) -> tuple[list[dict], list[RequirementMutationResult]]:
         """Confirm requirements through the application workflow."""
-        return await self._command_use_case().batch_confirm_requirements_with_uow(
+        return await self._application.batch_confirm_requirements_with_uow(
             requirement_ids=requirement_ids,
             confirmed_by=confirmed_by,
             uow=uow,
@@ -685,7 +629,7 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             Operation results; each item contains requirement_id, success, and error.
         """
-        return await self._command_use_case().batch_reject_requirements(
+        return await self._application.batch_reject_requirements(
             requirement_ids=requirement_ids,
             reason=reason,
             rejected_by=rejected_by,
@@ -700,7 +644,7 @@ class RequirementManagerAgent(BaseAgent):
         uow: RequirementUnitOfWork,
     ) -> tuple[list[dict], list[RequirementMutationResult]]:
         """Reject requirements through the application workflow."""
-        return await self._command_use_case().batch_reject_requirements_with_uow(
+        return await self._application.batch_reject_requirements_with_uow(
             requirement_ids=requirement_ids,
             reason=reason,
             rejected_by=rejected_by,
@@ -708,10 +652,10 @@ class RequirementManagerAgent(BaseAgent):
         )
 
     async def get_requirement(self, requirement_id: str) -> Optional[Requirement]:
-        return await self._read_query_use_case().get_requirement(requirement_id)
+        return await self._application.get_requirement(requirement_id)
 
     async def get_meeting(self, meeting_id: str) -> Optional[Meeting]:
-        return await self._read_query_use_case().get_meeting(meeting_id)
+        return await self._application.get_meeting(meeting_id)
 
     # ========== Session Extraction Methods ==========
 
@@ -723,14 +667,8 @@ class RequirementManagerAgent(BaseAgent):
 
     def _session_extraction_use_case(self) -> RequirementSessionExtractionUseCase:
         return RequirementSessionExtractionUseCase(
-            agent=self,
-            uow_factory=self.get_unit_of_work,
-        )
-
-    def _session_card_use_case(self) -> RequirementSessionExtractionCardUseCase:
-        return RequirementSessionExtractionCardUseCase(
-            messenger=self._messenger,
-            card_renderer=self._card_renderer,
+            agent=self._application,
+            uow_factory=lambda: self.get_unit_of_work(),
         )
 
     def _format_messages_for_extraction(self, messages: list) -> str:
@@ -753,7 +691,7 @@ class RequirementManagerAgent(BaseAgent):
         session_id: str,
     ):
         """Send extraction result card to the chat."""
-        await self._session_card_use_case().send_session_extraction_card(
+        await self._application.send_session_extraction_card(
             chat_id,
             result,
             session_id,

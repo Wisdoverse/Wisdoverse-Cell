@@ -298,11 +298,11 @@ class TestHandleRequest:
         )
 
         with patch.object(
-            test_agent,
+            test_agent._application,
             "ingest_meeting_with_uow",
             new_callable=AsyncMock,
         ) as mock_ingest, patch.object(
-            test_agent,
+            test_agent._application,
             "publish_ingest_side_effects",
             new_callable=AsyncMock,
         ):
@@ -510,15 +510,19 @@ class TestExtractFromSession:
 
         with (
             patch.object(
-                test_agent,
+                test_agent._application,
                 "ingest_meeting_with_uow",
                 new_callable=AsyncMock,
             ) as mock_ingest,
             patch.object(
-                test_agent, "publish_ingest_side_effects", new_callable=AsyncMock
+                test_agent._application,
+                "publish_ingest_side_effects",
+                new_callable=AsyncMock,
             ),
             patch.object(
-                test_agent, "_send_session_extraction_card", new_callable=AsyncMock
+                test_agent._application,
+                "send_session_extraction_card",
+                new_callable=AsyncMock,
             ) as mock_send_card,
         ):
 
@@ -572,15 +576,19 @@ class TestExtractFromSession:
 
         with (
             patch.object(
-                test_agent,
+                test_agent._application,
                 "ingest_meeting_with_uow",
                 new_callable=AsyncMock,
             ) as mock_ingest,
             patch.object(
-                test_agent, "publish_ingest_side_effects", new_callable=AsyncMock
+                test_agent._application,
+                "publish_ingest_side_effects",
+                new_callable=AsyncMock,
             ),
             patch.object(
-                test_agent, "_send_session_extraction_card", new_callable=AsyncMock
+                test_agent._application,
+                "send_session_extraction_card",
+                new_callable=AsyncMock,
             ) as mock_send_card,
         ):
 
