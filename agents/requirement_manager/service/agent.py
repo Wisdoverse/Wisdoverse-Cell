@@ -21,7 +21,6 @@ from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
-from ..core.agent_read_use_cases import RequirementAgentReadUseCase
 from ..core.card_ports import RequirementCardRendererPort
 from ..core.event_use_cases import (
     SUBSCRIBED_EVENTS,
@@ -44,6 +43,7 @@ from ..core.mutation_side_effect_use_cases import RequirementMutationSideEffectU
 from ..core.outbox_delivery_use_cases import RequirementOutboxDeliveryUseCase
 from ..core.outbox_ports import RequirementEventOutboxStore
 from ..core.question_ports import RequirementQuestionStore
+from ..core.read_query_use_cases import RequirementReadQueryUseCase
 from ..core.request_use_cases import RequirementManagerRequestUseCase
 from ..core.requirement_command_use_cases import RequirementCommandUseCase
 from ..core.requirement_mutation_workflow import (
@@ -598,14 +598,13 @@ class RequirementManagerAgent(BaseAgent):
     ) -> list[OpenQuestion]:
         """List unanswered clarification questions through the application facade."""
         if session is not None:
-            return await self._read_use_case_for_session(session).list_open_questions(
+            uow = _RequirementSessionUnitOfWork(self, session)
+            return await self._read_query_use_case().list_open_questions_with_uow(
+                uow,
                 limit=limit,
             )
 
-        async with self.get_unit_of_work() as uow:
-            return await self._read_use_case_for_uow(uow).list_open_questions(
-                limit=limit,
-            )
+        return await self._read_query_use_case().list_open_questions(limit=limit)
 
     async def publish_requirement_mutation_side_effects(
         self,
@@ -647,6 +646,11 @@ class RequirementManagerAgent(BaseAgent):
         return RequirementOutboxDeliveryUseCase(
             outbox_store=self._outbox_store,
             event_publisher=self._event_publisher,
+        )
+
+    def _read_query_use_case(self) -> RequirementReadQueryUseCase:
+        return RequirementReadQueryUseCase(
+            uow_factory=self.get_unit_of_work,
         )
 
     async def _stage_requirement_event(
@@ -705,19 +709,13 @@ class RequirementManagerAgent(BaseAgent):
         page: int = 1,
         page_size: int = 5,
     ) -> tuple[list[dict], int, int]:
-        async with self._db_manager.session() as session:
-            return await self._read_use_case_for_session(
-                session,
-            ).list_pending_requirements(
-                page=page,
-                page_size=page_size,
-            )
+        return await self._read_query_use_case().list_pending_requirements(
+            page=page,
+            page_size=page_size,
+        )
 
     async def get_confirmed_requirements(self) -> list[dict]:
-        async with self._db_manager.session() as session:
-            return await self._read_use_case_for_session(
-                session,
-            ).get_confirmed_requirements()
+        return await self._read_query_use_case().get_confirmed_requirements()
 
     async def batch_confirm_requirements(
         self,
@@ -793,16 +791,10 @@ class RequirementManagerAgent(BaseAgent):
         )
 
     async def get_requirement(self, requirement_id: str) -> Optional[Requirement]:
-        async with self._db_manager.session() as session:
-            return await self._read_use_case_for_session(session).get_requirement(
-                requirement_id,
-            )
+        return await self._read_query_use_case().get_requirement(requirement_id)
 
     async def get_meeting(self, meeting_id: str) -> Optional[Meeting]:
-        async with self._db_manager.session() as session:
-            return await self._read_use_case_for_session(session).get_meeting(
-                meeting_id,
-            )
+        return await self._read_query_use_case().get_meeting(meeting_id)
 
     # ========== Session Extraction Methods ==========
 
@@ -848,26 +840,6 @@ class RequirementManagerAgent(BaseAgent):
             chat_id,
             result,
             session_id,
-        )
-
-    def _read_use_case_for_session(
-        self,
-        session: AsyncSession,
-    ) -> RequirementAgentReadUseCase:
-        return RequirementAgentReadUseCase(
-            requirements=self._get_requirement_store(session),
-            meetings=self._get_meeting_store(session),
-            questions=self._get_question_store(session),
-        )
-
-    def _read_use_case_for_uow(
-        self,
-        uow: RequirementUnitOfWork,
-    ) -> RequirementAgentReadUseCase:
-        return RequirementAgentReadUseCase(
-            requirements=uow.requirements,
-            meetings=uow.meetings,
-            questions=uow.questions,
         )
 
 
