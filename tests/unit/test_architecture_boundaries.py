@@ -3794,6 +3794,9 @@ def test_coordinator_service_uses_state_store_port() -> None:
 def test_coordinator_event_orchestration_delegates_to_application_use_case() -> None:
     """Coordinator service shell should not own event orchestration workflow."""
     service_source = Path("services/orchestration/coordinator/service/agent.py").read_text()
+    facade_source = Path(
+        "services/orchestration/coordinator/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "services/orchestration/coordinator/core/event_use_cases.py"
     ).read_text()
@@ -3812,8 +3815,13 @@ def test_coordinator_event_orchestration_delegates_to_application_use_case() -> 
     assert "state_store.persist(decisions)" in use_case_source
     assert "asyncio.create_task" in use_case_source
 
-    assert "CoordinatorEventUseCase" in service_source
-    assert "return await self._event_use_case().handle(event)" in handle_source
+    assert "CoordinatorEventUseCase" in facade_source
+    assert "def _event_use_case" in facade_source
+    assert "return await self._event_use_case().handle(event)" in facade_source
+    assert "CoordinatorEventUseCase" not in service_source
+    assert "def _event_use_case" not in service_source
+    assert "return await self._application.handle_event(event)" in handle_source
+    assert "return await self._event_use_case().handle(event)" not in handle_source
     assert "classify_event(event)" not in handle_source
     assert "update_agent_state(" not in handle_source
     assert "read_incremental()" not in handle_source
@@ -4087,6 +4095,9 @@ def test_coordinator_events_have_durable_outbox_contract() -> None:
         "services/orchestration/coordinator/db/outbox_store.py"
     ).read_text()
     service_source = Path("services/orchestration/coordinator/service/agent.py").read_text()
+    outbox_use_case_source = Path(
+        "services/orchestration/coordinator/core/outbox_delivery_use_cases.py"
+    ).read_text()
     app_source = Path("services/orchestration/coordinator/app/main.py").read_text()
     doc_source = Path("docs/guides/backend-boundaries.md").read_text()
     event_catalog_source = Path("docs/guides/event-catalog.md").read_text()
@@ -4099,10 +4110,26 @@ def test_coordinator_events_have_durable_outbox_contract() -> None:
     assert "SqlAlchemyCoordinatorEventOutboxStore" in adapter_source
     assert "publish_pending_coordinator_events" in service_source
     assert "publish_event_via_outbox" in service_source
-    assert "await self._publish_staged_coordinator_event(event)" in service_source
+    assert "class CoordinatorOutboxDeliveryUseCase" in outbox_use_case_source
+    assert 'record_outbox_pending_age("coordinator", rows)' in outbox_use_case_source
+    assert "def event_from_outbox" in outbox_use_case_source
+    assert "await self._event_bus.connect()" in outbox_use_case_source
+    assert "await self._event_publisher.publish(event)" in outbox_use_case_source
+    assert "return await self._application.publish_pending_coordinator_events" in (
+        service_source
+    )
+    assert "return await self._application.publish_event_via_outbox(event)" in (
+        service_source
+    )
     assert "CoordinatorEventOutboxRepository" not in service_source
+    assert "EventMetadata" not in service_source
+    assert "record_outbox_pending_age" not in service_source
+    assert "def _event_from_outbox" not in service_source
+    assert "def _publish_staged_coordinator_event" not in service_source
+    assert "def _mark_coordinator_event_published" not in service_source
+    assert "def _mark_coordinator_event_failed" not in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
-    assert "await self._event_publisher.publish(event)" in service_source
+    assert "await self._event_publisher.publish(event)" not in service_source
     assert "await self._event_bus.publish(event)" not in service_source
     assert "`coordinator_event_outbox`" in doc_source
     assert "`coordinator_event_outbox`" in event_catalog_source
@@ -4419,6 +4446,12 @@ def test_dev_and_coordinator_health_checks_use_health_store_ports() -> None:
     coordinator_adapter = Path(
         "services/orchestration/coordinator/db/health_store.py"
     ).read_text()
+    coordinator_use_case = Path(
+        "services/orchestration/coordinator/core/health_use_cases.py"
+    ).read_text()
+    coordinator_facade = Path(
+        "services/orchestration/coordinator/core/application_facade.py"
+    ).read_text()
 
     assert "class DevHealthStore(Protocol)" in dev_port
     assert "class DevHealthUseCase" in dev_use_case
@@ -4436,12 +4469,20 @@ def test_dev_and_coordinator_health_checks_use_health_store_ports() -> None:
 
     assert "class CoordinatorHealthStore(Protocol)" in coordinator_port
     assert "SqlAlchemyCoordinatorHealthStore" in coordinator_adapter
+    assert "class CoordinatorHealthUseCase" in coordinator_use_case
     assert "text(\"SELECT 1\")" in coordinator_adapter
     assert "from sqlalchemy import text" not in coordinator_service
     assert "text(\"SELECT 1\")" not in coordinator_service
     assert "health_store" in coordinator_service
     assert "SqlAlchemyCoordinatorHealthStore(self._db_manager)" in coordinator_service
-    assert "is_database_ready" in coordinator_service
+    assert "is_database_ready" not in coordinator_service
+    assert "is_database_ready" in coordinator_use_case
+    assert "def _health_use_case" in coordinator_facade
+    assert "return await self._health_use_case().check()" in coordinator_facade
+    assert "return await self._application.health_check()" in _function_source(
+        coordinator_service,
+        "health_check",
+    )
 
 
 def test_evolution_control_plane_records_use_proposal_store_port() -> None:
