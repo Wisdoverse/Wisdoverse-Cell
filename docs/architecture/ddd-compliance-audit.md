@@ -749,7 +749,7 @@ not operational risk. Stage mapping is to
 | ID | Context | Dimension | Severity | Suggested PR | Stage | Blocks |
 |----|---------|-----------|----------|--------------|-------|--------|
 | DDD-001 | Control Plane | 2 / 8 | high | Move `agent_run_lifecycle.py` into `shared/control_plane/domain/lifecycle/`; promote AgentRun to an explicit aggregate class with FSM | 2 | DDD-006 |
-| DDD-002 | All contexts | 1 | medium | Make `core/domain/` mandatory for every business + capability runtime; add architecture-boundary test that forbids `core/<x>_lifecycle.py` outside `core/domain/lifecycle/` | 1 | DDD-003 |
+| DDD-002 | Business agents (Stage 1 slice) | 1 | medium | ✅ Partially landed `<DDD-002 PR>`. `tests/unit/test_architecture_boundaries.py::test_lifecycle_modules_live_in_canonical_domain_path` blocks `*_lifecycle.py` at `core/` top level across the four business agents. Extends to `shared/control_plane/` after DDD-001 (which removes the `agent_run_lifecycle.py` shim). `core/domain/` mandatory enforcement for capabilities + coordinator + identity is deferred to Stage 2 when aggregates land in those contexts. | 1 | DDD-001, DDD-003 |
 | DDD-003 | Sync (both sub-boundaries) | 2 / 3 / 8 | high | Introduce `SyncOperation` aggregate per sub-boundary; replace `engine.py` string-status branches with typed FSM; one PR per sub-boundary | 2 | D (extraction) |
 | DDD-004 | Analysis | 9 / 11 | high | Introduce explicit projection tables consumed by Analysis use cases; remove source-domain reads (closes P2-2) | 3 | C |
 | DDD-005 | Evolution | 2 / 9 | medium | Promote `EvolutionProposal`, `EvolutionTrace`, `Reflection`, `Experiment` to explicit aggregates with FSMs; consolidate `shared/capabilities/evolution/` and `shared/evolution/` packages | 2 | — |
