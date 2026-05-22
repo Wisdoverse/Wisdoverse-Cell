@@ -5789,3 +5789,34 @@ def test_api_reference_does_not_duplicate_pjm_decomposition_routes() -> None:
 
     assert len(method_paths) == len(set(method_paths))
     assert "Alternate decomposition router path" not in api_reference
+
+
+def test_lifecycle_modules_live_in_canonical_domain_path() -> None:
+    """architecture-principles.md §1 Domain layer (DDD-002).
+
+    Lifecycle helpers (`*_lifecycle.py`) must live under
+    `core/domain/lifecycle/`, never at the `core/` top level. Top-level
+    placement was the legacy location and was removed in DDD-020.
+
+    Scoped to business runtime agents in this PR. `shared.control_plane`
+    still has `agent_run_lifecycle.py` at the top level; that shim is
+    removed when DDD-001 promotes `AgentRun` to an explicit aggregate.
+    Extend this test's coverage to `shared/control_plane` in the
+    DDD-001 PR.
+    """
+    business_runtimes = [
+        Path("agents/requirement_manager"),
+        Path("agents/pjm_agent"),
+        Path("agents/qa_agent"),
+        Path("agents/dev_agent"),
+    ]
+    for runtime_root in business_runtimes:
+        core_dir = runtime_root / "core"
+        assert core_dir.is_dir(), f"missing core/: {core_dir}"
+        offenders = list(core_dir.glob("*_lifecycle.py"))
+        assert not offenders, (
+            f"{runtime_root.name}: lifecycle module(s) at core/ top level: "
+            f"{[str(p) for p in offenders]}. Move to "
+            f"{core_dir / 'domain' / 'lifecycle'} per "
+            "architecture-principles.md §1 (DDD-002)."
+        )
