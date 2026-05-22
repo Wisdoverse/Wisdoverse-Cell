@@ -18,12 +18,12 @@ from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
 from shared.infra.llm_gateway import llm_gateway
 from shared.infra.notification import NotificationChannel, notification_service
-from shared.observability.outbox import record_outbox_pending_age
 from shared.observability.privacy import hash_identifier
 from shared.schemas.agent import BaseAgent
-from shared.schemas.event import Event, EventMetadata, EventTypes
+from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
+from ..core.agent_read_use_cases import RequirementAgentReadUseCase
 from ..core.card_ports import RequirementCardRendererPort
 from ..core.event_use_cases import (
     SUBSCRIBED_EVENTS,
@@ -34,6 +34,7 @@ from ..core.health_ports import RequirementHealthStore
 from ..core.health_use_cases import RequirementHealthUseCase
 from ..core.meeting_ports import RequirementMeetingStore
 from ..core.message_ports import RequirementMessageStore
+from ..core.outbox_delivery_use_cases import RequirementOutboxDeliveryUseCase
 from ..core.outbox_ports import RequirementEventOutboxStore
 from ..core.question_ports import RequirementQuestionStore
 from ..core.request_use_cases import RequirementManagerRequestUseCase
@@ -741,10 +742,14 @@ class RequirementManagerAgent(BaseAgent):
     ) -> list[OpenQuestion]:
         """List unanswered clarification questions through the application facade."""
         if session is not None:
-            return await self._get_question_store(session).list_open(limit=limit)
+            return await self._read_use_case_for_session(session).list_open_questions(
+                limit=limit,
+            )
 
         async with self.get_unit_of_work() as uow:
-            return await uow.questions.list_open(limit=limit)
+            return await self._read_use_case_for_uow(uow).list_open_questions(
+                limit=limit,
+            )
 
     async def publish_requirement_mutation_side_effects(
         self,
@@ -760,43 +765,18 @@ class RequirementManagerAgent(BaseAgent):
             )
 
     async def publish_pending_requirement_events(self, limit: int = 100) -> dict[str, int]:
-        """
-        Retry pending Requirement outbox events.
-
-        This is intentionally a callable application use case, so a future
-        scheduler, admin endpoint, or worker can reuse it without knowing
-        persistence details.
-        """
-        rows = await self._outbox_store.list_pending(limit=limit)
-        record_outbox_pending_age("requirement-manager", rows)
-
-        published = 0
-        failed = 0
-        for row in rows:
-            event = self._event_from_outbox(row)
-            try:
-                ok = await self._event_publisher.publish(event)
-                if not ok:
-                    raise RuntimeError("event_bus_publish_returned_false")
-                await self._mark_requirement_event_published(event)
-                published += 1
-            except Exception as exc:
-                await self._mark_requirement_event_failed(event, exc)
-                failed += 1
-
-        logger.info(
-            "requirement_outbox_dispatch_completed",
-            total=len(rows),
-            published=published,
-            failed=failed,
+        return await self._outbox_delivery_use_case().publish_pending_events(
+            limit=limit,
         )
-        return {"total": len(rows), "published": published, "failed": failed}
 
     async def publish_event_via_outbox(self, event: Event) -> bool:
-        """Stage a runtime-produced Requirement event before EventBus delivery."""
-        await self._outbox_store.add(event)
-        await self._publish_staged_requirement_event(event)
-        return True
+        return await self._outbox_delivery_use_case().publish_event_via_outbox(event)
+
+    def _outbox_delivery_use_case(self) -> RequirementOutboxDeliveryUseCase:
+        return RequirementOutboxDeliveryUseCase(
+            outbox_store=self._outbox_store,
+            event_publisher=self._event_publisher,
+        )
 
     async def _stage_requirement_event(
         self,
@@ -806,22 +786,6 @@ class RequirementManagerAgent(BaseAgent):
         """Persist an integration event in the local Requirement outbox."""
         await self._outbox_store.stage(session, event)
         return event
-
-    def _event_from_outbox(self, row) -> Event:
-        """Rebuild an immutable Event from a Requirement outbox row."""
-        return Event(
-            event_id=row.event_id,
-            event_type=row.event_type,
-            timestamp=row.created_at,
-            source_agent=row.source_agent,
-            payload=row.payload,
-            schema_version=row.schema_version,
-            metadata=EventMetadata(
-                trace_id=row.trace_id,
-                correlation_id=row.correlation_id,
-                retry_count=row.retry_count,
-            ),
-        )
 
     async def _commit_requirement_mutation(
         self,
@@ -863,35 +827,6 @@ class RequirementManagerAgent(BaseAgent):
         """Build the persistence adapter for question use cases."""
         return SqlAlchemyRequirementQuestionStore(session)
 
-    async def _mark_requirement_event_published(self, event: Event) -> None:
-        """Best-effort mark for a successfully published outbox event."""
-        if not isinstance(self._db_manager, DatabaseManager):
-            return
-        try:
-            await self._outbox_store.mark_published(event.event_id)
-        except Exception as exc:
-            logger.warning(
-                "requirement_outbox_mark_published_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                error=str(exc),
-            )
-
-    async def _mark_requirement_event_failed(self, event: Event, error: Exception) -> None:
-        """Best-effort failure recording for an outbox event publish attempt."""
-        if not isinstance(self._db_manager, DatabaseManager):
-            return
-        try:
-            await self._outbox_store.mark_failed(event.event_id, str(error))
-        except Exception as exc:
-            logger.warning(
-                "requirement_outbox_mark_failed_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                publish_error=str(error),
-                error=str(exc),
-            )
-
     async def _delete_requirement_vector_record(self, requirement_id: str) -> None:
         """
         Best-effort cleanup for the requirement search index.
@@ -922,66 +857,19 @@ class RequirementManagerAgent(BaseAgent):
         page: int = 1,
         page_size: int = 5,
     ) -> tuple[list[dict], int, int]:
-        """
-        List pending requirements, creating a session internally.
-
-        Used by the Feishu bot handler without requiring the caller to pass a session.
-
-        Args:
-            page: Page number starting from 1.
-            page_size: Number of items per page.
-
-        Returns:
-            (requirements_list, total_count, total_pages)
-        """
         async with self._db_manager.session() as session:
-            repo = self._get_requirement_store(session)
-            skip = (page - 1) * page_size
-            requirements, total = await repo.list_all(
-                status="PENDING",
-                skip=skip,
-                limit=page_size
+            return await self._read_use_case_for_session(
+                session,
+            ).list_pending_requirements(
+                page=page,
+                page_size=page_size,
             )
 
-            total_pages = (total + page_size - 1) // page_size if total > 0 else 1
-
-            # Convert to dict for Feishu card
-            req_list = [
-                {
-                    "id": r.id,
-                    "title": r.title,
-                    "description": r.description,
-                    "priority": r.priority,
-                    "category": r.category,
-                }
-                for r in requirements
-            ]
-
-            return req_list, total, total_pages
-
     async def get_confirmed_requirements(self) -> list[dict]:
-        """
-        Get all confirmed requirements for PRD export.
-
-        Returns:
-            Confirmed requirement list.
-        """
         async with self._db_manager.session() as session:
-            repo = self._get_requirement_store(session)
-            requirements, _ = await repo.list_all(status="CONFIRMED", limit=1000)
-
-            return [
-                {
-                    "id": r.id,
-                    "title": r.title,
-                    "description": r.description,
-                    "priority": r.priority,
-                    "category": r.category,
-                    "source_quote": r.source_quote,
-                    "status": r.status,
-                }
-                for r in requirements
-            ]
+            return await self._read_use_case_for_session(
+                session,
+            ).get_confirmed_requirements()
 
     async def batch_confirm_requirements(
         self,
@@ -1073,32 +961,16 @@ class RequirementManagerAgent(BaseAgent):
         )
 
     async def get_requirement(self, requirement_id: str) -> Optional[Requirement]:
-        """
-        Get a requirement by ID, managing the session internally.
-
-        Args:
-            requirement_id: Requirement ID.
-
-        Returns:
-            Requirement object, or None if it does not exist.
-        """
         async with self._db_manager.session() as session:
-            repo = self._get_requirement_store(session)
-            return await repo.get_by_id(requirement_id)
+            return await self._read_use_case_for_session(session).get_requirement(
+                requirement_id,
+            )
 
     async def get_meeting(self, meeting_id: str) -> Optional[Meeting]:
-        """
-        Get a meeting by ID, managing the session internally.
-
-        Args:
-            meeting_id: Meeting ID.
-
-        Returns:
-            Meeting object, or None if it does not exist.
-        """
         async with self._db_manager.session() as session:
-            repo = self._get_meeting_store(session)
-            return await repo.get_by_id(meeting_id)
+            return await self._read_use_case_for_session(session).get_meeting(
+                meeting_id,
+            )
 
     # ========== Session Extraction Methods ==========
 
@@ -1287,27 +1159,30 @@ class RequirementManagerAgent(BaseAgent):
         *,
         requirement_id: str | None = None,
     ) -> None:
-        """Publish an event already persisted in the Requirement outbox."""
-        try:
-            ok = await self._event_publisher.publish(event)
-            if not ok:
-                raise RuntimeError("event_bus_publish_returned_false")
-            await self._mark_requirement_event_published(event)
-            logger.info(
-                "event_published",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                requirement_id=requirement_id,
-            )
-        except Exception as exc:
-            await self._mark_requirement_event_failed(event, exc)
-            logger.error(
-                "event_publish_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                requirement_id=requirement_id,
-                error=str(exc),
-            )
+        await self._outbox_delivery_use_case().publish_staged_event(
+            event,
+            requirement_id=requirement_id,
+        )
+
+    def _read_use_case_for_session(
+        self,
+        session: AsyncSession,
+    ) -> RequirementAgentReadUseCase:
+        return RequirementAgentReadUseCase(
+            requirements=self._get_requirement_store(session),
+            meetings=self._get_meeting_store(session),
+            questions=self._get_question_store(session),
+        )
+
+    def _read_use_case_for_uow(
+        self,
+        uow: RequirementUnitOfWork,
+    ) -> RequirementAgentReadUseCase:
+        return RequirementAgentReadUseCase(
+            requirements=uow.requirements,
+            meetings=uow.meetings,
+            questions=uow.questions,
+        )
 
 
 # Global Agent singleton.
