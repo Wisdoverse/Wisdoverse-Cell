@@ -61,6 +61,7 @@ For onboarding, architecture, and shared terminology.
 | [ADR-0004: Inter-Agent HTTP Communication](./adr/0004-inter-agent-http-communication.md) | 2026-03-07 | No direct Python imports between agents; HTTP plus EventBus |
 | [ADR-0005: Channel Gateway Hexagonal Unification](./adr/0005-channel-gateway-hexagonal-unification.md) | 2026-03-08 | `core/messaging` ports and integration adapters |
 | [ADR-0007: Rust and Python Backend Migration](./adr/0007-rust-python-backend-migration.md) | 2026-05-04 | Rust edge plane plus Python agent plane migration path |
+| [ADR-0008: Coordinator Durable State Store](./adr/0008-coordinator-durable-state-store.md) | 2026-05-22 | Postgres-backed adapter for `CoordinatorStateStorePort`; replay tooling; closes Phase 1 §11 open question 2 / DDD-018 decision |
 
 ---
 
