@@ -1,6 +1,6 @@
 # Architecture Principles
 
-Last updated: 2026-05-18
+Last updated: 2026-05-22
 
 Status: Foundation document. Every PR that affects architecture must reconcile
 with this file before merge.
@@ -23,6 +23,7 @@ Companion documents:
 - [Migration Plan](./migration-plan.md)
 - [Backend Target Architecture](./backend-target-architecture.md)
 - [Backend Architecture Analysis](./backend-architecture-analysis.md)
+- [DDD Compliance Audit](./ddd-compliance-audit.md)
 
 These principles also reconcile with `AGENTS.md` Part 3, `SPEC.md` §3, and
 `docs/overview/architecture.md`. When this file changes, those three must
@@ -38,7 +39,7 @@ The backend uses Clean Architecture inside each runtime service.
 |-------|----------|------|-----------|
 | Interfaces | `agents/<a>/api/`, `agents/<a>/app/`, `services/gateways/*/api/`, `shared/control_plane/api.py`, gRPC servers, FastAPI middleware | HTTP/RPC/MQ entry, DTO conversion, auth/dependency wiring, error mapping, response shaping | Business rules; SQL; direct ORM session except behind a port; transaction control |
 | Application | `agents/<a>/core/use_cases/`, `agents/<a>/core/ports/`, `agents/<a>/service/`, `shared/control_plane/*_use_cases.py`, capability use cases | Use-case orchestration; transaction boundary; commands and queries; port composition; outbox writes | DB row construction; ORM imports mixed with domain; god-service patterns |
-| Domain | `agents/<a>/core/domain/` (NEW after Stage 1), `agents/<a>/core/<aggregate>_lifecycle.py` until migrated | Entities, value objects, aggregates, invariants, state machines, in-memory domain events, domain services that span aggregates | Imports from `shared.db`, SQLAlchemy, `shared.infra.*` adapters, HTTP clients, LLM SDKs, config providers |
+| Domain | `agents/<a>/core/domain/`, `shared/control_plane/domain/`, `shared/capabilities/<c>/core/domain/`, `services/orchestration/<svc>/core/domain/` — **mandatory** for every product-owning runtime; gateways excluded | Entities, value objects, aggregates, invariants, state machines, in-memory domain events, domain services that span aggregates | Imports from `shared.db`, SQLAlchemy, `shared.infra.*` adapters, HTTP clients, LLM SDKs, config providers |
 | Infrastructure | `agents/<a>/db/`, `agents/<a>/adapters/`, `shared/integrations/`, `shared/infra/`, `shared/db/`, `shared/messaging/`, `shared/observability/` | Port implementations; persistence; external SDK calls; cache; configuration loading; retries; circuit breakers | Domain decisions; orchestration; business rules |
 
 Cross-cutting:
@@ -155,7 +156,52 @@ review before merge.
 - Circuit breaker protects integrations that can fail-storm (LLM, Feishu,
   OpenProject, GitLab, AgentForge).
 
-### 4.7 Security
+### 4.7 Application Facade
+
+- Every business and capability runtime ships a `core/application_facade.py`
+  that composes the runtime's use cases for the service shell. This is the
+  Stage-1-onwards entry point for `service/agent.py`.
+- The facade depends on ports and use cases only. Direct imports of
+  adapters or infrastructure inside the facade are forbidden.
+- The facade is the single object passed to `create_agent_app()` for
+  scheduler, request, and event wiring.
+- Architecture-boundary test enforces the dependency rule (see
+  [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) DDD-011).
+
+### 4.8 Aggregate-Raised Domain Events
+
+- Aggregate methods that mutate state raise typed in-memory domain events
+  (frozen dataclass or `model_config = ConfigDict(frozen=True)`).
+- The aggregate exposes `pull_events()` (or equivalent) to drain the buffer.
+- The application use case drains the buffer at the end of the transaction
+  and writes the events to the outbox in the same `UnitOfWork`. Domain
+  events are private to the boundary; only the `event-guidelines.md`-listed
+  integration events are published over the EventBus.
+- Reference implementation:
+  `agents/requirement_manager/core/domain/requirement.py:41-91`.
+
+### 4.9 Identifier Value Objects
+
+- Aggregate identities are typed. Use `NewType` wrappers (e.g.
+  `WorkItemId = NewType("WorkItemId", str)`) or value-object classes for
+  every identifier that crosses a port boundary.
+- Raw `str` and `UUID` identifiers are allowed only as the persistence
+  representation and at the integration boundary.
+- One identifier promoted per PR keeps the change set small.
+
+### 4.10 State Machines
+
+- Every aggregate with a `status` field defines a typed enum plus a
+  transition table; illegal transitions raise a typed
+  `Invalid<Aggregate>TransitionError` from inside the aggregate.
+- String comparison against status values outside the FSM definition is
+  forbidden. Architecture-boundary tests flag `status == "..."` patterns
+  outside test fixtures.
+- Reference implementations:
+  `agents/dev_agent/core/domain/lifecycle/task_lifecycle.py:20-33`,
+  `agents/pjm_agent/core/domain/lifecycle/decomposition_lifecycle.py:45-52`.
+
+### 4.11 Security
 
 - Webhooks verify signatures before any business logic runs.
 - Logs never contain secrets, tokens, signatures, or raw PII.

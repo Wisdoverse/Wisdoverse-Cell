@@ -106,6 +106,7 @@ Architecture Review Checklist before merge.
 | [Backend Target Architecture](./architecture/backend-target-architecture.md) | Phase 2 target architecture and first-step proposal |
 | [Backend Architecture Analysis](./architecture/backend-architecture-analysis.md) | Phase 1 read-only audit (current state) |
 | [Backend Evolution Plan](./architecture/backend-evolution-plan.md) | Earlier follow-up plan after the PR #121 backend modularization slice |
+| [DDD Compliance Audit](./architecture/ddd-compliance-audit.md) | Per-context DDD-dimension scorecards and remediation roadmap (DDD-001 through DDD-022) |
 
 ---
 
