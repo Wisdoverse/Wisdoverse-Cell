@@ -3858,7 +3858,7 @@ def test_coordinator_event_orchestration_delegates_to_application_use_case() -> 
 
     assert "class CoordinatorEventUseCase" in use_case_source
     assert "class CoordinatorScratchpadPort(Protocol)" in use_case_source
-    assert "CoordinatorThinker" in use_case_source
+    assert "class CoordinatorThinkerPort(Protocol)" in use_case_source
     assert "classify_event(event)" in use_case_source
     assert 'classified.kind == "progress"' in use_case_source
     assert "update_agent_state(" in use_case_source

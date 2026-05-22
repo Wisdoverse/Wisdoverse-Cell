@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
 from shared.schemas.event import Event
@@ -29,7 +28,23 @@ class CoordinatorScratchpadPort(Protocol):
         """Compact the scratchpad."""
 
 
-CoordinatorThinker = Callable[[dict[str, Any]], Awaitable[list[Decision]]]
+class CoordinatorThinkerPort(Protocol):
+    """Anti-Corruption Layer to the LLM-backed coordinator thinker.
+
+    The thinker translates a coordination `context` (scratchpad +
+    agent states + incoming event + pending decisions) into a typed
+    list of `Decision` records. Implementations are responsible for
+    classifying any LLM response into the domain shape; raw LLM output
+    must not escape this port.
+
+    Defined as a callable Protocol so that any function or callable
+    object satisfying the signature can be used without inheritance.
+    The port name makes the boundary explicit per
+    `architecture-principles.md` §4.6 (External Calls) and
+    `ddd-compliance-audit.md` row DDD-019.
+    """
+
+    async def __call__(self, context: dict[str, Any]) -> list[Decision]: ...
 
 
 class CoordinatorEventUseCase:
@@ -40,7 +55,7 @@ class CoordinatorEventUseCase:
         *,
         scratchpad: CoordinatorScratchpadPort,
         state_store: CoordinatorStateStorePort,
-        thinker: CoordinatorThinker,
+        thinker: CoordinatorThinkerPort,
     ):
         self._scratchpad = scratchpad
         self._state_store = state_store
