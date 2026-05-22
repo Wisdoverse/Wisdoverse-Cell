@@ -128,8 +128,8 @@ class ConversationEngineFactory(Protocol):
 
     Wired at the application layer (`app/`) so `chat_service.py`
     never imports the concrete engine. Takes the per-turn knobs
-    (system prompt, history, tools-callable) and returns a
-    ConversationEnginePort.
+    (system prompt, history, tools-callable, tool-executor closure)
+    and returns a ConversationEnginePort.
     """
 
     def __call__(
@@ -138,6 +138,7 @@ class ConversationEngineFactory(Protocol):
         system_prompt: str,
         history: list[dict[str, Any]],
         tools_provider: Any,
+        tool_executor: Any,
         max_tool_calls: int,
         agent_id: str,
     ) -> ConversationEnginePort:
