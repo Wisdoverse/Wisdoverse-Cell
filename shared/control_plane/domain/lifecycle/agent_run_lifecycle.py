@@ -10,6 +10,51 @@ from shared.schemas.event import EventTypes
 from ...agent_operation_ports import ControlPlaneAgentOperationStore
 from ...models import AgentRun, AgentRunStatus, AuditEvent
 from ...run_evidence import create_run_evidence_artifact
+from ..agent_run import (
+    AgentRun as AgentRunAggregate,
+)
+from ..agent_run import (
+    AgentRunStatusChanged,
+    InvalidAgentRunTransitionError,
+)
+
+
+async def _validate_run_transition_via_aggregate(
+    store: ControlPlaneAgentOperationStore,
+    run_id: str,
+    target_status: AgentRunStatus,
+) -> list[AgentRunStatusChanged]:
+    """Load the run, transition via the AgentRun aggregate, return raised events.
+
+    Closes the DDD-001 seed → implementation gap by routing every
+    AgentRun status mutation through the aggregate's FSM
+    (``VALID_TRANSITIONS``). If a caller attempts an illegal transition
+    (for example, COMPLETED → COMPLETED, or FAILED → SUCCEEDED), the
+    aggregate raises ``InvalidAgentRunTransitionError`` before the
+    persistence write touches the database.
+
+    Returns the in-memory ``AgentRunStatusChanged`` events for the
+    caller to forward to the outbox in the same transaction (Stage 2
+    aggregate-raised events pattern per
+    ``architecture-principles.md`` §4.8).
+    """
+    current = await store.get_agent_run(run_id)
+    if current is None:
+        # No row yet — the start path constructs the run already at
+        # RUNNING, so a missing row here means the caller is mid-init.
+        # Skip FSM validation; the persistence layer will surface the
+        # error if the row truly never lands.
+        return []
+    aggregate = AgentRunAggregate.from_record(current)
+    aggregate.transition_to(target_status)
+    return aggregate.pull_events()
+
+
+__all_extra__ = (
+    "AgentRunAggregate",
+    "AgentRunStatusChanged",
+    "InvalidAgentRunTransitionError",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +145,11 @@ async def complete_agent_wakeup_run(
         status="succeeded",
         output=output,
     )
+    # Route through the AgentRun aggregate to enforce the FSM before
+    # the persistence write (DDD-001 implementation).
+    await _validate_run_transition_via_aggregate(
+        store, run_id, AgentRunStatus.SUCCEEDED
+    )
     await store.update_agent_run_status(
         run_id,
         AgentRunStatus.SUCCEEDED,
@@ -166,6 +216,11 @@ async def fail_agent_wakeup_run(
         output={},
         error_category=error_category,
         error_message=error_message,
+    )
+    # Route through the AgentRun aggregate to enforce the FSM before
+    # the persistence write (DDD-001 implementation).
+    await _validate_run_transition_via_aggregate(
+        store, run_id, AgentRunStatus.FAILED
     )
     await store.update_agent_run_status(
         run_id,
