@@ -60,6 +60,7 @@ When you add a new context, you must add a row to this document **and** to
   per-aggregate stores. The retired `repository.py` facade no longer exists;
   callers use store ports/factory adapters.
 - Split fitness: must remain central. Do not extract.
+- Context-map relationships: Open-Host Service to every runtime agent via `/api/v1/control-plane/*` and `/agent/request`. Published Language on `AgentRun`, `ApprovalRequest`, `BudgetPolicy`, `Artifact`, `AuditEvent` Pydantic records. No upstream context (root authority).
 
 ### 2.2 Requirement Management
 
@@ -77,6 +78,7 @@ When you add a new context, you must add a row to this document **and** to
 - Boundary clarity: high.
 - Split fitness: future service candidate. Gating: per-runtime migrations,
   analytics projection, contract tests, OpenAPI snapshot.
+- Context-map relationships: Anti-Corruption Layer to Interaction Gateway (meetings, chat) and Feishu via `shared/integrations/feishu/`. Customer/Supplier to PJM Agent (emits `requirement.*` integration events; PJM is the primary consumer). Conformist to Control Plane (uses run / audit Published Language as-is).
 
 ### 2.3 Planning / PJM
 
@@ -92,6 +94,7 @@ When you add a new context, you must add a row to this document **and** to
 - Boundary clarity: medium-high. Some capability coupling with Sync.
 - Split fitness: candidate after decomposition is fully state-machine
   modeled and OpenProject contracts are explicit.
+- Context-map relationships: Customer/Supplier to Requirement Manager (consumes `requirement.*`) and Coordinator (consumes `decomposition.request`). Customer/Supplier to Dev Agent, QA Agent, and Sync (emits `decomposition.*` events). Anti-Corruption Layer to OpenProject (via Sync capability). Conformist to Control Plane.
 
 ### 2.4 Delivery / Dev
 
@@ -106,6 +109,7 @@ When you add a new context, you must add a row to this document **and** to
 - Boundary clarity: high.
 - Split fitness: strong service candidate (long-running workflows). Gating:
   per-runtime migrations, projection for reporting, replay strategy.
+- Context-map relationships: Customer/Supplier to PJM (consumes `decomposition.*`) and QA (consumes `qa.gate-failed` for retry). Customer/Supplier to Channel Gateway (emits `mr.*` events). Anti-Corruption Layer to GitLab and AgentForge via `agents/dev_agent/adapters/gitlab_client.py` and `agents/dev_agent/adapters/agentforge_client.py`. Conformist to Control Plane.
 
 ### 2.5 Quality / QA
 
@@ -118,6 +122,7 @@ When you add a new context, you must add a row to this document **and** to
 - Boundary clarity: high. Idempotency contract already explicit.
 - Split fitness: strong service candidate once trigger contracts and
   idempotency keys are documented as public.
+- Context-map relationships: Customer/Supplier to Dev Agent (consumes `code.committed`; emits `qa.acceptance-completed` and `qa.gate-failed`). Conformist to Control Plane. Anti-Corruption Layer pending for GitLab / OpenProject context resolution (DDD-013).
 
 ### 2.6 Sync / Projection (OpenProject ↔ Feishu Bitable)
 
@@ -131,6 +136,7 @@ When you add a new context, you must add a row to this document **and** to
 - Boundary clarity: medium. Two sub-boundaries live inside one runtime.
 - Split fitness: split into two sub-capability runtimes (OpenProject side
   and Feishu Bitable side) before any full extraction.
+- Context-map relationships: Customer/Supplier to PJM (receives decomposition handoff). Two sub-boundaries in Partnership today (shared `SyncStore`, shared outbox); target is Separate Ways per sub-runtime split (DDD-014). Anti-Corruption Layer to OpenProject and Feishu Bitable via integration ports. Conformist to Control Plane.
 
 ### 2.7 Interaction / Channel Gateway
 
@@ -146,6 +152,7 @@ When you add a new context, you must add a row to this document **and** to
   intent), Control Plane.
 - Boundary clarity: medium. Gateway must not own product-domain records.
 - Split fitness: gateway boundary, not a business context. Keep as-is.
+- Context-map relationships: Interaction Gateway is Anti-Corruption Layer to external users via Feishu / WeCom adapters (translates inbound platform messages into typed inbound events). Conformist to downstream Coordinator and chat-agent target on event payloads. Channel Gateway is Open-Host Service for `channel.message.outbound` emitted by any runtime, and Anti-Corruption Layer to external channels via adapters. **Currently violates the gateway-not-product rule via Interaction Gateway ownership of `chat_agent_*` tables — see DDD-016.**
 
 ### 2.8 Coordination / Orchestration
 
@@ -161,6 +168,7 @@ When you add a new context, you must add a row to this document **and** to
 - Boundary clarity: medium. Durable-state backing is implicit.
 - Split fitness: not a candidate until durable-state and replay contracts
   are explicit.
+- Context-map relationships: Open-Host Service to all runtime agents (consumes their events from the EventBus). Customer/Supplier to all runtime agents (emits dispatch decisions targeted to specific agents). Anti-Corruption Layer to LLM via `shared.infra.llm_gateway` is pending — current `CoordinatorThinker` callable does not translate raw LLM responses into typed domain decisions (DDD-019). Conformist to Control Plane.
 
 ### 2.9 Analytics / Reporting
 
@@ -175,6 +183,7 @@ When you add a new context, you must add a row to this document **and** to
 - Boundary clarity: low. Reads cross domain tables; no projection layer.
 - Split fitness: projection / read-model service candidate. Pre-condition:
   stop direct source-table reads.
+- Context-map relationships: Customer/Supplier to all reporting consumers (emits `analysis.report-*` and `analysis.risk-*` events). **Broken Customer/Supplier to source-domain runtimes today** — Analysis reads directly from `OpenProjectWorkPackagePort` and Bitable port rather than consuming a Published Language projection (DDD-004 introduces the projection layer). Conformist to Control Plane.
 
 ### 2.10 Evolution
 
@@ -198,6 +207,7 @@ When you add a new context, you must add a row to this document **and** to
   both READMEs and the DDD audit row DDD-005.
 - Split fitness: keep guarded. Only split after approval/rollback contracts
   are hardened.
+- Context-map relationships: Open-Host Service to all runtime agents on trace and reflection ingestion. Customer/Supplier to Control Plane on `EvolutionProposal` records (proposals surface via the approval gate). Anti-Corruption Layer to LLM via `shared.infra.llm_gateway`. Conformist to Control Plane on approval enforcement semantics.
 
 ### 2.11 Identity / User
 
@@ -212,6 +222,7 @@ When you add a new context, you must add a row to this document **and** to
 - Boundary clarity: low. Multiple read paths; no public API.
 - Split fitness: define the public boundary first. Splitting can wait
   until the API contract is durable.
+- Context-map relationships: Anti-Corruption Layer to inbound platform identifiers (Feishu OpenID, WeCom UserID, Web User ID) via the inbound message path. Published Language for the `User` Pydantic model; downstream runtimes resolve through `UserIdentityStore.get_by_id` and never join the `users` table. See [`identity-boundary.md`](./identity-boundary.md) for the full contract.
 
 ### 2.12 Integration Plane (Feishu, WeCom, OpenProject, GitLab, AgentForge)
 
@@ -226,6 +237,7 @@ When you add a new context, you must add a row to this document **and** to
 - Boundary clarity: high. Centralized; no duplication.
 - Split fitness: never a separately deployed business service. Treat as
   adapter library.
+- Context-map relationships: Anti-Corruption Layer for every external system (Feishu, WeCom, OpenProject, GitLab, AgentForge, OpenClaw). Translates external SDK types into domain-friendly types per integration ports in `shared/core/integration_ports.py`. Coverage is incomplete — OpenProject port still returns `dict[str, Any]`, OpenClaw takes raw dicts, WeCom lacks a dedicated port (DDD-013, DDD-022).
 
 ---
 
