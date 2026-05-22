@@ -1023,6 +1023,9 @@ def test_requirement_ingest_uses_explicit_unit_of_work_boundary() -> None:
     ).read_text()
     adapter_source = Path("agents/requirement_manager/db/unit_of_work.py").read_text()
     service_source = Path("agents/requirement_manager/service/agent.py").read_text()
+    application_source = Path(
+        "agents/requirement_manager/core/application_facade.py"
+    ).read_text()
 
     assert "class RequirementUnitOfWork(Protocol)" in port_source
     assert "class RequirementUnitOfWorkFactory(Protocol)" in port_source
@@ -1054,10 +1057,15 @@ def test_requirement_ingest_uses_explicit_unit_of_work_boundary() -> None:
     assert "session_uow_factory: RequirementSessionUnitOfWorkFactory" in service_source
     assert "AsyncSession" not in service_source
     assert "RequirementMeetingIngestWorkflow(" in service_source
+    assert "class RequirementApplicationFacade" in application_source
     assert "def get_unit_of_work" in service_source
     assert "async def ingest_meeting_with_uow" in service_source
     assert (
         "return await self._ingest_workflow.ingest_meeting("
+        in _function_source(application_source, "ingest_meeting_with_uow")
+    )
+    assert (
+        "return await self._application.ingest_meeting_with_uow("
         in _function_source(service_source, "ingest_meeting_with_uow")
     )
     assert "Meeting(" not in service_source
@@ -1065,7 +1073,7 @@ def test_requirement_ingest_uses_explicit_unit_of_work_boundary() -> None:
     assert "OpenQuestion(" not in service_source
     assert "await uow.outbox.stage(extracted_event)" not in service_source
     assert "await self._vector_store.add_requirements_batch" not in service_source
-    assert "await self.publish_ingest_side_effects(result)" in service_source
+    assert "await self.publish_ingest_side_effects(result)" in application_source
 
 
 def test_requirement_session_extraction_delegates_to_application_use_case() -> None:
@@ -1102,6 +1110,9 @@ def test_requirement_session_extraction_delegates_to_application_use_case() -> N
 def test_requirement_ingest_side_effects_use_application_boundaries() -> None:
     """Committed ingest side effects should stay out of the service shell."""
     service_source = Path("agents/requirement_manager/service/agent.py").read_text()
+    application_source = Path(
+        "agents/requirement_manager/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "agents/requirement_manager/core/ingest_side_effect_use_cases.py"
     ).read_text()
@@ -1119,16 +1130,17 @@ def test_requirement_ingest_side_effects_use_application_boundaries() -> None:
     assert "hash_identifier(chat_id)" in use_case_source
 
     assert "RequirementIngestSideEffectUseCase" in service_source
-    assert "RequirementSessionExtractionCardUseCase" in service_source
-    assert "def _ingest_side_effect_use_case" in service_source
-    assert "def _session_card_use_case" in service_source
+    assert "RequirementSessionExtractionCardUseCase" in application_source
+    assert "def _ingest_side_effect_use_case" not in service_source
+    assert "def _session_card_use_case" not in service_source
+    assert "def _session_card_use_case" in application_source
     assert (
-        "await self._ingest_side_effect_use_case().publish_ingest_side_effects(result)"
-        in _function_source(service_source, "publish_ingest_side_effects")
+        "await self._ingest_side_effects.publish_ingest_side_effects(result)"
+        in _function_source(application_source, "publish_ingest_side_effects")
     )
     assert (
         "await self._session_card_use_case().send_session_extraction_card("
-        in _function_source(service_source, "_send_session_extraction_card")
+        in _function_source(application_source, "send_session_extraction_card")
     )
     assert "notification_service.send" not in service_source
     assert "session_extraction_card_skipped" not in service_source
@@ -1223,6 +1235,9 @@ def test_requirement_mutation_rules_live_in_core_workflow() -> None:
 def test_requirement_agent_mutation_commands_delegate_to_application_use_case() -> None:
     """Requirement service shell should not own command transactions or side effects."""
     agent_source = Path("agents/requirement_manager/service/agent.py").read_text()
+    application_source = Path(
+        "agents/requirement_manager/core/application_facade.py"
+    ).read_text()
     command_source = Path(
         "agents/requirement_manager/core/requirement_command_use_cases.py"
     ).read_text()
@@ -1250,9 +1265,10 @@ def test_requirement_agent_mutation_commands_delegate_to_application_use_case() 
     assert "await self._event_publisher.publish_staged_event" in side_effect_source
 
     assert "RequirementCommandUseCase" in agent_source
+    assert "class RequirementApplicationFacade" in application_source
     assert "RequirementMutationSideEffectUseCase" in agent_source
-    assert "def _command_use_case" in agent_source
-    assert "def _mutation_side_effect_use_case" in agent_source
+    assert "def _command_use_case" not in agent_source
+    assert "def _mutation_side_effect_use_case" not in agent_source
     assert "def mutation_side_effects" in agent_source
 
     for function_name, delegated_call in (
@@ -1265,11 +1281,14 @@ def test_requirement_agent_mutation_commands_delegate_to_application_use_case() 
         ("batch_reject_requirements", ".batch_reject_requirements("),
     ):
         function_source = _function_source(agent_source, function_name)
-        assert "self._command_use_case()" in function_source
+        application_function_source = _function_source(application_source, function_name)
+        assert "self._application." in function_source
+        assert "self._command_use_case." in application_function_source
         assert delegated_call in function_source
         assert "async with self.get_unit_of_work() as uow" not in function_source
         assert "await uow.commit()" not in function_source
         assert "publish_requirement_mutation_side_effects(result)" not in function_source
+        assert "publish_requirement_mutation_side_effects(result)" not in application_function_source
 
     assert "vector_store_delete_failed" not in agent_source
     assert "delete_requirement_vector_record" not in agent_source
@@ -1401,6 +1420,9 @@ def test_requirement_routes_delegate_mutations_to_agent_boundary() -> None:
 def test_requirement_question_use_cases_use_persistence_port() -> None:
     """Question use cases should not directly construct SQLAlchemy repositories."""
     agent_source = Path("agents/requirement_manager/service/agent.py").read_text()
+    application_source = Path(
+        "agents/requirement_manager/core/application_facade.py"
+    ).read_text()
     workflow_source = Path(
         "agents/requirement_manager/core/requirement_mutation_workflow.py"
     ).read_text()
@@ -1409,8 +1431,11 @@ def test_requirement_question_use_cases_use_persistence_port() -> None:
 
     for function_name in ("answer_question", "list_open_questions"):
         function_source = _function_source(agent_source, function_name)
-        assert "_session_unit_of_work" in function_source or "get_unit_of_work" in function_source
+        application_function_source = _function_source(application_source, function_name)
+        assert "self._application." in function_source
+        assert "session_unit_of_work" in application_function_source
         assert "QuestionRepository(" not in function_source
+        assert "QuestionRepository(" not in application_function_source
 
     answer_with_uow_source = _function_source(workflow_source, "answer_question")
     assert "uow.questions.answer" in answer_with_uow_source
@@ -1469,6 +1494,9 @@ def test_requirement_agent_uses_meeting_and_message_store_ports() -> None:
 def test_requirement_agent_read_facade_delegates_to_application_use_case() -> None:
     """Requirement service shell should not own agent-facing read projections."""
     agent_source = Path("agents/requirement_manager/service/agent.py").read_text()
+    application_source = Path(
+        "agents/requirement_manager/core/application_facade.py"
+    ).read_text()
     read_model_source = Path(
         "agents/requirement_manager/core/agent_read_use_cases.py"
     ).read_text()
@@ -1490,32 +1518,41 @@ def test_requirement_agent_read_facade_delegates_to_application_use_case() -> No
     assert "RequirementAgentReadUseCase(" in query_source
 
     assert "RequirementReadQueryUseCase" in agent_source
-    assert "def _read_query_use_case" in agent_source
+    assert "class RequirementApplicationFacade" in application_source
+    assert "def _read_query_use_case" not in agent_source
     assert (
-        "return await self._read_query_use_case().list_pending_requirements("
+        "return await self._application.list_pending_requirements("
         in _function_source(
             agent_source,
             "list_pending_requirements",
         )
     )
     assert (
-        "return await self._read_query_use_case().get_confirmed_requirements()"
+        "return await self._application.get_confirmed_requirements()"
         in _function_source(
             agent_source,
             "get_confirmed_requirements",
         )
     )
     assert (
-        "return await self._read_query_use_case().get_requirement(requirement_id)"
+        "return await self._application.get_requirement(requirement_id)"
         in _function_source(agent_source, "get_requirement")
     )
     assert (
-        "return await self._read_query_use_case().get_meeting(meeting_id)"
+        "return await self._application.get_meeting(meeting_id)"
         in _function_source(agent_source, "get_meeting")
     )
     assert (
-        "return await self._read_query_use_case().list_open_questions(limit=limit)"
+        "return await self._application.list_open_questions(session=session, limit=limit)"
         in _function_source(agent_source, "list_open_questions")
+    )
+    assert (
+        "return await self._read_query_use_case.list_pending_requirements("
+        in _function_source(application_source, "list_pending_requirements")
+    )
+    assert (
+        "return await self._read_query_use_case.get_confirmed_requirements()"
+        in _function_source(application_source, "get_confirmed_requirements")
     )
     assert "def _read_use_case_for_session" not in agent_source
     assert "def _read_use_case_for_uow" not in agent_source
@@ -3501,6 +3538,9 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
         "agents/requirement_manager/core/requirement_mutation_workflow.py"
     ).read_text()
     service_source = Path("agents/requirement_manager/service/agent.py").read_text()
+    application_source = Path(
+        "agents/requirement_manager/core/application_facade.py"
+    ).read_text()
     doc_source = Path("docs/guides/backend-boundaries.md").read_text()
 
     assert migration_path.exists()
@@ -3530,13 +3570,22 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
     assert "RequirementIngestSideEffectUseCase" in service_source
     assert "publish_pending_requirement_events" in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
-    assert "def _outbox_delivery_use_case" in service_source
+    assert "def _outbox_delivery_use_case" not in service_source
+    assert "RequirementOutboxDeliveryUseCase" in application_source
     assert (
-        "return await self._outbox_delivery_use_case().publish_pending_events"
+        "return await self._outbox_delivery.publish_pending_events"
+        in _function_source(application_source, "publish_pending_requirement_events")
+    )
+    assert (
+        "return await self._application.publish_pending_requirement_events"
         in _function_source(service_source, "publish_pending_requirement_events")
     )
     assert (
-        "return await self._outbox_delivery_use_case().publish_event_via_outbox(event)"
+        "return await self._outbox_delivery.publish_event_via_outbox(event)"
+        in _function_source(application_source, "publish_event_via_outbox")
+    )
+    assert (
+        "return await self._application.publish_event_via_outbox(event)"
         in _function_source(service_source, "publish_event_via_outbox")
     )
     assert "await self._event_publisher.publish(event)" not in service_source
