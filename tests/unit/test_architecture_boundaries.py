@@ -3858,7 +3858,7 @@ def test_coordinator_event_orchestration_delegates_to_application_use_case() -> 
 
     assert "class CoordinatorEventUseCase" in use_case_source
     assert "class CoordinatorScratchpadPort(Protocol)" in use_case_source
-    assert "CoordinatorThinker" in use_case_source
+    assert "class CoordinatorThinkerPort(Protocol)" in use_case_source
     assert "classify_event(event)" in use_case_source
     assert 'classified.kind == "progress"' in use_case_source
     assert "update_agent_state(" in use_case_source
@@ -5789,3 +5789,64 @@ def test_api_reference_does_not_duplicate_pjm_decomposition_routes() -> None:
 
     assert len(method_paths) == len(set(method_paths))
     assert "Alternate decomposition router path" not in api_reference
+
+
+def test_application_facade_depends_on_ports_and_use_cases_only() -> None:
+    """architecture-principles.md §4.7 — application facade purity (DDD-011).
+
+    The facade composes use cases for the service shell. It must not reach
+    around the application layer into infrastructure (`shared.db`,
+    `shared.infra`, `shared.integrations`, `shared.messaging.inbound/outbound`)
+    or into the runtime shell (`..db`, `..adapters`, `..service`, `..app`).
+    Imports limited to: ports, use cases, in-context DTOs, `shared.core`,
+    `shared.schemas`, and `shared.utils.logger`.
+    """
+    facade_paths = [
+        Path("agents/requirement_manager/core/application_facade.py"),
+        Path("agents/pjm_agent/core/application_facade.py"),
+        Path("agents/qa_agent/core/application_facade.py"),
+        Path("agents/dev_agent/core/application_facade.py"),
+        Path("services/orchestration/coordinator/core/application_facade.py"),
+        Path("services/gateways/user_interaction/core/application_facade.py"),
+        Path("services/gateways/channel/core/application_facade.py"),
+        Path("shared/capabilities/sync/core/application_facade.py"),
+        Path("shared/capabilities/analysis/core/application_facade.py"),
+        Path("shared/capabilities/evolution/core/application_facade.py"),
+    ]
+
+    forbidden_absolute_prefixes = (
+        "shared.db",
+        "shared.infra",
+        "shared.integrations",
+        "shared.messaging.inbound",
+        "shared.messaging.outbound",
+    )
+    forbidden_relative_modules = {"db", "adapters", "service", "app"}
+    forbidden_relative_prefixes = (
+        "db.",
+        "adapters.",
+        "service.",
+        "app.",
+    )
+
+    for facade_path in facade_paths:
+        assert facade_path.exists(), f"missing application facade: {facade_path}"
+        modules = _imported_modules(facade_path)
+        for module in modules:
+            for prefix in forbidden_absolute_prefixes:
+                assert not module.startswith(prefix), (
+                    f"{facade_path}: facade imports infrastructure module "
+                    f"{module!r}; application facade must depend on ports + use "
+                    "cases only (see architecture-principles.md §4.7)"
+                )
+            assert module not in forbidden_relative_modules, (
+                f"{facade_path}: facade imports {module!r}; application facade "
+                "must not pull from db/adapters/service/app (see "
+                "architecture-principles.md §4.7)"
+            )
+            for prefix in forbidden_relative_prefixes:
+                assert not module.startswith(prefix), (
+                    f"{facade_path}: facade imports {module!r}; application "
+                    "facade must not pull from db/adapters/service/app (see "
+                    "architecture-principles.md §4.7)"
+                )

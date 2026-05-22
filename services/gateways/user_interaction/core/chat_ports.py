@@ -1,8 +1,8 @@
 """Ports for user-interaction chat runtime dependencies."""
 
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from datetime import date
-from typing import Protocol
+from typing import Any, Protocol, runtime_checkable
 
 
 class ChatLLM(Protocol):
@@ -89,3 +89,56 @@ class UnconfiguredChatLLM:
 
     async def complete(self, **kwargs) -> str:
         raise RuntimeError("chat LLM dependency is not configured")
+
+
+# ─── Conversation engine ports (DDD-017 seed) ─────────────────────────────
+#
+# Per ``ddd-compliance-audit.md`` row DDD-017 and
+# ``architecture-principles.md`` §1 Domain layer, the user-interaction
+# core/ layer must not import from ``shared.infra``. The ports below
+# wrap the conversation-engine infrastructure so ``chat_service.py``
+# (and any successor in the future chat-agent runtime per DDD-016)
+# depends on the application boundary rather than the concrete engine.
+#
+# This is a **seed** PR: the Protocols ship here; chat_service migration
+# follows in a dedicated PR so the rewrite stays reviewable per
+# ``architecture-principles.md`` §3.
+
+
+@runtime_checkable
+class ConversationEnginePort(Protocol):
+    """One conversational turn behind a typed port.
+
+    Implementations consume a system prompt, prior message history,
+    and tool definitions; produce a stream of typed events terminating
+    in a ``TurnCompleteEvent``-shaped value. The concrete
+    ``shared.infra.conversation_engine.ConversationEngine`` satisfies
+    this Protocol structurally.
+    """
+
+    messages: list[dict[str, Any]]
+
+    def run(self, user_message: str) -> AsyncIterator[Any]:
+        """Drive one conversational turn; yield typed turn events."""
+
+
+@runtime_checkable
+class ConversationEngineFactory(Protocol):
+    """Factory that produces one engine instance per turn.
+
+    Wired at the application layer (`app/`) so `chat_service.py`
+    never imports the concrete engine. Takes the per-turn knobs
+    (system prompt, history, tools-callable) and returns a
+    ConversationEnginePort.
+    """
+
+    def __call__(
+        self,
+        *,
+        system_prompt: str,
+        history: list[dict[str, Any]],
+        tools_provider: Any,
+        max_tool_calls: int,
+        agent_id: str,
+    ) -> ConversationEnginePort:
+        """Construct one ConversationEnginePort for one turn."""
