@@ -1,6 +1,6 @@
 """Unit tests for the QA acceptance verdict vocabulary."""
 
-from agents.qa_agent.core.domain.acceptance_verdicts import (
+from agents.qa_agent.core.domain.acceptance_vocabulary import (
     FINDING_FAIL,
     FINDING_LEVEL_L0,
     FINDING_LEVEL_L1,
