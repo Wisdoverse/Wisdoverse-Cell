@@ -1457,38 +1457,57 @@ def test_requirement_agent_uses_meeting_and_message_store_ports() -> None:
 def test_requirement_agent_read_facade_delegates_to_application_use_case() -> None:
     """Requirement service shell should not own agent-facing read projections."""
     agent_source = Path("agents/requirement_manager/service/agent.py").read_text()
-    use_case_source = Path(
+    read_model_source = Path(
         "agents/requirement_manager/core/agent_read_use_cases.py"
     ).read_text()
+    query_source = Path(
+        "agents/requirement_manager/core/read_query_use_cases.py"
+    ).read_text()
 
-    assert "class RequirementAgentReadUseCase" in use_case_source
-    assert "def list_pending_requirements" in use_case_source
-    assert "def get_confirmed_requirements" in use_case_source
-    assert "def get_requirement" in use_case_source
-    assert "def get_meeting" in use_case_source
-    assert "def list_open_questions" in use_case_source
-    assert "status=\"PENDING\"" in use_case_source
-    assert "status=\"CONFIRMED\"" in use_case_source
+    assert "class RequirementAgentReadUseCase" in read_model_source
+    assert "def list_pending_requirements" in read_model_source
+    assert "def get_confirmed_requirements" in read_model_source
+    assert "def get_requirement" in read_model_source
+    assert "def get_meeting" in read_model_source
+    assert "def list_open_questions" in read_model_source
+    assert "status=\"PENDING\"" in read_model_source
+    assert "status=\"CONFIRMED\"" in read_model_source
+    assert "class RequirementReadQueryUseCase" in query_source
+    assert "RequirementUnitOfWorkFactory" in query_source
+    assert "async with self._uow_factory() as uow" in query_source
+    assert "RequirementAgentReadUseCase(" in query_source
 
-    assert "RequirementAgentReadUseCase" in agent_source
-    assert "def _read_use_case_for_session" in agent_source
-    assert "def _read_use_case_for_uow" in agent_source
+    assert "RequirementReadQueryUseCase" in agent_source
+    assert "def _read_query_use_case" in agent_source
     assert (
-        ".list_pending_requirements(" in _function_source(
+        "return await self._read_query_use_case().list_pending_requirements("
+        in _function_source(
             agent_source,
             "list_pending_requirements",
         )
     )
     assert (
-        ".get_confirmed_requirements()" in _function_source(
+        "return await self._read_query_use_case().get_confirmed_requirements()"
+        in _function_source(
             agent_source,
             "get_confirmed_requirements",
         )
     )
     assert (
-        ".get_requirement(" in _function_source(agent_source, "get_requirement")
+        "return await self._read_query_use_case().get_requirement(requirement_id)"
+        in _function_source(agent_source, "get_requirement")
     )
-    assert ".get_meeting(" in _function_source(agent_source, "get_meeting")
+    assert (
+        "return await self._read_query_use_case().get_meeting(meeting_id)"
+        in _function_source(agent_source, "get_meeting")
+    )
+    assert (
+        "return await self._read_query_use_case().list_open_questions(limit=limit)"
+        in _function_source(agent_source, "list_open_questions")
+    )
+    assert "def _read_use_case_for_session" not in agent_source
+    assert "def _read_use_case_for_uow" not in agent_source
+    assert "self._db_manager.session()" not in agent_source
     assert "status=\"PENDING\"" not in agent_source
     assert "status=\"CONFIRMED\"" not in agent_source
     assert '"source_quote": r.source_quote' not in agent_source
