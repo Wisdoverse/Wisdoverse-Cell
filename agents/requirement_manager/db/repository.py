@@ -18,7 +18,7 @@ from shared.observability.privacy import hash_identifier
 from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
-from ..core.requirement_lifecycle import mark_confirmed, mark_rejected
+from ..core.domain.lifecycle.requirement_lifecycle import mark_confirmed, mark_rejected
 from ..models import LLMUsage, Meeting, OpenQuestion, Requirement, RequirementEventOutbox
 from ..models.chat_message import ChatMessage
 

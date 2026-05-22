@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from agents.requirement_manager.core.requirement_lifecycle import (
+from agents.requirement_manager.core.domain.lifecycle.requirement_lifecycle import (
     CONFIRMED,
     REJECTED,
     mark_confirmed,

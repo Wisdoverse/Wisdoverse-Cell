@@ -10,7 +10,7 @@ from shared.core.ids import generate_id
 from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
-from ..core.task_lifecycle import ACTIVE_STATUSES, IN_PROGRESS_STATUSES, can_transition
+from ..core.domain.lifecycle.task_lifecycle import ACTIVE_STATUSES, IN_PROGRESS_STATUSES, can_transition
 from ..models.dev import DevAgentEventOutbox, DevAgentTask, DevAgentWorkflowLog
 
 logger = get_logger("dev_agent.repository")
