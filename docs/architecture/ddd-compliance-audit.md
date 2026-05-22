@@ -756,7 +756,7 @@ not operational risk. Stage mapping is to
 | DDD-019 | Coordinator | ACL | medium | Wrap LLM thinker callable behind a typed port that translates LLM responses into typed domain decisions (`ThinkerDecision` value object) | 2 | — |
 | DDD-020 | Requirement Manager, Dev Agent | layering | medium | ✅ Landed `27a5a5d24`. Six callers migrated to `core/domain/lifecycle/`; both shims deleted; architecture-boundary tests updated to require the canonical path | 1 | done |
 | DDD-021 | QA Agent | aggregate | medium | Decide whether `AcceptanceRun` is an aggregate (with FSM `REQUESTED → RUNNING → VERDICT_RENDERED → CLOSED`) or stays as a one-shot computation. If aggregate, model run-state transitions; if not, document the decision in QA README | 2 | — |
-| DDD-022 | Integration Plane | port coverage | medium | Add a dedicated `WecomMessengerPort`; add `OpenClawIntegrationPort` (currently raw dict params); make `OpenProjectWorkPackagePort` return typed records instead of `dict[str, Any]` | 2 | DDD-013 |
+| DDD-022 | Integration Plane | port coverage | medium | ✅ Partial — WecomMessengerPort landed `<DDD-022 PR>`. `shared/core/integration_ports.py` exposes a runtime-checkable Protocol with the WeCom-specific `send_message` / `send_card` / `update_card` shape (typed with `ChannelMessage` / `ChannelCard` rather than raw dicts). Existing `WecomChannelAdapter` satisfies it structurally. Remaining: `OpenClawIntegrationPort` for raw-dict OpenClaw client, typed-record return for `OpenProjectWorkPackagePort`. | 2 | DDD-013 |
 
 Severity legend: **high** = closes a known H#/P# gap; **medium** = closes
 a known M# gap or removes a cross-context anti-pattern; **low** =
