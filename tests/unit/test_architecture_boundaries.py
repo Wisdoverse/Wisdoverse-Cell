@@ -1093,6 +1093,42 @@ def test_requirement_session_extraction_delegates_to_application_use_case() -> N
     assert "await uow.messages.get_by_session(session_id)" not in service_source
     assert "await uow.messages.mark_extracted" not in service_source
     assert "context_message_ids" not in service_source
+
+
+def test_requirement_ingest_side_effects_use_application_boundaries() -> None:
+    """Committed ingest side effects should stay out of the service shell."""
+    service_source = Path("agents/requirement_manager/service/agent.py").read_text()
+    use_case_source = Path(
+        "agents/requirement_manager/core/ingest_side_effect_use_cases.py"
+    ).read_text()
+
+    assert "class RequirementIngestNotifierPort(Protocol)" in use_case_source
+    assert "class RequirementIngestEventPublisherPort(Protocol)" in use_case_source
+    assert "class RequirementIngestSideEffectUseCase" in use_case_source
+    assert "class RequirementSessionExtractionCardUseCase" in use_case_source
+    assert "await self._event_publisher.publish_staged_event" in use_case_source
+    assert "await self._notifier.send" in use_case_source
+    assert "notification_send_failed" in use_case_source
+    assert "session_extraction_card_skipped" in use_case_source
+    assert "session_extraction_card_sent" in use_case_source
+    assert "session_extraction_card_failed" in use_case_source
+    assert "hash_identifier(chat_id)" in use_case_source
+
+    assert "RequirementIngestSideEffectUseCase" in service_source
+    assert "RequirementSessionExtractionCardUseCase" in service_source
+    assert "def _ingest_side_effect_use_case" in service_source
+    assert "def _session_card_use_case" in service_source
+    assert (
+        "await self._ingest_side_effect_use_case().publish_ingest_side_effects(result)"
+        in _function_source(service_source, "publish_ingest_side_effects")
+    )
+    assert (
+        "await self._session_card_use_case().send_session_extraction_card("
+        in _function_source(service_source, "_send_session_extraction_card")
+    )
+    assert "notification_service.send" not in service_source
+    assert "session_extraction_card_skipped" not in service_source
+    assert "hash_identifier(chat_id)" not in service_source
     assert "extract_from_session_starting" not in service_source
 
 
@@ -3451,7 +3487,7 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
     assert "RequirementEventOutboxRepository" not in service_source
     assert "await self._agent._commit_requirement_mutation" in service_source
     assert "RequirementMutationSideEffectUseCase" in service_source
-    assert "await self._publish_staged_requirement_event" in service_source
+    assert "RequirementIngestSideEffectUseCase" in service_source
     assert "publish_pending_requirement_events" in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
     assert "def _outbox_delivery_use_case" in service_source

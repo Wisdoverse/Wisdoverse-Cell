@@ -17,7 +17,6 @@ from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
 from shared.infra.llm_gateway import llm_gateway
 from shared.infra.notification import NotificationChannel, notification_service
-from shared.observability.privacy import hash_identifier
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
@@ -31,6 +30,10 @@ from ..core.event_use_cases import (
 from ..core.extractor import RequirementExtractor
 from ..core.health_ports import RequirementHealthStore
 from ..core.health_use_cases import RequirementHealthUseCase
+from ..core.ingest_side_effect_use_cases import (
+    RequirementIngestSideEffectUseCase,
+    RequirementSessionExtractionCardUseCase,
+)
 from ..core.meeting_ingest_workflow import (
     IngestResult,
     RequirementMeetingIngestWorkflow,
@@ -367,27 +370,7 @@ class RequirementManagerAgent(BaseAgent):
 
     async def publish_ingest_side_effects(self, result: IngestResult) -> None:
         """Publish integration and notification side effects after ingest commit."""
-        for event in result.staged_events:
-            await self._publish_staged_requirement_event(event)
-
-        if result.requirements_extracted <= 0:
-            return
-
-        try:
-            await notification_service.send(
-                channel=NotificationChannel.FEISHU,
-                title="新需求待确认",
-                content=(
-                    f"从会议中提取了 {result.requirements_extracted} 个新需求，"
-                    f"{result.questions_generated} 个待确认问题。"
-                )
-            )
-        except Exception as e:
-            logger.warning(
-                "notification_send_failed",
-                meeting_id=result.meeting_id,
-                error=str(e),
-            )
+        await self._ingest_side_effect_use_case().publish_ingest_side_effects(result)
 
     async def confirm_requirement(
         self,
@@ -645,6 +628,13 @@ class RequirementManagerAgent(BaseAgent):
             event_publisher=self._outbox_delivery_use_case(),
         )
 
+    def _ingest_side_effect_use_case(self) -> RequirementIngestSideEffectUseCase:
+        return RequirementIngestSideEffectUseCase(
+            event_publisher=self._outbox_delivery_use_case(),
+            notifier=notification_service,
+            notification_channel=NotificationChannel.FEISHU,
+        )
+
     async def publish_pending_requirement_events(self, limit: int = 100) -> dict[str, int]:
         return await self._outbox_delivery_use_case().publish_pending_events(
             limit=limit,
@@ -828,6 +818,12 @@ class RequirementManagerAgent(BaseAgent):
             uow_factory=self.get_unit_of_work,
         )
 
+    def _session_card_use_case(self) -> RequirementSessionExtractionCardUseCase:
+        return RequirementSessionExtractionCardUseCase(
+            messenger=self._messenger,
+            card_renderer=self._card_renderer,
+        )
+
     def _format_messages_for_extraction(self, messages: list) -> str:
         """Format messages as conversation text for LLM extraction."""
         return format_messages_for_extraction(messages)
@@ -847,72 +843,11 @@ class RequirementManagerAgent(BaseAgent):
         result: IngestResult,
         session_id: str,
     ):
-        """
-        Send extraction result card to the chat.
-
-        Similar to existing notification but includes session context.
-        """
-        try:
-            if self._messenger is None:
-                logger.warning(
-                    "session_extraction_card_skipped",
-                    reason="messenger_port_not_configured",
-                    chat_hash=hash_identifier(chat_id),
-                    session_id=session_id,
-                )
-                return
-            if self._card_renderer is None:
-                logger.warning(
-                    "session_extraction_card_skipped",
-                    reason="card_renderer_not_configured",
-                    chat_hash=hash_identifier(chat_id),
-                    session_id=session_id,
-                )
-                return
-
-            card = self._card_renderer.extraction_result_card(
-                requirements=(
-                    result.requirements if hasattr(result, "requirements") else []
-                ),
-                meeting_title=f"群聊会话 {session_id[:8]}...",
-                questions_count=(
-                    result.questions_generated
-                    if hasattr(result, "questions_generated")
-                    else 0
-                ),
-            )
-
-            await self._messenger.send_card(
-                receive_id=chat_id,
-                receive_id_type="chat_id",
-                card=card,
-            )
-
-            logger.info(
-                "session_extraction_card_sent",
-                chat_hash=hash_identifier(chat_id),
-                session_id=session_id,
-            )
-
-        except Exception as e:
-            logger.error(
-                "session_extraction_card_failed",
-                chat_hash=hash_identifier(chat_id),
-                session_id=session_id,
-                error=str(e),
-            )
-
-    # ========== Event Publishing Helpers ==========
-
-    async def _publish_staged_requirement_event(
-        self,
-        event: Event,
-        *,
-        requirement_id: str | None = None,
-    ) -> None:
-        await self._outbox_delivery_use_case().publish_staged_event(
-            event,
-            requirement_id=requirement_id,
+        """Send extraction result card to the chat."""
+        await self._session_card_use_case().send_session_extraction_card(
+            chat_id,
+            result,
+            session_id,
         )
 
     def _read_use_case_for_session(
