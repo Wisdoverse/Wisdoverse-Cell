@@ -735,7 +735,7 @@ not operational risk. Stage mapping is to
 
 | ID | Context | Dimension | Severity | Suggested PR | Stage | Blocks |
 |----|---------|-----------|----------|--------------|-------|--------|
-| DDD-001 | Control Plane | 2 / 8 | high | Move `agent_run_lifecycle.py` into `shared/control_plane/domain/lifecycle/`; promote AgentRun to an explicit aggregate class with FSM | 2 | DDD-006 |
+| DDD-001 | Control Plane | 2 / 8 | high | ✅ Seed landed `<DDD-001 PR>`. `shared/control_plane/domain/agent_run.py` exposes the `AgentRun` aggregate class wrapping the existing Pydantic record. Owns `VALID_TRANSITIONS` FSM (PENDING → RUNNING → SUCCEEDED/FAILED/CANCELLED/TIMED_OUT terminal). `transition_to()` raises typed `InvalidAgentRunTransitionError`; `pull_events()` drains `AgentRunStatusChanged` events for outbox forwarding. 7 unit tests verify the FSM. Per-use-case migration follows in dedicated PRs. | 2 | DDD-006 (CP slice unblocked once first use case migrates) |
 | DDD-002 | All contexts | 1 | medium | Make `core/domain/` mandatory for every business + capability runtime; add architecture-boundary test that forbids `core/<x>_lifecycle.py` outside `core/domain/lifecycle/` | 1 | DDD-003 |
 | DDD-003 | Sync (both sub-boundaries) | 2 / 3 / 8 | high | Introduce `SyncOperation` aggregate per sub-boundary; replace `engine.py` string-status branches with typed FSM; one PR per sub-boundary | 2 | D (extraction) |
 | DDD-004 | Analysis | 9 / 11 | high | Introduce explicit projection tables consumed by Analysis use cases; remove source-domain reads (closes P2-2) | 3 | C |
