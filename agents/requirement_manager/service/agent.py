@@ -37,10 +37,12 @@ from ..core.meeting_ingest_workflow import (
 )
 from ..core.meeting_ports import RequirementMeetingStore
 from ..core.message_ports import RequirementMessageStore
+from ..core.mutation_side_effect_use_cases import RequirementMutationSideEffectUseCase
 from ..core.outbox_delivery_use_cases import RequirementOutboxDeliveryUseCase
 from ..core.outbox_ports import RequirementEventOutboxStore
 from ..core.question_ports import RequirementQuestionStore
 from ..core.request_use_cases import RequirementManagerRequestUseCase
+from ..core.requirement_command_use_cases import RequirementCommandUseCase
 from ..core.requirement_mutation_workflow import (
     RequirementMutationResult,
     RequirementMutationWorkflow,
@@ -184,6 +186,11 @@ class RequirementManagerAgent(BaseAgent):
     def mutation_workflow(self) -> RequirementMutationWorkflow:
         """Expose the application workflow for HTTP use-case composition."""
         return self._mutation_workflow
+
+    @property
+    def mutation_side_effects(self) -> RequirementMutationSideEffectUseCase:
+        """Expose committed-mutation side effects for HTTP use-case composition."""
+        return self._mutation_side_effect_use_case()
 
     # ========== Lifecycle ==========
 
@@ -401,23 +408,15 @@ class RequirementManagerAgent(BaseAgent):
         """
         if session is not None:
             uow = _RequirementSessionUnitOfWork(self, session)
-            result = await self.confirm_requirement_with_uow(
+            return await self._command_use_case().confirm_requirement(
                 requirement_id=requirement_id,
                 confirmed_by=confirmed_by,
                 uow=uow,
             )
-            await uow.commit()
-        else:
-            async with self.get_unit_of_work() as uow:
-                result = await self.confirm_requirement_with_uow(
-                    requirement_id=requirement_id,
-                    confirmed_by=confirmed_by,
-                    uow=uow,
-                )
-                await uow.commit()
-
-        await self.publish_requirement_mutation_side_effects(result)
-        return result.entity
+        return await self._command_use_case().confirm_requirement(
+            requirement_id=requirement_id,
+            confirmed_by=confirmed_by,
+        )
 
     async def confirm_requirement_with_uow(
         self,
@@ -427,7 +426,7 @@ class RequirementManagerAgent(BaseAgent):
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         """Confirm one requirement through the application workflow."""
-        return await self._mutation_workflow.confirm_requirement(
+        return await self._command_use_case().confirm_requirement_with_uow(
             requirement_id=requirement_id,
             confirmed_by=confirmed_by,
             uow=uow,
@@ -454,25 +453,17 @@ class RequirementManagerAgent(BaseAgent):
         """
         if session is not None:
             uow = _RequirementSessionUnitOfWork(self, session)
-            result = await self.reject_requirement_with_uow(
+            return await self._command_use_case().reject_requirement(
                 requirement_id=requirement_id,
                 reason=reason,
                 rejected_by=rejected_by,
                 uow=uow,
             )
-            await uow.commit()
-        else:
-            async with self.get_unit_of_work() as uow:
-                result = await self.reject_requirement_with_uow(
-                    requirement_id=requirement_id,
-                    reason=reason,
-                    rejected_by=rejected_by,
-                    uow=uow,
-                )
-                await uow.commit()
-
-        await self.publish_requirement_mutation_side_effects(result)
-        return result.entity
+        return await self._command_use_case().reject_requirement(
+            requirement_id=requirement_id,
+            reason=reason,
+            rejected_by=rejected_by,
+        )
 
     async def reject_requirement_with_uow(
         self,
@@ -483,7 +474,7 @@ class RequirementManagerAgent(BaseAgent):
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         """Reject one requirement through the application workflow."""
-        return await self._mutation_workflow.reject_requirement(
+        return await self._command_use_case().reject_requirement_with_uow(
             requirement_id=requirement_id,
             reason=reason,
             rejected_by=rejected_by,
@@ -504,23 +495,15 @@ class RequirementManagerAgent(BaseAgent):
         """
         if session is not None:
             uow = _RequirementSessionUnitOfWork(self, session)
-            result = await self.update_requirement_with_uow(
+            return await self._command_use_case().update_requirement(
                 requirement_id=requirement_id,
                 changes=changes,
                 uow=uow,
             )
-            await uow.commit()
-        else:
-            async with self.get_unit_of_work() as uow:
-                result = await self.update_requirement_with_uow(
-                    requirement_id=requirement_id,
-                    changes=changes,
-                    uow=uow,
-                )
-                await uow.commit()
-
-        await self.publish_requirement_mutation_side_effects(result)
-        return result.entity
+        return await self._command_use_case().update_requirement(
+            requirement_id=requirement_id,
+            changes=changes,
+        )
 
     async def update_requirement_with_uow(
         self,
@@ -530,7 +513,7 @@ class RequirementManagerAgent(BaseAgent):
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         """Update one requirement through the application workflow."""
-        return await self._mutation_workflow.update_requirement(
+        return await self._command_use_case().update_requirement_with_uow(
             requirement_id=requirement_id,
             changes=changes,
             uow=uow,
@@ -557,23 +540,15 @@ class RequirementManagerAgent(BaseAgent):
         """
         if session is not None:
             uow = _RequirementSessionUnitOfWork(self, session)
-            result = await self.delete_requirement_with_uow(
+            return await self._command_use_case().delete_requirement(
                 requirement_id=requirement_id,
                 deleted_by=deleted_by,
                 uow=uow,
             )
-            await uow.commit()
-        else:
-            async with self.get_unit_of_work() as uow:
-                result = await self.delete_requirement_with_uow(
-                    requirement_id=requirement_id,
-                    deleted_by=deleted_by,
-                    uow=uow,
-                )
-                await uow.commit()
-
-        await self.publish_requirement_mutation_side_effects(result)
-        return result.entity
+        return await self._command_use_case().delete_requirement(
+            requirement_id=requirement_id,
+            deleted_by=deleted_by,
+        )
 
     async def delete_requirement_with_uow(
         self,
@@ -583,7 +558,7 @@ class RequirementManagerAgent(BaseAgent):
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         """Delete one requirement through the application workflow."""
-        return await self._mutation_workflow.delete_requirement(
+        return await self._command_use_case().delete_requirement_with_uow(
             requirement_id=requirement_id,
             deleted_by=deleted_by,
             uow=uow,
@@ -604,24 +579,17 @@ class RequirementManagerAgent(BaseAgent):
         """
         if session is not None:
             uow = _RequirementSessionUnitOfWork(self, session)
-            result = await self.answer_question_with_uow(
+            return await self._command_use_case().answer_question(
                 question_id,
                 answer=answer,
                 answered_by=answered_by,
                 uow=uow,
             )
-            await uow.commit()
-        else:
-            async with self.get_unit_of_work() as uow:
-                result = await self.answer_question_with_uow(
-                    question_id,
-                    answer=answer,
-                    answered_by=answered_by,
-                    uow=uow,
-                )
-                await uow.commit()
-
-        return result.entity
+        return await self._command_use_case().answer_question(
+            question_id,
+            answer=answer,
+            answered_by=answered_by,
+        )
 
     async def answer_question_with_uow(
         self,
@@ -632,7 +600,7 @@ class RequirementManagerAgent(BaseAgent):
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         """Answer one open question through the application workflow."""
-        return await self._mutation_workflow.answer_question(
+        return await self._command_use_case().answer_question_with_uow(
             question_id,
             answer=answer,
             answered_by=answered_by,
@@ -660,14 +628,22 @@ class RequirementManagerAgent(BaseAgent):
         self,
         result: RequirementMutationResult,
     ) -> None:
-        """Run external side effects after a Requirement mutation commits."""
-        if result.delete_vector_requirement_id:
-            await self._delete_requirement_vector_record(result.delete_vector_requirement_id)
-        if result.event:
-            await self._publish_staged_requirement_event(
-                result.event,
-                requirement_id=result.requirement_id,
-            )
+        await self._mutation_side_effect_use_case().publish_requirement_mutation_side_effects(
+            result,
+        )
+
+    def _command_use_case(self) -> RequirementCommandUseCase:
+        return RequirementCommandUseCase(
+            mutation_workflow=self._mutation_workflow,
+            side_effects=self._mutation_side_effect_use_case(),
+            uow_factory=self.get_unit_of_work,
+        )
+
+    def _mutation_side_effect_use_case(self) -> RequirementMutationSideEffectUseCase:
+        return RequirementMutationSideEffectUseCase(
+            vector_index=self._vector_store,
+            event_publisher=self._outbox_delivery_use_case(),
+        )
 
     async def publish_pending_requirement_events(self, limit: int = 100) -> dict[str, int]:
         return await self._outbox_delivery_use_case().publish_pending_events(
@@ -732,29 +708,6 @@ class RequirementManagerAgent(BaseAgent):
         """Build the persistence adapter for question use cases."""
         return SqlAlchemyRequirementQuestionStore(session)
 
-    async def _delete_requirement_vector_record(self, requirement_id: str) -> None:
-        """
-        Best-effort cleanup for the requirement search index.
-
-        The database is the source of truth. If vector cleanup fails, query-time
-        filtering still prevents orphaned vector records from surfacing.
-        """
-        try:
-            result = self._vector_store.delete_requirement(requirement_id)
-            if inspect.isawaitable(result):
-                await result
-            logger.info(
-                "vector_store_record_deleted",
-                requirement_id=requirement_id,
-            )
-        except Exception as exc:
-            logger.warning(
-                "vector_store_delete_failed",
-                requirement_id=requirement_id,
-                error=str(exc),
-                note="Orphaned vector record may exist, will be filtered on query",
-            )
-
     # ========== Convenience Methods Without External Sessions ==========
 
     async def list_pending_requirements(
@@ -791,18 +744,10 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             Operation results; each item contains requirement_id, success, and error.
         """
-        async with self.get_unit_of_work() as uow:
-            results, mutation_results = await self.batch_confirm_requirements_with_uow(
-                requirement_ids=requirement_ids,
-                confirmed_by=confirmed_by,
-                uow=uow,
-            )
-            await uow.commit()
-
-        for result in mutation_results:
-            await self.publish_requirement_mutation_side_effects(result)
-
-        return results
+        return await self._command_use_case().batch_confirm_requirements(
+            requirement_ids=requirement_ids,
+            confirmed_by=confirmed_by,
+        )
 
     async def batch_confirm_requirements_with_uow(
         self,
@@ -812,7 +757,7 @@ class RequirementManagerAgent(BaseAgent):
         uow: RequirementUnitOfWork,
     ) -> tuple[list[dict], list[RequirementMutationResult]]:
         """Confirm requirements through the application workflow."""
-        return await self._mutation_workflow.batch_confirm_requirements(
+        return await self._command_use_case().batch_confirm_requirements_with_uow(
             requirement_ids=requirement_ids,
             confirmed_by=confirmed_by,
             uow=uow,
@@ -835,19 +780,11 @@ class RequirementManagerAgent(BaseAgent):
         Returns:
             Operation results; each item contains requirement_id, success, and error.
         """
-        async with self.get_unit_of_work() as uow:
-            results, mutation_results = await self.batch_reject_requirements_with_uow(
-                requirement_ids=requirement_ids,
-                reason=reason,
-                rejected_by=rejected_by,
-                uow=uow,
-            )
-            await uow.commit()
-
-        for result in mutation_results:
-            await self.publish_requirement_mutation_side_effects(result)
-
-        return results
+        return await self._command_use_case().batch_reject_requirements(
+            requirement_ids=requirement_ids,
+            reason=reason,
+            rejected_by=rejected_by,
+        )
 
     async def batch_reject_requirements_with_uow(
         self,
@@ -858,7 +795,7 @@ class RequirementManagerAgent(BaseAgent):
         uow: RequirementUnitOfWork,
     ) -> tuple[list[dict], list[RequirementMutationResult]]:
         """Reject requirements through the application workflow."""
-        return await self._mutation_workflow.batch_reject_requirements(
+        return await self._command_use_case().batch_reject_requirements_with_uow(
             requirement_ids=requirement_ids,
             reason=reason,
             rejected_by=rejected_by,
