@@ -3891,6 +3891,12 @@ def test_channel_gateway_events_have_durable_outbox_contract() -> None:
     port_source = Path("services/gateways/channel/core/outbox_ports.py").read_text()
     adapter_source = Path("services/gateways/channel/db/outbox_store.py").read_text()
     service_source = Path("services/gateways/channel/service/agent.py").read_text()
+    facade_source = Path(
+        "services/gateways/channel/core/application_facade.py"
+    ).read_text()
+    use_case_source = Path(
+        "services/gateways/channel/core/outbox_delivery_use_cases.py"
+    ).read_text()
     app_source = Path("services/gateways/channel/app/main.py").read_text()
     doc_source = Path("docs/guides/backend-boundaries.md").read_text()
     event_catalog_source = Path("docs/guides/event-catalog.md").read_text()
@@ -3901,12 +3907,22 @@ def test_channel_gateway_events_have_durable_outbox_contract() -> None:
     assert "class ChannelGatewayEventOutboxRepository" in repository_source
     assert "class ChannelGatewayEventOutboxStore" in port_source
     assert "SqlAlchemyChannelGatewayEventOutboxStore" in adapter_source
+    assert "class ChannelGatewayApplicationFacade" in facade_source
+    assert "class ChannelGatewayOutboxDeliveryUseCase" in use_case_source
     assert "publish_pending_channel_events" in service_source
     assert "publish_channel_event_via_outbox" in service_source
     assert "await self.publish_channel_event_via_outbox(e)" in service_source
+    assert "return await self._application.publish_pending_channel_events" in service_source
+    assert "return await self._application.publish_channel_event_via_outbox" in service_source
+    assert "record_outbox_pending_age(\"channel-gateway\", rows)" in use_case_source
+    assert "await self._event_publisher.publish(event)" in use_case_source
+    assert "await self._outbox_store.mark_published(event.event_id)" in use_case_source
+    assert "await self._outbox_store.mark_failed(event.event_id, str(error))" in (
+        use_case_source
+    )
     assert "ChannelGatewayEventOutboxRepository" not in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
-    assert "await self._event_publisher.publish(event)" in service_source
+    assert "await self._event_publisher.publish(event)" not in service_source
     assert "await self._event_bus.publish(event)" not in service_source
     assert "await self._event_bus.publish(e)" not in service_source
     assert "MessageInboundPayload" not in service_source
@@ -3924,11 +3940,15 @@ def test_channel_gateway_events_have_durable_outbox_contract() -> None:
 def test_channel_gateway_event_orchestration_delegates_to_application_use_case() -> None:
     """Channel gateway service shell should not own outbound delivery branching."""
     service_source = Path("services/gateways/channel/service/agent.py").read_text()
+    facade_source = Path(
+        "services/gateways/channel/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "services/gateways/channel/core/event_use_cases.py"
     ).read_text()
     handle_source = _function_source(service_source, "handle_event")
 
+    assert "class ChannelGatewayApplicationFacade" in facade_source
     assert "class ChannelAdapterPort(Protocol)" in use_case_source
     assert "class ChannelAdapterRegistryPort(Protocol)" in use_case_source
     assert "class ChannelGatewayEventUseCase" in use_case_source
@@ -3939,8 +3959,10 @@ def test_channel_gateway_event_orchestration_delegates_to_application_use_case()
 
     assert "service.event_handlers" not in service_source
     assert "dispatch_event" not in service_source
-    assert "ChannelGatewayEventUseCase" in service_source
-    assert "channel_event_use_case().handle_event(event)" in handle_source
+    assert "ChannelGatewayEventUseCase" not in service_source
+    assert "ChannelGatewayEventUseCase" in facade_source
+    assert "return await self._application.handle_event(event)" in handle_source
+    assert "channel_event_use_case().handle_event(event)" not in handle_source
     assert "_adapter_registry.get" not in handle_source
     assert "MessageOutboundPayload" not in service_source
 
@@ -3948,10 +3970,14 @@ def test_channel_gateway_event_orchestration_delegates_to_application_use_case()
 def test_channel_gateway_lifecycle_delegates_to_application_use_case() -> None:
     """Channel gateway service shell should not own adapter lifecycle payloads."""
     service_source = Path("services/gateways/channel/service/agent.py").read_text()
+    facade_source = Path(
+        "services/gateways/channel/core/application_facade.py"
+    ).read_text()
     use_case_source = Path(
         "services/gateways/channel/core/lifecycle_use_cases.py"
     ).read_text()
 
+    assert "class ChannelGatewayApplicationFacade" in facade_source
     assert "class ChannelGatewayLifecycleUseCase" in use_case_source
     assert "class ChannelLifecycleAdapterPort(Protocol)" in use_case_source
     assert "class ChannelLifecycleAdapterRegistryPort(Protocol)" in use_case_source
@@ -3965,11 +3991,16 @@ def test_channel_gateway_lifecycle_delegates_to_application_use_case() -> None:
     assert "adapter.disconnect()" in use_case_source
     assert "adapter.listen()" in use_case_source
 
-    assert "ChannelGatewayLifecycleUseCase" in service_source
-    assert "def channel_lifecycle_use_case" in service_source
+    assert "ChannelGatewayLifecycleUseCase" not in service_source
+    assert "ChannelGatewayLifecycleUseCase" in facade_source
+    assert "def channel_lifecycle_use_case" not in service_source
+    assert "def channel_lifecycle_use_case" in facade_source
     assert (
-        "await self.channel_lifecycle_use_case().connect_adapters()"
+        "await self._application.connect_adapters()"
         in _function_source(service_source, "_connect_adapters")
+    )
+    assert "await self.channel_lifecycle_use_case().connect_adapters()" not in (
+        _function_source(service_source, "_connect_adapters")
     )
     assert "MessageInboundPayload" not in service_source
     assert "AdapterStatusPayload" not in service_source

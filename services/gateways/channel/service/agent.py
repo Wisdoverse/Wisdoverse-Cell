@@ -2,21 +2,15 @@
 import asyncio
 from typing import Any
 
-from services.gateways.channel.core.event_use_cases import (
-    SUBSCRIBED_EVENTS,
-    ChannelGatewayEventUseCase,
-)
-from services.gateways.channel.core.lifecycle_use_cases import (
-    ChannelGatewayLifecycleUseCase,
-)
+from services.gateways.channel.core.application_facade import ChannelGatewayApplicationFacade
+from services.gateways.channel.core.event_use_cases import SUBSCRIBED_EVENTS
 from shared.core import EventPublisher
 from shared.infra.event_bus import event_bus as default_event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
 from shared.messaging.outbound.core.registry import AdapterRegistry
 from shared.messaging.outbound.models.events import ChannelEventTypes
-from shared.observability.outbox import record_outbox_pending_age
 from shared.schemas.agent import BaseAgent
-from shared.schemas.event import Event, EventMetadata
+from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
 from ..core.outbox_ports import ChannelGatewayEventOutboxStore
@@ -57,6 +51,17 @@ class ChannelGatewayAgent(BaseAgent):
             )
         self._consumer_task: asyncio.Task | None = None
         self._listener_tasks: dict[str, asyncio.Task] = {}
+        self._application = ChannelGatewayApplicationFacade(
+            agent_id=self.agent_id,
+            standard_request_handler=self.handle_standard_request,
+            adapter_registry=self._adapter_registry,
+            listener_tasks=self._listener_tasks,
+            event_factory=self,
+            event_bus=self._event_bus,
+            event_publisher=self._event_publisher,
+            db_manager_provider=lambda: self._db_manager,
+            outbox_store_provider=lambda: self._outbox_store,
+        )
 
     async def startup(self) -> None:
         """Initialize the agent and connect adapters."""
@@ -106,33 +111,15 @@ class ChannelGatewayAgent(BaseAgent):
 
     async def handle_event(self, event: Event) -> list[Event]:
         """Handle incoming events."""
-        return await self.channel_event_use_case().handle_event(event)
-
-    def channel_event_use_case(self) -> ChannelGatewayEventUseCase:
-        return ChannelGatewayEventUseCase(
-            adapter_registry=self._adapter_registry,
-            source_agent=self.agent_id,
-        )
+        return await self._application.handle_event(event)
 
     async def handle_request(self, request: dict[str, Any]) -> dict[str, Any]:
         """Handle direct requests (not used in event-driven architecture)."""
-        standard_response = await self.handle_standard_request(request)
-        if standard_response is not None:
-            return standard_response
-
-        return {"status": "ok"}
+        return await self._application.handle_request(request)
 
     async def health_check(self) -> dict[str, bool]:
         """Return readiness checks for the channel gateway boundary."""
-        adapters = self._adapter_registry.list_all()
-        return {
-            "event_bus": bool(getattr(self._event_bus, "is_connected", False)),
-            "database": self._db_manager is not None,
-            "adapter_registry": self._adapter_registry is not None,
-            "adapter_listeners": all(
-                adapter.channel_id in self._listener_tasks for adapter in adapters
-            ),
-        }
+        return await self._application.health_check()
 
     async def _run_event_loop(self) -> None:
         """Event consumer loop."""
@@ -150,87 +137,41 @@ class ChannelGatewayAgent(BaseAgent):
 
     async def _connect_adapters(self) -> None:
         """Connect all registered adapters."""
-        await self.channel_lifecycle_use_case().connect_adapters()
+        await self._application.connect_adapters()
 
     async def _connect_adapter(self, adapter) -> None:
         """Connect a single adapter and start its listener."""
-        await self.channel_lifecycle_use_case().connect_adapter(adapter)
+        await self._application.connect_adapter(adapter)
 
     async def _disconnect_adapters(self) -> None:
         """Disconnect all adapters."""
-        await self.channel_lifecycle_use_case().disconnect_adapters()
+        await self._application.disconnect_adapters()
 
     async def _run_adapter_listener(self, adapter) -> None:
         """Listen for messages from an adapter."""
-        await self.channel_lifecycle_use_case().run_adapter_listener(adapter)
+        await self._application.run_adapter_listener(adapter)
 
     async def _publish_inbound_message(self, message) -> None:
         """Publish inbound message event."""
-        await self.channel_lifecycle_use_case().publish_inbound_message(message)
+        await self._application.publish_inbound_message(message)
 
     async def _publish_adapter_status(
         self, channel_id: str, status: str, error_message: str | None = None
     ) -> None:
         """Publish adapter status event."""
-        await self.channel_lifecycle_use_case().publish_adapter_status(
+        await self._application.publish_adapter_status(
             channel_id,
             status,
             error_message,
         )
 
-    def channel_lifecycle_use_case(self) -> ChannelGatewayLifecycleUseCase:
-        return ChannelGatewayLifecycleUseCase(
-            adapter_registry=self._adapter_registry,
-            publisher=self,
-            listener_tasks=self._listener_tasks,
-        )
-
     async def publish_pending_channel_events(self, limit: int = 100) -> dict[str, int]:
         """Retry pending channel gateway outbox events."""
-        if self._outbox_store is None:
-            raise RuntimeError("channel_outbox_store_not_started")
-
-        rows = await self._outbox_store.list_pending(limit=limit)
-        record_outbox_pending_age("channel-gateway", rows)
-
-        published = 0
-        failed = 0
-        for row in rows:
-            event = self._event_from_outbox(row)
-            if await self._publish_staged_channel_event(event):
-                published += 1
-            else:
-                failed += 1
-
-        logger.info(
-            "channel_outbox_dispatch_completed",
-            total=len(rows),
-            published=published,
-            failed=failed,
-        )
-        return {"total": len(rows), "published": published, "failed": failed}
+        return await self._application.publish_pending_channel_events(limit=limit)
 
     async def publish_channel_event_via_outbox(self, event: Event) -> bool:
         """Stage a channel gateway event, then publish after local commit."""
-        if self._outbox_store is None:
-            logger.error(
-                "channel_outbox_unavailable",
-                event_id=event.event_id,
-                event_type=event.event_type,
-            )
-            return False
-
-        try:
-            await self._outbox_store.add(event)
-        except Exception as exc:
-            logger.error(
-                "channel_outbox_stage_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                error=str(exc),
-            )
-            return False
-        return await self._publish_staged_channel_event(event)
+        return await self._application.publish_channel_event_via_outbox(event)
 
     async def publish_event_via_outbox(self, event: Event) -> bool:
         """Stage a runtime-produced channel event before EventBus delivery."""
@@ -238,73 +179,7 @@ class ChannelGatewayAgent(BaseAgent):
 
     async def _publish_staged_channel_event(self, event: Event) -> bool:
         """Publish one event already persisted in the channel outbox."""
-        try:
-            await self._event_bus.connect()
-            ok = await self._event_publisher.publish(event)
-            if not ok:
-                raise RuntimeError("event_bus_publish_returned_false")
-            await self._mark_channel_event_published(event)
-            return True
-        except Exception as exc:
-            await self._mark_channel_event_failed(event, exc)
-            logger.error(
-                "channel_outbox_publish_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                error=str(exc),
-            )
-            return False
-
-    def _event_from_outbox(self, row) -> Event:
-        """Rebuild an immutable Event from a channel outbox row."""
-        return Event(
-            event_id=row.event_id,
-            event_type=row.event_type,
-            timestamp=row.created_at,
-            source_agent=row.source_agent,
-            payload=row.payload,
-            schema_version=row.schema_version,
-            metadata=EventMetadata(
-                trace_id=row.trace_id,
-                correlation_id=row.correlation_id,
-                retry_count=row.retry_count,
-            ),
-        )
-
-    async def _mark_channel_event_published(self, event: Event) -> None:
-        """Best-effort mark for a successfully published channel outbox event."""
-        if self._outbox_store is None:
-            logger.warning("channel_outbox_mark_published_skipped", event_id=event.event_id)
-            return
-        try:
-            await self._outbox_store.mark_published(event.event_id)
-        except Exception as exc:
-            logger.warning(
-                "channel_outbox_mark_published_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                error=str(exc),
-            )
-
-    async def _mark_channel_event_failed(self, event: Event, error: Exception) -> None:
-        """Best-effort failure recording for a channel outbox publish attempt."""
-        if self._outbox_store is None:
-            logger.warning(
-                "channel_outbox_mark_failed_skipped",
-                event_id=event.event_id,
-                publish_error=str(error),
-            )
-            return
-        try:
-            await self._outbox_store.mark_failed(event.event_id, str(error))
-        except Exception as exc:
-            logger.warning(
-                "channel_outbox_mark_failed_failed",
-                event_id=event.event_id,
-                event_type=event.event_type,
-                publish_error=str(error),
-                error=str(exc),
-            )
+        return await self._application.publish_staged_channel_event(event)
 
 
 # Global singleton
