@@ -5,7 +5,6 @@ Inherits BaseAgent and implements the standard Agent interface. All business
 logic is coordinated through this class; FastAPI is only the HTTP adapter.
 """
 import inspect
-from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
 
@@ -32,6 +31,10 @@ from ..core.event_use_cases import (
 from ..core.extractor import RequirementExtractor
 from ..core.health_ports import RequirementHealthStore
 from ..core.health_use_cases import RequirementHealthUseCase
+from ..core.meeting_ingest_workflow import (
+    IngestResult,
+    RequirementMeetingIngestWorkflow,
+)
 from ..core.meeting_ports import RequirementMeetingStore
 from ..core.message_ports import RequirementMessageStore
 from ..core.outbox_delivery_use_cases import RequirementOutboxDeliveryUseCase
@@ -43,6 +46,10 @@ from ..core.requirement_mutation_workflow import (
     RequirementMutationWorkflow,
 )
 from ..core.requirement_ports import RequirementStore
+from ..core.session_extraction_use_cases import (
+    RequirementSessionExtractionUseCase,
+    format_messages_for_extraction,
+)
 from ..core.unit_of_work_ports import (
     RequirementOutboxWriter,
     RequirementUnitOfWork,
@@ -61,18 +68,6 @@ from ..db.vector_store import VectorStore, vector_store
 from ..models import Meeting, OpenQuestion, Requirement
 
 logger = get_logger("requirement-manager.agent")
-
-
-@dataclass
-class IngestResult:
-    """Meeting ingestion result."""
-    meeting_id: str
-    requirements_extracted: int
-    questions_generated: int
-    requirement_ids: list[str]
-    requirements: list[Requirement] = field(default_factory=list, repr=False)
-    open_questions: list[OpenQuestion] = field(default_factory=list, repr=False)
-    staged_events: list[Event] = field(default_factory=list, repr=False)
 
 
 class _RequirementSessionOutboxWriter(RequirementOutboxWriter):
@@ -165,6 +160,10 @@ class RequirementManagerAgent(BaseAgent):
         self._extractor = requirement_extractor or RequirementExtractor(
             llm=llm_gateway,
             system_prompt_resolver=resolve_agent_system_prompt,
+        )
+        self._ingest_workflow = RequirementMeetingIngestWorkflow(
+            extractor=self._extractor,
+            vector_index=self._vector_store,
         )
         self._mutation_workflow = RequirementMutationWorkflow()
         self._messenger = messenger
@@ -348,109 +347,15 @@ class RequirementManagerAgent(BaseAgent):
         source_id: Optional[str] = None,
     ) -> IngestResult:
         """Ingest meeting content inside an explicit Requirement unit of work."""
-        meeting_store = uow.meetings
-        requirement_store = uow.requirements
-        question_store = uow.questions
-
-        # Create meeting record.
-        meeting = Meeting(
-            source=source,
-            source_id=source_id,
-            title=title,
-            raw_content=content,
-            meeting_date=meeting_date,
-            participants=participants or [],
-            context=context
-        )
-        await meeting_store.create(meeting)
-
-        logger.info(
-            "meeting_created",
-            meeting_id=meeting.id,
-            source=source,
-            content_length=len(content)
-        )
-
-        # Extract requirements.
-        result = await self._extractor.extract(
+        return await self._ingest_workflow.ingest_meeting(
             content=content,
             source=source,
-            meeting_date=meeting_date.isoformat() if meeting_date else None,
+            uow=uow,
+            title=title,
+            meeting_date=meeting_date,
             participants=participants,
-            context=context
-        )
-
-        # Save requirements.
-        requirements: list[Requirement] = []
-        for req in result.requirements:
-            requirement = Requirement(
-                title=req.title,
-                description=req.description,
-                category=req.category,
-                priority=req.priority,
-                source_quote=req.source_quote,
-                source_meeting_ids=[meeting.id]
-            )
-            requirements.append(requirement)
-
-        if requirements:
-            await requirement_store.create_batch(requirements)
-
-            # Add to vector store synchronously; non-critical failure does not block the main flow.
-            try:
-                vector_docs = [
-                    {
-                        "id": req.id,
-                        "title": req.title,
-                        "description": req.description,
-                        "category": req.category,
-                        "metadata": {"meeting_id": meeting.id, "priority": req.priority}
-                    }
-                    for req in requirements
-                ]
-                await self._vector_store.add_requirements_batch(vector_docs)
-            except Exception as e:
-                logger.warning(
-                    "vector_store_batch_add_failed",
-                    meeting_id=meeting.id,
-                    count=len(requirements),
-                    error=str(e),
-                )
-
-        # Save questions.
-        questions: list[OpenQuestion] = []
-        for q in result.open_questions:
-            req_id = requirements[0].id if requirements else None
-            if req_id:
-                question = OpenQuestion(
-                    requirement_id=req_id,
-                    question=q.question,
-                    context=q.context
-                )
-                questions.append(question)
-
-        if questions:
-            await question_store.create_batch(questions)
-
-        # Mark meeting as processed.
-        await meeting_store.mark_processed(meeting.id)
-
-        extracted_event = None
-        if requirements:
-            extracted_event = self._create_requirements_extracted_event(
-                requirements=requirements,
-                meeting_id=meeting.id,
-            )
-            await uow.outbox.stage(extracted_event)
-
-        return IngestResult(
-            meeting_id=meeting.id,
-            requirements_extracted=len(requirements),
-            questions_generated=len(questions),
-            requirement_ids=[r.id for r in requirements],
-            requirements=requirements,
-            open_questions=questions,
-            staged_events=[extracted_event] if extracted_event else [],
+            context=context,
+            source_id=source_id,
         )
 
     async def publish_ingest_side_effects(self, result: IngestResult) -> None:
@@ -975,96 +880,29 @@ class RequirementManagerAgent(BaseAgent):
     # ========== Session Extraction Methods ==========
 
     async def extract_from_session(self, session_id: str) -> Optional[IngestResult]:
-        """
-        Extract requirements from a chat session's messages.
+        """Extract requirements from a chat session's messages."""
+        return await self._session_extraction_use_case().extract_from_session(
+            session_id,
+        )
 
-        Called by SessionManager when session times out.
-
-        Args:
-            session_id: The session ID to extract from
-
-        Returns:
-            IngestResult if extraction succeeded, None if no messages or error
-        """
-        async with self.get_unit_of_work() as uow:
-            # Get all messages in session
-            messages = await uow.messages.get_by_session(session_id)
-            if not messages:
-                logger.warning("extract_from_session_no_messages", session_id=session_id)
-                return None
-
-            # Get chat_id from first message (for notifications)
-            chat_id = messages[0].chat_id
-
-            # Format messages for LLM extraction
-            content = self._format_messages_for_extraction(messages)
-
-            logger.info(
-                "extract_from_session_starting",
-                session_id=session_id,
-                message_count=len(messages),
-                content_length=len(content),
-            )
-
-            result = await self.ingest_meeting_with_uow(
-                content=content,
-                source="feishu_session",
-                uow=uow,
-                context=f"Session {session_id} from chat {chat_id} with {len(messages)} messages",
-            )
-
-            if result and result.requirements_extracted > 0:
-                # Mark messages as extracted and link to requirements
-                await uow.messages.mark_extracted(session_id, result.requirement_ids)
-
-                # Get message IDs for context linking
-                message_ids = [m.id for m in messages]
-
-                # Update requirements with context_message_ids
-                for req_id in result.requirement_ids:
-                    req = await uow.requirements.get_by_id(req_id)
-                    if req and hasattr(req, 'context_message_ids'):
-                        req.context_message_ids = message_ids
-
-            await uow.commit()
-            await self.publish_ingest_side_effects(result)
-
-            if result and result.requirements_extracted > 0:
-                # Send notification card to chat
-                await self._send_session_extraction_card(chat_id, result, session_id)
-
-                logger.info(
-                    "extract_from_session_complete",
-                    session_id=session_id,
-                    requirements_extracted=result.requirements_extracted,
-                )
-
-            return result
+    def _session_extraction_use_case(self) -> RequirementSessionExtractionUseCase:
+        return RequirementSessionExtractionUseCase(
+            agent=self,
+            uow_factory=self.get_unit_of_work,
+        )
 
     def _format_messages_for_extraction(self, messages: list) -> str:
-        """
-        Format messages as conversation text for LLM extraction.
+        """Format messages as conversation text for LLM extraction."""
+        return format_messages_for_extraction(messages)
 
-        Args:
-            messages: List of ChatMessage objects ordered by sent_at
-
-        Returns:
-            Formatted conversation text
-        """
-        lines = []
-
-        for msg in messages:
-            sender = msg.sender_name or "Unknown"
-            time_str = msg.sent_at.strftime("%H:%M") if msg.sent_at else "??:??"
-            content = msg.content or ""
-
-            # Skip empty content
-            if not content.strip():
-                continue
-
-            lines.append(f"[{time_str}] {sender}: {content}")
-
-        return "\n".join(lines)
+    async def send_session_extraction_card(
+        self,
+        chat_id: str,
+        result: IngestResult,
+        session_id: str,
+    ) -> None:
+        """Send extraction result card to the originating chat."""
+        await self._send_session_extraction_card(chat_id, result, session_id)
 
     async def _send_session_extraction_card(
         self,
@@ -1127,31 +965,7 @@ class RequirementManagerAgent(BaseAgent):
                 error=str(e),
             )
 
-    # ========== Event Creation and Publishing Helpers ==========
-
-    def _create_requirements_extracted_event(
-        self,
-        requirements: list[Requirement],
-        meeting_id: str,
-    ) -> Event:
-        """Create a requirements-extracted integration event."""
-        return self.create_event(
-            event_type=EventTypes.REQUIREMENT_EXTRACTED,
-            payload={
-                "meeting_id": meeting_id,
-                "requirement_ids": [r.id for r in requirements],
-                "count": len(requirements),
-                "requirements": [
-                    {
-                        "id": r.id,
-                        "title": r.title,
-                        "priority": r.priority,
-                        "category": r.category,
-                    }
-                    for r in requirements
-                ],
-            },
-        )
+    # ========== Event Publishing Helpers ==========
 
     async def _publish_staged_requirement_event(
         self,
