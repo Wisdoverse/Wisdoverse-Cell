@@ -4,6 +4,7 @@ from typing import Optional
 from shared.config import settings as app_settings
 from shared.control_plane import ApprovalGateService
 from shared.core import EventPublisher
+from shared.infra.conversation_engine import ConversationConfig, ConversationEngine
 from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
 from shared.infra.llm_gateway import llm_gateway
@@ -123,11 +124,42 @@ class ChatAgent(BaseAgent):
                 config=core_config,
             )
         )
+        # Wire the ConversationEngine factory at the app layer (DDD-017
+        # follow-up). chat_service.py consumes the port without importing
+        # shared.infra at module-level; the concrete engine construction
+        # lives here in the app/runtime composition. ChatService passes
+        # its compressor instance through the factory call.
+        def _engine_factory(
+            *,
+            system_prompt: str,
+            history,
+            tools_provider,
+            tool_executor,
+            compressor,
+            max_tool_calls: int,
+            agent_id: str,
+        ):
+            engine_config = ConversationConfig(
+                model=core_config.chat_model,
+                system_prompt=system_prompt,
+                tools=tools_provider,
+                max_tool_calls=max_tool_calls,
+                agent_id=agent_id,
+            )
+            return ConversationEngine(
+                engine_config,
+                llm_gateway=llm_gateway,
+                compressor=compressor,
+                tool_executor=tool_executor,
+                messages=history,
+            )
+
         self._chat = ChatService(
             config=core_config,
             llm=llm_gateway,
             history_store=self._history_store,
             daily_progress_store=daily_progress_store,
+            engine_factory=_engine_factory,
         )
 
         # Event loop is managed by AgentRuntime.start_event_loop()

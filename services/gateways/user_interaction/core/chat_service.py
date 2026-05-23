@@ -158,16 +158,16 @@ class ChatService:
         history,
         tools_provider,
         tool_executor,
+        compressor,
         max_tool_calls: int,
         agent_id: str,
     ):
         """Backward-compatible default: construct a ConversationEngine.
 
-        Imports the concrete engine **inside the function** so the
-        module-level surface of `core/chat_service.py` is free of
-        `shared.infra.conversation_engine` imports. The proper long-term
-        wiring is for `service/agent.py` (app layer) to inject a real
-        factory.
+        Function-scope `shared.infra.conversation_engine` import keeps
+        the module-level surface of `core/chat_service.py` clean.
+        Production wires the real factory at the app/ layer
+        (`service/agent.py`).
         """
         from shared.infra.conversation_engine import (
             ConversationConfig,
@@ -184,7 +184,7 @@ class ChatService:
         return ConversationEngine(
             config,
             llm_gateway=self._llm,
-            compressor=self._compressor,
+            compressor=compressor,
             tool_executor=tool_executor,
             messages=history,
         )
@@ -304,6 +304,7 @@ class ChatService:
                     active_deferred
                 ),
                 tool_executor=_chat_tool_executor,
+                compressor=self._compressor,
                 max_tool_calls=MAX_TOOL_CALLS,
                 agent_id="chat-agent",
             )
