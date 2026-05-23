@@ -69,9 +69,55 @@ class SyncLock(Base):
 
 
 class SyncEventOutbox(Base):
-    """Durable outbox for Sync integration events."""
+    """Durable outbox for Sync integration events.
+
+    Legacy single-table outbox. DDD-014 / ADR-0009 Step 1 introduces
+    per-side tables (`SyncOpenProjectEventOutbox`,
+    `SyncFeishuBitableEventOutbox`); this table is dual-written
+    during the cutover window and removed in a follow-up migration.
+    """
 
     __tablename__ = "sync_agent_event_outbox"
+
+    event_id = Column(String(32), primary_key=True)
+    event_type = Column(String(100), nullable=False, index=True)
+    source_agent = Column(String(64), nullable=False)
+    payload = Column(JSONB, nullable=False)
+    schema_version = Column(String(16), nullable=False, default="1.0")
+    trace_id = Column(String(64), nullable=True)
+    correlation_id = Column(String(64), nullable=True)
+    retry_count = Column(Integer, nullable=False, default=0)
+    status = Column(String(16), nullable=False, default="pending", index=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    published_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class SyncOpenProjectEventOutbox(Base):
+    """Durable outbox for the OpenProject sub-runtime (DDD-014)."""
+
+    __tablename__ = "sync_openproject_event_outbox"
+
+    event_id = Column(String(32), primary_key=True)
+    event_type = Column(String(100), nullable=False, index=True)
+    source_agent = Column(String(64), nullable=False)
+    payload = Column(JSONB, nullable=False)
+    schema_version = Column(String(16), nullable=False, default="1.0")
+    trace_id = Column(String(64), nullable=True)
+    correlation_id = Column(String(64), nullable=True)
+    retry_count = Column(Integer, nullable=False, default=0)
+    status = Column(String(16), nullable=False, default="pending", index=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    published_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class SyncFeishuBitableEventOutbox(Base):
+    """Durable outbox for the Feishu Bitable sub-runtime (DDD-014)."""
+
+    __tablename__ = "sync_feishu_bitable_event_outbox"
 
     event_id = Column(String(32), primary_key=True)
     event_type = Column(String(100), nullable=False, index=True)
