@@ -9,35 +9,42 @@ from __future__ import annotations
 from typing import Any, Protocol, runtime_checkable
 
 from shared.core.channels import ChannelCard, ChannelMessage
+from shared.core.openproject_records import OpenProjectWorkPackage
 
 
 @runtime_checkable
 class OpenProjectWorkPackagePort(Protocol):
-    """OpenProject work-package operations used by agents and capabilities."""
+    """OpenProject work-package operations used by agents and capabilities.
+
+    Returns / accepts `OpenProjectWorkPackage` TypedDict records so
+    mypy can catch field-name typos at the port boundary (DDD-013 /
+    DDD-022 closure). The records are dicts at runtime — existing
+    `.get(field, default)` / `wp[field]` call sites keep working.
+    """
 
     async def get_work_packages(
         self,
         project_id: int | None = None,
         filters: str | None = None,
         page_size: int = 100,
-    ) -> list[dict[str, Any]]:
+    ) -> list[OpenProjectWorkPackage]:
         """Return work packages visible to the configured integration user."""
 
-    async def get_work_package(self, wp_id: int) -> dict[str, Any]:
+    async def get_work_package(self, wp_id: int) -> OpenProjectWorkPackage:
         """Return one work package by OpenProject ID."""
 
     async def update_work_package(
         self,
         wp_id: int,
         data: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> OpenProjectWorkPackage:
         """Update one work package and return the updated representation."""
 
     async def create_work_package(
         self,
         project_id: int,
         data: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> OpenProjectWorkPackage:
         """Create a work package inside an OpenProject project."""
 
     async def close(self) -> None:

@@ -11,6 +11,12 @@ from .integration_ports import (
     GitLabMergeRequestPort,
     OpenProjectWorkPackagePort,
 )
+from .openproject_records import (
+    OpenProjectDescription,
+    OpenProjectLinkRef,
+    OpenProjectLinks,
+    OpenProjectWorkPackage,
+)
 from .request_result import (
     UNKNOWN_ACTION_ERROR_CODE,
     request_error,
@@ -25,6 +31,10 @@ __all__ = [
     "FeishuWebhookPort",
     "GitLabMergeRequestPort",
     "GitLabMergeRequestNotePort",
+    "OpenProjectDescription",
+    "OpenProjectLinkRef",
+    "OpenProjectLinks",
+    "OpenProjectWorkPackage",
     "OpenProjectWorkPackagePort",
     "IDPrefix",
     "generate_id",
