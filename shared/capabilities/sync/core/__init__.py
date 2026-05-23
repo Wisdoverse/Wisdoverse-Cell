@@ -1,6 +1,6 @@
 """Sync capability core boundaries."""
 from .engine import SyncEngine
-from .feishu_bitable_sync import FeishuBitableSyncEngine
+from .feishu_bitable import FeishuBitableSyncEngine
 from .mapper import DataMapper
 from .mapping_queries import SyncMappingQueryService, SyncMappingView
 from .openproject import OpenProjectSyncEngine
