@@ -4,7 +4,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.core.identifiers import ApprovalRequestId
+from shared.core.identifiers import ApprovalRequestId, CompanyId
 
 from .approval_ports import ControlPlaneApprovalStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
@@ -45,7 +45,7 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
     async def list_approvals(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         status: str | None = None,
         run_id: str | None = None,
         trace_id: str | None = None,

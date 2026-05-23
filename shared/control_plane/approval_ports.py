@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from shared.core.identifiers import ApprovalRequestId
+from shared.core.identifiers import ApprovalRequestId, CompanyId
 
 from .models import ApprovalRequest, ApprovalStatus, AuditEvent, EvolutionProposal
 
@@ -11,7 +11,8 @@ from .models import ApprovalRequest, ApprovalStatus, AuditEvent, EvolutionPropos
 class ControlPlaneApprovalStore(Protocol):
     """Persistence operations required by approval-gate use cases.
 
-    `approval_id` parameters use the `ApprovalRequestId` `NewType` from
+    `approval_id` and `company_id` parameters use the
+    `ApprovalRequestId` and `CompanyId` `NewType`s from
     `shared.core.identifiers` (DDD-007 adoption).
     """
 
@@ -27,14 +28,14 @@ class ControlPlaneApprovalStore(Protocol):
     async def list_approvals(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         status: str | None = None,
         run_id: str | None = None,
         trace_id: str | None = None,
         work_item_id: str | None = None,
         limit: int = 50,
     ) -> list[ApprovalRequest]:
-        """Return approval requests for one company."""
+        """Return approval requests scoped to one typed CompanyId."""
 
     async def resolve_approval(
         self,
