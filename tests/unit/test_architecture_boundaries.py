@@ -5852,6 +5852,45 @@ def test_application_facade_depends_on_ports_and_use_cases_only() -> None:
                 )
 
 
+def test_lifecycle_modules_live_in_canonical_domain_path() -> None:
+    """DDD-002 binding rule: `*_lifecycle.py` lives at `core/domain/lifecycle/`.
+
+    Earlier slices of the migration plan (`migration-plan.md` §Stage 1
+    item 2) declared `core/domain/lifecycle/<aggregate>_lifecycle.py`
+    the canonical location for state-transition helpers. This test
+    locks that location for the four business agents so a future
+    refactor cannot put `*_lifecycle.py` back at the `core/` root or
+    bare `core/domain/` level.
+
+    Control Plane is currently exempt: `shared/control_plane/domain/
+    agent_run_lifecycle.py` is the older `AgentRunLifecycle`
+    aggregate (still tested and referenced for `TERMINAL_STATUSES`),
+    duplicated by the newer `shared/control_plane/domain/agent_run.py`
+    aggregate. Consolidation is tracked under DDD-002 follow-up.
+    """
+    business_agents = ("requirement_manager", "pjm_agent", "dev_agent", "qa_agent")
+    for agent in business_agents:
+        core_dir = Path(f"agents/{agent}/core")
+        assert core_dir.exists(), f"missing agent core dir: {core_dir}"
+
+        misplaced_top = sorted(p.as_posix() for p in core_dir.glob("*_lifecycle.py"))
+        assert not misplaced_top, (
+            f"DDD-002: lifecycle module(s) at core/ top level for {agent}: "
+            f"{misplaced_top}. Canonical location is core/domain/lifecycle/."
+        )
+
+        domain_dir = core_dir / "domain"
+        if domain_dir.exists():
+            misplaced_in_domain = sorted(
+                p.as_posix() for p in domain_dir.glob("*_lifecycle.py")
+            )
+            assert not misplaced_in_domain, (
+                f"DDD-002: lifecycle module(s) at core/domain/ for {agent}: "
+                f"{misplaced_in_domain}. Canonical location is "
+                "core/domain/lifecycle/."
+            )
+
+
 def test_business_aggregates_have_unit_tests() -> None:
     """DDD-015 binding rule: every domain aggregate file ships unit tests.
 
