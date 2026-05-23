@@ -6,6 +6,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import CompanyId
+
 from .agent_registry_store import SqlAlchemyControlPlaneAgentRegistryStore
 from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
@@ -28,13 +30,13 @@ class SqlAlchemyControlPlanePromptConfigStore(ControlPlanePromptConfigStore):
     async def create_company(self, company: CompanyContext) -> CompanyContext:
         return await self._companies.create_company(company)
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
     async def get_agent_role(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
     ) -> AgentRole | None:
         return await self._agents.get_agent_role(
@@ -45,7 +47,7 @@ class SqlAlchemyControlPlanePromptConfigStore(ControlPlanePromptConfigStore):
     async def get_agent_prompt_config(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
     ) -> AgentPromptConfig | None:
         row = await self._get_agent_prompt_config_row(
@@ -57,7 +59,7 @@ class SqlAlchemyControlPlanePromptConfigStore(ControlPlanePromptConfigStore):
     async def _get_agent_prompt_config_row(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
     ) -> AgentPromptConfigTable | None:
         result = await self._session.execute(
@@ -71,7 +73,7 @@ class SqlAlchemyControlPlanePromptConfigStore(ControlPlanePromptConfigStore):
     async def upsert_agent_prompt_config(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
         system_prompt: str,
         updated_by: str,

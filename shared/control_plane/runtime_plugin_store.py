@@ -5,6 +5,8 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import CompanyId
+
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from .approval_store import SqlAlchemyControlPlaneApprovalStore
 from .artifact_store import SqlAlchemyControlPlaneArtifactStore
@@ -32,7 +34,7 @@ class SqlAlchemyControlPlaneRuntimePluginStore(ControlPlaneRuntimePluginStore):
         self._artifacts = SqlAlchemyControlPlaneArtifactStore(session)
         self._audits = SqlAlchemyControlPlaneAuditEventStore(session)
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
     async def create_company(self, company: CompanyContext) -> CompanyContext:
@@ -59,7 +61,7 @@ class SqlAlchemyControlPlaneRuntimePluginStore(ControlPlaneRuntimePluginStore):
     async def list_approvals(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         limit: int = 50,
     ) -> list[ApprovalRequest]:
@@ -72,7 +74,7 @@ class SqlAlchemyControlPlaneRuntimePluginStore(ControlPlaneRuntimePluginStore):
     async def list_budget_usage(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         limit: int = 50,
     ) -> list[BudgetUsage]:
@@ -85,7 +87,7 @@ class SqlAlchemyControlPlaneRuntimePluginStore(ControlPlaneRuntimePluginStore):
     async def list_audit_events(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         limit: int = 100,
     ) -> list[AuditEvent]:
@@ -104,7 +106,7 @@ class SqlAlchemyControlPlaneRuntimePluginStore(ControlPlaneRuntimePluginStore):
     async def ensure_core_organization_role_agents(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         company_name: str,
     ) -> list[str]:
         return await ensure_core_organization_role_agents(
@@ -116,7 +118,7 @@ class SqlAlchemyControlPlaneRuntimePluginStore(ControlPlaneRuntimePluginStore):
     async def ensure_core_runtime_agent_roles(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         company_name: str,
     ) -> list[str]:
         return await ensure_core_runtime_agent_roles(

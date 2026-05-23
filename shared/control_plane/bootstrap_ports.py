@@ -3,13 +3,15 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from shared.core.identifiers import CompanyId
+
 from .models import AgentRole, AuditEvent, CompanyContext
 
 
 class ControlPlaneRoleBootstrapStore(Protocol):
     """Persistence operations required by role bootstrap use cases."""
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         """Return a company context if it exists."""
 
     async def create_company_if_absent(
@@ -20,7 +22,7 @@ class ControlPlaneRoleBootstrapStore(Protocol):
     async def get_agent_role(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
     ) -> AgentRole | None:
         """Return one agent role if it exists."""

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from shared.core.identifiers import CompanyId
+
 from .models import AgentRun, BudgetPeriod, BudgetPolicy, BudgetScope, BudgetUsage
 
 
@@ -12,7 +14,7 @@ class ControlPlaneBudgetGuardStore(Protocol):
     async def get_active_budget_policy(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         scope: BudgetScope | str,
         period: BudgetPeriod | str,
         scope_id: str | None = None,

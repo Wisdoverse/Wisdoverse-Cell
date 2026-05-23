@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from shared.core.identifiers import CompanyId
+
 from .models import ApprovalRequest, Artifact, AuditEvent, BudgetUsage
 
 
@@ -12,7 +14,7 @@ class ControlPlaneRunEvidenceStore(Protocol):
     async def list_approvals(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         limit: int = 50,
     ) -> list[ApprovalRequest]:
@@ -21,7 +23,7 @@ class ControlPlaneRunEvidenceStore(Protocol):
     async def list_budget_usage(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         limit: int = 50,
     ) -> list[BudgetUsage]:
@@ -30,7 +32,7 @@ class ControlPlaneRunEvidenceStore(Protocol):
     async def list_audit_events(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         limit: int = 100,
     ) -> list[AuditEvent]:
