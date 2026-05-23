@@ -573,8 +573,9 @@ everywhere at once.
 ### 5.1 Inconsistent `core/domain/` Adoption
 
 Four of twelve contexts have a `core/domain/` subdirectory
-(`requirement_manager`, `pjm_agent`, `qa_agent`, `dev_agent`). Control
-Plane has both `domain/` and a top-level `agent_run_lifecycle.py`. The
+(`requirement_manager`, `pjm_agent`, `qa_agent`, `dev_agent`). The
+Control Plane has a canonical `domain/` package (the legacy top-level
+`agent_run_lifecycle.py` shim was deleted in DDD-001 follow-up). The
 remaining seven contexts have no `core/domain/` at all.
 
 `architecture-principles.md` §1 lists Domain as a layer but does not
@@ -585,17 +586,17 @@ for gateways (7a, 7b).
 
 ### 5.2 Lifecycle Module Location Drift
 
-Three legitimate locations exist today:
+Two legitimate locations exist today:
 - `core/<aggregate>_lifecycle.py` (Dev agent: `task_lifecycle.py`).
-- `core/domain/lifecycle/` (Requirement, PJM, Dev — co-located with
-  aggregate module).
-- `shared/control_plane/agent_run_lifecycle.py` (top-level, not under
-  `domain/`).
+- `core/domain/lifecycle/` (Requirement, PJM, Dev, Control Plane —
+  co-located with the aggregate module).
 
 The intent in `migration-plan.md` §Stage 1 item 2 is `core/domain/lifecycle/`
 for every aggregate. The audit recommends finishing the move in one PR
 per runtime and adding an architecture-boundary test that forbids
-`*_lifecycle.py` outside the canonical path.
+`*_lifecycle.py` outside the canonical path. The top-level shim at
+`shared/control_plane/agent_run_lifecycle.py` was removed in DDD-001
+follow-up.
 
 ### 5.3 QA Domain File Pluralization
 
