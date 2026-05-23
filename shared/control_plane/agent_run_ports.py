@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from shared.core.identifiers import AgentRunId
+from shared.core.identifiers import AgentRunId, CompanyId
 
 from .models import AgentRun
 
@@ -11,8 +11,9 @@ from .models import AgentRun
 class ControlPlaneAgentRunStore(Protocol):
     """Persistence operations required by agent-run query use cases.
 
-    `run_id` parameters use the `AgentRunId` `NewType` from
-    `shared.core.identifiers` (DDD-007 adoption).
+    `run_id` and `company_id` parameters use the `AgentRunId` and
+    `CompanyId` `NewType`s from `shared.core.identifiers` (DDD-007
+    adoption).
     """
 
     async def get_agent_run(self, run_id: AgentRunId) -> AgentRun | None:
@@ -21,7 +22,7 @@ class ControlPlaneAgentRunStore(Protocol):
     async def list_agent_runs(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         status: str | None = None,
         agent_id: str | None = None,
         trace_id: str | None = None,
@@ -29,4 +30,4 @@ class ControlPlaneAgentRunStore(Protocol):
         work_item_id: str | None = None,
         limit: int = 50,
     ) -> list[AgentRun]:
-        """Return agent runs for one company."""
+        """Return agent runs scoped to one typed CompanyId."""

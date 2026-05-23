@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.core.identifiers import AgentRunId
+from shared.core.identifiers import AgentRunId, CompanyId
 
 from .agent_run_ports import ControlPlaneAgentRunStore
 from .domain.agent_run_lifecycle import TERMINAL_STATUSES as AGENT_RUN_TERMINAL_STATUSES
@@ -42,7 +42,7 @@ class SqlAlchemyControlPlaneAgentRunStore(ControlPlaneAgentRunStore):
     async def list_agent_runs(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         status: str | None = None,
         agent_id: str | None = None,
         trace_id: str | None = None,
