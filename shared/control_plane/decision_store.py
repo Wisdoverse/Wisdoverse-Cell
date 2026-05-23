@@ -4,6 +4,8 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import AgentRunId, DecisionId, GoalId, WorkItemId
+
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
 from .decision_ports import ControlPlaneDecisionStore
@@ -31,13 +33,13 @@ class SqlAlchemyControlPlaneDecisionStore(ControlPlaneDecisionStore):
     async def get_company(self, company_id: str) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
-    async def get_agent_run(self, run_id: str) -> AgentRun | None:
+    async def get_agent_run(self, run_id: AgentRunId) -> AgentRun | None:
         return await self._runs.get_agent_run(run_id)
 
-    async def get_goal(self, goal_id: str) -> Goal | None:
+    async def get_goal(self, goal_id: GoalId) -> Goal | None:
         return await self._goals.get_goal(goal_id)
 
-    async def get_work_item(self, work_item_id: str) -> WorkItem | None:
+    async def get_work_item(self, work_item_id: WorkItemId) -> WorkItem | None:
         return await self._work_items.get_work_item(work_item_id)
 
     async def create_decision(self, decision: Decision) -> Decision:
@@ -46,11 +48,11 @@ class SqlAlchemyControlPlaneDecisionStore(ControlPlaneDecisionStore):
         await self._session.flush()
         return decision_record(row)
 
-    async def get_decision(self, decision_id: str) -> Decision | None:
+    async def get_decision(self, decision_id: DecisionId) -> Decision | None:
         row = await self._get_decision_row(decision_id)
         return decision_record(row) if row is not None else None
 
-    async def _get_decision_row(self, decision_id: str) -> DecisionTable | None:
+    async def _get_decision_row(self, decision_id: DecisionId) -> DecisionTable | None:
         result = await self._session.execute(
             select(DecisionTable).where(DecisionTable.decision_id == decision_id)
         )
@@ -85,7 +87,7 @@ class SqlAlchemyControlPlaneDecisionStore(ControlPlaneDecisionStore):
 
     async def update_decision_status(
         self,
-        decision_id: str,
+        decision_id: DecisionId,
         *,
         status: str,
         selected_option: str | None = None,
