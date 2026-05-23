@@ -5,6 +5,7 @@ from typing import Any
 from shared.core import BitableTablePort, OpenProjectWorkPackagePort
 from shared.utils.logger import get_logger
 
+from .domain.sync_operation import SyncOperation, SyncOperationStatus, SyncSide
 from .locking import acquire_sync_lock
 from .mapper import data_mapper
 from .progress import calculate_progress_from_subtasks
@@ -38,8 +39,10 @@ class FeishuBitableSyncEngine:
     async def _do_sync_progress_to_openproject(self) -> dict[str, Any]:
         async with self._sync_store.transaction() as store:
             log = await store.create_log("feishu_to_op", "started")
+            op = SyncOperation(operation_id=str(log.id), side=SyncSide.FEISHU_BITABLE)
+            op.transition_to(SyncOperationStatus.RUNNING)
             processed = 0
-            errors = []
+            errors: list[str] = []
 
             try:
                 all_records = await self._bitable.list_all_records()
@@ -77,11 +80,15 @@ class FeishuBitableSyncEngine:
                         errors.append(str(e))
 
                 await store.complete_log(log.id, processed)
+                op.transition_to(
+                    SyncOperationStatus.SUCCEEDED, processed_delta=processed
+                )
                 return {"status": "success", "processed": processed, "errors": errors}
 
             except Exception as e:
                 logger.error("sync_feishu_to_op_failed", error=str(e))
                 await store.complete_log(log.id, processed, str(e))
+                op.transition_to(SyncOperationStatus.FAILED)
                 return {"status": "failed", "processed": processed, "error": str(e)}
 
     async def _update_parent_progress(
