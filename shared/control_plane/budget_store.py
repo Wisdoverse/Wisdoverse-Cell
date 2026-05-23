@@ -6,6 +6,8 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import BudgetPolicyId
+
 from .budget_ports import ControlPlaneBudgetStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
 from .domain_records import budget_policy_record, budget_usage_record
@@ -40,12 +42,12 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         await self._session.flush()
         return budget_policy_record(row)
 
-    async def get_budget_policy(self, budget_id: str) -> BudgetPolicy | None:
+    async def get_budget_policy(self, budget_id: BudgetPolicyId) -> BudgetPolicy | None:
         row = await self._get_budget_policy_row(budget_id)
         return budget_policy_record(row) if row is not None else None
 
     async def _get_budget_policy_row(
-        self, budget_id: str
+        self, budget_id: BudgetPolicyId
     ) -> BudgetPolicyTable | None:
         result = await self._session.execute(
             select(BudgetPolicyTable).where(BudgetPolicyTable.budget_id == budget_id)
@@ -80,7 +82,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
 
     async def update_budget_policy(
         self,
-        budget_id: str,
+        budget_id: BudgetPolicyId,
         *,
         limit_usd: float | None = None,
         warning_threshold: float | None = None,
@@ -140,7 +142,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         self,
         *,
         company_id: str,
-        budget_id: str | None = None,
+        budget_id: BudgetPolicyId | None = None,
         run_id: str | None = None,
         trace_id: str | None = None,
         limit: int = 50,
@@ -157,7 +159,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         )
         return [budget_usage_record(row) for row in result.scalars().all()]
 
-    async def get_budget_usage_total(self, budget_id: str) -> float:
+    async def get_budget_usage_total(self, budget_id: BudgetPolicyId) -> float:
         result = await self._session.execute(
             select(func.coalesce(func.sum(BudgetUsageTable.cost_usd), 0.0)).where(
                 BudgetUsageTable.budget_id == budget_id

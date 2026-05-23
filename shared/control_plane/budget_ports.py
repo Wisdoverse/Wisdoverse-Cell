@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from shared.core.identifiers import BudgetPolicyId
+
 from .models import (
     AuditEvent,
     BudgetPeriod,
@@ -14,7 +16,11 @@ from .models import (
 
 
 class ControlPlaneBudgetStore(Protocol):
-    """Persistence operations required by budget use cases."""
+    """Persistence operations required by budget use cases.
+
+    `budget_id` parameters use the `BudgetPolicyId` `NewType` from
+    `shared.core.identifiers` (DDD-007 adoption).
+    """
 
     async def create_company(self, company: CompanyContext) -> CompanyContext:
         """Create a control-plane company context."""
@@ -25,8 +31,8 @@ class ControlPlaneBudgetStore(Protocol):
     async def create_budget_policy(self, budget: BudgetPolicy) -> BudgetPolicy:
         """Create a budget policy."""
 
-    async def get_budget_policy(self, budget_id: str) -> BudgetPolicy | None:
-        """Return one budget policy."""
+    async def get_budget_policy(self, budget_id: BudgetPolicyId) -> BudgetPolicy | None:
+        """Return one budget policy by typed identifier."""
 
     async def list_budget_policies(
         self,
@@ -42,7 +48,7 @@ class ControlPlaneBudgetStore(Protocol):
 
     async def update_budget_policy(
         self,
-        budget_id: str,
+        budget_id: BudgetPolicyId,
         *,
         limit_usd: float | None = None,
         warning_threshold: float | None = None,
@@ -50,7 +56,7 @@ class ControlPlaneBudgetStore(Protocol):
         model_allowlist: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> BudgetPolicy | None:
-        """Update one budget policy."""
+        """Update one budget policy by typed identifier."""
 
     async def get_active_budget_policy(
         self,
@@ -66,12 +72,12 @@ class ControlPlaneBudgetStore(Protocol):
         self,
         *,
         company_id: str,
-        budget_id: str | None = None,
+        budget_id: BudgetPolicyId | None = None,
         run_id: str | None = None,
         trace_id: str | None = None,
         limit: int = 50,
     ) -> list[BudgetUsage]:
-        """Return budget usage rows."""
+        """Return budget usage rows; optionally scoped to a typed BudgetPolicyId."""
 
     async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         """Append a control-plane audit event."""
