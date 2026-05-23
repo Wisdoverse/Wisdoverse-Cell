@@ -5928,10 +5928,14 @@ def test_business_aggregates_have_unit_tests() -> None:
             "agents/qa_agent/core/domain/acceptance_verdict.py",
             "agents/qa_agent/tests/unit/test_acceptance_verdict.py",
         ),
-        # Control Plane aggregate (DDD-001).
+        # Control Plane aggregates (DDD-001 + DDD-005).
         (
             "shared/control_plane/domain/agent_run.py",
             "shared/control_plane/tests/test_agent_run_aggregate.py",
+        ),
+        (
+            "shared/control_plane/domain/evolution_proposal.py",
+            "shared/control_plane/tests/test_evolution_proposal_aggregate.py",
         ),
         # Capability aggregates (DDD-003 + DDD-004).
         (
