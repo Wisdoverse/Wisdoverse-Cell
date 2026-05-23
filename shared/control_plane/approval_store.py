@@ -4,6 +4,8 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import ApprovalRequestId
+
 from .approval_ports import ControlPlaneApprovalStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
 from .domain_records import approval_request_record, evolution_proposal_record
@@ -28,11 +30,11 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
         await self._session.flush()
         return approval_request_record(row)
 
-    async def get_approval(self, approval_id: str) -> ApprovalRequest | None:
+    async def get_approval(self, approval_id: ApprovalRequestId) -> ApprovalRequest | None:
         row = await self._get_approval_row(approval_id)
         return approval_request_record(row) if row is not None else None
 
-    async def _get_approval_row(self, approval_id: str) -> ApprovalRequestTable | None:
+    async def _get_approval_row(self, approval_id: ApprovalRequestId) -> ApprovalRequestTable | None:
         result = await self._session.execute(
             select(ApprovalRequestTable).where(
                 ApprovalRequestTable.approval_id == approval_id
@@ -68,7 +70,7 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
 
     async def resolve_approval(
         self,
-        approval_id: str,
+        approval_id: ApprovalRequestId,
         *,
         status: ApprovalStatus | str,
         resolved_by: str,
@@ -87,7 +89,7 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
 
     async def update_evolution_proposal_approval_state_by_approval(
         self,
-        approval_id: str,
+        approval_id: ApprovalRequestId,
         *,
         approval_state: str,
         rollout_state: str | None = None,
