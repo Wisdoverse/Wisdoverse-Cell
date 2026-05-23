@@ -5862,11 +5862,11 @@ def test_lifecycle_modules_live_in_canonical_domain_path() -> None:
     refactor cannot put `*_lifecycle.py` back at the `core/` root or
     bare `core/domain/` level.
 
-    Control Plane is currently exempt: `shared/control_plane/domain/
-    agent_run_lifecycle.py` is the older `AgentRunLifecycle`
-    aggregate (still tested and referenced for `TERMINAL_STATUSES`),
-    duplicated by the newer `shared/control_plane/domain/agent_run.py`
-    aggregate. Consolidation is tracked under DDD-002 follow-up.
+    Control Plane is covered too: the older `AgentRunLifecycle`
+    aggregate at `shared/control_plane/domain/agent_run_lifecycle.py`
+    was consolidated into `shared/control_plane/domain/agent_run.py`
+    (the only AgentRun aggregate); `TERMINAL_STATUSES` was promoted
+    to the canonical aggregate file.
     """
     business_agents = ("requirement_manager", "pjm_agent", "dev_agent", "qa_agent")
     for agent in business_agents:
@@ -5889,6 +5889,16 @@ def test_lifecycle_modules_live_in_canonical_domain_path() -> None:
                 f"{misplaced_in_domain}. Canonical location is "
                 "core/domain/lifecycle/."
             )
+
+    control_plane_domain = Path("shared/control_plane/domain")
+    misplaced_control_plane = sorted(
+        p.as_posix() for p in control_plane_domain.glob("*_lifecycle.py")
+    )
+    assert not misplaced_control_plane, (
+        "DDD-002: lifecycle module(s) at shared/control_plane/domain/: "
+        f"{misplaced_control_plane}. Canonical location is "
+        "shared/control_plane/domain/lifecycle/."
+    )
 
 
 def test_business_aggregates_have_unit_tests() -> None:

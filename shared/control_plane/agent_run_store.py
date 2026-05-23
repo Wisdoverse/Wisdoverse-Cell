@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared.core.identifiers import AgentRunId, CompanyId
 
 from .agent_run_ports import ControlPlaneAgentRunStore
-from .domain.agent_run_lifecycle import TERMINAL_STATUSES as AGENT_RUN_TERMINAL_STATUSES
+from .domain.agent_run import TERMINAL_STATUSES as AGENT_RUN_TERMINAL_STATUSES
 from .domain_records import agent_run_record
 from .models import AgentRun, AgentRunStatus
 from .store_utils import model_values, now_utc

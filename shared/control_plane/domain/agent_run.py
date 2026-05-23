@@ -59,6 +59,11 @@ VALID_TRANSITIONS: dict[AgentRunStatus, frozenset[AgentRunStatus]] = {
 }
 
 
+TERMINAL_STATUSES: frozenset[AgentRunStatus] = frozenset(
+    status for status, allowed in VALID_TRANSITIONS.items() if not allowed
+)
+
+
 @dataclass(frozen=True, slots=True)
 class AgentRunStatusChanged:
     """In-memory domain event raised by AgentRun.transition_to()."""

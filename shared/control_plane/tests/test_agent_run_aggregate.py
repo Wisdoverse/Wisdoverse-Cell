@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import pytest
 
+from dataclasses import FrozenInstanceError
+
 from shared.control_plane.domain.agent_run import (
     AgentRun,
     AgentRunStatusChanged,
     InvalidAgentRunTransitionError,
+    TERMINAL_STATUSES,
     VALID_TRANSITIONS,
 )
 from shared.control_plane.models import AgentRun as AgentRunRecord
@@ -74,3 +77,52 @@ def test_pull_events_clears_the_buffer() -> None:
 def test_valid_transitions_table_covers_every_status() -> None:
     for status in AgentRunStatus:
         assert status in VALID_TRANSITIONS, f"missing FSM row for {status}"
+
+
+def test_pending_can_transition_to_cancelled() -> None:
+    aggregate = AgentRun.from_record(_make_record())
+    aggregate.transition_to(AgentRunStatus.CANCELLED)
+    assert aggregate.status == AgentRunStatus.CANCELLED
+
+
+def test_pending_can_transition_to_failed() -> None:
+    aggregate = AgentRun.from_record(_make_record())
+    aggregate.transition_to(AgentRunStatus.FAILED)
+    assert aggregate.status == AgentRunStatus.FAILED
+
+
+def test_running_can_transition_to_failed() -> None:
+    aggregate = AgentRun.from_record(_make_record(AgentRunStatus.RUNNING))
+    aggregate.transition_to(AgentRunStatus.FAILED)
+    assert aggregate.status == AgentRunStatus.FAILED
+
+
+def test_running_can_transition_to_cancelled() -> None:
+    aggregate = AgentRun.from_record(_make_record(AgentRunStatus.RUNNING))
+    aggregate.transition_to(AgentRunStatus.CANCELLED)
+    assert aggregate.status == AgentRunStatus.CANCELLED
+
+
+def test_running_can_transition_to_timed_out() -> None:
+    aggregate = AgentRun.from_record(_make_record(AgentRunStatus.RUNNING))
+    aggregate.transition_to(AgentRunStatus.TIMED_OUT)
+    assert aggregate.status == AgentRunStatus.TIMED_OUT
+
+
+def test_terminal_statuses_set_matches_empty_transition_rows() -> None:
+    derived = {
+        status for status, allowed in VALID_TRANSITIONS.items() if not allowed
+    }
+    assert TERMINAL_STATUSES == derived
+
+
+def test_status_changed_event_is_frozen_value_object() -> None:
+    event = AgentRunStatusChanged(
+        run_id="r-1",
+        agent_id="dev-agent",
+        company_id="cmp_test",
+        from_status=AgentRunStatus.PENDING,
+        to_status=AgentRunStatus.RUNNING,
+    )
+    with pytest.raises(FrozenInstanceError):
+        event.to_status = AgentRunStatus.SUCCEEDED  # type: ignore[misc]
