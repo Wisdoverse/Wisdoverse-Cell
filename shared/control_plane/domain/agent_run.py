@@ -15,14 +15,17 @@ free-function helpers; use-case migration to consume the aggregate
 follows in dedicated per-use-case PRs so each migration stays
 reviewable per ``architecture-principles.md`` §3 ("no mass file moves").
 
-Once every use case that mutates AgentRun consumes this aggregate:
-- the free functions in
-  ``shared/control_plane/domain/lifecycle/agent_run_lifecycle.py`` are
-  reduced to thin adapters or removed entirely,
-- the legacy shim at ``shared/control_plane/agent_run_lifecycle.py``
-  (kept for backward compatibility) is deleted,
+The legacy shim at ``shared/control_plane/agent_run_lifecycle.py``
+has been removed; all callers import directly from
+``shared/control_plane/domain/lifecycle/agent_run_lifecycle.py``.
+The remaining DDD-001 follow-up:
+
 - ``tests/unit/test_architecture_boundaries.py::test_lifecycle_modules_live_in_canonical_domain_path``
   is extended to require this canonical location for the Control Plane.
+- The free helpers in
+  ``shared/control_plane/domain/lifecycle/agent_run_lifecycle.py``
+  are reduced to thin adapters or absorbed into the aggregate once
+  every use case that mutates AgentRun consumes this aggregate.
 """
 
 from __future__ import annotations
