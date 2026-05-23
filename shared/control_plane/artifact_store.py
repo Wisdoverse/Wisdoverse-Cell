@@ -4,6 +4,8 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import AgentRunId, ArtifactId, GoalId, WorkItemId
+
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from .artifact_ports import ControlPlaneArtifactStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
@@ -31,13 +33,13 @@ class SqlAlchemyControlPlaneArtifactStore(ControlPlaneArtifactStore):
     async def get_company(self, company_id: str) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
-    async def get_agent_run(self, run_id: str) -> AgentRun | None:
+    async def get_agent_run(self, run_id: AgentRunId) -> AgentRun | None:
         return await self._runs.get_agent_run(run_id)
 
-    async def get_goal(self, goal_id: str) -> Goal | None:
+    async def get_goal(self, goal_id: GoalId) -> Goal | None:
         return await self._goals.get_goal(goal_id)
 
-    async def get_work_item(self, work_item_id: str) -> WorkItem | None:
+    async def get_work_item(self, work_item_id: WorkItemId) -> WorkItem | None:
         return await self._work_items.get_work_item(work_item_id)
 
     async def create_artifact(self, artifact: Artifact) -> Artifact:
@@ -46,7 +48,7 @@ class SqlAlchemyControlPlaneArtifactStore(ControlPlaneArtifactStore):
         await self._session.flush()
         return artifact_record(row)
 
-    async def get_artifact(self, artifact_id: str) -> Artifact | None:
+    async def get_artifact(self, artifact_id: ArtifactId) -> Artifact | None:
         result = await self._session.execute(
             select(ArtifactTable).where(ArtifactTable.artifact_id == artifact_id)
         )
