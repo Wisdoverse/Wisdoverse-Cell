@@ -144,3 +144,52 @@ async def test_unknown_event_is_ignored() -> None:
     result = await _use_case().handle(event)
 
     assert result == []
+
+
+@pytest.mark.asyncio
+async def test_projection_updater_runs_on_sync_completed() -> None:
+    projection_updater = AsyncMock()
+    projection_updater.refresh_all = AsyncMock(
+        return_value={"work_packages": 5, "subtasks": 3}
+    )
+
+    daily = AsyncMock()
+    daily.generate = AsyncMock(return_value={"content": "x", "summary": "y"})
+    daily.push_to_chat = AsyncMock(return_value=True)
+    use_case = AnalysisEventUseCase(
+        daily=daily,
+        weekly=AsyncMock(),
+        milestone=AsyncMock(check=AsyncMock(return_value=[])),
+        quality=AsyncMock(evaluate_all=AsyncMock(return_value=[])),
+        event_factory=_event_factory(),
+        now_china=lambda: datetime(2026, 5, 18),
+        projection_updater=projection_updater,
+    )
+
+    await use_case.handle(_sync_completed_event())
+
+    projection_updater.refresh_all.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_projection_refresh_failure_does_not_block_report() -> None:
+    projection_updater = AsyncMock()
+    projection_updater.refresh_all = AsyncMock(side_effect=RuntimeError("boom"))
+
+    daily = AsyncMock()
+    daily.generate = AsyncMock(return_value={"content": "x", "summary": "y"})
+    daily.push_to_chat = AsyncMock(return_value=True)
+    use_case = AnalysisEventUseCase(
+        daily=daily,
+        weekly=AsyncMock(),
+        milestone=AsyncMock(check=AsyncMock(return_value=[])),
+        quality=AsyncMock(evaluate_all=AsyncMock(return_value=[])),
+        event_factory=_event_factory(),
+        now_china=lambda: datetime(2026, 5, 18),
+        projection_updater=projection_updater,
+    )
+
+    result = await use_case.handle(_sync_completed_event())
+
+    assert EventTypes.REPORT_DAILY_GENERATED in [event.event_type for event in result]
+    projection_updater.refresh_all.assert_awaited_once()

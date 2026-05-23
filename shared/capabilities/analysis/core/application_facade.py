@@ -34,6 +34,7 @@ class AnalysisApplicationFacade:
         event_bus: Any,
         outbox_store_provider: Callable[[], AnalysisEventOutboxStore],
         event_publisher: Any,
+        projection_updater_provider: ComponentProvider | None = None,
     ) -> None:
         self._standard_request_handler = standard_request_handler
         self._daily_provider = daily_provider
@@ -46,11 +47,17 @@ class AnalysisApplicationFacade:
         self._event_bus = event_bus
         self._outbox_store_provider = outbox_store_provider
         self._event_publisher = event_publisher
+        self._projection_updater_provider = projection_updater_provider
 
     async def handle_event(self, event: Event) -> list[Event]:
         return await self._event_use_case().handle(event)
 
     def _event_use_case(self) -> AnalysisEventUseCase:
+        projection_updater = (
+            self._projection_updater_provider()
+            if self._projection_updater_provider is not None
+            else None
+        )
         return AnalysisEventUseCase(
             daily=self._daily_provider(),
             weekly=self._weekly_provider(),
@@ -58,6 +65,7 @@ class AnalysisApplicationFacade:
             quality=self._quality_provider(),
             event_factory=self._event_factory,
             metrics=self._metrics,
+            projection_updater=projection_updater,
         )
 
     async def handle_request(self, request: dict[str, Any]) -> dict[str, Any]:

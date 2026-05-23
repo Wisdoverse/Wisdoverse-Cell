@@ -19,11 +19,13 @@ from ..core.daily_report import DailyReportGenerator
 from ..core.health_ports import AnalysisHealthStore
 from ..core.milestone_checker import MilestoneChecker
 from ..core.outbox_ports import AnalysisEventOutboxStore
+from ..core.projection_updater import ProjectionUpdater
 from ..core.quality_evaluator import QualityEvaluator
 from ..core.weekly_report import WeeklyReportGenerator
 from ..db.database import DatabaseManager, db_manager
 from ..db.health_store import SqlAlchemyAnalysisHealthStore
 from ..db.outbox_store import SqlAlchemyAnalysisEventOutboxStore
+from ..db.projection_store import SqlAlchemyWorkPackageProjectionStore
 
 try:
     from ..app.metrics import REPORTS_GENERATED, RISKS_DETECTED
@@ -77,6 +79,7 @@ class AnalysisModule(BaseAgent):
         self._weekly: WeeklyReportGenerator | None = None
         self._milestone: MilestoneChecker | None = None
         self._quality: QualityEvaluator | None = None
+        self._projection_updater: ProjectionUpdater | None = None
         self._application = AnalysisApplicationFacade(
             standard_request_handler=self.handle_standard_request,
             daily_provider=lambda: self._daily,
@@ -89,6 +92,7 @@ class AnalysisModule(BaseAgent):
             event_bus=self._event_bus,
             outbox_store_provider=lambda: self._outbox_store,
             event_publisher=self._event_publisher,
+            projection_updater_provider=lambda: self._projection_updater,
         )
 
     async def startup(self):
@@ -130,6 +134,13 @@ class AnalysisModule(BaseAgent):
             bitable_service,
             llm_gateway=llm_gateway,
             config=core_config,
+        )
+        self._projection_updater = ProjectionUpdater(
+            op_client=op_client,
+            bitable=bitable_service,
+            writer=SqlAlchemyWorkPackageProjectionStore(self._db_manager),
+            bitable_app_token=core_config.feishu_pm_app_token,
+            bitable_table_id=core_config.feishu_pm_task_table_id,
         )
 
         # Event loop is managed by AgentRuntime.start_event_loop()
