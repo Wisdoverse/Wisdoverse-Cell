@@ -1,7 +1,7 @@
 """
 Unit Tests - DailyReportGenerator
 
-Tests daily report generation with a mocked Bitable port.
+Tests daily report generation with mocked Bitable + projection ports.
 """
 from unittest.mock import AsyncMock
 
@@ -18,10 +18,10 @@ def mock_bitable():
 
 
 @pytest.fixture
-def mock_op():
-    op = AsyncMock()
-    op.get_work_packages = AsyncMock(return_value=[])
-    return op
+def mock_projection():
+    projection = AsyncMock()
+    projection.list_work_packages = AsyncMock(return_value=[])
+    return projection
 
 
 @pytest.fixture
@@ -32,13 +32,13 @@ def mock_messenger():
 
 
 @pytest.fixture
-def generator(mock_bitable, mock_messenger, mock_op):
+def generator(mock_bitable, mock_messenger, mock_projection):
     from shared.capabilities.analysis.core.daily_report import DailyReportGenerator
 
     return DailyReportGenerator(
         bitable=mock_bitable,
         messenger=mock_messenger,
-        op_client=mock_op,
+        projection_port=mock_projection,
         config=AnalysisCoreConfig.from_values(
             feishu_report_chat_id="chat_123",
             feishu_pm_app_token="token",
@@ -98,14 +98,14 @@ async def test_generate_report_contains_blocked_details(generator, mock_bitable)
 
 
 @pytest.mark.asyncio
-async def test_generate_no_config(mock_bitable, mock_messenger, mock_op):
+async def test_generate_no_config(mock_bitable, mock_messenger, mock_projection):
     """Missing app token should return empty data."""
     from shared.capabilities.analysis.core.daily_report import DailyReportGenerator
 
     generator = DailyReportGenerator(
         bitable=mock_bitable,
         messenger=mock_messenger,
-        op_client=mock_op,
+        projection_port=mock_projection,
     )
     result = await generator.generate()
 
@@ -123,14 +123,14 @@ async def test_push_to_chat_success(generator, mock_messenger):
 
 
 @pytest.mark.asyncio
-async def test_push_to_chat_no_chat_id(mock_bitable, mock_messenger, mock_op):
+async def test_push_to_chat_no_chat_id(mock_bitable, mock_messenger, mock_projection):
     """Missing chat ID should make push return False."""
     from shared.capabilities.analysis.core.daily_report import DailyReportGenerator
 
     generator = DailyReportGenerator(
         bitable=mock_bitable,
         messenger=mock_messenger,
-        op_client=mock_op,
+        projection_port=mock_projection,
     )
     result = await generator.push_to_chat("内容")
 
@@ -147,9 +147,15 @@ async def test_push_to_chat_error(generator, mock_messenger):
     assert result is False
 
 
-def test_compute_stats(generator):
-    """_compute_stats should count each status correctly."""
-    tasks = [
+def test_compute_stats_with_typed_projection(generator):
+    """_compute_stats should count Feishu + projected OP rows correctly."""
+    from datetime import UTC, datetime
+
+    from shared.capabilities.analysis.core.domain.projection import (
+        WorkPackageProjection,
+    )
+
+    feishu_tasks = [
         {"状态": "已完成(Done)"},
         {"状态": "已完成(Done)"},
         {"状态": "进行中(In Progress)"},
@@ -157,8 +163,38 @@ def test_compute_stats(generator):
         {"状态": "未开始"},
         {"状态": "未开始"},
     ]
-    stats = generator._compute_stats(tasks, [])
-    assert stats["total"] == 6
+    op_tasks = [
+        WorkPackageProjection(
+            wp_id=1,
+            project_id=1,
+            subject="WP done",
+            type_name="Task",
+            status_name="closed",
+            percentage_done=100,
+            assigned_to=None,
+            parent_id=None,
+            due_date=None,
+            updated_at=datetime.now(UTC),
+            extra={},
+        ),
+        WorkPackageProjection(
+            wp_id=2,
+            project_id=1,
+            subject="WP active",
+            type_name="Task",
+            status_name="In progress",
+            percentage_done=50,
+            assigned_to=None,
+            parent_id=None,
+            due_date=None,
+            updated_at=datetime.now(UTC),
+            extra={},
+        ),
+    ]
+
+    stats = generator._compute_stats(feishu_tasks, op_tasks)
+    assert stats["total"] == 8
     assert stats["feishu"]["completed"] == 2
     assert stats["feishu"]["in_progress"] == 1
     assert stats["feishu"]["blocked"] == 1
+    assert stats["op"] == {"total": 2, "completed": 1, "in_progress": 1}

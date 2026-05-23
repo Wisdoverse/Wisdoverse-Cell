@@ -1,16 +1,18 @@
-"""Weekly report generator from OpenProject and Feishu task data."""
+"""Weekly report generator from the Analysis projection and Feishu task data."""
 import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from shared.core import BitableTablePort, FeishuMessengerPort, OpenProjectWorkPackagePort
+from shared.core import BitableTablePort, FeishuMessengerPort
 from shared.utils.logger import get_logger
 
 from .config import AnalysisCoreConfig
+from .domain.projection import WorkPackageProjection, WorkPackageProjectionPort
 
 logger = get_logger("analysis_module.weekly_report")
 
 _CHINA_TZ = ZoneInfo("Asia/Shanghai")
+_COMPLETED_STATUSES = {"closed", "done", "resolved", "completed"}
 
 
 class WeeklyReportGenerator:
@@ -18,12 +20,12 @@ class WeeklyReportGenerator:
         self,
         bitable: BitableTablePort,
         messenger: FeishuMessengerPort,
-        op_client: OpenProjectWorkPackagePort,
+        projection_port: WorkPackageProjectionPort,
         config: AnalysisCoreConfig | None = None,
     ):
         self._bitable = bitable
         self._messenger = messenger
-        self._op = op_client
+        self._projection_port = projection_port
         self._config = config or AnalysisCoreConfig()
 
     async def generate(self) -> dict:
@@ -66,19 +68,25 @@ class WeeklyReportGenerator:
         records = await self._bitable.list_all_records(app_token=app_token, table_id=table_id)
         return [r.get("fields", {}) for r in records]
 
-    async def _fetch_op_tasks(self) -> list[dict]:
+    async def _fetch_op_tasks(self) -> list[WorkPackageProjection]:
         if not self._config.decompose_project_ids:
             return []
-        wps = []
+        wps: list[WorkPackageProjection] = []
         for pid in self._config.decompose_project_ids:
             try:
-                items = await self._op.get_work_packages(project_id=int(pid))
+                items = await self._projection_port.list_work_packages(
+                    project_id=int(pid)
+                )
                 wps.extend(items)
             except Exception as e:
                 logger.error("fetch_op_tasks_failed", project_id=pid, error=str(e))
         return wps
 
-    def _format_report(self, feishu_tasks: list[dict], op_tasks: list[dict]) -> str:
+    def _format_report(
+        self,
+        feishu_tasks: list[dict],
+        op_tasks: list[WorkPackageProjection],
+    ) -> str:
         now = datetime.now(_CHINA_TZ).strftime("%Y-%m-%d")
 
         # Feishu task categories
@@ -86,16 +94,12 @@ class WeeklyReportGenerator:
         fs_in_progress = [t for t in feishu_tasks if "进行中" in t.get("状态", "")]
         fs_blocked = [t for t in feishu_tasks if "阻塞" in t.get("状态", "")]
 
-        # OpenProject task categories
+        # OpenProject task categories — typed projection access
         op_completed = [
-            t for t in op_tasks
-            if t.get("_links", {}).get("status", {})
-            .get("title", "").lower() in {"closed", "done", "resolved"}
+            wp for wp in op_tasks if wp.status_name.lower() in _COMPLETED_STATUSES
         ]
         op_in_progress = [
-            t for t in op_tasks
-            if "progress" in t.get("_links", {})
-            .get("status", {}).get("title", "").lower()
+            wp for wp in op_tasks if "progress" in wp.status_name.lower()
         ]
 
         lines = [
@@ -113,8 +117,8 @@ class WeeklyReportGenerator:
 
         if op_completed:
             lines.append("\n✅ OP 本周完成：")
-            for t in op_completed[:10]:
-                lines.append(f"  • {t.get('subject', '未命名')}")
+            for wp in op_completed[:10]:
+                lines.append(f"  • {wp.subject or '未命名'}")
 
         if fs_blocked:
             lines.append("\n🚫 阻塞中（飞书）：")

@@ -1,7 +1,7 @@
 """
 Unit Tests - WeeklyReportGenerator
 
-Tests weekly report generation with a mocked Bitable port.
+Tests weekly report generation with mocked Bitable + projection ports.
 """
 from unittest.mock import AsyncMock
 
@@ -18,10 +18,10 @@ def mock_bitable():
 
 
 @pytest.fixture
-def mock_op():
-    op = AsyncMock()
-    op.get_work_packages = AsyncMock(return_value=[])
-    return op
+def mock_projection():
+    projection = AsyncMock()
+    projection.list_work_packages = AsyncMock(return_value=[])
+    return projection
 
 
 @pytest.fixture
@@ -32,13 +32,13 @@ def mock_messenger():
 
 
 @pytest.fixture
-def generator(mock_bitable, mock_messenger, mock_op):
+def generator(mock_bitable, mock_messenger, mock_projection):
     from shared.capabilities.analysis.core.weekly_report import WeeklyReportGenerator
 
     return WeeklyReportGenerator(
         bitable=mock_bitable,
         messenger=mock_messenger,
-        op_client=mock_op,
+        projection_port=mock_projection,
         config=AnalysisCoreConfig.from_values(
             feishu_report_chat_id="chat_123",
             feishu_pm_app_token="token",
@@ -96,6 +96,37 @@ async def test_format_report_categorizes(generator):
 
 
 @pytest.mark.asyncio
+async def test_format_report_includes_projected_op_completed(generator):
+    """OP completion section should list projected work-package subjects."""
+    from datetime import UTC, datetime
+
+    from shared.capabilities.analysis.core.domain.projection import (
+        WorkPackageProjection,
+    )
+
+    op_tasks = [
+        WorkPackageProjection(
+            wp_id=42,
+            project_id=1,
+            subject="项目完成里程碑",
+            type_name="Milestone",
+            status_name="closed",
+            percentage_done=100,
+            assigned_to=None,
+            parent_id=None,
+            due_date=None,
+            updated_at=datetime.now(UTC),
+            extra={},
+        ),
+    ]
+
+    content = generator._format_report([], op_tasks)
+
+    assert "OP 本周完成" in content
+    assert "项目完成里程碑" in content
+
+
+@pytest.mark.asyncio
 async def test_push_to_chat_success(generator, mock_messenger):
     """Weekly report push should succeed with configured chat ID."""
     result = await generator.push_to_chat("测试周报内容")
@@ -105,14 +136,14 @@ async def test_push_to_chat_success(generator, mock_messenger):
 
 
 @pytest.mark.asyncio
-async def test_push_to_chat_no_chat_id(mock_bitable, mock_messenger, mock_op):
+async def test_push_to_chat_no_chat_id(mock_bitable, mock_messenger, mock_projection):
     """Missing chat ID should make push return False."""
     from shared.capabilities.analysis.core.weekly_report import WeeklyReportGenerator
 
     generator = WeeklyReportGenerator(
         bitable=mock_bitable,
         messenger=mock_messenger,
-        op_client=mock_op,
+        projection_port=mock_projection,
     )
     result = await generator.push_to_chat("内容")
 
