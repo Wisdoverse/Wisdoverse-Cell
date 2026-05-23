@@ -50,7 +50,7 @@ def test_in_memory_adapter_satisfies_port_protocol() -> None:
 @pytest.mark.asyncio
 async def test_upsert_then_list_returns_latest_snapshot() -> None:
     store = InMemoryWorkPackageProjectionStore()
-    store.upsert_work_package(_wp(42))
+    await store.upsert_work_package(_wp(42))
     listed = await store.list_work_packages()
     assert len(listed) == 1
     assert listed[0].wp_id == 42
@@ -60,8 +60,8 @@ async def test_upsert_then_list_returns_latest_snapshot() -> None:
 async def test_upsert_overwrites_prior_snapshot() -> None:
     """append/replace semantics per data-ownership.md §1.8."""
     store = InMemoryWorkPackageProjectionStore()
-    store.upsert_work_package(_wp(42, when=datetime(2026, 5, 22, tzinfo=UTC)))
-    store.upsert_work_package(
+    await store.upsert_work_package(_wp(42, when=datetime(2026, 5, 22, tzinfo=UTC)))
+    await store.upsert_work_package(
         WorkPackageProjection(
             wp_id=42,
             project_id=1,
@@ -85,8 +85,8 @@ async def test_upsert_overwrites_prior_snapshot() -> None:
 @pytest.mark.asyncio
 async def test_filter_by_project_id() -> None:
     store = InMemoryWorkPackageProjectionStore()
-    store.upsert_work_package(_wp(1, project_id=10))
-    store.upsert_work_package(_wp(2, project_id=20))
+    await store.upsert_work_package(_wp(1, project_id=10))
+    await store.upsert_work_package(_wp(2, project_id=20))
     rows_10 = await store.list_work_packages(project_id=10)
     assert {r.wp_id for r in rows_10} == {1}
 
@@ -94,8 +94,8 @@ async def test_filter_by_project_id() -> None:
 @pytest.mark.asyncio
 async def test_filter_by_updated_since() -> None:
     store = InMemoryWorkPackageProjectionStore()
-    store.upsert_work_package(_wp(1, when=datetime(2026, 5, 20, tzinfo=UTC)))
-    store.upsert_work_package(_wp(2, when=datetime(2026, 5, 22, tzinfo=UTC)))
+    await store.upsert_work_package(_wp(1, when=datetime(2026, 5, 20, tzinfo=UTC)))
+    await store.upsert_work_package(_wp(2, when=datetime(2026, 5, 22, tzinfo=UTC)))
     rows = await store.list_work_packages(updated_since=datetime(2026, 5, 21, tzinfo=UTC))
     assert {r.wp_id for r in rows} == {2}
 
@@ -103,7 +103,7 @@ async def test_filter_by_updated_since() -> None:
 @pytest.mark.asyncio
 async def test_subtask_upsert_and_list() -> None:
     store = InMemoryWorkPackageProjectionStore()
-    store.upsert_subtask(_subtask("rec_a", parent_wp_id=42))
-    store.upsert_subtask(_subtask("rec_b", parent_wp_id=99))
+    await store.upsert_subtask(_subtask("rec_a", parent_wp_id=42))
+    await store.upsert_subtask(_subtask("rec_b", parent_wp_id=99))
     rows_42 = await store.list_subtask_progress(parent_wp_id=42)
     assert {r.subtask_record_id for r in rows_42} == {"rec_a"}
