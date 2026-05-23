@@ -6,6 +6,8 @@ from typing import Any
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import CompanyId
+
 from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from .company_ports import ControlPlaneCompanyStore
 from .domain_records import company_record
@@ -27,11 +29,11 @@ class SqlAlchemyControlPlaneCompanyStore(ControlPlaneCompanyStore):
         await self._session.flush()
         return company_record(row)
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         row = await self._get_company_row(company_id)
         return company_record(row) if row is not None else None
 
-    async def _get_company_row(self, company_id: str) -> CompanyContextTable | None:
+    async def _get_company_row(self, company_id: CompanyId) -> CompanyContextTable | None:
         result = await self._session.execute(
             select(CompanyContextTable).where(
                 CompanyContextTable.company_id == company_id
@@ -62,7 +64,7 @@ class SqlAlchemyControlPlaneCompanyStore(ControlPlaneCompanyStore):
 
     async def update_company_context(
         self,
-        company_id: str,
+        company_id: CompanyId,
         *,
         name: str | None = None,
         mission: str | None = None,
