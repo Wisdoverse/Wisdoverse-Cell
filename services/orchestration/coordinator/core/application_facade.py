@@ -13,6 +13,7 @@ from .health_use_cases import CoordinatorHealthUseCase
 from .outbox_delivery_use_cases import CoordinatorOutboxDeliveryUseCase
 from .outbox_ports import CoordinatorEventOutboxStore
 from .state_ports import CoordinatorStateStorePort
+from .unit_of_work_ports import CoordinatorUnitOfWorkFactory
 
 StandardRequestHandler = Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]]
 
@@ -33,6 +34,7 @@ class CoordinatorApplicationFacade:
         outbox_store_provider: Callable[[], CoordinatorEventOutboxStore | None],
         event_bus: Any,
         event_publisher: Any,
+        uow_factory_provider: Callable[[], CoordinatorUnitOfWorkFactory | None] | None = None,
     ) -> None:
         self._standard_request_handler = standard_request_handler
         self._scratchpad_provider = scratchpad_provider
@@ -44,15 +46,22 @@ class CoordinatorApplicationFacade:
         self._outbox_store_provider = outbox_store_provider
         self._event_bus = event_bus
         self._event_publisher = event_publisher
+        self._uow_factory_provider = uow_factory_provider
 
     async def handle_event(self, event: Event) -> list[Event]:
         return await self._event_use_case().handle(event)
 
     def _event_use_case(self) -> CoordinatorEventUseCase:
+        uow_factory = (
+            self._uow_factory_provider()
+            if self._uow_factory_provider is not None
+            else None
+        )
         return CoordinatorEventUseCase(
             scratchpad=self._scratchpad_provider(),
             state_store=self._state_store_provider(),
             thinker=self._thinker_provider(),
+            uow_factory=uow_factory,
         )
 
     async def handle_request(self, request: dict[str, Any]) -> dict[str, Any]:
