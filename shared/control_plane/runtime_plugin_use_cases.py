@@ -6,9 +6,31 @@ from typing import Any
 from shared.control_plane.context import ControlPlaneRunContext
 from shared.schemas.event import Event, EventTypes
 
+from .domain.agent_run import AgentRun as AgentRunAggregate
 from .models import AgentRun, AgentRunStatus, AuditEvent, CompanyContext
 from .run_evidence import create_run_evidence_artifact
 from .runtime_plugin_ports import ControlPlaneRuntimePluginStore
+
+
+async def _gate_agent_run_transition(
+    store: ControlPlaneRuntimePluginStore,
+    run_id: str,
+    target_status: AgentRunStatus,
+) -> None:
+    """Validate an AgentRun transition through the aggregate FSM (DDD-001).
+
+    Loads the current run, constructs the AgentRun aggregate, calls
+    ``transition_to(target_status)``. Raises
+    ``InvalidAgentRunTransitionError`` if the transition is not in
+    ``VALID_TRANSITIONS``; silently returns if no row yet (mid-init).
+    The store write below still executes; the aggregate is the
+    pre-write FSM guard, not the persistence path.
+    """
+    current = await store.get_agent_run(run_id)
+    if current is None:
+        return
+    aggregate = AgentRunAggregate.from_record(current)
+    aggregate.transition_to(target_status)
 
 
 def _lookup_context_value(payload: dict[str, Any], key: str) -> str | None:
@@ -91,6 +113,9 @@ async def complete_event_run(
 ) -> bool:
     """Mark a runtime event run succeeded and create evidence."""
     output_payloads = _events_to_dict(output_events)
+    # Gate through the AgentRun aggregate FSM (DDD-001 follow-up;
+    # mirrors the wakeup-run gate in agent_run_lifecycle.py).
+    await _gate_agent_run_transition(store, run_id, AgentRunStatus.SUCCEEDED)
     run = await store.update_agent_run_status(
         run_id,
         AgentRunStatus.SUCCEEDED,
@@ -161,6 +186,8 @@ async def fail_event_run(
         trace_id=event.metadata.trace_id,
     )
     output_events = [_event_to_dict(failure_event)]
+    # Gate through the AgentRun aggregate FSM (DDD-001 follow-up).
+    await _gate_agent_run_transition(store, run_id, AgentRunStatus.FAILED)
     run = await store.update_agent_run_status(
         run_id,
         AgentRunStatus.FAILED,

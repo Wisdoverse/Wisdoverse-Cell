@@ -41,6 +41,9 @@ class SqlAlchemyControlPlaneRuntimePluginStore(ControlPlaneRuntimePluginStore):
     async def create_agent_run(self, run: AgentRun) -> AgentRun:
         return await self._agent_runs.create_agent_run(run)
 
+    async def get_agent_run(self, run_id: str) -> AgentRun | None:
+        return await self._agent_runs.get_agent_run(run_id)
+
     async def update_agent_run_status(
         self,
         run_id: str,

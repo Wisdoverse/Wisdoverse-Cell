@@ -19,6 +19,9 @@ class ControlPlaneRuntimePluginStore(ControlPlaneRunEvidenceStore, Protocol):
     async def create_agent_run(self, run: AgentRun) -> AgentRun:
         """Create an agent run."""
 
+    async def get_agent_run(self, run_id: str) -> AgentRun | None:
+        """Return one agent run for FSM validation (DDD-001)."""
+
     async def update_agent_run_status(
         self,
         run_id: str,
