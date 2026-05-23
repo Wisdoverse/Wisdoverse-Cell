@@ -3,14 +3,20 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from shared.core.identifiers import AgentRunId
+
 from .models import AgentRun
 
 
 class ControlPlaneAgentRunStore(Protocol):
-    """Persistence operations required by agent-run query use cases."""
+    """Persistence operations required by agent-run query use cases.
 
-    async def get_agent_run(self, run_id: str) -> AgentRun | None:
-        """Return one agent run by id."""
+    `run_id` parameters use the `AgentRunId` `NewType` from
+    `shared.core.identifiers` (DDD-007 adoption).
+    """
+
+    async def get_agent_run(self, run_id: AgentRunId) -> AgentRun | None:
+        """Return one agent run by typed identifier."""
 
     async def list_agent_runs(
         self,

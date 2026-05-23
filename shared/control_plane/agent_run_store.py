@@ -7,6 +7,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import AgentRunId
+
 from .agent_run_ports import ControlPlaneAgentRunStore
 from .domain.agent_run_lifecycle import TERMINAL_STATUSES as AGENT_RUN_TERMINAL_STATUSES
 from .domain_records import agent_run_record
@@ -27,11 +29,11 @@ class SqlAlchemyControlPlaneAgentRunStore(ControlPlaneAgentRunStore):
         await self._session.flush()
         return agent_run_record(row)
 
-    async def get_agent_run(self, run_id: str) -> AgentRun | None:
+    async def get_agent_run(self, run_id: AgentRunId) -> AgentRun | None:
         row = await self._get_agent_run_row(run_id)
         return agent_run_record(row) if row is not None else None
 
-    async def _get_agent_run_row(self, run_id: str) -> AgentRunTable | None:
+    async def _get_agent_run_row(self, run_id: AgentRunId) -> AgentRunTable | None:
         result = await self._session.execute(
             select(AgentRunTable).where(AgentRunTable.run_id == run_id)
         )
@@ -66,7 +68,7 @@ class SqlAlchemyControlPlaneAgentRunStore(ControlPlaneAgentRunStore):
 
     async def update_agent_run_status(
         self,
-        run_id: str,
+        run_id: AgentRunId,
         status: AgentRunStatus | str,
         *,
         error_category: str | None = None,
@@ -103,7 +105,7 @@ class SqlAlchemyControlPlaneAgentRunStore(ControlPlaneAgentRunStore):
 
     async def add_agent_run_usage(
         self,
-        run_id: str,
+        run_id: AgentRunId,
         *,
         cost_usd: float,
         input_tokens: int = 0,
