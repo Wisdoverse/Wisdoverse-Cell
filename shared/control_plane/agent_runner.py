@@ -14,7 +14,7 @@ import httpx
 from shared.config import settings
 from shared.control_plane.adapter_registry import DEFAULT_ADAPTER_REGISTRY
 from shared.control_plane.agent_operation_ports import ControlPlaneAgentOperationStore
-from shared.control_plane.agent_run_lifecycle import (
+from shared.control_plane.domain.lifecycle.agent_run_lifecycle import (
     complete_agent_wakeup_run,
     fail_agent_wakeup_run,
     start_agent_wakeup_run,
