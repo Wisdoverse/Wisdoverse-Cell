@@ -5850,3 +5850,60 @@ def test_application_facade_depends_on_ports_and_use_cases_only() -> None:
                     "facade must not pull from db/adapters/service/app (see "
                     "architecture-principles.md §4.7)"
                 )
+
+
+def test_business_aggregates_have_unit_tests() -> None:
+    """DDD-015 binding rule: every domain aggregate file ships unit tests.
+
+    `architecture-principles.md` §4.8 + `ddd-compliance-audit.md` row
+    DDD-015 require each aggregate-bearing domain module to have a
+    matching test file. This guard locks the existing aggregates +
+    their tests so future aggregate additions cannot land without
+    tests.
+    """
+    expected: list[tuple[str, str]] = [
+        # Business agent aggregates (Stage 1).
+        (
+            "agents/requirement_manager/core/domain/requirement.py",
+            "agents/requirement_manager/tests/unit/test_requirement_aggregate.py",
+        ),
+        (
+            "agents/pjm_agent/core/domain/decomposition.py",
+            "agents/pjm_agent/tests/unit/test_decomposition_aggregate.py",
+        ),
+        (
+            "agents/dev_agent/core/domain/task.py",
+            "agents/dev_agent/tests/unit/test_task_aggregate.py",
+        ),
+        (
+            "agents/qa_agent/core/domain/acceptance_verdict.py",
+            "agents/qa_agent/tests/unit/test_acceptance_verdict.py",
+        ),
+        # Control Plane aggregate (DDD-001).
+        (
+            "shared/control_plane/domain/agent_run.py",
+            "shared/control_plane/tests/test_agent_run_aggregate.py",
+        ),
+        # Capability aggregates (DDD-003 + DDD-004).
+        (
+            "shared/capabilities/sync/core/domain/sync_operation.py",
+            "shared/capabilities/sync/tests/test_sync_operation_aggregate.py",
+        ),
+        (
+            "shared/capabilities/analysis/core/domain/projection.py",
+            "shared/capabilities/analysis/tests/test_projection_seed.py",
+        ),
+    ]
+    for aggregate_path, test_path in expected:
+        assert Path(aggregate_path).exists(), (
+            f"DDD-015: missing aggregate module {aggregate_path}; if you "
+            "moved it, update the expected pair in "
+            "tests/unit/test_architecture_boundaries.py::"
+            "test_business_aggregates_have_unit_tests"
+        )
+        assert Path(test_path).exists(), (
+            f"DDD-015: aggregate {aggregate_path} has no unit-test file at "
+            f"{test_path}. Aggregates must ship with unit tests covering "
+            "state transitions + invariants (see architecture-principles.md "
+            "§4.8 + ddd-compliance-audit.md row DDD-015)."
+        )
