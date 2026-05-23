@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import CompanyId
+
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from .approval_store import SqlAlchemyControlPlaneApprovalStore
 from .artifact_store import SqlAlchemyControlPlaneArtifactStore
@@ -37,7 +39,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
     async def list_agent_runs(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         trace_id: str | None = None,
         work_item_id: str | None = None,
         limit: int = 50,
@@ -52,7 +54,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
     async def list_audit_events(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         trace_id: str | None = None,
         run_id: str | None = None,
         work_item_id: str | None = None,
@@ -73,7 +75,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
     async def list_approvals(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         trace_id: str | None = None,
         work_item_id: str | None = None,
@@ -90,7 +92,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
     async def list_budget_usage(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         trace_id: str | None = None,
         limit: int = 50,
@@ -105,7 +107,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
     async def list_decisions(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         run_ids: list[str] | None = None,
         work_item_id: str | None = None,
@@ -122,7 +124,7 @@ class SqlAlchemyControlPlaneAuditTimelineStore(ControlPlaneAuditTimelineStore):
     async def list_artifacts(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         run_ids: list[str] | None = None,
         work_item_id: str | None = None,

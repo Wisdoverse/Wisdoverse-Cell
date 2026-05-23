@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from shared.core.identifiers import AgentRunId, DecisionId, GoalId, WorkItemId
+from shared.core.identifiers import AgentRunId, CompanyId, DecisionId, GoalId, WorkItemId
 
 from .models import AgentRun, AuditEvent, CompanyContext, Decision, Goal, WorkItem
 
@@ -18,7 +18,7 @@ class ControlPlaneDecisionStore(Protocol):
     async def create_company(self, company: CompanyContext) -> CompanyContext:
         """Create a control-plane company context."""
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         """Return a company context if it exists."""
 
     async def get_agent_run(self, run_id: AgentRunId) -> AgentRun | None:
@@ -39,7 +39,7 @@ class ControlPlaneDecisionStore(Protocol):
     async def list_decisions(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         status: str | None = None,
         run_id: str | None = None,
         goal_id: str | None = None,

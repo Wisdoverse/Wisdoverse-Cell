@@ -4,7 +4,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.core.identifiers import AgentRunId, DecisionId, GoalId, WorkItemId
+from shared.core.identifiers import AgentRunId, CompanyId, DecisionId, GoalId, WorkItemId
 
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
@@ -30,7 +30,7 @@ class SqlAlchemyControlPlaneDecisionStore(ControlPlaneDecisionStore):
     async def create_company(self, company: CompanyContext) -> CompanyContext:
         return await self._companies.create_company(company)
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
     async def get_agent_run(self, run_id: AgentRunId) -> AgentRun | None:
@@ -61,7 +61,7 @@ class SqlAlchemyControlPlaneDecisionStore(ControlPlaneDecisionStore):
     async def list_decisions(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         status: str | None = None,
         run_id: str | None = None,
         run_ids: list[str] | None = None,

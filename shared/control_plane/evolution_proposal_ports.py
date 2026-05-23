@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from shared.core.identifiers import CompanyId
+
 from .models import (
     ApprovalRequest,
     ApprovalStatus,
@@ -18,7 +20,7 @@ class ControlPlaneEvolutionProposalStore(Protocol):
     async def create_company(self, company: CompanyContext) -> CompanyContext:
         """Create a control-plane company context."""
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         """Return a company context if it exists."""
 
     async def request_approval(self, approval: ApprovalRequest) -> ApprovalRequest:
@@ -49,7 +51,7 @@ class ControlPlaneEvolutionProposalStore(Protocol):
     async def list_evolution_proposals(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         tier: str | None = None,
         approval_state: str | None = None,
         rollout_state: str | None = None,

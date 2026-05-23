@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.core.identifiers import BudgetPolicyId
+from shared.core.identifiers import BudgetPolicyId, CompanyId
 
 from .budget_ports import ControlPlaneBudgetStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
@@ -33,7 +33,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
     async def create_company(self, company: CompanyContext) -> CompanyContext:
         return await self._companies.create_company(company)
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
     async def create_budget_policy(self, budget: BudgetPolicy) -> BudgetPolicy:
@@ -57,7 +57,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
     async def list_budget_policies(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         scope: BudgetScope | str | None = None,
         scope_id: str | None = None,
         period: BudgetPeriod | str | None = None,
@@ -110,7 +110,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
     async def get_active_budget_policy(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         scope: BudgetScope | str,
         period: BudgetPeriod | str,
         scope_id: str | None = None,
@@ -141,7 +141,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
     async def list_budget_usage(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         budget_id: BudgetPolicyId | None = None,
         run_id: str | None = None,
         trace_id: str | None = None,

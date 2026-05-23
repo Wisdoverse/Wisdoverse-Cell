@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from shared.core.identifiers import CompanyId
+
 from .models import (
     AgentRun,
     ApprovalRequest,
@@ -22,7 +24,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
     async def list_agent_runs(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         trace_id: str | None = None,
         work_item_id: str | None = None,
         limit: int = 50,
@@ -32,7 +34,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
     async def list_audit_events(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         trace_id: str | None = None,
         run_id: str | None = None,
         work_item_id: str | None = None,
@@ -45,7 +47,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
     async def list_approvals(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         trace_id: str | None = None,
         work_item_id: str | None = None,
@@ -56,7 +58,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
     async def list_budget_usage(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         trace_id: str | None = None,
         limit: int = 50,
@@ -66,7 +68,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
     async def list_decisions(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         run_ids: list[str] | None = None,
         work_item_id: str | None = None,
@@ -77,7 +79,7 @@ class ControlPlaneAuditTimelineStore(Protocol):
     async def list_artifacts(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         run_ids: list[str] | None = None,
         work_item_id: str | None = None,

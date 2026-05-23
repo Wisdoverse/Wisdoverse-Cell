@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from shared.core.identifiers import BudgetPolicyId
+from shared.core.identifiers import BudgetPolicyId, CompanyId
 
 from .models import (
     AuditEvent,
@@ -25,7 +25,7 @@ class ControlPlaneBudgetStore(Protocol):
     async def create_company(self, company: CompanyContext) -> CompanyContext:
         """Create a control-plane company context."""
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         """Return a company context if it exists."""
 
     async def create_budget_policy(self, budget: BudgetPolicy) -> BudgetPolicy:
@@ -37,7 +37,7 @@ class ControlPlaneBudgetStore(Protocol):
     async def list_budget_policies(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         scope: BudgetScope | str | None = None,
         scope_id: str | None = None,
         period: BudgetPeriod | str | None = None,
@@ -61,7 +61,7 @@ class ControlPlaneBudgetStore(Protocol):
     async def get_active_budget_policy(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         scope: BudgetScope | str,
         period: BudgetPeriod | str,
         scope_id: str | None = None,
@@ -71,7 +71,7 @@ class ControlPlaneBudgetStore(Protocol):
     async def list_budget_usage(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         budget_id: BudgetPolicyId | None = None,
         run_id: str | None = None,
         trace_id: str | None = None,

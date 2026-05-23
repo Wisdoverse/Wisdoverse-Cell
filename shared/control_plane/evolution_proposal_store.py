@@ -4,6 +4,8 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import CompanyId
+
 from .approval_store import SqlAlchemyControlPlaneApprovalStore
 from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
@@ -34,7 +36,7 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
     async def create_company(self, company: CompanyContext) -> CompanyContext:
         return await self._companies.create_company(company)
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
     async def request_approval(self, approval: ApprovalRequest) -> ApprovalRequest:
@@ -83,7 +85,7 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
     async def list_evolution_proposals(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         tier: str | None = None,
         approval_state: str | None = None,
         rollout_state: str | None = None,
