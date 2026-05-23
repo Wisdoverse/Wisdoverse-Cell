@@ -16,6 +16,7 @@ from ..core.health_ports import CoordinatorHealthStore
 from ..core.models import Decision
 from ..core.outbox_ports import CoordinatorEventOutboxStore
 from ..core.state_ports import CoordinatorStateStorePort
+from ..db.in_memory_unit_of_work import in_memory_coordinator_uow
 from ..core.think import think as think_fn
 from ..db.database import DatabaseManager
 from ..db.health_store import SqlAlchemyCoordinatorHealthStore
@@ -80,7 +81,22 @@ class CoordinatorAgent(BaseAgent):
             outbox_store_provider=lambda: self._outbox_store,
             event_bus=self._event_bus,
             event_publisher=self._event_publisher,
+            uow_factory_provider=lambda: self._build_uow_factory(),
         )
+
+    def _build_uow_factory(self):
+        """Build a CoordinatorUnitOfWorkFactory from the current stores."""
+        outbox = self._outbox_store
+        if outbox is None:
+            return None
+        state_store = self._state_store
+
+        def factory():
+            return in_memory_coordinator_uow(
+                state_store=state_store, outbox=outbox
+            )
+
+        return factory
 
     async def startup(self) -> None:
         await self._scratchpad.initialize()

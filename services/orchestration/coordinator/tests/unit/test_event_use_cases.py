@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -7,6 +8,9 @@ from services.orchestration.coordinator.core.event_use_cases import (
     CoordinatorEventUseCase,
 )
 from services.orchestration.coordinator.core.models import Decision
+from services.orchestration.coordinator.db.in_memory_unit_of_work import (
+    InMemoryCoordinatorUnitOfWork,
+)
 from shared.schemas.event import Event, EventTypes
 
 
@@ -153,3 +157,107 @@ async def test_existing_decision_trace_id_is_preserved() -> None:
     )
 
     assert result[0].metadata.trace_id == "decision_trace"
+
+
+@pytest.mark.asyncio
+async def test_persist_runs_through_unit_of_work_when_wired() -> None:
+    """DDD-010: when uow_factory is provided, write paths commit via UoW."""
+    scratchpad = _scratchpad()
+    state_store = _state_store()
+    outbox = MagicMock()
+    uow_holder: list[InMemoryCoordinatorUnitOfWork] = []
+
+    @asynccontextmanager
+    async def factory():
+        uow = InMemoryCoordinatorUnitOfWork(
+            state_store=state_store, outbox=outbox
+        )
+        uow_holder.append(uow)
+        try:
+            yield uow
+            if not uow.completed:
+                await uow.commit()
+        except Exception:
+            await uow.rollback()
+            raise
+
+    decision = Decision(
+        target_agent="requirement-manager",
+        action="dispatch_task",
+        task_id="task_99",
+        instruction="x",
+        workflow_id="wf_99",
+    )
+    use_case = CoordinatorEventUseCase(
+        scratchpad=scratchpad,
+        state_store=state_store,
+        thinker=AsyncMock(return_value=[decision]),
+        uow_factory=factory,
+    )
+
+    await use_case.handle(
+        Event.create(
+            event_type=EventTypes.COORDINATOR_COMMAND,
+            source_agent="chat-agent",
+            payload={
+                "command_id": "cmd_99",
+                "intent": "x",
+                "original_message": "x",
+                "user_id": "u_1",
+                "user_name": "Alice",
+            },
+        )
+    )
+
+    state_store.persist.assert_awaited_once_with([decision])
+    assert len(uow_holder) == 1
+    assert uow_holder[0].completed is True
+
+
+@pytest.mark.asyncio
+async def test_progress_update_runs_through_unit_of_work_when_wired() -> None:
+    """DDD-010: progress single-write also routes through the UoW when wired."""
+    scratchpad = _scratchpad()
+    state_store = _state_store()
+    outbox = MagicMock()
+    uow_holder: list[InMemoryCoordinatorUnitOfWork] = []
+
+    @asynccontextmanager
+    async def factory():
+        uow = InMemoryCoordinatorUnitOfWork(
+            state_store=state_store, outbox=outbox
+        )
+        uow_holder.append(uow)
+        try:
+            yield uow
+            if not uow.completed:
+                await uow.commit()
+        except Exception:
+            await uow.rollback()
+            raise
+
+    use_case = CoordinatorEventUseCase(
+        scratchpad=scratchpad,
+        state_store=state_store,
+        thinker=AsyncMock(return_value=[]),
+        uow_factory=factory,
+    )
+
+    await use_case.handle(
+        Event.create(
+            event_type=EventTypes.TASK_PROGRESS,
+            source_agent="dev-agent",
+            payload={
+                "task_id": "task_1",
+                "agent_id": "dev-agent",
+                "tool_use_count": 1,
+                "llm_token_count": 10,
+            },
+        )
+    )
+
+    state_store.update_agent_state.assert_awaited_once_with(
+        "dev-agent", status="working", current_task="task_1"
+    )
+    assert len(uow_holder) == 1
+    assert uow_holder[0].completed is True

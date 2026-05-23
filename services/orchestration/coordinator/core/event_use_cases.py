@@ -10,6 +10,7 @@ from .classifier import ClassifiedEvent, classify_event
 from .dispatcher import decision_to_event
 from .models import Decision
 from .state_ports import CoordinatorStateStorePort
+from .unit_of_work_ports import CoordinatorUnitOfWorkFactory
 
 
 class CoordinatorScratchpadPort(Protocol):
@@ -56,17 +57,19 @@ class CoordinatorEventUseCase:
         scratchpad: CoordinatorScratchpadPort,
         state_store: CoordinatorStateStorePort,
         thinker: CoordinatorThinkerPort,
+        uow_factory: CoordinatorUnitOfWorkFactory | None = None,
     ):
         self._scratchpad = scratchpad
         self._state_store = state_store
         self._thinker = thinker
+        self._uow_factory = uow_factory
 
     async def handle(self, event: Event) -> list[Event]:
         classified = classify_event(event)
 
         if classified.kind == "progress":
             progress = classified.data
-            await self._state_store.update_agent_state(
+            await self._update_agent_state_in_uow(
                 progress.agent_id,
                 status="working",
                 current_task=progress.task_id,
@@ -96,12 +99,44 @@ class CoordinatorEventUseCase:
         outgoing = [decision_to_event(decision) for decision in decisions]
 
         await self._scratchpad.update(decisions)
-        await self._state_store.persist(decisions)
+        await self._persist_decisions_in_uow(decisions)
 
         if self._scratchpad.should_compact():
             asyncio.create_task(self._scratchpad.compact())
 
         return outgoing
+
+    async def _update_agent_state_in_uow(
+        self,
+        agent_id: str,
+        *,
+        status: str,
+        current_task: str | None,
+    ) -> None:
+        """Apply one agent-state mutation, transactionally when a UoW is wired."""
+        if self._uow_factory is None:
+            await self._state_store.update_agent_state(
+                agent_id,
+                status=status,
+                current_task=current_task,
+            )
+            return
+        async with self._uow_factory() as uow:
+            await uow.state_store.update_agent_state(
+                agent_id,
+                status=status,
+                current_task=current_task,
+            )
+            await uow.commit()
+
+    async def _persist_decisions_in_uow(self, decisions: list[Decision]) -> None:
+        """Persist coordinator decisions, transactionally when a UoW is wired."""
+        if self._uow_factory is None:
+            await self._state_store.persist(decisions)
+            return
+        async with self._uow_factory() as uow:
+            await uow.state_store.persist(decisions)
+            await uow.commit()
 
     def _build_context(
         self,
