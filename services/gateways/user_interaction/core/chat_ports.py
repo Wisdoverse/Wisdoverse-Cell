@@ -139,6 +139,7 @@ class ConversationEngineFactory(Protocol):
         history: list[dict[str, Any]],
         tools_provider: Any,
         tool_executor: Any,
+        compressor: Any,
         max_tool_calls: int,
         agent_id: str,
     ) -> ConversationEnginePort:
