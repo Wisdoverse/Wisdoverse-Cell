@@ -45,11 +45,11 @@ class InMemoryWorkPackageProjectionStore(WorkPackageProjectionPort):
 
     # ── Write side (called by the projection consumer) ────────────────
 
-    def upsert_work_package(self, projection: WorkPackageProjection) -> None:
+    async def upsert_work_package(self, projection: WorkPackageProjection) -> None:
         """Store the latest snapshot for one work package."""
         self._work_packages[projection.wp_id] = projection
 
-    def upsert_subtask(self, projection: SubtaskProgressProjection) -> None:
+    async def upsert_subtask(self, projection: SubtaskProgressProjection) -> None:
         """Store the latest snapshot for one subtask record."""
         self._subtasks[projection.subtask_record_id] = projection
 
