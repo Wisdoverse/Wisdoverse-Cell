@@ -459,7 +459,7 @@ def test_event_publisher_port_lives_in_shared_core() -> None:
     source_paths = (
         Path("agents/qa_agent/core/notifier.py"),
         Path("agents/pjm_agent/core/decomposition_orchestrator.py"),
-        Path("shared/capabilities/sync/core/openproject_sync.py"),
+        Path("shared/capabilities/sync/core/openproject/engine.py"),
         Path("shared/capabilities/sync/core/engine.py"),
         Path("shared/protocols/bridge/event_bridge.py"),
         Path("shared/infra/budget_events.py"),
@@ -549,7 +549,7 @@ def test_sync_feishu_bitable_engine_uses_persistence_ports() -> None:
         "shared/capabilities/sync/core/feishu_bitable_sync.py"
     ).read_text()
     openproject_source = Path(
-        "shared/capabilities/sync/core/openproject_sync.py"
+        "shared/capabilities/sync/core/openproject/engine.py"
     ).read_text()
     engine_source = Path("shared/capabilities/sync/core/engine.py").read_text()
     locking_source = Path("shared/capabilities/sync/core/locking.py").read_text()
@@ -4733,7 +4733,7 @@ def test_sync_events_have_durable_outbox_contract() -> None:
     outbox_use_case_source = Path(
         "shared/capabilities/sync/core/outbox_delivery_use_cases.py"
     ).read_text()
-    openproject_source = Path("shared/capabilities/sync/core/openproject_sync.py").read_text()
+    openproject_source = Path("shared/capabilities/sync/core/openproject/engine.py").read_text()
     engine_source = Path("shared/capabilities/sync/core/engine.py").read_text()
     port_source = Path("shared/capabilities/sync/core/sync_ports.py").read_text()
     adapter_source = Path("shared/capabilities/sync/db/sync_stores.py").read_text()
