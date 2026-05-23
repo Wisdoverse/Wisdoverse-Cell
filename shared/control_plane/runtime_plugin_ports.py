@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from shared.core.identifiers import CompanyId
+
 from .models import AgentRun, AuditEvent, CompanyContext
 from .run_evidence_ports import ControlPlaneRunEvidenceStore
 
@@ -10,7 +12,7 @@ from .run_evidence_ports import ControlPlaneRunEvidenceStore
 class ControlPlaneRuntimePluginStore(ControlPlaneRunEvidenceStore, Protocol):
     """Persistence operations required by runtime plugin use cases."""
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         """Return one company context."""
 
     async def create_company(self, company: CompanyContext) -> CompanyContext:
@@ -36,7 +38,7 @@ class ControlPlaneRuntimePluginStore(ControlPlaneRunEvidenceStore, Protocol):
     async def ensure_core_organization_role_agents(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         company_name: str,
     ) -> list[str]:
         """Ensure durable organization role agents exist."""
@@ -44,7 +46,7 @@ class ControlPlaneRuntimePluginStore(ControlPlaneRunEvidenceStore, Protocol):
     async def ensure_core_runtime_agent_roles(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         company_name: str,
     ) -> list[str]:
         """Ensure durable frontend-managed runtime agents exist."""

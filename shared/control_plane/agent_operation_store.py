@@ -5,6 +5,8 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import CompanyId
+
 from .agent_operation_ports import ControlPlaneAgentOperationStore
 from .agent_registry_store import SqlAlchemyControlPlaneAgentRegistryStore
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
@@ -36,11 +38,11 @@ class SqlAlchemyControlPlaneAgentOperationStore(ControlPlaneAgentOperationStore)
         self._artifacts = SqlAlchemyControlPlaneArtifactStore(session)
         self._audits = SqlAlchemyControlPlaneAuditEventStore(session)
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
     async def get_agent_role(
-        self, *, company_id: str, agent_id: str
+        self, *, company_id: CompanyId, agent_id: str
     ) -> AgentRole | None:
         return await self._agents.get_agent_role(
             company_id=company_id,
@@ -50,7 +52,7 @@ class SqlAlchemyControlPlaneAgentOperationStore(ControlPlaneAgentOperationStore)
     async def list_agent_roles(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         status: str | None = None,
         limit: int = 100,
     ) -> list[AgentRole]:
@@ -69,7 +71,7 @@ class SqlAlchemyControlPlaneAgentOperationStore(ControlPlaneAgentOperationStore)
     async def list_agent_runs(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str | None = None,
         limit: int = 50,
     ) -> list[AgentRun]:
@@ -94,7 +96,7 @@ class SqlAlchemyControlPlaneAgentOperationStore(ControlPlaneAgentOperationStore)
     async def list_approvals(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         limit: int = 50,
     ) -> list[ApprovalRequest]:
@@ -107,7 +109,7 @@ class SqlAlchemyControlPlaneAgentOperationStore(ControlPlaneAgentOperationStore)
     async def list_budget_usage(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         limit: int = 50,
     ) -> list[BudgetUsage]:
@@ -120,7 +122,7 @@ class SqlAlchemyControlPlaneAgentOperationStore(ControlPlaneAgentOperationStore)
     async def list_audit_events(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         limit: int = 100,
     ) -> list[AuditEvent]:

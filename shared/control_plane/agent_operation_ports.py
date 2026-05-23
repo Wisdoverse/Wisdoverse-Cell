@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from shared.core.identifiers import CompanyId
+
 from .models import (
     AgentRole,
     AgentRun,
@@ -17,18 +19,18 @@ from .models import (
 class ControlPlaneAgentOperationStore(Protocol):
     """Persistence operations required by agent wakeup and scheduling."""
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         """Return one company context."""
 
     async def get_agent_role(
-        self, *, company_id: str, agent_id: str
+        self, *, company_id: CompanyId, agent_id: str
     ) -> AgentRole | None:
         """Return one agent role."""
 
     async def list_agent_roles(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         status: str | None = None,
         limit: int = 100,
     ) -> list[AgentRole]:
@@ -43,7 +45,7 @@ class ControlPlaneAgentOperationStore(Protocol):
     async def list_agent_runs(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str | None = None,
         limit: int = 50,
     ) -> list[AgentRun]:
@@ -60,7 +62,7 @@ class ControlPlaneAgentOperationStore(Protocol):
     async def list_approvals(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         limit: int = 50,
     ) -> list[ApprovalRequest]:
@@ -69,7 +71,7 @@ class ControlPlaneAgentOperationStore(Protocol):
     async def list_budget_usage(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         limit: int = 50,
     ) -> list[BudgetUsage]:
@@ -78,7 +80,7 @@ class ControlPlaneAgentOperationStore(Protocol):
     async def list_audit_events(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         run_id: str | None = None,
         limit: int = 100,
     ) -> list[AuditEvent]:

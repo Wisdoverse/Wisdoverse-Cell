@@ -6,6 +6,8 @@ from typing import Any
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import CompanyId
+
 from .agent_registry_ports import ControlPlaneAgentRegistryStore
 from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
@@ -26,7 +28,7 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
     async def create_company(self, company: CompanyContext) -> CompanyContext:
         return await self._companies.create_company(company)
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
     async def create_agent_role(self, role: AgentRole) -> AgentRole:
@@ -38,7 +40,7 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
     async def get_agent_role(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
     ) -> AgentRole | None:
         row = await self._get_agent_role_row(company_id=company_id, agent_id=agent_id)
@@ -47,7 +49,7 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
     async def _get_agent_role_row(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
     ) -> AgentRoleTable | None:
         result = await self._session.execute(
@@ -61,7 +63,7 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
     async def list_agent_roles(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         status: str | None = None,
         agent_kind: str | None = None,
         interaction_mode: str | None = None,
@@ -96,7 +98,7 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
     async def update_agent_role(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
         values: dict[str, Any],
     ) -> AgentRole | None:
@@ -114,7 +116,7 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
     async def update_agent_role_status(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
         status: str,
     ) -> AgentRole | None:

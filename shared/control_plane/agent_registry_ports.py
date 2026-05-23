@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from shared.core.identifiers import CompanyId
+
 from .models import AgentRole, AuditEvent, CompanyContext
 
 
@@ -12,7 +14,7 @@ class ControlPlaneAgentRegistryStore(Protocol):
     async def create_company(self, company: CompanyContext) -> CompanyContext:
         """Create a control-plane company context."""
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         """Return a company context if it exists."""
 
     async def create_agent_role(self, role: AgentRole) -> AgentRole:
@@ -21,7 +23,7 @@ class ControlPlaneAgentRegistryStore(Protocol):
     async def get_agent_role(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
     ) -> AgentRole | None:
         """Return one agent role definition."""
@@ -29,7 +31,7 @@ class ControlPlaneAgentRegistryStore(Protocol):
     async def list_agent_roles(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         status: str | None = None,
         agent_kind: str | None = None,
         interaction_mode: str | None = None,
@@ -42,7 +44,7 @@ class ControlPlaneAgentRegistryStore(Protocol):
     async def update_agent_role(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
         values: dict[str, Any],
     ) -> AgentRole | None:
@@ -51,7 +53,7 @@ class ControlPlaneAgentRegistryStore(Protocol):
     async def update_agent_role_status(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
         status: str,
     ) -> AgentRole | None:

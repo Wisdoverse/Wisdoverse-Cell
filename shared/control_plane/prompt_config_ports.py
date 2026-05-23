@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from shared.core.identifiers import CompanyId
+
 from .models import AgentPromptConfig, AgentRole, AuditEvent, CompanyContext
 
 
@@ -12,13 +14,13 @@ class ControlPlanePromptConfigStore(Protocol):
     async def create_company(self, company: CompanyContext) -> CompanyContext:
         """Create a control-plane company context."""
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         """Return a company context if it exists."""
 
     async def get_agent_role(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
     ) -> AgentRole | None:
         """Return an agent role if the target exists."""
@@ -26,7 +28,7 @@ class ControlPlanePromptConfigStore(Protocol):
     async def get_agent_prompt_config(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
     ) -> AgentPromptConfig | None:
         """Return a stored prompt configuration if present."""
@@ -34,7 +36,7 @@ class ControlPlanePromptConfigStore(Protocol):
     async def upsert_agent_prompt_config(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
         system_prompt: str,
         updated_by: str,

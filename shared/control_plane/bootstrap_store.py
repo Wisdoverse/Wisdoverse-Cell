@@ -4,6 +4,8 @@ from __future__ import annotations
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import CompanyId
+
 from .agent_registry_store import SqlAlchemyControlPlaneAgentRegistryStore
 from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
 from .bootstrap_ports import ControlPlaneRoleBootstrapStore
@@ -20,7 +22,7 @@ class SqlAlchemyControlPlaneRoleBootstrapStore(ControlPlaneRoleBootstrapStore):
         self._roles = SqlAlchemyControlPlaneAgentRegistryStore(session)
         self._audits = SqlAlchemyControlPlaneAuditEventStore(session)
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
     async def create_company_if_absent(
@@ -35,7 +37,7 @@ class SqlAlchemyControlPlaneRoleBootstrapStore(ControlPlaneRoleBootstrapStore):
     async def get_agent_role(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         agent_id: str,
     ) -> AgentRole | None:
         return await self._roles.get_agent_role(

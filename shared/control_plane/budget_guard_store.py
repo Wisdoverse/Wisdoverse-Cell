@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import CompanyId
+
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from .budget_guard_ports import ControlPlaneBudgetGuardStore
 from .budget_store import SqlAlchemyControlPlaneBudgetStore
@@ -19,7 +21,7 @@ class SqlAlchemyControlPlaneBudgetGuardStore(ControlPlaneBudgetGuardStore):
     async def get_active_budget_policy(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         scope: BudgetScope | str,
         period: BudgetPeriod | str,
         scope_id: str | None = None,
