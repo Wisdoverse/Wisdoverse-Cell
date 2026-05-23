@@ -6,6 +6,7 @@ from shared.core import BitableTablePort, EventPublisher, OpenProjectWorkPackage
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
+from .domain.sync_operation import SyncOperation, SyncOperationStatus, SyncSide
 from .locking import acquire_sync_lock
 from .mapper import data_mapper
 from .sync_ports import OpenProjectSyncOperation, OpenProjectSyncStore, SyncLockStore
@@ -104,8 +105,10 @@ class OpenProjectSyncEngine:
         staged_events: list[Event] = []
         async with self._sync_store.transaction() as store:
             log = await store.create_log("op_to_feishu", "started")
+            op = SyncOperation(operation_id=str(log.id), side=SyncSide.OPENPROJECT)
+            op.transition_to(SyncOperationStatus.RUNNING)
             processed = 0
-            errors = []
+            errors: list[str] = []
 
             try:
                 member_map = await self._load_member_map()
@@ -140,11 +143,15 @@ class OpenProjectSyncEngine:
                         errors.append(str(e))
 
                 await store.complete_log(log.id, processed)
+                op.transition_to(
+                    SyncOperationStatus.SUCCEEDED, processed_delta=processed
+                )
                 result = {"status": "success", "processed": processed, "errors": errors}
 
             except Exception as e:
                 logger.error("sync_op_to_feishu_failed", error=str(e))
                 await store.complete_log(log.id, processed, str(e))
+                op.transition_to(SyncOperationStatus.FAILED)
                 result = {"status": "failed", "processed": processed, "error": str(e)}
 
         for event in staged_events:
