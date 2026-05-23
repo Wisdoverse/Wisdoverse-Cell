@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from shared.core.identifiers import WorkItemId
+from shared.core.identifiers import CompanyId, WorkItemId
 
 from .models import AuditEvent, CompanyContext, Goal, WorkItem
 
@@ -21,7 +21,7 @@ class ControlPlaneWorkItemStore(Protocol):
     async def create_company(self, company: CompanyContext) -> CompanyContext:
         """Create a control-plane company context."""
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         """Return a company context if it exists."""
 
     async def get_goal(self, goal_id: str) -> Goal | None:
@@ -36,7 +36,7 @@ class ControlPlaneWorkItemStore(Protocol):
     async def list_work_items(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         status: str | None = None,
         priority: str | None = None,
         goal_id: str | None = None,

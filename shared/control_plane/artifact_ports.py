@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from shared.core.identifiers import AgentRunId, ArtifactId, GoalId, WorkItemId
+from shared.core.identifiers import AgentRunId, ArtifactId, CompanyId, GoalId, WorkItemId
 
 from .models import AgentRun, Artifact, AuditEvent, CompanyContext, Goal, WorkItem
 
@@ -18,7 +18,7 @@ class ControlPlaneArtifactStore(Protocol):
     async def create_company(self, company: CompanyContext) -> CompanyContext:
         """Create a control-plane company context."""
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         """Return a company context if it exists."""
 
     async def get_agent_run(self, run_id: AgentRunId) -> AgentRun | None:
@@ -39,7 +39,7 @@ class ControlPlaneArtifactStore(Protocol):
     async def list_artifacts(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         artifact_type: str | None = None,
         run_id: str | None = None,
         run_ids: list[str] | None = None,

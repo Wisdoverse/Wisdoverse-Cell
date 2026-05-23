@@ -4,7 +4,7 @@ from __future__ import annotations
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.core.identifiers import GoalId
+from shared.core.identifiers import CompanyId, GoalId
 
 from .company_store import SqlAlchemyControlPlaneCompanyStore
 from .domain_records import goal_record
@@ -24,7 +24,7 @@ class SqlAlchemyControlPlaneGoalStore(ControlPlaneGoalStore):
     async def create_company(self, company: CompanyContext) -> CompanyContext:
         return await self._companies.create_company(company)
 
-    async def get_company(self, company_id: str) -> CompanyContext | None:
+    async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
     async def create_goal(self, goal: Goal) -> Goal:
@@ -46,7 +46,7 @@ class SqlAlchemyControlPlaneGoalStore(ControlPlaneGoalStore):
     async def list_goals(
         self,
         *,
-        company_id: str,
+        company_id: CompanyId,
         status: str | None = None,
         owner_agent_id: str | None = None,
         owner_user_id: str | None = None,
