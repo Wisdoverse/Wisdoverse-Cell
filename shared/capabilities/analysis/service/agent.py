@@ -113,16 +113,17 @@ class AnalysisModule(BaseAgent):
             feishu_pm_task_table_id=app_settings.feishu_pm_task_table_id,
             decompose_project_ids=app_settings.decompose_project_ids,
         )
+        projection_store = SqlAlchemyWorkPackageProjectionStore(self._db_manager)
         self._daily = DailyReportGenerator(
             bitable=bitable_service,
             messenger=messenger,
-            op_client=op_client,
+            projection_port=projection_store,
             config=core_config,
         )
         self._weekly = WeeklyReportGenerator(
             bitable=bitable_service,
             messenger=messenger,
-            op_client=op_client,
+            projection_port=projection_store,
             config=core_config,
         )
         self._milestone = MilestoneChecker(
@@ -138,7 +139,7 @@ class AnalysisModule(BaseAgent):
         self._projection_updater = ProjectionUpdater(
             op_client=op_client,
             bitable=bitable_service,
-            writer=SqlAlchemyWorkPackageProjectionStore(self._db_manager),
+            writer=projection_store,
             bitable_app_token=core_config.feishu_pm_app_token,
             bitable_table_id=core_config.feishu_pm_task_table_id,
         )
