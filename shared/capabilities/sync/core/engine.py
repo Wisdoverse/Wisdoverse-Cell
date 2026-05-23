@@ -6,7 +6,7 @@ from shared.core import BitableTablePort, EventPublisher, OpenProjectWorkPackage
 
 from .domain.sync_operation import SyncOperationStatus, combine_side_statuses
 from .feishu_bitable_sync import FeishuBitableSyncEngine
-from .openproject_sync import OpenProjectSyncEngine
+from .openproject import OpenProjectSyncEngine
 from .sync_ports import FeishuBitableSyncStore, OpenProjectSyncStore, SyncLockStore
 
 

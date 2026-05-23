@@ -6,10 +6,10 @@ from shared.core import BitableTablePort, EventPublisher, OpenProjectWorkPackage
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
-from .domain.sync_operation import SyncOperation, SyncOperationStatus, SyncSide
-from .locking import acquire_sync_lock
-from .mapper import data_mapper
-from .sync_ports import OpenProjectSyncOperation, OpenProjectSyncStore, SyncLockStore
+from ..domain.sync_operation import SyncOperation, SyncOperationStatus, SyncSide
+from ..locking import acquire_sync_lock
+from ..mapper import data_mapper
+from ..sync_ports import OpenProjectSyncOperation, OpenProjectSyncStore, SyncLockStore
 
 logger = get_logger("sync_capability.openproject")
 

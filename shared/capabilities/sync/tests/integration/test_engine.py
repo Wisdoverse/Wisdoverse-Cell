@@ -64,7 +64,7 @@ async def test_sync_op_to_feishu_updates_existing(engine, mock_op_client, mock_b
         }
     ]
 
-    with patch("shared.capabilities.sync.core.openproject_sync.data_mapper") as mock_mapper:
+    with patch("shared.capabilities.sync.core.openproject.engine.data_mapper") as mock_mapper:
         wp_data = MagicMock()
         wp_data.op_id = 200
         wp_data.project_id = 1

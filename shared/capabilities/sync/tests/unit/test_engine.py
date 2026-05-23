@@ -233,7 +233,7 @@ async def test_openproject_sync_creates_mapping(
     ]
     mock_bitable.create_record.return_value = "rec_001"
 
-    with patch("shared.capabilities.sync.core.openproject_sync.data_mapper") as mock_mapper:
+    with patch("shared.capabilities.sync.core.openproject.engine.data_mapper") as mock_mapper:
         wp_data = MagicMock()
         wp_data.op_id = 100
         wp_data.project_id = 1
@@ -282,7 +282,7 @@ async def test_openproject_sync_preserves_trace_id_on_decompose_event(
     ]
     mock_bitable.create_record.return_value = "rec_101"
 
-    with patch("shared.capabilities.sync.core.openproject_sync.data_mapper") as mock_mapper:
+    with patch("shared.capabilities.sync.core.openproject.engine.data_mapper") as mock_mapper:
         wp_data = MagicMock()
         wp_data.op_id = 101
         wp_data.project_id = 1
@@ -336,7 +336,7 @@ async def test_openproject_sync_stages_decompose_event_before_publish(
     ]
     mock_bitable.create_record.return_value = "rec_101"
 
-    with patch("shared.capabilities.sync.core.openproject_sync.data_mapper") as mock_mapper:
+    with patch("shared.capabilities.sync.core.openproject.engine.data_mapper") as mock_mapper:
         wp_data = MagicMock()
         wp_data.op_id = 101
         wp_data.project_id = 1
@@ -377,7 +377,7 @@ async def test_openproject_member_map_config_is_injected(
     )
     mock_bitable.list_all_records.return_value = [{"fields": {"name": "Alice"}}]
 
-    with patch("shared.capabilities.sync.core.openproject_sync.data_mapper") as mock_mapper:
+    with patch("shared.capabilities.sync.core.openproject.engine.data_mapper") as mock_mapper:
         mock_mapper.build_member_map.return_value = {"Alice": "ou_alice"}
 
         result = await engine._load_member_map()
@@ -433,7 +433,7 @@ async def test_openproject_sync_handles_wp_error(
         {"id": 300, "subject": "失败任务", "_links": {}, "percentageDone": 0},
     ]
 
-    with patch("shared.capabilities.sync.core.openproject_sync.data_mapper") as mock_mapper:
+    with patch("shared.capabilities.sync.core.openproject.engine.data_mapper") as mock_mapper:
         mock_mapper.op_to_work_package_data.side_effect = ValueError("bad data")
 
         result = await openproject_engine.sync_to_bitable()
