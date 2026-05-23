@@ -4,6 +4,8 @@ from __future__ import annotations
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import GoalId
+
 from .company_store import SqlAlchemyControlPlaneCompanyStore
 from .domain_records import goal_record
 from .goal_ports import ControlPlaneGoalStore
@@ -31,11 +33,11 @@ class SqlAlchemyControlPlaneGoalStore(ControlPlaneGoalStore):
         await self._session.flush()
         return goal_record(row)
 
-    async def get_goal(self, goal_id: str) -> Goal | None:
+    async def get_goal(self, goal_id: GoalId) -> Goal | None:
         row = await self._get_goal_row(goal_id)
         return goal_record(row) if row is not None else None
 
-    async def _get_goal_row(self, goal_id: str) -> GoalTable | None:
+    async def _get_goal_row(self, goal_id: GoalId) -> GoalTable | None:
         result = await self._session.execute(
             select(GoalTable).where(GoalTable.goal_id == goal_id)
         )
@@ -74,7 +76,7 @@ class SqlAlchemyControlPlaneGoalStore(ControlPlaneGoalStore):
 
     async def update_goal_status(
         self,
-        goal_id: str,
+        goal_id: GoalId,
         *,
         status: str,
         current_value: float | None = None,
