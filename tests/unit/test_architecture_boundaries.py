@@ -546,7 +546,7 @@ def test_sync_mapping_api_delegates_to_query_use_case() -> None:
 def test_sync_feishu_bitable_engine_uses_persistence_ports() -> None:
     """Sync core engines should route persistence through explicit ports."""
     feishu_source = Path(
-        "shared/capabilities/sync/core/feishu_bitable_sync.py"
+        "shared/capabilities/sync/core/feishu_bitable/engine.py"
     ).read_text()
     openproject_source = Path(
         "shared/capabilities/sync/core/openproject/engine.py"

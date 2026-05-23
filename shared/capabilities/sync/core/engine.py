@@ -5,7 +5,7 @@ from typing import Any, Callable
 from shared.core import BitableTablePort, EventPublisher, OpenProjectWorkPackagePort
 
 from .domain.sync_operation import SyncOperationStatus, combine_side_statuses
-from .feishu_bitable_sync import FeishuBitableSyncEngine
+from .feishu_bitable import FeishuBitableSyncEngine
 from .openproject import OpenProjectSyncEngine
 from .sync_ports import FeishuBitableSyncStore, OpenProjectSyncStore, SyncLockStore
 

@@ -5,11 +5,11 @@ from typing import Any
 from shared.core import BitableTablePort, OpenProjectWorkPackagePort
 from shared.utils.logger import get_logger
 
-from .domain.sync_operation import SyncOperation, SyncOperationStatus, SyncSide
-from .locking import acquire_sync_lock
-from .mapper import data_mapper
-from .progress import calculate_progress_from_subtasks
-from .sync_ports import FeishuBitableSyncStore, SyncLockStore
+from ..domain.sync_operation import SyncOperation, SyncOperationStatus, SyncSide
+from ..locking import acquire_sync_lock
+from ..mapper import data_mapper
+from ..progress import calculate_progress_from_subtasks
+from ..sync_ports import FeishuBitableSyncStore, SyncLockStore
 
 logger = get_logger("sync_capability.feishu_bitable")
 
