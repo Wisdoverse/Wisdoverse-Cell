@@ -61,6 +61,13 @@ class NoopAnalysisMetrics:
         pass
 
 
+class ProjectionRefreshPort(Protocol):
+    async def refresh_all(
+        self, *, project_id: int | None = None
+    ) -> dict[str, int]:
+        """Refresh projection rows from upstream sources."""
+
+
 class AnalysisEventUseCase:
     """Handle Analysis subscribed events outside the service shell."""
 
@@ -74,6 +81,7 @@ class AnalysisEventUseCase:
         event_factory: AnalysisEventFactoryPort,
         metrics: AnalysisMetricsPort | None = None,
         now_china: Callable[[], datetime] | None = None,
+        projection_updater: ProjectionRefreshPort | None = None,
     ) -> None:
         self._daily = daily
         self._weekly = weekly
@@ -82,6 +90,7 @@ class AnalysisEventUseCase:
         self._event_factory = event_factory
         self._metrics = metrics or NoopAnalysisMetrics()
         self._now_china = now_china or (lambda: datetime.now(CHINA_TZ))
+        self._projection_updater = projection_updater
 
     async def handle(self, event: Event) -> list[Event]:
         if event.event_type != EventTypes.SYNC_COMPLETED:
@@ -91,6 +100,12 @@ class AnalysisEventUseCase:
     async def _on_sync_completed(self, event: Event) -> list[Event]:
         events: list[Event] = []
         trace_id = event.metadata.trace_id if event.metadata else None
+
+        if self._projection_updater is not None:
+            try:
+                await self._projection_updater.refresh_all()
+            except Exception as exc:
+                logger.error("projection_refresh_failed", error=str(exc))
 
         try:
             report = await self._daily.generate()
