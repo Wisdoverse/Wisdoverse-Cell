@@ -25,6 +25,7 @@ from pathlib import Path
 
 import shared.schemas.event_payloads as event_payloads_module
 from shared.schemas.event import Event, EventTypes
+from shared.schemas.event_payloads import EVENT_PAYLOAD_MODELS
 
 CATALOG_PATH = Path("docs/guides/event-catalog.md")
 GUIDELINES_PATH = Path("docs/architecture/event-guidelines.md")
@@ -115,6 +116,21 @@ def test_event_types_class_has_active_constants() -> None:
             f"Expected EventTypes constant with value {spot!r}; "
             "the Event Catalog and idempotency contract reference it."
         )
+
+
+def test_every_event_type_has_payload_model_contract() -> None:
+    """Every runtime event type must have a concrete payload validator."""
+    event_type_values = {
+        value
+        for key, value in vars(EventTypes).items()
+        if not key.startswith("_") and isinstance(value, str)
+    }
+    payload_model_values = set(EVENT_PAYLOAD_MODELS)
+
+    missing_models = event_type_values - payload_model_values
+    stale_models = payload_model_values - event_type_values
+    assert missing_models == set()
+    assert stale_models == set()
 
 
 def test_event_guidelines_references_outbox_pattern() -> None:

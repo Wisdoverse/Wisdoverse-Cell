@@ -16,7 +16,8 @@ from .domain.aggregate_consistency import (
     REQUIREMENT_EVENT_OUTBOX,
     RequirementAggregateConsistencyPolicy,
 )
-from .domain.lifecycle.requirement_lifecycle import record_updated
+from .domain.lifecycle.requirement_lifecycle import CHANGED, record_updated
+from .domain.requirement import Requirement as RequirementAggregate
 from .feedback_learning import FeedbackLearningService
 from .unit_of_work_ports import RequirementUnitOfWork
 
@@ -175,6 +176,15 @@ class RequirementMutationWorkflow:
                 else (REQUIREMENT, REQUIREMENT_EVENT_OUTBOX)
             )
         )
+
+        if requirement.status != CHANGED:
+            aggregate = RequirementAggregate(
+                requirement_id=str(requirement_id),
+                status=requirement.status,
+            )
+            aggregate.transition_to(CHANGED, actor_id=changed_by)
+            aggregate.pull_events()
+            update_data["status"] = aggregate.status
 
         record_updated(requirement, changed_fields, changed_by)
         requirement = await uow.requirements.update(requirement_id, **update_data)

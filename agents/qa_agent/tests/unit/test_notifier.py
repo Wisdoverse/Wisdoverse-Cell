@@ -55,7 +55,6 @@ def card_renderer():
 @pytest.fixture
 def notifier(mock_event_publisher, mock_gitlab, mock_feishu_webhook, card_renderer):
     return QANotifier(
-        event_publisher=mock_event_publisher,
         gitlab=mock_gitlab,
         feishu_webhook=mock_feishu_webhook,
         card_renderer=card_renderer,
@@ -75,7 +74,9 @@ def _make_summary(l0: str = "PASS", l1: str = "PASS") -> dict:
 
 class TestEventBusPublish:
     @pytest.mark.asyncio
-    async def test_always_publishes_completed(self, notifier, mock_event_publisher):
+    async def test_requires_outbox_summary_for_eventbus_status(
+        self, notifier, mock_event_publisher
+    ):
         result = await notifier.notify_all(
             run_id="run1",
             agent_name="pjm_agent",
@@ -83,11 +84,16 @@ class TestEventBusPublish:
             findings=[],
             duration_seconds=5.0,
         )
-        assert result["eventbus"]["sent"] is True
-        assert mock_event_publisher.publish.call_count == 1
+        assert result["eventbus"] == {
+            "sent": False,
+            "reason": "eventbus_summary_required",
+        }
+        mock_event_publisher.publish.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_publishes_gate_failed_on_l0_fail(self, notifier, mock_event_publisher):
+    async def test_l0_fail_does_not_publish_directly(
+        self, notifier, mock_event_publisher
+    ):
         findings = [{"level": "L0", "status": "FAIL", "check": "secrets", "category": "security"}]
         await notifier.notify_all(
             run_id="run2",
@@ -96,8 +102,7 @@ class TestEventBusPublish:
             findings=findings,
             duration_seconds=3.0,
         )
-        # 2 events: completed + gate_failed
-        assert mock_event_publisher.publish.call_count == 2
+        mock_event_publisher.publish.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_uses_supplied_eventbus_summary_without_publishing(self, notifier, mock_event_publisher):
@@ -136,7 +141,6 @@ class TestFeishuNotification:
     ):
         card_renderer = FakeQualityCardRenderer()
         notifier = QANotifier(
-            event_publisher=mock_event_publisher,
             gitlab=mock_gitlab,
             feishu_webhook=mock_feishu_webhook,
             card_renderer=card_renderer,

@@ -7,8 +7,21 @@ import {
   getControlPlaneAgent,
   listControlPlaneAgents,
 } from "@/entities/agent/api/control-plane-agents";
+import { getAgentStatus } from "@/entities/agent/api/agents";
 import type { ControlPlaneAgentDefinition } from "@/entities/agent";
+import {
+  listControlPlaneRuns,
+  listControlPlaneWorkItems,
+} from "@/entities/control-plane/api/control-plane";
 import { AgentDetailPage } from "./agent-detail-page";
+
+vi.mock("@/entities/agent/api/agents", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/entities/agent/api/agents")>();
+  return {
+    ...actual,
+    getAgentStatus: vi.fn(),
+  };
+});
 
 vi.mock("@/entities/agent/api/control-plane-agents", async (importOriginal) => {
   const actual =
@@ -18,6 +31,16 @@ vi.mock("@/entities/agent/api/control-plane-agents", async (importOriginal) => {
     getAgentPromptConfig: vi.fn(),
     getControlPlaneAgent: vi.fn(),
     listControlPlaneAgents: vi.fn(),
+  };
+});
+
+vi.mock("@/entities/control-plane/api/control-plane", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/entities/control-plane/api/control-plane")>();
+  return {
+    ...actual,
+    listControlPlaneRuns: vi.fn(),
+    listControlPlaneWorkItems: vi.fn(),
   };
 });
 
@@ -72,6 +95,24 @@ describe("AgentDetailPage", () => {
     vi.mocked(listControlPlaneAgents).mockResolvedValue({
       agents: [requirementManager],
       total: 1,
+    });
+    vi.mocked(getAgentStatus).mockResolvedValue({
+      agent_id: "requirement-manager",
+      status: "idle",
+      health: 100,
+      task_count: 0,
+      pending_count: 0,
+      error_count: 0,
+      uptime_seconds: 0,
+      last_active_at: "2026-05-08T00:00:00Z",
+    });
+    vi.mocked(listControlPlaneRuns).mockResolvedValue({
+      runs: [],
+      total: 0,
+    });
+    vi.mocked(listControlPlaneWorkItems).mockResolvedValue({
+      work_items: [],
+      total: 0,
     });
     vi.mocked(getAgentPromptConfig).mockResolvedValue({
       company_id: "cmp_wisdoverse_cell",

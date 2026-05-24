@@ -24,7 +24,18 @@ from shared.observability.privacy import hash_identifier
 from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
-from ..core.domain.lifecycle.requirement_lifecycle import mark_confirmed, mark_rejected
+from ..core.domain.lifecycle.requirement_lifecycle import (
+    CONFIRMED,
+    REJECTED,
+    mark_confirmed,
+    mark_rejected,
+)
+from ..core.domain.requirement import (
+    InvalidRequirementTransitionError,
+)
+from ..core.domain.requirement import (
+    Requirement as RequirementAggregate,
+)
 from ..models import LLMUsage, Meeting, OpenQuestion, Requirement, RequirementEventOutbox
 from ..models.chat_message import ChatMessage
 
@@ -181,6 +192,21 @@ class RequirementRepository:
         """Confirm a requirement."""
         requirement = await self.get_by_id(requirement_id)
         if requirement:
+            try:
+                aggregate = RequirementAggregate(
+                    requirement_id=str(requirement_id),
+                    status=requirement.status,
+                )
+                aggregate.transition_to(CONFIRMED, actor_id=confirmed_by)
+                aggregate.pull_events()
+            except InvalidRequirementTransitionError:
+                logger.error(
+                    "invalid_requirement_transition",
+                    requirement_id=str(requirement_id),
+                    from_status=requirement.status,
+                    to_status=CONFIRMED,
+                )
+                raise
             mark_confirmed(requirement, confirmed_by)
             await self.session.flush()
         return requirement
@@ -194,6 +220,21 @@ class RequirementRepository:
         """Reject a requirement."""
         requirement = await self.get_by_id(requirement_id)
         if requirement:
+            try:
+                aggregate = RequirementAggregate(
+                    requirement_id=str(requirement_id),
+                    status=requirement.status,
+                )
+                aggregate.transition_to(REJECTED, actor_id=rejected_by)
+                aggregate.pull_events()
+            except InvalidRequirementTransitionError:
+                logger.error(
+                    "invalid_requirement_transition",
+                    requirement_id=str(requirement_id),
+                    from_status=requirement.status,
+                    to_status=REJECTED,
+                )
+                raise
             mark_rejected(requirement, reason, rejected_by)
             await self.session.flush()
         return requirement

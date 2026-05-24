@@ -13,10 +13,14 @@ from shared.utils.logger import get_logger
 
 from ..core.domain.lifecycle.task_lifecycle import (
     ACTIVE_STATUSES,
+    EXPIRED,
+    FAILED,
     IN_PROGRESS_STATUSES,
+    PENDING,
+    PLANNING,
     TaskStatus,
-    can_transition,
 )
+from ..core.domain.task import InvalidTaskTransitionError, Task
 from ..core.domain.task_values import RiskLevel, risk_level_value
 from ..models.dev import DevAgentEventOutbox, DevAgentTask, DevAgentWorkflowLog
 
@@ -74,15 +78,20 @@ class DevTaskRepository:
         if not task:
             logger.error("update_status_task_not_found", task_id=task_id, target_status=new_status)
             return False
-        if not can_transition(task.status, new_status):
+        try:
+            aggregate = Task(task_id=task_id, status=task.status)
+            aggregate.transition_to(new_status)
+            aggregate.pull_events()
+        except (InvalidTaskTransitionError, ValueError) as exc:
             logger.error(
                 "invalid_status_transition",
                 task_id=task_id,
                 from_status=task.status,
                 to_status=new_status,
+                error=str(exc),
             )
             return False
-        task.status = str(new_status)
+        task.status = str(aggregate.status)
         task.updated_at = datetime.now(UTC)
         for key, value in kwargs.items():
             if hasattr(task, key):
@@ -111,7 +120,7 @@ class DevTaskRepository:
     async def list_pending_tasks(self, limit: int = 5) -> list[DevAgentTask]:
         result = await self.session.execute(
             select(DevAgentTask)
-            .where(DevAgentTask.status == "pending")
+            .where(DevAgentTask.status == str(PENDING))
             .order_by(DevAgentTask.created_at)
             .limit(limit)
         )
@@ -120,7 +129,7 @@ class DevTaskRepository:
     async def list_failed_tasks(self, limit: int = 50) -> list[DevAgentTask]:
         result = await self.session.execute(
             select(DevAgentTask)
-            .where(DevAgentTask.status == "failed")
+            .where(DevAgentTask.status == str(FAILED))
             .order_by(DevAgentTask.updated_at.desc())
             .limit(limit)
         )
@@ -130,7 +139,7 @@ class DevTaskRepository:
         """List tasks in 'planning' status (for retry re-entry via reconcile)."""
         result = await self.session.execute(
             select(DevAgentTask)
-            .where(DevAgentTask.status == "planning")
+            .where(DevAgentTask.status == str(PLANNING))
             .order_by(DevAgentTask.created_at)
             .limit(limit)
         )
@@ -147,13 +156,32 @@ class DevTaskRepository:
     async def expire_stale_pending(self, hours: int = 24) -> int:
         cutoff = datetime.now(UTC) - timedelta(hours=hours)
         result = await self.session.execute(
-            update(DevAgentTask)
-            .where(DevAgentTask.status == "pending")
+            select(DevAgentTask)
+            .where(DevAgentTask.status == str(PENDING))
             .where(DevAgentTask.created_at < cutoff)
-            .values(status="expired", updated_at=datetime.now(UTC))
         )
+        stale_tasks = list(result.scalars().all())
+        expired = 0
+        now = datetime.now(UTC)
+        for task in stale_tasks:
+            try:
+                aggregate = Task(task_id=task.id, status=task.status)
+                aggregate.transition_to(EXPIRED)
+                aggregate.pull_events()
+            except (InvalidTaskTransitionError, ValueError) as exc:
+                logger.error(
+                    "expire_stale_pending_transition_failed",
+                    task_id=task.id,
+                    from_status=task.status,
+                    to_status=EXPIRED,
+                    error=str(exc),
+                )
+                continue
+            task.status = str(aggregate.status)
+            task.updated_at = now
+            expired += 1
         await self.session.flush()
-        return result.rowcount
+        return expired
 
 
 class DevWorkflowLogRepository:

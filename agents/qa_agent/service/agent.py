@@ -85,10 +85,7 @@ class QAAgent(BaseAgent):
         core_config = build_qa_core_config() if runner is None or notifier is None else None
         self._runner = runner or AcceptanceRunnerService(config=core_config)
         self._acceptance_request_acl = QAAcceptanceRequestACL()
-        self._notifier = notifier or build_qa_notifier(
-            bus=self._event_bus,
-            config=core_config,
-        )
+        self._notifier = notifier or build_qa_notifier(config=core_config)
         self._acceptance_uow_factory = self._build_acceptance_uow_factory()
         self._outbox_delivery = QAOutboxDeliveryUseCase(
             outbox_store=self._outbox_store,

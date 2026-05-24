@@ -1,4 +1,4 @@
-"""QA notification fan-out: EventBus + Feishu + GitLab MR.
+"""QA notification fan-out: outbox summary + Feishu + GitLab MR.
 
 Each channel is fault-isolated — failure in one does not block others.
 Results are collected into a notification_summary dict.
@@ -6,18 +6,15 @@ Results are collected into a notification_summary dict.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Any
 
-from shared.core import EventPublisher, FeishuWebhookPort, GitLabMergeRequestNotePort
-from shared.schemas.event import Event, EventTypes
+from shared.core import FeishuWebhookPort, GitLabMergeRequestNotePort
 from shared.utils.logger import get_logger
 
 from .card_ports import QualityCardRendererPort
 from .config import QACoreConfig
 from .domain.acceptance_verdict import AcceptanceVerdict
 from .domain.acceptance_vocabulary import (
-    is_blocking_finding,
     is_warning_finding,
 )
 
@@ -29,13 +26,11 @@ class QANotifier:
 
     def __init__(
         self,
-        event_publisher: EventPublisher | None = None,
         gitlab: GitLabMergeRequestNotePort | None = None,
         feishu_webhook: FeishuWebhookPort | None = None,
         card_renderer: QualityCardRendererPort | None = None,
         config: QACoreConfig | None = None,
     ):
-        self._event_publisher = event_publisher
         self._gitlab = gitlab
         self._feishu_webhook = feishu_webhook
         self._card_renderer = card_renderer
@@ -66,25 +61,14 @@ class QANotifier:
         """
         result: dict[str, Any] = {}
 
-        # 1. EventBus — application services may provide an outbox-backed result.
+        # 1. EventBus — acceptance execution must provide an outbox-backed result.
         if eventbus_summary is not None:
             result["eventbus"] = eventbus_summary
         else:
-            result["eventbus"] = await self._publish_events(
-                run_id=run_id,
-                agent_name=agent_name,
-                summary=summary,
-                findings=findings,
-                duration_seconds=duration_seconds,
-                commit_sha=commit_sha,
-                mr_iid=mr_iid,
-                gitlab_project_id=gitlab_project_id,
-                trigger=trigger,
-                level=level,
-                target=target,
-                report_markdown=report_markdown,
-                trace_id=trace_id,
-            )
+            result["eventbus"] = {
+                "sent": False,
+                "reason": "eventbus_summary_required",
+            }
 
         # 2. Feishu — only on L0 FAIL or high-severity L1
         should_feishu = self._should_notify_feishu(summary, findings)
@@ -109,78 +93,6 @@ class QANotifier:
             result["gitlab"] = {"sent": False, "reason": "no_mr"}
 
         return result
-
-    async def _publish_events(self, **kwargs) -> dict:
-        """Publish qa.acceptance-completed (always) and qa.gate-failed (on L0 fail)."""
-        if self._event_publisher is None:
-            return {"sent": False, "reason": "no_event_publisher"}
-
-        try:
-            summary = kwargs["summary"]
-
-            # Always publish completion
-            completed_payload = {
-                "run_id": kwargs["run_id"],
-                "agent_name": kwargs["agent_name"],
-                "commit_sha": kwargs.get("commit_sha"),
-                "mr_iid": kwargs.get("mr_iid"),
-                "gitlab_project_id": kwargs.get("gitlab_project_id"),
-                "trigger": kwargs["trigger"],
-                "level": kwargs["level"],
-                "target": kwargs["target"],
-                "summary": summary,
-                "findings": kwargs["findings"],
-                "duration_seconds": kwargs["duration_seconds"],
-                "report_markdown": kwargs.get("report_markdown"),
-                "completed_at": datetime.now(UTC).isoformat(),
-            }
-            completed_ok = await self._event_publisher.publish(
-                Event.create(
-                    event_type=EventTypes.QA_ACCEPTANCE_COMPLETED,
-                    source_agent="qa-agent",
-                    payload=completed_payload,
-                    trace_id=kwargs.get("trace_id"),
-                )
-            )
-            if not completed_ok:
-                raise RuntimeError("qa_acceptance_completed_publish_rejected")
-
-            # Publish gate-failed if L0 failed
-            verdict = AcceptanceVerdict.from_summary(summary)
-            if verdict.is_blocking:
-                blocking = [
-                    f
-                    for f in kwargs["findings"]
-                    if is_blocking_finding(
-                        level=f.get("level", ""),
-                        status=f.get("status", ""),
-                    )
-                ]
-                failed_ok = await self._event_publisher.publish(
-                    Event.create(
-                        event_type=EventTypes.QA_GATE_FAILED,
-                        source_agent="qa-agent",
-                        payload={
-                            "run_id": kwargs["run_id"],
-                            "agent_name": kwargs["agent_name"],
-                            "commit_sha": kwargs.get("commit_sha"),
-                            "mr_iid": kwargs.get("mr_iid"),
-                            "gitlab_project_id": kwargs.get("gitlab_project_id"),
-                            "l0_failure_count": summary.get("l0_failures", 0),
-                            "blocking_findings": blocking[:10],
-                            "duration_seconds": kwargs["duration_seconds"],
-                            "report_markdown": kwargs.get("report_markdown"),
-                        },
-                        trace_id=kwargs.get("trace_id"),
-                    )
-                )
-                if not failed_ok:
-                    raise RuntimeError("qa_gate_failed_publish_rejected")
-
-            return {"sent": True}
-        except Exception as e:
-            logger.error("eventbus_publish_failed", error=str(e))
-            return {"sent": False, "error": str(e)}
 
     def _should_notify_feishu(
         self,

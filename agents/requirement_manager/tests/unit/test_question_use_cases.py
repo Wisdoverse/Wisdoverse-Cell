@@ -1,4 +1,5 @@
 """Requirement Manager question use-case tests."""
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -132,13 +133,16 @@ async def test_ingest_meeting_persists_open_questions_through_question_store():
     outbox.stage = AsyncMock()
 
     async def create_meeting(meeting):
-        meeting.id = "mtg_ingest"
-        return meeting
+        return SimpleNamespace(id="mtg_ingest", **meeting.meeting_kwargs())
 
     async def create_requirements(requirements):
-        for index, requirement in enumerate(requirements, start=1):
-            requirement.id = f"req_{index}"
-        return requirements
+        return [
+            SimpleNamespace(
+                id=f"req_{index}",
+                **requirement.requirement_kwargs(),
+            )
+            for index, requirement in enumerate(requirements, start=1)
+        ]
 
     meeting_repo = MagicMock()
     meeting_repo.create = AsyncMock(side_effect=create_meeting)
