@@ -21,7 +21,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from shared.config import settings
@@ -296,19 +296,67 @@ def create_agent_app(
         result = await runtime.agent.handle_request(payload)
         return JSONResponse(content=result)
 
-    # ── Prometheus (must register before app starts — instrument() adds middleware) ──
+    # ── Prometheus (must register before app starts; middleware observes HTTP calls) ──
     try:
-        from prometheus_fastapi_instrumentator import Instrumentator
+        import time
 
-        Instrumentator(
-            excluded_handlers=[
-                "/health",
-                "/health/ready",
-                "/health/startup",
-                "/health/ready/detail",
-                "/metrics",
-            ],
-        ).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+        from prometheus_client import (
+            CONTENT_TYPE_LATEST,
+            CollectorRegistry,
+            Counter,
+            Histogram,
+            generate_latest,
+        )
+
+        excluded_handlers = {
+            "/health",
+            "/health/ready",
+            "/health/startup",
+            "/health/ready/detail",
+            "/metrics",
+        }
+        metrics_registry = CollectorRegistry()
+        http_requests = Counter(
+            "wisdoverse_cell_http_requests",
+            "Total HTTP requests handled by an agent runtime.",
+            ("method", "path", "status_code"),
+            registry=metrics_registry,
+        )
+        http_request_duration = Histogram(
+            "wisdoverse_cell_http_request_duration_seconds",
+            "HTTP request duration for agent runtime routes.",
+            ("method", "path"),
+            registry=metrics_registry,
+        )
+
+        def route_path(request: Request) -> str:
+            route = request.scope.get("route")
+            path = getattr(route, "path", None)
+            return path if isinstance(path, str) else request.url.path
+
+        @app.middleware("http")
+        async def prometheus_middleware(request: Request, call_next: Callable[[Request], Any]):
+            if request.url.path in excluded_handlers:
+                return await call_next(request)
+
+            started_at = time.perf_counter()
+            status_code = "500"
+            try:
+                response = await call_next(request)
+                status_code = str(response.status_code)
+                return response
+            finally:
+                path = route_path(request)
+                elapsed = time.perf_counter() - started_at
+                http_requests.labels(request.method, path, status_code).inc()
+                http_request_duration.labels(request.method, path).observe(elapsed)
+
+        @app.get("/metrics", include_in_schema=False)
+        async def metrics_endpoint():
+            return Response(
+                generate_latest(metrics_registry),
+                headers={"Content-Type": CONTENT_TYPE_LATEST},
+            )
     except ImportError:
         logger.info("prometheus_not_available")
 

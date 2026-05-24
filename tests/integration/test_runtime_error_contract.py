@@ -101,6 +101,27 @@ def _load_app(module_name: str) -> Any:
 
 
 @pytest.mark.asyncio
+async def test_create_agent_app_exposes_runtime_prometheus_metrics() -> None:
+    app = _create_contract_app()
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post("/agent/request", json={"action": "describe"})
+        metrics_response = await client.get("/metrics")
+
+    assert response.status_code == 200
+    assert metrics_response.status_code == 200
+    assert metrics_response.headers["content-type"].startswith("text/plain")
+    metrics_body = metrics_response.text
+    assert "wisdoverse_cell_http_requests_total" in metrics_body
+    assert 'method="POST"' in metrics_body
+    assert 'path="/agent/request"' in metrics_body
+    assert 'status_code="200"' in metrics_body
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("module_name", RUNTIME_APP_MODULES)
 async def test_runtime_apps_return_shared_error_envelope_for_auth_failures(
     module_name: str,

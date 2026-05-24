@@ -17,6 +17,7 @@
 
 # Web Framework
 fastapi>=0.136.1
+starlette>=1.0.1
 uvicorn[standard]>=0.46.0
 gunicorn>=23.0.0
 
@@ -70,7 +71,6 @@ apscheduler>=3.11.0
 
 # Metrics
 prometheus-client>=0.21.0
-prometheus-fastapi-instrumentator>=7.0.0
 
 # Observability
 opentelemetry-api
