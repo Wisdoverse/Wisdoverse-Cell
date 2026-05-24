@@ -1,6 +1,7 @@
 """Repository ports for dev-agent core use cases."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
@@ -25,6 +26,48 @@ class DevTaskRecord(Protocol):
     last_polled_at: datetime | None
     retry_count: int
     mr_url: str | None
+    error_message: str | None
+    failed_step: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class DevTaskSnapshot:
+    """Immutable task record returned through the Dev task port."""
+
+    id: DevTaskId
+    wp_id: WorkPackageId
+    status: TaskStatus
+    task_title: str | None
+    risk_level: RiskLevel | str | None
+    created_at: datetime | None
+    updated_at: datetime | None
+    workflow_id: str | None
+    workflow_started_at: datetime | None
+    last_polled_at: datetime | None
+    retry_count: int
+    mr_url: str | None
+    error_message: str | None
+    failed_step: str | None
+
+    @classmethod
+    def from_record(cls, record: Any) -> "DevTaskSnapshot":
+        """Map a persistence row or test double into the core task snapshot."""
+        return cls(
+            id=DevTaskId(str(record.id)),
+            wp_id=WorkPackageId(int(record.wp_id)),
+            status=TaskStatus(str(record.status)),
+            task_title=getattr(record, "task_title", None),
+            risk_level=getattr(record, "risk_level", None),
+            created_at=getattr(record, "created_at", None),
+            updated_at=getattr(record, "updated_at", None),
+            workflow_id=getattr(record, "workflow_id", None),
+            workflow_started_at=getattr(record, "workflow_started_at", None),
+            last_polled_at=getattr(record, "last_polled_at", None),
+            retry_count=int(getattr(record, "retry_count", 0) or 0),
+            mr_url=getattr(record, "mr_url", None),
+            error_message=getattr(record, "error_message", None),
+            failed_step=getattr(record, "failed_step", None),
+        )
 
 
 class DevTaskRepositoryPort(Protocol):
@@ -81,6 +124,18 @@ class DevWorkflowLogRecord(Protocol):
     """Workflow log fields consumed by dev-agent use cases."""
 
     workflow_json: dict | None
+
+
+@dataclass(frozen=True, slots=True)
+class DevWorkflowLogSnapshot:
+    """Immutable workflow-log record returned through the Dev workflow-log port."""
+
+    workflow_json: dict | None
+
+    @classmethod
+    def from_record(cls, record: Any) -> "DevWorkflowLogSnapshot":
+        """Map a persistence row or test double into the core workflow-log snapshot."""
+        return cls(workflow_json=getattr(record, "workflow_json", None))
 
 
 class DevWorkflowLogRepositoryPort(Protocol):

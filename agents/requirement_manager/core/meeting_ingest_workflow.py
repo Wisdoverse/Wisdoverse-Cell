@@ -9,7 +9,6 @@ from shared.core.identifiers import MeetingId, RequirementId
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
-from ..models import Meeting, OpenQuestion, Requirement
 from .domain.aggregate_consistency import (
     MEETING,
     OPEN_QUESTION,
@@ -37,8 +36,8 @@ class IngestResult:
     requirements_extracted: int
     questions_generated: int
     requirement_ids: list[str]
-    requirements: list[Requirement] = field(default_factory=list, repr=False)
-    open_questions: list[OpenQuestion] = field(default_factory=list, repr=False)
+    requirements: list[Any] = field(default_factory=list, repr=False)
+    open_questions: list[Any] = field(default_factory=list, repr=False)
     staged_events: list[Event] = field(default_factory=list, repr=False)
 
 
@@ -99,8 +98,9 @@ class RequirementMeetingIngestWorkflow:
             participants=participants,
             context=context,
         )
-        meeting = Meeting(**source_metadata.meeting_kwargs(raw_content=content))
-        await uow.meetings.create(meeting)
+        meeting = await uow.meetings.create(
+            source_metadata.meeting_draft(raw_content=content)
+        )
 
         logger.info(
             "meeting_created",
@@ -122,27 +122,25 @@ class RequirementMeetingIngestWorkflow:
             meeting_id=MeetingId(meeting.id),
         )
 
-        requirements = [
-            Requirement(**requirement.requirement_kwargs())
-            for requirement in extraction_plan.requirements
-        ]
+        requirement_drafts = list(extraction_plan.requirements)
         expected_question_count = (
-            extraction_plan.open_questions_count if requirements else 0
+            extraction_plan.open_questions_count if requirement_drafts else 0
         )
         consistency_scope = self._consistency_policy.meeting_ingest(
-            requirements_count=len(requirements),
+            requirements_count=len(requirement_drafts),
             open_questions_count=expected_question_count,
         )
         consistency_scope.assert_allows_same_transaction(
             _meeting_ingest_write_set(
-                requirements_count=len(requirements),
+                requirements_count=len(requirement_drafts),
                 open_questions_count=expected_question_count,
             )
         )
 
         publication: RequirementExtractionPublication | None = None
-        if requirements:
-            await uow.requirements.create_batch(requirements)
+        requirements = []
+        if requirement_drafts:
+            requirements = await uow.requirements.create_batch(requirement_drafts)
             publication = self._publication_policy.build(
                 meeting_id=MeetingId(meeting.id),
                 requirements=requirements,
@@ -156,12 +154,8 @@ class RequirementMeetingIngestWorkflow:
                     RequirementId(requirement.id) for requirement in requirements
                 ],
             )
-            questions = [
-                OpenQuestion(**question.open_question_kwargs())
-                for question in question_drafts
-            ]
-            if questions:
-                await uow.questions.create_batch(questions)
+            if question_drafts:
+                questions = await uow.questions.create_batch(list(question_drafts))
 
         await uow.meetings.mark_processed(MeetingId(meeting.id))
 

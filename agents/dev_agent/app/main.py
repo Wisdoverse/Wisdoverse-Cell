@@ -10,14 +10,15 @@ from shared.app import create_agent_app
 from shared.config import settings
 from shared.middleware.internal_auth import verify_internal_key
 from shared.schemas.agent import BaseAgent
+from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
 from ..adapters.agentforge_client import ForgeClient
 from ..adapters.gitlab_client import GitLabClient
 from ..api.dev import router as dev_router
+from ..core.domain.lifecycle.task_lifecycle import EXECUTING, FAILED, SECURITY_SCANNING
 from ..core.scheduler_use_cases import DevSchedulerUseCase
 from ..core.security_scanner import SecurityScanner
-from ..core.workflow_planner import inject_project_id
 from ..db.database import db_manager
 from ..db.unit_of_work import SqlAlchemyDevSessionUnitOfWorkFactory
 from ..service.agent import DevAgent
@@ -186,8 +187,7 @@ async def _reconcile() -> None:
                         # without workflow_id — skip polling, handled by result_collector
                         continue
 
-                    # Only poll tasks in 'executing' status
-                    if task.status != "executing":
+                    if task.status != EXECUTING:
                         continue
 
                     elapsed = now - task.workflow_started_at
@@ -196,7 +196,7 @@ async def _reconcile() -> None:
                     if min_interval is None:
                         await repo.update_status(
                             task.id,
-                            "failed",
+                            FAILED,
                             error_message="Workflow execution timed out (>6h)",
                             failed_step="timeout",
                         )
@@ -256,7 +256,7 @@ async def _reconcile() -> None:
                                         staged_events.extend(events)
                                 else:
                                     # No GitLab client — just mark security_scanning
-                                    await repo.update_status(task.id, "security_scanning")
+                                    await repo.update_status(task.id, SECURITY_SCANNING)
                                     logger.warning(
                                         "gitlab_not_configured",
                                         task_id=task.id,
@@ -278,7 +278,10 @@ async def _reconcile() -> None:
                     pending = await repo.list_pending_tasks(limit=slots)
                     for task in pending:
                         try:
-                            await _start_pending_task(task, repo, log_repo)
+                            events = await _start_pending_task(task, repo, log_repo)
+                            for evt in events:
+                                await uow.outbox.add(evt)
+                            staged_events.extend(events)
                         except Exception as e:
                             logger.error(
                                 "pending_task_start_error",
@@ -296,7 +299,10 @@ async def _reconcile() -> None:
                         # Only re-enter if this is a retry (retry_count > 0)
                         if task.retry_count > 0:
                             try:
-                                await _start_pending_task(task, repo, log_repo)
+                                events = await _start_pending_task(task, repo, log_repo)
+                                for evt in events:
+                                    await uow.outbox.add(evt)
+                                staged_events.extend(events)
                             except Exception as e:
                                 logger.error(
                                     "planning_retry_error",
@@ -315,7 +321,7 @@ async def _reconcile() -> None:
         logger.error("reconcile_error", error=str(e), exc_info=True)
 
 
-async def _start_pending_task(task, repo, log_repo) -> None:
+async def _start_pending_task(task, repo, log_repo) -> list[Event]:
     """Start a pending/planning task through the plan-and-execute pipeline."""
     from ..models.schemas import RiskLevel, SanitizedTask
 
@@ -339,57 +345,16 @@ async def _start_pending_task(task, repo, log_repo) -> None:
         )
     risk = sanitized.risk_level
 
-    # Use the agent's planner/validator/router
-    await repo.update_status(task.id, "planning")
-    plan = await agent._planner.plan(sanitized)
-    if plan is None:
-        await repo.update_status(
-            task.id, "failed", error_message="Workflow planning failed (reconcile)"
-        )
-        return
-
-    plan = inject_project_id(plan, settings.dev_agentforge_project_id)
-    validation = agent._validator.validate(plan)
-    if not validation.is_valid:
-        await repo.update_status(
-            task.id, "failed",
-            error_message=f"Validation: {'; '.join(validation.violations)}",
-        )
-        return
-
-    for node in plan.nodes:
-        tool = agent._router.route(node)
-        node.config["cliTool"] = tool
-
-    plan_json = plan.model_dump()
-    if risk == RiskLevel.HIGH:
-        approval_id = await agent._request_workflow_approval(
-            sanitized=sanitized,
-            task_id=task.id,
-            plan_json=plan_json,
-        )
-        if approval_id:
-            plan_json["control_plane_approval_id"] = approval_id
-
-    # Store workflow plan
-    await log_repo.create_log(task_id=task.id, workflow_json=plan_json)
-
-    if risk == RiskLevel.HIGH:
-        await repo.update_status(task.id, "awaiting_approval")
-        return
-
-    if _forge_client:
-        workflow_id = await _forge_client.create_workflow(plan)
-        await _forge_client.run_workflow(workflow_id)
-        await repo.update_status(
-            task.id,
-            "executing",
-            workflow_id=workflow_id,
-            workflow_started_at=datetime.now(UTC),
-        )
-        logger.info("pending_task_started", task_id=task.id, workflow_id=workflow_id)
-    else:
-        logger.warning("forge_not_available", task_id=task.id)
+    events = await agent.plan_and_execute_existing_task(
+        sanitized=sanitized,
+        task_record=task,
+        repo=repo,
+        log_repo=log_repo,
+        risk=risk,
+    )
+    if events:
+        logger.info("pending_task_started", task_id=task.id, event_count=len(events))
+    return events
 
 
 async def _expire_stale() -> None:

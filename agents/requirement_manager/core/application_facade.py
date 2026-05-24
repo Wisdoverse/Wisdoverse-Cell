@@ -7,7 +7,6 @@ from typing import Any
 from shared.core import FeishuMessengerPort
 from shared.schemas.event import Event
 
-from ..models import Meeting, OpenQuestion, Requirement
 from .card_ports import RequirementCardRendererPort
 from .ingest_side_effect_use_cases import (
     RequirementIngestSideEffectUseCase,
@@ -148,7 +147,7 @@ class RequirementApplicationFacade:
         requirement_id: str,
         confirmed_by: str,
         session: object | None = None,
-    ) -> Requirement | None:
+    ) -> Any | None:
         if session is not None:
             return await self._command_use_case.confirm_requirement(
                 requirement_id=requirement_id,
@@ -179,7 +178,7 @@ class RequirementApplicationFacade:
         reason: str,
         rejected_by: str,
         session: object | None = None,
-    ) -> Requirement | None:
+    ) -> Any | None:
         if session is not None:
             return await self._command_use_case.reject_requirement(
                 requirement_id=requirement_id,
@@ -213,7 +212,7 @@ class RequirementApplicationFacade:
         requirement_id: str,
         changes: dict[str, Any],
         session: object | None = None,
-    ) -> Requirement | None:
+    ) -> Any | None:
         if session is not None:
             return await self._command_use_case.update_requirement(
                 requirement_id=requirement_id,
@@ -243,7 +242,7 @@ class RequirementApplicationFacade:
         requirement_id: str,
         deleted_by: str,
         session: object | None = None,
-    ) -> Requirement | None:
+    ) -> Any | None:
         if session is not None:
             return await self._command_use_case.delete_requirement(
                 requirement_id=requirement_id,
@@ -274,7 +273,7 @@ class RequirementApplicationFacade:
         answer: str,
         answered_by: str,
         session: object | None = None,
-    ) -> OpenQuestion | None:
+    ) -> Any | None:
         if session is not None:
             return await self._command_use_case.answer_question(
                 question_id,
@@ -308,7 +307,7 @@ class RequirementApplicationFacade:
         session: object | None = None,
         *,
         limit: int = 50,
-    ) -> list[OpenQuestion]:
+    ) -> list[Any]:
         if session is not None:
             return await self._read_query_use_case.list_open_questions_with_uow(
                 self.session_unit_of_work(session),
@@ -393,10 +392,10 @@ class RequirementApplicationFacade:
             uow=uow,
         )
 
-    async def get_requirement(self, requirement_id: str) -> Requirement | None:
+    async def get_requirement(self, requirement_id: str) -> Any | None:
         return await self._read_query_use_case.get_requirement(requirement_id)
 
-    async def get_meeting(self, meeting_id: str) -> Meeting | None:
+    async def get_meeting(self, meeting_id: str) -> Any | None:
         return await self._read_query_use_case.get_meeting(meeting_id)
 
     async def send_session_extraction_card(

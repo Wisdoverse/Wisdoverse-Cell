@@ -6,7 +6,7 @@ from shared.core.identifiers import DevTaskId, WorkPackageId
 
 from ..core.domain.lifecycle.task_lifecycle import TaskStatus
 from ..core.domain.task_values import RiskLevel, risk_level_value
-from ..core.repositories import DevTaskRepositoryPort
+from ..core.repositories import DevTaskRepositoryPort, DevTaskSnapshot
 from .repository import DevTaskRepository
 
 
@@ -22,20 +22,21 @@ class SqlAlchemyDevTaskStore(DevTaskRepositoryPort):
         task_title: str,
         risk_level: RiskLevel | str = RiskLevel.MEDIUM,
     ):
-        return await self._tasks.create_task(
+        row = await self._tasks.create_task(
             wp_id=WorkPackageId(int(wp_id)),
             task_title=task_title,
             risk_level=risk_level_value(risk_level),
         )
+        return _task_snapshot(row)
 
     async def get_by_wp_id(self, wp_id: WorkPackageId):
-        return await self._tasks.get_by_wp_id(WorkPackageId(int(wp_id)))
+        return _task_snapshot(await self._tasks.get_by_wp_id(WorkPackageId(int(wp_id))))
 
     async def get_by_id(self, task_id: DevTaskId):
-        return await self._tasks.get_by_id(DevTaskId(str(task_id)))
+        return _task_snapshot(await self._tasks.get_by_id(DevTaskId(str(task_id))))
 
     async def get_by_mr_iid(self, mr_iid: int):
-        return await self._tasks.get_by_mr_iid(mr_iid)
+        return _task_snapshot(await self._tasks.get_by_mr_iid(mr_iid))
 
     async def update_status(
         self,
@@ -56,19 +57,29 @@ class SqlAlchemyDevTaskStore(DevTaskRepositoryPort):
         )
 
     async def list_active_tasks(self):
-        return await self._tasks.list_active_tasks()
+        return _task_snapshots(await self._tasks.list_active_tasks())
 
     async def list_pending_tasks(self, limit: int = 5):
-        return await self._tasks.list_pending_tasks(limit=limit)
+        return _task_snapshots(await self._tasks.list_pending_tasks(limit=limit))
 
     async def list_planning_tasks(self, limit: int = 5):
-        return await self._tasks.list_planning_tasks(limit=limit)
+        return _task_snapshots(await self._tasks.list_planning_tasks(limit=limit))
 
     async def list_failed_tasks(self, limit: int = 50):
-        return await self._tasks.list_failed_tasks(limit=limit)
+        return _task_snapshots(await self._tasks.list_failed_tasks(limit=limit))
 
     async def count_active_workflows(self) -> int:
         return await self._tasks.count_active_workflows()
 
     async def expire_stale_pending(self, hours: int = 24) -> int:
         return await self._tasks.expire_stale_pending(hours=hours)
+
+
+def _task_snapshot(record) -> DevTaskSnapshot | None:
+    if record is None:
+        return None
+    return DevTaskSnapshot.from_record(record)
+
+
+def _task_snapshots(records) -> list[DevTaskSnapshot]:
+    return [DevTaskSnapshot.from_record(record) for record in records]

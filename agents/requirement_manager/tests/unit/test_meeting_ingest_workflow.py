@@ -44,9 +44,9 @@ class FakeMeetingStore:
         self.processed: list[MeetingId] = []
 
     async def create(self, meeting):
-        meeting.id = "mtg_1"
-        self.created.append(meeting)
-        return meeting
+        record = SimpleNamespace(id="mtg_1", **meeting.meeting_kwargs())
+        self.created.append(record)
+        return record
 
     async def mark_processed(self, meeting_id: MeetingId):
         self.processed.append(meeting_id)
@@ -57,10 +57,12 @@ class FakeRequirementStore:
         self.created = []
 
     async def create_batch(self, requirements):
-        for index, requirement in enumerate(requirements, start=1):
-            requirement.id = f"req_{index}"
-        self.created.extend(requirements)
-        return requirements
+        records = [
+            SimpleNamespace(id=f"req_{index}", **requirement.requirement_kwargs())
+            for index, requirement in enumerate(requirements, start=1)
+        ]
+        self.created.extend(records)
+        return records
 
 
 class FakeQuestionStore:
@@ -68,8 +70,12 @@ class FakeQuestionStore:
         self.created = []
 
     async def create_batch(self, questions):
-        self.created.extend(questions)
-        return questions
+        records = [
+            SimpleNamespace(id=f"q_{index}", **question.open_question_kwargs())
+            for index, question in enumerate(questions, start=1)
+        ]
+        self.created.extend(records)
+        return records
 
 
 class FakeOutbox:

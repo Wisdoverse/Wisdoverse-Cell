@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared.core.identifiers import OpenQuestionId
 
 from ..core.question_ports import RequirementQuestionStore
+from ..models import OpenQuestion
 from .repository import QuestionRepository
 
 
@@ -15,7 +16,19 @@ class SqlAlchemyRequirementQuestionStore(RequirementQuestionStore):
         self._questions = QuestionRepository(session)
 
     async def create_batch(self, questions: list):
-        return await self._questions.create_batch(questions)
+        rows = [
+            question
+            if isinstance(question, OpenQuestion)
+            else OpenQuestion(
+                **(
+                    question.open_question_kwargs()
+                    if hasattr(question, "open_question_kwargs")
+                    else dict(question)
+                )
+            )
+            for question in questions
+        ]
+        return await self._questions.create_batch(rows)
 
     async def answer(
         self,
