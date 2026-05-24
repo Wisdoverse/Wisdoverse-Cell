@@ -270,30 +270,14 @@ class TestSchedulerRuntimeBoundary:
         log_repo.get_by_task_id = AsyncMock(return_value=None)
         log_repo.create_log = AsyncMock()
 
-        plan = WorkflowPlan(
-            name="dev-task-wp-400",
-            description="test",
-            nodes=[
-                WorkflowNode(
-                    name="implementation",
-                    config={"prompt": "Implement the requested change"},
-                )
-            ],
-        )
         runtime_agent = SimpleNamespace(
-            _planner=SimpleNamespace(plan=AsyncMock(return_value=plan)),
-            _validator=SimpleNamespace(validate=MagicMock(return_value=ValidationResult())),
-            _router=SimpleNamespace(route=MagicMock(return_value="codex")),
-            _request_workflow_approval=AsyncMock(return_value=None),
+            plan_and_execute_existing_task=AsyncMock(return_value=[]),
         )
         raw_planner = AsyncMock(side_effect=AssertionError("raw planner used"))
-        mock_forge = AsyncMock()
-        mock_forge.create_workflow = AsyncMock(return_value="wf-runtime-boundary")
-        mock_forge.run_workflow = AsyncMock()
 
         orig_forge = main_module._forge_client
         try:
-            main_module._forge_client = mock_forge
+            main_module._forge_client = AsyncMock()
             with (
                 patch.object(main_module, "_get_agent", return_value=runtime_agent),
                 patch.object(main_module._raw_agent._planner, "plan", raw_planner),
@@ -302,12 +286,8 @@ class TestSchedulerRuntimeBoundary:
         finally:
             main_module._forge_client = orig_forge
 
-        runtime_agent._planner.plan.assert_awaited_once()
+        runtime_agent.plan_and_execute_existing_task.assert_awaited_once()
         raw_planner.assert_not_called()
-        runtime_agent._validator.validate.assert_called_once()
-        runtime_agent._router.route.assert_called_once()
-        mock_forge.create_workflow.assert_awaited_once_with(plan)
-        mock_forge.run_workflow.assert_awaited_once_with("wf-runtime-boundary")
 
 
 # --- Blocker C: Multiple child tasks get unique IDs ---

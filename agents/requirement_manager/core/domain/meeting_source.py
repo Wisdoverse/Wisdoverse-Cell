@@ -9,6 +9,31 @@ from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
+class MeetingPersistenceDraft:
+    """Immutable draft for creating one meeting record at the persistence boundary."""
+
+    source: str
+    raw_content: str
+    source_id: str | None = None
+    title: str | None = None
+    meeting_date: datetime | None = None
+    participants: tuple[str, ...] = ()
+    context: str | None = None
+
+    def meeting_kwargs(self) -> dict[str, Any]:
+        """Return mutable constructor fields for the persistence adapter."""
+        return {
+            "source": self.source,
+            "source_id": self.source_id,
+            "title": self.title,
+            "raw_content": self.raw_content,
+            "meeting_date": self.meeting_date,
+            "participants": list(self.participants),
+            "context": self.context,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class MeetingSourceMetadata:
     """Immutable source metadata for one ingested meeting artifact."""
 
@@ -57,16 +82,20 @@ class MeetingSourceMetadata:
         return self.meeting_date.isoformat()
 
     def meeting_kwargs(self, *, raw_content: str) -> dict[str, Any]:
-        """Return ORM-ready Meeting constructor fields."""
-        return {
-            "source": self.source,
-            "source_id": self.source_id,
-            "title": self.title,
-            "raw_content": raw_content,
-            "meeting_date": self.meeting_date,
-            "participants": self.participants_list(),
-            "context": self.context,
-        }
+        """Return persistence-ready Meeting creation fields."""
+        return self.meeting_draft(raw_content=raw_content).meeting_kwargs()
+
+    def meeting_draft(self, *, raw_content: str) -> MeetingPersistenceDraft:
+        """Return an immutable persistence draft for the meeting record."""
+        return MeetingPersistenceDraft(
+            source=self.source,
+            source_id=self.source_id,
+            title=self.title,
+            raw_content=raw_content,
+            meeting_date=self.meeting_date,
+            participants=self.participants,
+            context=self.context,
+        )
 
 
 def _optional_str(value: Any | None) -> str | None:
@@ -75,4 +104,4 @@ def _optional_str(value: Any | None) -> str | None:
     return str(value)
 
 
-__all__ = ["MeetingSourceMetadata"]
+__all__ = ["MeetingPersistenceDraft", "MeetingSourceMetadata"]

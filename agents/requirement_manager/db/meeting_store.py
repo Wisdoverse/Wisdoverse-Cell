@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared.core.identifiers import MeetingId
 
 from ..core.meeting_ports import RequirementMeetingStore
+from ..models import Meeting
 from .repository import MeetingRepository
 
 
@@ -15,7 +16,13 @@ class SqlAlchemyRequirementMeetingStore(RequirementMeetingStore):
         self._meetings = MeetingRepository(session)
 
     async def create(self, meeting):
-        return await self._meetings.create(meeting)
+        if isinstance(meeting, Meeting):
+            row = meeting
+        elif hasattr(meeting, "meeting_kwargs"):
+            row = Meeting(**meeting.meeting_kwargs())
+        else:
+            row = Meeting(**dict(meeting))
+        return await self._meetings.create(row)
 
     async def get_by_id(self, meeting_id: MeetingId):
         return await self._meetings.get_by_id(meeting_id)

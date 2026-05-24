@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared.core.identifiers import RequirementId
 
 from ..core.requirement_ports import RequirementStore
+from ..models import Requirement
 from .repository import RequirementRepository
 
 
@@ -15,7 +16,19 @@ class SqlAlchemyRequirementStore(RequirementStore):
         self._requirements = RequirementRepository(session)
 
     async def create_batch(self, requirements: list):
-        return await self._requirements.create_batch(requirements)
+        rows = [
+            requirement
+            if isinstance(requirement, Requirement)
+            else Requirement(
+                **(
+                    requirement.requirement_kwargs()
+                    if hasattr(requirement, "requirement_kwargs")
+                    else dict(requirement)
+                )
+            )
+            for requirement in requirements
+        ]
+        return await self._requirements.create_batch(rows)
 
     async def get_by_id(self, requirement_id: RequirementId):
         return await self._requirements.get_by_id(requirement_id)

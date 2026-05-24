@@ -2,7 +2,7 @@
 
 from shared.core.identifiers import DevTaskId
 
-from ..core.repositories import DevWorkflowLogRepositoryPort
+from ..core.repositories import DevWorkflowLogRepositoryPort, DevWorkflowLogSnapshot
 from .repository import DevWorkflowLogRepository
 
 
@@ -13,7 +13,12 @@ class SqlAlchemyDevWorkflowLogStore(DevWorkflowLogRepositoryPort):
         self._repo = DevWorkflowLogRepository(session)
 
     async def create_log(self, task_id: DevTaskId, **kwargs):
-        return await self._repo.create_log(DevTaskId(str(task_id)), **kwargs)
+        return DevWorkflowLogSnapshot.from_record(
+            await self._repo.create_log(DevTaskId(str(task_id)), **kwargs)
+        )
 
     async def get_by_task_id(self, task_id: DevTaskId):
-        return await self._repo.get_by_task_id(DevTaskId(str(task_id)))
+        row = await self._repo.get_by_task_id(DevTaskId(str(task_id)))
+        if row is None:
+            return None
+        return DevWorkflowLogSnapshot.from_record(row)

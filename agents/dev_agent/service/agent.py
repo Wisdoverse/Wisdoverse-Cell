@@ -234,6 +234,26 @@ class DevAgent(BaseAgent):
             trace_id=trace_id,
         )
 
+    async def plan_and_execute_existing_task(
+        self,
+        *,
+        sanitized: SanitizedTask,
+        task_record,
+        repo,
+        log_repo,
+        risk,
+        trace_id: str | None = None,
+    ) -> list[Event]:
+        """Plan and execute an already-persisted task from scheduler recovery."""
+        return await self._application.plan_and_execute(
+            sanitized,
+            task_record,
+            repo,
+            log_repo,
+            risk,
+            trace_id=trace_id,
+        )
+
     async def _request_workflow_approval(
         self,
         *,

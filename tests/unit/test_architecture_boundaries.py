@@ -558,6 +558,43 @@ def test_dev_agent_domain_owns_task_value_objects_and_policy() -> None:
     assert "DevDeliveryWorkflowPolicy" in collector_source
 
 
+def test_dev_agent_sqlalchemy_stores_return_core_snapshots() -> None:
+    """Dev DB stores should map ORM rows into immutable core snapshots."""
+    repository_source = Path("agents/dev_agent/core/repositories.py").read_text()
+    task_store_source = Path("agents/dev_agent/db/task_store.py").read_text()
+    log_store_source = Path("agents/dev_agent/db/workflow_log_store.py").read_text()
+
+    assert "@dataclass(frozen=True, slots=True)" in repository_source
+    assert "class DevTaskSnapshot" in repository_source
+    assert "class DevWorkflowLogSnapshot" in repository_source
+    assert "DevTaskSnapshot.from_record" in task_store_source
+    assert "DevWorkflowLogSnapshot.from_record" in log_store_source
+    assert "return await self._tasks.get_by_id" not in task_store_source
+    assert "return await self._tasks.list_active_tasks" not in task_store_source
+    assert "return await self._repo.get_by_task_id" not in log_store_source
+
+
+def test_dev_scheduler_delegates_plan_execution_to_application_boundary() -> None:
+    """Dev app scheduler should not duplicate workflow planning internals."""
+    app_source = Path("agents/dev_agent/app/main.py").read_text()
+    agent_source = Path("agents/dev_agent/service/agent.py").read_text()
+
+    assert "plan_and_execute_existing_task" in app_source
+    assert "async def plan_and_execute_existing_task" in agent_source
+    for forbidden in (
+        "agent._planner",
+        "agent._validator",
+        "agent._router",
+        "agent._request_workflow_approval",
+        '"executing"',
+        '"failed"',
+        '"security_scanning"',
+        '"planning"',
+        '"awaiting_approval"',
+    ):
+        assert forbidden not in app_source
+
+
 def test_sync_mapping_api_delegates_to_query_use_case() -> None:
     """Sync HTTP routes should not own mapping repository queries."""
     api_source = Path("shared/capabilities/sync/api/sync.py").read_text()
@@ -1186,9 +1223,13 @@ def test_requirement_ingest_uses_explicit_unit_of_work_boundary() -> None:
     assert "class RequirementExtractorPort(Protocol)" in workflow_source
     assert "class RequirementVectorIndexPort(Protocol)" in workflow_source
     assert "class RequirementMeetingIngestWorkflow" in workflow_source
-    assert "Meeting(" in workflow_source
-    assert "Requirement(" in workflow_source
-    assert "OpenQuestion(" in workflow_source
+    assert "source_metadata.meeting_draft(raw_content=content)" in workflow_source
+    assert "requirement_drafts = list(extraction_plan.requirements)" in workflow_source
+    assert "await uow.requirements.create_batch(requirement_drafts)" in workflow_source
+    assert "await uow.questions.create_batch(list(question_drafts))" in workflow_source
+    assert "Meeting(" not in workflow_source
+    assert "Requirement(" not in workflow_source
+    assert "OpenQuestion(" not in workflow_source
     assert "create_requirements_extracted_event" in workflow_source
     assert "await uow.outbox.stage(extracted_event)" in workflow_source
     assert "await self._vector_index.add_requirements_batch" in workflow_source
@@ -1793,12 +1834,14 @@ def test_requirement_meeting_ingest_uses_source_metadata_value_object() -> None:
     workflow_source = Path("agents/requirement_manager/core/meeting_ingest_workflow.py").read_text()
 
     assert "class MeetingSourceMetadata" in domain_source
+    assert "class MeetingPersistenceDraft" in domain_source
     assert "@dataclass(frozen=True, slots=True)" in domain_source
+    assert "def meeting_draft(" in domain_source
     assert "def meeting_kwargs(" in domain_source
     assert "def meeting_date_iso(" in domain_source
     assert "def participants_for_extraction(" in domain_source
     assert "MeetingSourceMetadata.from_values(" in workflow_source
-    assert "source_metadata.meeting_kwargs(raw_content=content)" in workflow_source
+    assert "source_metadata.meeting_draft(raw_content=content)" in workflow_source
     assert "source_metadata.meeting_date_iso()" in workflow_source
     assert "source_metadata.participants_for_extraction()" in workflow_source
     assert "participants=participants or []" not in workflow_source
@@ -1807,12 +1850,38 @@ def test_requirement_meeting_ingest_uses_source_metadata_value_object() -> None:
     assert "Meeting(" not in domain_source
 
 
+def test_requirement_mutating_core_does_not_construct_orm_rows() -> None:
+    """Requirement mutating workflows should pass drafts through ports."""
+    checked_paths = (
+        Path("agents/requirement_manager/core/meeting_ingest_workflow.py"),
+        Path("agents/requirement_manager/core/application_facade.py"),
+        Path("agents/requirement_manager/core/requirement_mutation_workflow.py"),
+    )
+    for path in checked_paths:
+        source = path.read_text()
+        assert "from ..models import" not in source
+        assert "Meeting(" not in source
+        assert "Requirement(" not in source
+        assert "OpenQuestion(" not in source
+
+    meeting_store_source = Path(
+        "agents/requirement_manager/db/meeting_store.py"
+    ).read_text()
+    assert "Meeting(**meeting.meeting_kwargs())" in meeting_store_source
+
+
 def test_requirement_extraction_materialization_rules_live_in_domain_service() -> None:
     """Extractor result materialization should be a pure Requirement domain service."""
     domain_source = Path(
         "agents/requirement_manager/core/domain/extraction_materialization.py"
     ).read_text()
     workflow_source = Path("agents/requirement_manager/core/meeting_ingest_workflow.py").read_text()
+    requirement_store_source = Path(
+        "agents/requirement_manager/db/requirement_store.py"
+    ).read_text()
+    question_store_source = Path(
+        "agents/requirement_manager/db/question_store.py"
+    ).read_text()
 
     assert "class RequirementExtractionMaterializer" in domain_source
     assert "class RequirementExtractionPlan" in domain_source
@@ -1836,12 +1905,16 @@ def test_requirement_extraction_materialization_rules_live_in_domain_service() -
     assert "self._extraction_materializer = RequirementExtractionMaterializer()" in workflow_source
     assert "self._publication_policy = RequirementExtractionPublicationPolicy()" in workflow_source
     assert "extraction_plan = self._extraction_materializer.materialize(" in workflow_source
-    assert "Requirement(**requirement.requirement_kwargs())" in workflow_source
+    assert "Requirement(**requirement.requirement_kwargs())" not in workflow_source
+    assert "Requirement(" in requirement_store_source
+    assert "requirement.requirement_kwargs()" in requirement_store_source
     assert "publication = self._publication_policy.build(" in workflow_source
     assert "publication.search_index_documents()" in workflow_source
     assert "payload=publication.event_payload()" in workflow_source
     assert "extraction_plan.materialize_open_questions(" in workflow_source
-    assert "OpenQuestion(**question.open_question_kwargs())" in workflow_source
+    assert "OpenQuestion(**question.open_question_kwargs())" not in workflow_source
+    assert "OpenQuestion(" in question_store_source
+    assert "question.open_question_kwargs()" in question_store_source
     assert "for requirement in extraction.requirements" not in workflow_source
     assert "for question in extraction.open_questions" not in workflow_source
     assert '"requirement_ids": [requirement.id for requirement in requirements]' not in workflow_source

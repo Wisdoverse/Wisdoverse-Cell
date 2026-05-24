@@ -9,7 +9,6 @@ from shared.observability.privacy import hash_identifier
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
-from ..models import OpenQuestion, Requirement
 from .domain.aggregate_consistency import (
     FEEDBACK_RECORD,
     OPEN_QUESTION,
@@ -30,7 +29,7 @@ REQUIREMENT_MANAGER_AGENT_ID = "requirement-manager"
 class RequirementMutationResult:
     """Requirement mutation result with post-commit side effects."""
 
-    entity: Requirement | OpenQuestion | None
+    entity: Any | None
     event: Event | None = None
     requirement_id: str | None = None
     delete_vector_requirement_id: str | None = None
@@ -398,7 +397,7 @@ class RequirementMutationWorkflow:
 
 
 def create_requirement_confirmed_event(
-    requirement: Requirement,
+    requirement: Any,
     confirmed_by: str,
 ) -> Event:
     """Create a requirement-confirmed integration event."""
@@ -417,7 +416,7 @@ def create_requirement_confirmed_event(
 
 
 def create_requirement_rejected_event(
-    requirement: Requirement,
+    requirement: Any,
     reason: str,
 ) -> Event:
     """Create a requirement-rejected integration event."""
@@ -434,7 +433,7 @@ def create_requirement_rejected_event(
 
 
 def create_requirement_changed_event(
-    requirement: Requirement,
+    requirement: Any,
     changed_fields: list[str],
     changed_by: str,
 ) -> Event:
@@ -453,7 +452,7 @@ def create_requirement_changed_event(
 
 
 def create_requirement_deleted_event(
-    requirement: Requirement,
+    requirement: Any,
     deleted_by: str,
 ) -> Event:
     """Create a requirement-deleted integration event."""
@@ -469,7 +468,7 @@ def create_requirement_deleted_event(
     )
 
 
-def _requirement_feedback_values(requirement: Requirement) -> dict[str, Any]:
+def _requirement_feedback_values(requirement: Any) -> dict[str, Any]:
     return {
         "title": requirement.title,
         "description": requirement.description,
