@@ -12,6 +12,7 @@ from shared.control_plane.approval_gate import (
 )
 from shared.control_plane.approval_store import SqlAlchemyControlPlaneApprovalStore
 from shared.control_plane.company_store import SqlAlchemyControlPlaneCompanyStore
+from shared.control_plane.domain.approval_request import InvalidApprovalTransitionError
 from shared.control_plane.models import ApprovalCategory, CompanyContext
 
 
@@ -131,3 +132,27 @@ async def test_approval_gate_rejects(db_session: AsyncSession):
 
     with pytest.raises(ApprovalRequiredError):
         await gate.ensure_approved(approval.approval_id)
+
+
+@pytest.mark.asyncio
+async def test_approval_gate_blocks_rejecting_approved_request(db_session: AsyncSession):
+    companies = SqlAlchemyControlPlaneCompanyStore(db_session)
+    approvals = SqlAlchemyControlPlaneApprovalStore(db_session)
+    company = await companies.create_company(CompanyContext(name="Wisdoverse Cell"))
+    gate = ApprovalGate(approvals)
+
+    approval = await gate.request_approval(
+        company_id=company.company_id,
+        category=ApprovalCategory.TECHNICAL,
+        requested_by="agent:dev-agent",
+        source_agent_id="dev-agent",
+        proposed_action="Run production migration",
+        reason="Control-plane ledger is required",
+        risk="Schema change",
+        rollback_note="Run downgrade migration",
+        affected_resources=["postgres"],
+    )
+    await gate.approve(approval.approval_id, resolved_by="human:cto")
+
+    with pytest.raises(InvalidApprovalTransitionError):
+        await gate.reject(approval.approval_id, resolved_by="human:cfo")

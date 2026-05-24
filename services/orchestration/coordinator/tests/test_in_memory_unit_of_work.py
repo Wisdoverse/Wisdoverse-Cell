@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from contextlib import AbstractAsyncContextManager
 from typing import Any
 
 import pytest

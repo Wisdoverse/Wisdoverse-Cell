@@ -7,16 +7,20 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from shared.control_plane.domain.evolution_proposal import (
+    ROLLOUT_STATES_REQUIRING_APPROVAL,
+    TERMINAL_ROLLOUT_STATES,
+    VALID_ROLLOUT_TRANSITIONS,
     EvolutionProposal,
     EvolutionRolloutStatusChanged,
     InvalidEvolutionRolloutTransitionError,
-    TERMINAL_ROLLOUT_STATES,
-    VALID_ROLLOUT_TRANSITIONS,
+    approval_state_is_approved,
+    evolution_rollout_state,
+    rollout_state_requires_approval,
 )
+from shared.control_plane.models import ApprovalStatus, EvolutionRolloutState, EvolutionTier
 from shared.control_plane.models import (
     EvolutionProposal as EvolutionProposalRecord,
 )
-from shared.control_plane.models import EvolutionRolloutState, EvolutionTier
 
 
 def _make_record(
@@ -57,25 +61,19 @@ def test_proposed_cannot_advance_to_active_directly() -> None:
 
 
 def test_canary_can_advance_to_active() -> None:
-    aggregate = EvolutionProposal.from_record(
-        _make_record(EvolutionRolloutState.CANARY)
-    )
+    aggregate = EvolutionProposal.from_record(_make_record(EvolutionRolloutState.CANARY))
     aggregate.advance_rollout(EvolutionRolloutState.ACTIVE)
     assert aggregate.rollout_state == EvolutionRolloutState.ACTIVE
 
 
 def test_shadow_can_roll_back() -> None:
-    aggregate = EvolutionProposal.from_record(
-        _make_record(EvolutionRolloutState.SHADOW)
-    )
+    aggregate = EvolutionProposal.from_record(_make_record(EvolutionRolloutState.SHADOW))
     aggregate.advance_rollout(EvolutionRolloutState.ROLLED_BACK)
     assert aggregate.rollout_state == EvolutionRolloutState.ROLLED_BACK
 
 
 def test_active_can_roll_back() -> None:
-    aggregate = EvolutionProposal.from_record(
-        _make_record(EvolutionRolloutState.ACTIVE)
-    )
+    aggregate = EvolutionProposal.from_record(_make_record(EvolutionRolloutState.ACTIVE))
     aggregate.advance_rollout(EvolutionRolloutState.ROLLED_BACK)
     assert aggregate.rollout_state == EvolutionRolloutState.ROLLED_BACK
 
@@ -127,9 +125,31 @@ def test_valid_rollout_transitions_table_covers_every_state() -> None:
 
 
 def test_terminal_states_set_matches_empty_transition_rows() -> None:
-    derived = {
-        state
-        for state, allowed in VALID_ROLLOUT_TRANSITIONS.items()
-        if not allowed
-    }
+    derived = {state for state, allowed in VALID_ROLLOUT_TRANSITIONS.items() if not allowed}
     assert TERMINAL_ROLLOUT_STATES == derived
+
+
+def test_rollout_approval_policy_lives_with_domain_vocabulary() -> None:
+    assert ROLLOUT_STATES_REQUIRING_APPROVAL == frozenset(
+        {
+            EvolutionRolloutState.CANARY,
+            EvolutionRolloutState.ACTIVE,
+        }
+    )
+    assert rollout_state_requires_approval(EvolutionRolloutState.CANARY)
+    assert rollout_state_requires_approval("active")
+    assert not rollout_state_requires_approval(EvolutionRolloutState.SHADOW)
+    assert not rollout_state_requires_approval(None)
+
+
+def test_approval_policy_accepts_enum_and_string_values() -> None:
+    assert approval_state_is_approved(ApprovalStatus.APPROVED)
+    assert approval_state_is_approved("approved")
+    assert not approval_state_is_approved(ApprovalStatus.PENDING)
+    assert not approval_state_is_approved(None)
+
+
+def test_rollout_state_parser_accepts_strings_and_enums() -> None:
+    assert evolution_rollout_state(EvolutionRolloutState.SHADOW) == (EvolutionRolloutState.SHADOW)
+    assert evolution_rollout_state("canary") == EvolutionRolloutState.CANARY
+    assert evolution_rollout_state(None) is None

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import re
 
-from ..models.schemas import RiskLevel, SanitizedTask
+from ..models.schemas import SanitizedTask
+from .domain.task_values import RiskLevel
 
 _CRITICAL_KEYWORDS = re.compile(
     r"\b(migration|infra|infrastructure|permission|secret|credential|"

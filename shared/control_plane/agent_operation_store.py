@@ -1,11 +1,12 @@
 """SQLAlchemy adapter for control-plane agent execution operations."""
+
 from __future__ import annotations
 
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.core.identifiers import CompanyId
+from shared.core.identifiers import AgentRoleId, CompanyId
 
 from .agent_operation_ports import ControlPlaneAgentOperationStore
 from .agent_registry_store import SqlAlchemyControlPlaneAgentRegistryStore
@@ -42,7 +43,7 @@ class SqlAlchemyControlPlaneAgentOperationStore(ControlPlaneAgentOperationStore)
         return await self._companies.get_company(company_id)
 
     async def get_agent_role(
-        self, *, company_id: CompanyId, agent_id: str
+        self, *, company_id: CompanyId, agent_id: AgentRoleId
     ) -> AgentRole | None:
         return await self._agents.get_agent_role(
             company_id=company_id,

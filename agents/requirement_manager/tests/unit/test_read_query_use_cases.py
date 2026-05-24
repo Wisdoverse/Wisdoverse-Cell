@@ -9,6 +9,7 @@ import pytest
 from agents.requirement_manager.core.read_query_use_cases import (
     RequirementReadQueryUseCase,
 )
+from shared.core.identifiers import MeetingId, RequirementId
 
 
 class FakeUnitOfWork:
@@ -111,8 +112,8 @@ async def test_get_requirement_and_meeting_use_uow_stores():
 
     assert await use_case.get_requirement("req_1") is requirement
     assert await use_case.get_meeting("mtg_1") is meeting
-    uow.requirements.get_by_id.assert_awaited_once_with("req_1")
-    uow.meetings.get_by_id.assert_awaited_once_with("mtg_1")
+    uow.requirements.get_by_id.assert_awaited_once_with(RequirementId("req_1"))
+    uow.meetings.get_by_id.assert_awaited_once_with(MeetingId("mtg_1"))
 
 
 @pytest.mark.asyncio

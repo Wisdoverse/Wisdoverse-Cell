@@ -27,13 +27,11 @@ os.environ.setdefault("POSTGRES_USER", "test")
 os.environ.setdefault("POSTGRES_PASSWORD", "test")
 
 # Import all models so SQLAlchemy registers them.
-from services.gateways.user_interaction.models.base import Base
-from services.gateways.user_interaction.models.card_operation import CardOperation  # noqa: F401
-from services.gateways.user_interaction.models.conversation import ConversationHistory  # noqa: F401
-from services.gateways.user_interaction.models.daily_progress import DailyProgress  # noqa: F401
-from services.gateways.user_interaction.models.event_outbox import (
-    UserInteractionEventOutbox,  # noqa: F401
-)
+from agents.chat_agent.models.base import Base
+from agents.chat_agent.models.card_operation import CardOperation  # noqa: F401
+from agents.chat_agent.models.conversation import ConversationHistory  # noqa: F401
+from agents.chat_agent.models.daily_progress import DailyProgress  # noqa: F401
+from agents.chat_agent.models.event_outbox import ChatAgentEventOutbox  # noqa: F401
 
 
 @pytest_asyncio.fixture

@@ -48,7 +48,7 @@ sys.meta_path.insert(0, _AutoMockFinder())
 
 @pytest.mark.asyncio
 async def test_chat_agent_subscribes_coordinator_response():
-    from services.gateways.user_interaction.service.agent import ChatAgent
+    from agents.chat_agent.service.agent import ChatAgent
 
     agent = ChatAgent(db=MagicMock(), bus=AsyncMock())
     assert EventTypes.COORDINATOR_RESPONSE in agent.subscribed_events
@@ -56,7 +56,7 @@ async def test_chat_agent_subscribes_coordinator_response():
 
 @pytest.mark.asyncio
 async def test_chat_agent_publishes_coordinator_command():
-    from services.gateways.user_interaction.service.agent import ChatAgent
+    from agents.chat_agent.service.agent import ChatAgent
 
     agent = ChatAgent(db=MagicMock(), bus=AsyncMock())
     assert EventTypes.COORDINATOR_COMMAND in agent.published_events

@@ -6,6 +6,7 @@ import pytest
 from agents.requirement_manager.core.requirement_mutation_workflow import (
     RequirementMutationWorkflow,
 )
+from shared.core.identifiers import OpenQuestionId, RequirementId
 from shared.schemas.event import EventTypes
 
 
@@ -38,13 +39,14 @@ async def test_confirm_requirement_stages_confirmed_event_in_uow():
     uow.requirements.confirm = AsyncMock(return_value=requirement)
 
     result = await RequirementMutationWorkflow().confirm_requirement(
-        requirement_id="req_1",
+        requirement_id=RequirementId("req_1"),
         confirmed_by="pm",
         uow=uow,
     )
 
     assert result.entity is requirement
     assert result.requirement_id == "req_1"
+    uow.requirements.confirm.assert_awaited_once_with(RequirementId("req_1"), "pm")
     assert result.event is not None
     assert result.event.event_type == EventTypes.REQUIREMENT_CONFIRMED
     assert result.event.source_agent == "requirement-manager"
@@ -62,12 +64,18 @@ async def test_update_requirement_records_history_feedback_and_changed_event():
     uow.feedback.create = AsyncMock()
 
     result = await RequirementMutationWorkflow().update_requirement(
-        requirement_id="req_1",
+        requirement_id=RequirementId("req_1"),
         changes={"title": "Updated title", "priority": "HIGH", "comment": "pm"},
         uow=uow,
     )
 
     assert result.entity is updated
+    uow.requirements.get_by_id.assert_awaited_once_with(RequirementId("req_1"))
+    uow.requirements.update.assert_awaited_once_with(
+        RequirementId("req_1"),
+        title="Updated title",
+        priority="HIGH",
+    )
     original.add_history.assert_called_once()
     uow.feedback.create.assert_awaited_once()
     assert result.event is not None
@@ -84,13 +92,35 @@ async def test_delete_requirement_defers_vector_delete_until_after_commit():
     uow.requirements.delete = AsyncMock(return_value=requirement)
 
     result = await RequirementMutationWorkflow().delete_requirement(
-        requirement_id="req_1",
+        requirement_id=RequirementId("req_1"),
         deleted_by="pm",
         uow=uow,
     )
 
     assert result.entity is requirement
     assert result.delete_vector_requirement_id == "req_1"
+    uow.requirements.delete.assert_awaited_once_with(RequirementId("req_1"))
     assert result.event is not None
     assert result.event.event_type == EventTypes.REQUIREMENT_DELETED
     uow.outbox.stage.assert_awaited_once_with(result.event)
+
+
+@pytest.mark.asyncio
+async def test_answer_question_uses_typed_question_identity():
+    uow = _uow()
+    question = SimpleNamespace(id="qst_1", status="answered")
+    uow.questions.answer = AsyncMock(return_value=question)
+
+    result = await RequirementMutationWorkflow().answer_question(
+        OpenQuestionId("qst_1"),
+        answer="Use the web onboarding flow",
+        answered_by="pm",
+        uow=uow,
+    )
+
+    assert result.entity is question
+    uow.questions.answer.assert_awaited_once_with(
+        OpenQuestionId("qst_1"),
+        answer="Use the web onboarding flow",
+        answered_by="pm",
+    )

@@ -6,6 +6,13 @@ from typing import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.schemas.event import Event
+
+from ..core.domain.sync_values import (
+    FeishuSubtaskStatus,
+    SubtaskMappingRecord,
+    SyncMappingRecord,
+)
 from ..core.sync_ports import (
     FeishuBitableSyncOperation,
     FeishuBitableSyncStore,
@@ -44,6 +51,7 @@ class _SqlAlchemyFeishuBitableSyncOperation(FeishuBitableSyncOperation):
     def __init__(self, session: AsyncSession):
         self._log_repo = SyncLogRepository(session)
         self._subtask_repo = SubtaskMappingRepository(session)
+        self._outbox_repo = SyncEventOutboxRepository(session)
 
     async def create_log(self, sync_type: str, status: str) -> object:
         return await self._log_repo.create(sync_type, status)
@@ -62,14 +70,17 @@ class _SqlAlchemyFeishuBitableSyncOperation(FeishuBitableSyncOperation):
         parent_op_id: int,
         record_id: str,
         name: str | None = None,
-        status: str | None = None,
-    ) -> None:
-        await self._subtask_repo.upsert(
+        status: FeishuSubtaskStatus | str | None = None,
+    ) -> SubtaskMappingRecord:
+        return await self._subtask_repo.upsert(
             parent_op_id=parent_op_id,
             record_id=record_id,
             name=name,
-            status=status,
+            status=str(status) if status is not None else None,
         )
+
+    async def stage_event(self, event: Event) -> None:
+        await self._outbox_repo.add(event)
 
 
 class SqlAlchemyFeishuBitableSyncStore(FeishuBitableSyncStore):
@@ -84,6 +95,16 @@ class SqlAlchemyFeishuBitableSyncStore(FeishuBitableSyncStore):
     ) -> AsyncIterator[FeishuBitableSyncOperation]:
         async with self._db_manager.session() as session:
             yield _SqlAlchemyFeishuBitableSyncOperation(session)
+
+    async def mark_event_published(self, event_id: str) -> None:
+        async with self._db_manager.session() as session:
+            outbox = SyncEventOutboxRepository(session)
+            await outbox.mark_published(event_id)
+
+    async def mark_event_failed(self, event_id: str, error: str) -> None:
+        async with self._db_manager.session() as session:
+            outbox = SyncEventOutboxRepository(session)
+            await outbox.mark_failed(event_id, error)
 
 
 class _SqlAlchemyOpenProjectSyncOperation(OpenProjectSyncOperation):
@@ -103,7 +124,7 @@ class _SqlAlchemyOpenProjectSyncOperation(OpenProjectSyncOperation):
     ) -> None:
         await self._log_repo.complete(log_id, records_processed, error)
 
-    async def get_mapping_by_op_id(self, op_id: int) -> object | None:
+    async def get_mapping_by_op_id(self, op_id: int) -> SyncMappingRecord | None:
         return await self._mapping_repo.get_by_op_id(op_id)
 
     async def upsert_mapping(
@@ -113,15 +134,15 @@ class _SqlAlchemyOpenProjectSyncOperation(OpenProjectSyncOperation):
         record_id: str,
         project_id: int | None = None,
         title: str | None = None,
-    ) -> None:
-        await self._mapping_repo.upsert(
+    ) -> SyncMappingRecord:
+        return await self._mapping_repo.upsert(
             op_id=op_id,
             record_id=record_id,
             project_id=project_id,
             title=title,
         )
 
-    async def stage_event(self, event: object) -> None:
+    async def stage_event(self, event: Event) -> None:
         await self._outbox_repo.add(event)
 
 

@@ -8,15 +8,17 @@ from shared.integrations.feishu.cards.decomposition import (
     build_decomposition_approved_card,
     build_decomposition_rejected_card,
 )
-from shared.integrations.feishu.cards.requirement import (
+from shared.observability.privacy import hash_identifier
+from shared.utils.logger import get_logger
+
+from .acl import FeishuCardAction, FeishuCardActionResponse
+from .cards.requirement import (
     build_batch_result_card,
     build_requirement_confirmed_card,
     build_requirement_detail_card,
     build_requirement_list_card,
     build_requirement_rejected_card,
 )
-from shared.observability.privacy import hash_identifier
-from shared.utils.logger import get_logger
 
 logger = get_logger("feishu.handlers.card")
 
@@ -53,59 +55,55 @@ class CardHandler:
         Returns:
             Response payload with toast and/or card data.
         """
-        action = data.get("action", {})
-        action_value = action.get("value", {})
-        action_type = action_value.get("action", "")
-        operator = data.get("operator", {})
-        operator_id = operator.get("open_id", "")
+        action = FeishuCardAction.from_payload(data)
 
         logger.info(
             "card_action_received",
-            action=action_type,
-            operator_hash=hash_identifier(operator_id),
+            action=action.action_type,
+            operator_hash=hash_identifier(action.operator_id),
         )
 
         try:
-            if action_type == "confirm_requirement":
-                return await self._handle_confirm(action_value, operator_id)
+            if action.action_type == "confirm_requirement":
+                return await self._handle_confirm(action)
 
-            elif action_type == "reject_requirement":
-                return await self._handle_reject(action_value, operator_id, data)
+            elif action.action_type == "reject_requirement":
+                return await self._handle_reject(action)
 
-            elif action_type == "view_detail":
-                return await self._handle_view_detail(action_value)
+            elif action.action_type == "view_detail":
+                return await self._handle_view_detail(action)
 
             # List card actions
-            elif action_type == "list_confirm_requirement":
-                return await self._handle_list_confirm(action_value, operator_id)
+            elif action.action_type == "list_confirm_requirement":
+                return await self._handle_list_confirm(action)
 
-            elif action_type == "list_reject_requirement":
-                return await self._handle_list_reject(action_value, operator_id, data)
+            elif action.action_type == "list_reject_requirement":
+                return await self._handle_list_reject(action)
 
-            elif action_type in ("list_prev_page", "list_next_page"):
-                return await self._handle_list_pagination(action_value)
+            elif action.action_type in ("list_prev_page", "list_next_page"):
+                return await self._handle_list_pagination(action)
 
             # Batch operations
-            elif action_type == "batch_confirm_all":
-                return await self._handle_batch_confirm(action_value, operator_id)
+            elif action.action_type == "batch_confirm_all":
+                return await self._handle_batch_confirm(action)
 
-            elif action_type == "batch_reject_all":
-                return await self._handle_batch_reject(action_value, operator_id)
+            elif action.action_type == "batch_reject_all":
+                return await self._handle_batch_reject(action)
 
             # Decomposition approval actions
-            elif action_type == "approve_decomposition":
-                return await self._handle_approve_decomposition(action_value, operator_id)
+            elif action.action_type == "approve_decomposition":
+                return await self._handle_approve_decomposition(action)
 
-            elif action_type == "reject_decomposition":
-                return await self._handle_reject_decomposition(action_value, operator_id, data)
+            elif action.action_type == "reject_decomposition":
+                return await self._handle_reject_decomposition(action)
 
             else:
-                logger.warning("unknown_card_action", action=action_type)
-                return {"toast": {"type": "info", "content": "未知操作"}}
+                logger.warning("unknown_card_action", action=action.action_type)
+                return FeishuCardActionResponse.info("未知操作").to_payload()
 
         except Exception as e:
-            logger.error("card_action_error", action=action_type, error=str(e))
-            return {"toast": {"type": "error", "content": "操作失败，请稍后重试"}}
+            logger.error("card_action_error", action=action.action_type, error=str(e))
+            return FeishuCardActionResponse.error("操作失败，请稍后重试").to_payload()
 
     async def _get_user_name(self, open_id: str) -> str:
         """Get user name with cache."""
@@ -120,22 +118,21 @@ class CardHandler:
         except Exception:
             return "Unknown"
 
-    async def _handle_confirm(self, action_value: dict, operator_id: str) -> dict:
+    async def _handle_confirm(self, action: FeishuCardAction) -> dict:
         """Handle requirement confirmation."""
-        req_id = action_value.get("req_id")
-        if not req_id:
-            return {"toast": {"type": "error", "content": "缺少需求 ID"}}
+        if not action.has_requirement_id:
+            return FeishuCardActionResponse.error("缺少需求 ID").to_payload()
 
-        user_name = await self._get_user_name(operator_id)
+        user_name = await self._get_user_name(action.operator_id)
 
         # Call agent to confirm
         requirement = await self.agent.confirm_requirement(
-            requirement_id=req_id,
+            requirement_id=action.requirement_id,
             confirmed_by=user_name,
         )
 
         if not requirement:
-            return {"toast": {"type": "error", "content": "需求不存在"}}
+            return FeishuCardActionResponse.error("需求不存在").to_payload()
 
         # Build updated card
         card = build_requirement_confirmed_card(
@@ -150,33 +147,30 @@ class CardHandler:
 
         logger.info(
             "requirement_confirmed_via_card",
-            req_id=req_id,
-            operator_hash=hash_identifier(operator_id),
+            req_id=action.requirement_id,
+            operator_hash=hash_identifier(action.operator_id),
         )
 
-        return {"toast": {"type": "success", "content": "需求已确认"}, "card": card}
+        return FeishuCardActionResponse.success("需求已确认", card=card).to_payload()
 
-    async def _handle_reject(self, action_value: dict, operator_id: str, data: dict) -> dict:
+    async def _handle_reject(self, action: FeishuCardAction) -> dict:
         """Handle requirement rejection."""
-        req_id = action_value.get("req_id")
-        if not req_id:
-            return {"toast": {"type": "error", "content": "缺少需求 ID"}}
+        if not action.has_requirement_id:
+            return FeishuCardActionResponse.error("缺少需求 ID").to_payload()
 
-        # Check if reason was provided (from form submission)
-        form_value = data.get("action", {}).get("form_value", {})
-        reason = form_value.get("reason") or action_value.get("reason", "未提供原因")
+        reason = action.requirement_rejection_reason
 
-        user_name = await self._get_user_name(operator_id)
+        user_name = await self._get_user_name(action.operator_id)
 
         # Call agent to reject
         requirement = await self.agent.reject_requirement(
-            requirement_id=req_id,
+            requirement_id=action.requirement_id,
             reason=reason,
             rejected_by=user_name,
         )
 
         if not requirement:
-            return {"toast": {"type": "error", "content": "需求不存在"}}
+            return FeishuCardActionResponse.error("需求不存在").to_payload()
 
         # Build updated card
         card = build_requirement_rejected_card(
@@ -191,23 +185,22 @@ class CardHandler:
 
         logger.info(
             "requirement_rejected_via_card",
-            req_id=req_id,
-            operator_hash=hash_identifier(operator_id),
+            req_id=action.requirement_id,
+            operator_hash=hash_identifier(action.operator_id),
             reason_hash=hash_identifier(reason),
             reason_length=len(reason),
         )
 
-        return {"toast": {"type": "success", "content": "需求已拒绝"}, "card": card}
+        return FeishuCardActionResponse.success("需求已拒绝", card=card).to_payload()
 
-    async def _handle_view_detail(self, action_value: dict) -> dict:
+    async def _handle_view_detail(self, action: FeishuCardAction) -> dict:
         """Handle detail view and return the detail card."""
-        req_id = action_value.get("req_id")
-        if not req_id:
-            return {"toast": {"type": "error", "content": "缺少需求 ID"}}
+        if not action.has_requirement_id:
+            return FeishuCardActionResponse.error("缺少需求 ID").to_payload()
 
-        requirement = await self.agent.get_requirement(req_id)
+        requirement = await self.agent.get_requirement(action.requirement_id)
         if not requirement:
-            return {"toast": {"type": "error", "content": "需求不存在"}}
+            return FeishuCardActionResponse.error("需求不存在").to_payload()
 
         # Fetch associated meeting if available
         meeting = None
@@ -219,7 +212,7 @@ class CardHandler:
         meeting_data = self._meeting_to_dict(meeting) if meeting else None
         card = build_requirement_detail_card(req_data, meeting_data)
 
-        return {"toast": {"type": "success", "content": "已加载详情"}, "card": card}
+        return FeishuCardActionResponse.success("已加载详情", card=card).to_payload()
 
     def _requirement_to_dict(self, requirement) -> dict:
         """Convert requirement model to dict for card rendering"""
@@ -246,133 +239,118 @@ class CardHandler:
             "participants": meeting.participants or [],
         }
 
-    async def _handle_list_confirm(self, action_value: dict, operator_id: str) -> dict:
+    async def _handle_list_confirm(self, action: FeishuCardAction) -> dict:
         """Handle requirement confirmation from the list card."""
-        req_id = action_value.get("req_id")
-        page = action_value.get("page", 1)
-        chat_id = action_value.get("chat_id", "")
+        if not action.has_requirement_id:
+            return FeishuCardActionResponse.error("缺少需求 ID").to_payload()
 
-        if not req_id:
-            return {"toast": {"type": "error", "content": "缺少需求 ID"}}
-
-        user_name = await self._get_user_name(operator_id)
+        user_name = await self._get_user_name(action.operator_id)
 
         # Confirm requirement
         requirement = await self.agent.confirm_requirement(
-            requirement_id=req_id,
+            requirement_id=action.requirement_id,
             confirmed_by=user_name,
         )
 
         if not requirement:
-            return {"toast": {"type": "error", "content": "需求不存在"}}
+            return FeishuCardActionResponse.error("需求不存在").to_payload()
 
         logger.info(
             "requirement_confirmed_from_list",
-            req_id=req_id,
-            operator_hash=hash_identifier(operator_id),
+            req_id=action.requirement_id,
+            operator_hash=hash_identifier(action.operator_id),
         )
 
         # Refresh list card
         requirements, total, total_pages = await self.agent.list_pending_requirements(
-            page=page, page_size=5
+            page=action.page, page_size=5
         )
 
         card = build_requirement_list_card(
             requirements=requirements,
-            page=page,
+            page=action.page,
             total_pages=total_pages,
             total_count=total,
-            chat_id=chat_id,
+            chat_id=action.chat_id,
         )
 
-        return {
-            "toast": {"type": "success", "content": f"已确认: {requirement.title}"},
-            "card": card,
-        }
+        return FeishuCardActionResponse.success(
+            f"已确认: {requirement.title}",
+            card=card,
+        ).to_payload()
 
-    async def _handle_list_reject(self, action_value: dict, operator_id: str, data: dict) -> dict:
+    async def _handle_list_reject(self, action: FeishuCardAction) -> dict:
         """Handle requirement rejection from the list card."""
-        req_id = action_value.get("req_id")
-        page = action_value.get("page", 1)
-        chat_id = action_value.get("chat_id", "")
+        if not action.has_requirement_id:
+            return FeishuCardActionResponse.error("缺少需求 ID").to_payload()
 
-        if not req_id:
-            return {"toast": {"type": "error", "content": "缺少需求 ID"}}
+        reason = action.requirement_rejection_reason
 
-        # Check if reason was provided (from form submission)
-        form_value = data.get("action", {}).get("form_value", {})
-        reason = form_value.get("reason") or action_value.get("reason", "未提供原因")
-
-        user_name = await self._get_user_name(operator_id)
+        user_name = await self._get_user_name(action.operator_id)
 
         # Reject requirement
         requirement = await self.agent.reject_requirement(
-            requirement_id=req_id,
+            requirement_id=action.requirement_id,
             reason=reason,
             rejected_by=user_name,
         )
 
         if not requirement:
-            return {"toast": {"type": "error", "content": "需求不存在"}}
+            return FeishuCardActionResponse.error("需求不存在").to_payload()
 
         logger.info(
             "requirement_rejected_from_list",
-            req_id=req_id,
-            operator_hash=hash_identifier(operator_id),
+            req_id=action.requirement_id,
+            operator_hash=hash_identifier(action.operator_id),
             reason_hash=hash_identifier(reason),
             reason_length=len(reason),
         )
 
         # Refresh list card
         requirements, total, total_pages = await self.agent.list_pending_requirements(
-            page=page, page_size=5
+            page=action.page, page_size=5
         )
 
         card = build_requirement_list_card(
             requirements=requirements,
-            page=page,
+            page=action.page,
             total_pages=total_pages,
             total_count=total,
-            chat_id=chat_id,
+            chat_id=action.chat_id,
         )
 
-        return {
-            "toast": {"type": "success", "content": f"已拒绝: {requirement.title}"},
-            "card": card,
-        }
+        return FeishuCardActionResponse.success(
+            f"已拒绝: {requirement.title}",
+            card=card,
+        ).to_payload()
 
-    async def _handle_list_pagination(self, action_value: dict) -> dict:
+    async def _handle_list_pagination(self, action: FeishuCardAction) -> dict:
         """Handle list pagination."""
-        page = action_value.get("page", 1)
-        chat_id = action_value.get("chat_id", "")
-
         # Get requirements for the page
         requirements, total, total_pages = await self.agent.list_pending_requirements(
-            page=page, page_size=5
+            page=action.page, page_size=5
         )
 
         card = build_requirement_list_card(
             requirements=requirements,
-            page=page,
+            page=action.page,
             total_pages=total_pages,
             total_count=total,
-            chat_id=chat_id,
+            chat_id=action.chat_id,
         )
 
-        return {"card": card}
+        return FeishuCardActionResponse.card_only(card).to_payload()
 
-    async def _handle_batch_confirm(self, action_value: dict, operator_id: str) -> dict:
+    async def _handle_batch_confirm(self, action: FeishuCardAction) -> dict:
         """Handle batch confirmation."""
-        req_ids = action_value.get("req_ids", [])
+        if not action.has_requirement_ids:
+            return FeishuCardActionResponse.error("没有需要确认的需求").to_payload()
 
-        if not req_ids:
-            return {"toast": {"type": "error", "content": "没有需要确认的需求"}}
-
-        user_name = await self._get_user_name(operator_id)
+        user_name = await self._get_user_name(action.operator_id)
 
         # Call agent to batch confirm
         success_count, failed_count = await self.agent.batch_confirm_requirements(
-            requirement_ids=req_ids,
+            requirement_ids=action.requirement_ids_list(),
             confirmed_by=user_name,
         )
 
@@ -380,7 +358,7 @@ class CardHandler:
             "batch_confirm_complete",
             success=success_count,
             failed=failed_count,
-            operator_hash=hash_identifier(operator_id),
+            operator_hash=hash_identifier(action.operator_id),
         )
 
         # Build result card
@@ -391,24 +369,23 @@ class CardHandler:
             operator_name=user_name,
         )
 
-        return {
-            "toast": {"type": "success", "content": f"已确认 {success_count} 个需求"},
-            "card": card,
-        }
+        return FeishuCardActionResponse.success(
+            f"已确认 {success_count} 个需求",
+            card=card,
+        ).to_payload()
 
-    async def _handle_batch_reject(self, action_value: dict, operator_id: str) -> dict:
+    async def _handle_batch_reject(self, action: FeishuCardAction) -> dict:
         """Handle batch rejection."""
-        req_ids = action_value.get("req_ids", [])
-        reason = action_value.get("reason", "批量拒绝")
+        reason = action.batch_rejection_reason
 
-        if not req_ids:
-            return {"toast": {"type": "error", "content": "没有需要拒绝的需求"}}
+        if not action.has_requirement_ids:
+            return FeishuCardActionResponse.error("没有需要拒绝的需求").to_payload()
 
-        user_name = await self._get_user_name(operator_id)
+        user_name = await self._get_user_name(action.operator_id)
 
         # Call agent to batch reject
         success_count, failed_count = await self.agent.batch_reject_requirements(
-            requirement_ids=req_ids,
+            requirement_ids=action.requirement_ids_list(),
             reason=reason,
             rejected_by=user_name,
         )
@@ -417,7 +394,7 @@ class CardHandler:
             "batch_reject_complete",
             success=success_count,
             failed=failed_count,
-            operator_hash=hash_identifier(operator_id),
+            operator_hash=hash_identifier(action.operator_id),
             reason_hash=hash_identifier(reason),
             reason_length=len(reason),
         )
@@ -430,30 +407,35 @@ class CardHandler:
             operator_name=user_name,
         )
 
-        return {
-            "toast": {"type": "success", "content": f"已拒绝 {success_count} 个需求"},
-            "card": card,
-        }
+        return FeishuCardActionResponse.success(
+            f"已拒绝 {success_count} 个需求",
+            card=card,
+        ).to_payload()
 
-    async def _handle_approve_decomposition(self, action_value: dict, operator_id: str) -> dict:
-        wp_id = action_value.get("wp_id")
-        if not wp_id:
-            return {"toast": {"type": "error", "content": "缺少工作包 ID"}}
+    async def _handle_approve_decomposition(self, action: FeishuCardAction) -> dict:
+        if not action.has_work_package_id:
+            return FeishuCardActionResponse.error("缺少工作包 ID").to_payload()
         if not self.pm_client:
-            return {"toast": {"type": "error", "content": "PJM Agent 未配置"}}
+            return FeishuCardActionResponse.error("PJM Agent 未配置").to_payload()
 
-        user_name = await self._get_user_name(operator_id)
+        user_name = await self._get_user_name(action.operator_id)
         try:
-            result = await self.pm_client.approve_decomposition(wp_id=wp_id, operator=user_name)
+            result = await self.pm_client.approve_decomposition(
+                wp_id=action.work_package_id, operator=user_name
+            )
         except Exception as e:
-            logger.error("approve_decomposition_request_failed", wp_id=wp_id, error=str(e))
-            return {"toast": {"type": "error", "content": "审批请求失败，请稍后重试"}}
+            logger.error(
+                "approve_decomposition_request_failed",
+                wp_id=action.work_package_id,
+                error=str(e),
+            )
+            return FeishuCardActionResponse.error("审批请求失败，请稍后重试").to_payload()
 
         if not result:
-            return {"toast": {"type": "error", "content": "审批失败：记录不存在"}}
+            return FeishuCardActionResponse.error("审批失败：记录不存在").to_payload()
 
         card = build_decomposition_approved_card(
-            wp_id=wp_id,
+            wp_id=action.work_package_id,
             subject=result.get("subject", ""),
             approved_by=user_name,
             story_count=result.get("story_count", 0),
@@ -461,47 +443,49 @@ class CardHandler:
         )
         logger.info(
             "decomposition_approved_via_card",
-            wp_id=wp_id,
-            operator_hash=hash_identifier(operator_id),
+            wp_id=action.work_package_id,
+            operator_hash=hash_identifier(action.operator_id),
         )
-        return {"toast": {"type": "success", "content": "拆解已批准，正在写入 OP"}, "card": card}
+        return FeishuCardActionResponse.success(
+            "拆解已批准，正在写入 OP",
+            card=card,
+        ).to_payload()
 
-    async def _handle_reject_decomposition(
-        self, action_value: dict, operator_id: str, data: dict
-    ) -> dict:
-        wp_id = action_value.get("wp_id")
-        if not wp_id:
-            return {"toast": {"type": "error", "content": "缺少工作包 ID"}}
+    async def _handle_reject_decomposition(self, action: FeishuCardAction) -> dict:
+        if not action.has_work_package_id:
+            return FeishuCardActionResponse.error("缺少工作包 ID").to_payload()
         if not self.pm_client:
-            return {"toast": {"type": "error", "content": "PJM Agent 未配置"}}
+            return FeishuCardActionResponse.error("PJM Agent 未配置").to_payload()
 
-        # Extract rejection reason from form input
-        form_value = data.get("action", {}).get("form_value", {})
-        reason = form_value.get("reject_reason") or action_value.get("reject_reason", "")
+        reason = action.decomposition_rejection_reason
 
-        user_name = await self._get_user_name(operator_id)
+        user_name = await self._get_user_name(action.operator_id)
         try:
             result = await self.pm_client.reject_decomposition(
-                wp_id=wp_id, operator=user_name, reason=reason
+                wp_id=action.work_package_id, operator=user_name, reason=reason
             )
         except Exception as e:
-            logger.error("reject_decomposition_request_failed", wp_id=wp_id, error=str(e))
-            return {"toast": {"type": "error", "content": "拒绝请求失败，请稍后重试"}}
+            logger.error(
+                "reject_decomposition_request_failed",
+                wp_id=action.work_package_id,
+                error=str(e),
+            )
+            return FeishuCardActionResponse.error("拒绝请求失败，请稍后重试").to_payload()
 
         if not result:
-            return {"toast": {"type": "error", "content": "操作失败：记录不存在"}}
+            return FeishuCardActionResponse.error("操作失败：记录不存在").to_payload()
 
         card = build_decomposition_rejected_card(
-            wp_id=wp_id,
+            wp_id=action.work_package_id,
             subject=result.get("subject", ""),
             rejected_by=user_name,
             reason=reason,
         )
         logger.info(
             "decomposition_rejected_via_card",
-            wp_id=wp_id,
-            operator_hash=hash_identifier(operator_id),
+            wp_id=action.work_package_id,
+            operator_hash=hash_identifier(action.operator_id),
             reason_hash=hash_identifier(reason),
             reason_length=len(reason),
         )
-        return {"toast": {"type": "success", "content": "已拒绝拆解方案"}, "card": card}
+        return FeishuCardActionResponse.success("已拒绝拆解方案", card=card).to_payload()

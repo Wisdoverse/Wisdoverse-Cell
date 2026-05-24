@@ -5,6 +5,7 @@ from pathlib import Path
 
 RUNTIME_REQUIREMENTS = {
     Path("agents/requirement_manager"): Path("agents/requirement_manager/requirements.txt"),
+    Path("agents/chat_agent"): Path("agents/chat_agent/requirements.txt"),
     Path("agents/pjm_agent"): Path("agents/pjm_agent/requirements.txt"),
     Path("agents/dev_agent"): Path("agents/dev_agent/requirements.txt"),
     Path("services/gateways/user_interaction"): Path(
@@ -19,10 +20,14 @@ PYTHON_RUNTIME_ROLES = {
     "sync-module": "shared.capabilities.sync.app.main:app",
     "analysis-module": "shared.capabilities.analysis.app.main:app",
     "pjm-agent": "agents.pjm_agent.app.main:app",
-    "chat-agent": "services.gateways.user_interaction.app.main:app",
+    "chat-agent": "agents.chat_agent.app.main:app",
     "qa-agent": "agents.qa_agent.app.main:app",
     "dev-agent": "agents.dev_agent.app.main:app",
     "evolution-module": "shared.capabilities.evolution.app.main:app",
+}
+
+PYTHON_COMPATIBILITY_ROLES = {
+    "user-interaction-gateway": "services.gateways.user_interaction.app.main:app",
 }
 
 RUNTIME_DB_USERS = {
@@ -98,7 +103,7 @@ def test_unified_agents_image_dispatches_every_role() -> None:
     assert "bootstrap_control_plane_tables()" in supervisor
     assert "CELL_BOOTSTRAP_CONTROL_PLANE" in supervisor
     assert '"--no-control-socket"' in supervisor
-    for role, app_path in PYTHON_RUNTIME_ROLES.items():
+    for role, app_path in (PYTHON_RUNTIME_ROLES | PYTHON_COMPATIBILITY_ROLES).items():
         assert role in entrypoint, f"entrypoint missing dispatch case for {role}"
         assert app_path in entrypoint, (
             f"entrypoint dispatcher does not bind {role} to {app_path}"
@@ -339,11 +344,11 @@ def test_docker_init_script_creates_compose_runtime_db_users() -> None:
 def test_runtime_apps_wire_db_manager_into_infra_health() -> None:
     """Runtime health checks must validate Postgres through the service DB manager."""
     app_paths = [
+        Path("agents/chat_agent/app/main.py"),
         Path("agents/pjm_agent/app/main.py"),
         Path("agents/qa_agent/app/main.py"),
         Path("shared/capabilities/sync/app/main.py"),
         Path("shared/capabilities/analysis/app/main.py"),
-        Path("services/gateways/user_interaction/app/main.py"),
     ]
     for app_path in app_paths:
         source = app_path.read_text(encoding="utf-8")
@@ -353,6 +358,12 @@ def test_runtime_apps_wire_db_manager_into_infra_health() -> None:
             in source
             and "db_manager=db_manager" in source
         )
+
+    gateway_source = Path("services/gateways/user_interaction/app/main.py").read_text(
+        encoding="utf-8"
+    )
+    assert "from ..db.database import db_manager" not in gateway_source
+    assert "InfraHealthPlugin(db_manager=db_manager" not in gateway_source
 
 
 def test_production_compose_requires_runtime_db_passwords() -> None:

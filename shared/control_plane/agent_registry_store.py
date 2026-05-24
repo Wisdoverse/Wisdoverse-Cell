@@ -1,4 +1,5 @@
 """SQLAlchemy adapter for control-plane agent registry persistence."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -6,7 +7,7 @@ from typing import Any
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.core.identifiers import CompanyId
+from shared.core.identifiers import AgentRoleId, CompanyId
 
 from .agent_registry_ports import ControlPlaneAgentRegistryStore
 from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
@@ -41,7 +42,7 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
     ) -> AgentRole | None:
         row = await self._get_agent_role_row(company_id=company_id, agent_id=agent_id)
         return agent_role_record(row) if row is not None else None
@@ -50,7 +51,7 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
     ) -> AgentRoleTable | None:
         result = await self._session.execute(
             select(AgentRoleTable).where(
@@ -99,7 +100,7 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
         values: dict[str, Any],
     ) -> AgentRole | None:
         row = await self._get_agent_role_row(company_id=company_id, agent_id=agent_id)
@@ -117,7 +118,7 @@ class SqlAlchemyControlPlaneAgentRegistryStore(ControlPlaneAgentRegistryStore):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
         status: str,
     ) -> AgentRole | None:
         row = await self._get_agent_role_row(company_id=company_id, agent_id=agent_id)

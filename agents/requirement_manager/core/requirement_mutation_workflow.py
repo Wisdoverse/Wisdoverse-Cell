@@ -4,13 +4,21 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
+from shared.core.identifiers import OpenQuestionId, RequirementId
 from shared.observability.privacy import hash_identifier
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
 from ..models import OpenQuestion, Requirement
-from .feedback_learning import FeedbackLearningService
+from .domain.aggregate_consistency import (
+    FEEDBACK_RECORD,
+    OPEN_QUESTION,
+    REQUIREMENT,
+    REQUIREMENT_EVENT_OUTBOX,
+    RequirementAggregateConsistencyPolicy,
+)
 from .domain.lifecycle.requirement_lifecycle import record_updated
+from .feedback_learning import FeedbackLearningService
 from .unit_of_work_ports import RequirementUnitOfWork
 
 logger = get_logger("requirement_manager.mutations")
@@ -41,21 +49,32 @@ class RequirementMutationSideEffectPublisher(Protocol):
 class RequirementMutationWorkflow:
     """Application workflow for Requirement lifecycle mutations."""
 
+    def __init__(
+        self,
+        consistency_policy: RequirementAggregateConsistencyPolicy | None = None,
+    ) -> None:
+        self._consistency_policy = (
+            consistency_policy or RequirementAggregateConsistencyPolicy()
+        )
+
     async def confirm_requirement(
         self,
         *,
-        requirement_id: str,
+        requirement_id: RequirementId,
         confirmed_by: str,
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         """Confirm one requirement inside an explicit unit of work."""
+        self._requirement_lifecycle_scope().assert_allows_same_transaction(
+            (REQUIREMENT, REQUIREMENT_EVENT_OUTBOX)
+        )
         requirement = await uow.requirements.confirm(requirement_id, confirmed_by)
         if not requirement:
             return RequirementMutationResult(entity=None)
 
         logger.info(
             "requirement_confirmed",
-            requirement_id=requirement_id,
+            requirement_id=str(requirement_id),
             confirmed_by=confirmed_by,
         )
 
@@ -70,12 +89,17 @@ class RequirementMutationWorkflow:
     async def reject_requirement(
         self,
         *,
-        requirement_id: str,
+        requirement_id: RequirementId,
         reason: str,
         rejected_by: str,
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         """Reject one requirement inside an explicit unit of work."""
+        self._requirement_lifecycle_scope(
+            records_feedback=True,
+        ).assert_allows_same_transaction(
+            (REQUIREMENT, FEEDBACK_RECORD, REQUIREMENT_EVENT_OUTBOX)
+        )
         original_req = await uow.requirements.get_by_id(requirement_id)
         if not original_req:
             return RequirementMutationResult(entity=None)
@@ -92,7 +116,7 @@ class RequirementMutationWorkflow:
 
         logger.info(
             "requirement_rejected",
-            requirement_id=requirement_id,
+            requirement_id=str(requirement_id),
             reason_length=len(reason or ""),
             rejected_by_hash=hash_identifier(rejected_by),
         )
@@ -108,7 +132,7 @@ class RequirementMutationWorkflow:
         except Exception as exc:
             logger.warning(
                 "feedback_recording_failed",
-                requirement_id=requirement_id,
+                requirement_id=str(requirement_id),
                 error=str(exc),
             )
 
@@ -123,7 +147,7 @@ class RequirementMutationWorkflow:
     async def update_requirement(
         self,
         *,
-        requirement_id: str,
+        requirement_id: RequirementId,
         changes: dict[str, Any],
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
@@ -141,12 +165,23 @@ class RequirementMutationWorkflow:
         changed_fields = list(update_data.keys())
         changed_by = comment or "system"
 
+        feedback_fields = {"title", "description", "priority", "category"}
+        records_feedback = bool(update_data.keys() & feedback_fields)
+        self._requirement_lifecycle_scope(
+            records_feedback=records_feedback,
+        ).assert_allows_same_transaction(
+            (
+                (REQUIREMENT, FEEDBACK_RECORD, REQUIREMENT_EVENT_OUTBOX)
+                if records_feedback
+                else (REQUIREMENT, REQUIREMENT_EVENT_OUTBOX)
+            )
+        )
+
         record_updated(requirement, changed_fields, changed_by)
         requirement = await uow.requirements.update(requirement_id, **update_data)
         if requirement is None:
             return RequirementMutationResult(entity=None)
 
-        feedback_fields = {"title", "description", "priority", "category"}
         if update_data.keys() & feedback_fields:
             try:
                 corrected_values = _requirement_feedback_values(requirement)
@@ -161,7 +196,7 @@ class RequirementMutationWorkflow:
             except Exception as exc:
                 logger.warning(
                     "feedback_recording_failed",
-                    requirement_id=requirement_id,
+                    requirement_id=str(requirement_id),
                     error=str(exc),
                 )
 
@@ -180,11 +215,14 @@ class RequirementMutationWorkflow:
     async def delete_requirement(
         self,
         *,
-        requirement_id: str,
+        requirement_id: RequirementId,
         deleted_by: str,
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         """Delete one requirement inside an explicit unit of work."""
+        self._requirement_lifecycle_scope().assert_allows_same_transaction(
+            (REQUIREMENT, REQUIREMENT_EVENT_OUTBOX)
+        )
         requirement = await uow.requirements.delete(requirement_id)
         if not requirement:
             return RequirementMutationResult(entity=None)
@@ -194,7 +232,7 @@ class RequirementMutationWorkflow:
 
         logger.info(
             "requirement_deleted",
-            requirement_id=requirement_id,
+            requirement_id=str(requirement_id),
             title_hash=hash_identifier(requirement.title),
             deleted_by_hash=hash_identifier(deleted_by),
         )
@@ -203,18 +241,21 @@ class RequirementMutationWorkflow:
             entity=requirement,
             event=event,
             requirement_id=requirement.id,
-            delete_vector_requirement_id=requirement_id,
+            delete_vector_requirement_id=str(requirement_id),
         )
 
     async def answer_question(
         self,
-        question_id: str,
+        question_id: OpenQuestionId,
         *,
         answer: str,
         answered_by: str,
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         """Answer one open clarification question inside an explicit unit of work."""
+        self._consistency_policy.question_answer().assert_allows_same_transaction(
+            (OPEN_QUESTION,)
+        )
         question = await uow.questions.answer(
             question_id,
             answer=answer,
@@ -225,7 +266,7 @@ class RequirementMutationWorkflow:
 
         logger.info(
             "question_answered",
-            question_id=question_id,
+            question_id=str(question_id),
             answered_by_hash=hash_identifier(answered_by),
         )
 
@@ -234,7 +275,7 @@ class RequirementMutationWorkflow:
     async def batch_confirm_requirements(
         self,
         *,
-        requirement_ids: list[str],
+        requirement_ids: list[RequirementId],
         confirmed_by: str,
         uow: RequirementUnitOfWork,
     ) -> tuple[list[dict], list[RequirementMutationResult]]:
@@ -251,40 +292,55 @@ class RequirementMutationWorkflow:
                 )
                 if result.entity:
                     mutation_results.append(result)
-                    results.append({
-                        "requirement_id": req_id,
-                        "success": True,
-                        "error": None,
-                    })
+                    results.append(
+                        {
+                            "requirement_id": str(req_id),
+                            "success": True,
+                            "error": None,
+                        }
+                    )
                     logger.info(
                         "batch_requirement_confirmed",
-                        requirement_id=req_id,
+                        requirement_id=str(req_id),
                         confirmed_by=confirmed_by,
                     )
                 else:
-                    results.append({
-                        "requirement_id": req_id,
-                        "success": False,
-                        "error": "需求不存在或已处理",
-                    })
+                    results.append(
+                        {
+                            "requirement_id": str(req_id),
+                            "success": False,
+                            "error": "需求不存在或已处理",
+                        }
+                    )
             except Exception as exc:
-                results.append({
-                    "requirement_id": req_id,
-                    "success": False,
-                    "error": str(exc),
-                })
+                results.append(
+                    {
+                        "requirement_id": str(req_id),
+                        "success": False,
+                        "error": str(exc),
+                    }
+                )
                 logger.error(
                     "batch_confirm_error",
-                    requirement_id=req_id,
+                    requirement_id=str(req_id),
                     error=str(exc),
                 )
 
         return results, mutation_results
 
+    def _requirement_lifecycle_scope(
+        self,
+        *,
+        records_feedback: bool = False,
+    ):
+        return self._consistency_policy.requirement_lifecycle_mutation(
+            records_feedback=records_feedback,
+        )
+
     async def batch_reject_requirements(
         self,
         *,
-        requirement_ids: list[str],
+        requirement_ids: list[RequirementId],
         reason: str,
         rejected_by: str,
         uow: RequirementUnitOfWork,
@@ -303,32 +359,38 @@ class RequirementMutationWorkflow:
                 )
                 if result.entity:
                     mutation_results.append(result)
-                    results.append({
-                        "requirement_id": req_id,
-                        "success": True,
-                        "error": None,
-                    })
+                    results.append(
+                        {
+                            "requirement_id": str(req_id),
+                            "success": True,
+                            "error": None,
+                        }
+                    )
                     logger.info(
                         "batch_requirement_rejected",
-                        requirement_id=req_id,
+                        requirement_id=str(req_id),
                         reason_length=len(reason or ""),
                         rejected_by_hash=hash_identifier(rejected_by),
                     )
                 else:
-                    results.append({
-                        "requirement_id": req_id,
-                        "success": False,
-                        "error": "需求不存在或已处理",
-                    })
+                    results.append(
+                        {
+                            "requirement_id": str(req_id),
+                            "success": False,
+                            "error": "需求不存在或已处理",
+                        }
+                    )
             except Exception as exc:
-                results.append({
-                    "requirement_id": req_id,
-                    "success": False,
-                    "error": str(exc),
-                })
+                results.append(
+                    {
+                        "requirement_id": str(req_id),
+                        "success": False,
+                        "error": str(exc),
+                    }
+                )
                 logger.error(
                     "batch_reject_error",
-                    requirement_id=req_id,
+                    requirement_id=str(req_id),
                     error=str(exc),
                 )
 

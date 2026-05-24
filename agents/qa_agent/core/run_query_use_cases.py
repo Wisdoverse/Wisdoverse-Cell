@@ -1,7 +1,10 @@
 """Application use cases for QA acceptance run read models."""
+
 from __future__ import annotations
 
 from typing import Any
+
+from shared.core.identifiers import AcceptanceRunId
 
 from ..models.schemas import QARunStats
 from .run_store import QAAcceptanceRunRecord, QAAcceptanceRunStore
@@ -27,7 +30,7 @@ class QARunQueryUseCase:
         )
         return [self._list_item(run) for run in runs]
 
-    async def get_run(self, run_id: str) -> dict[str, Any] | None:
+    async def get_run(self, run_id: AcceptanceRunId) -> dict[str, Any] | None:
         run = await self._run_store.get_by_id(run_id)
         if run is None:
             return None

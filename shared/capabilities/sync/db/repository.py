@@ -3,13 +3,16 @@ SyncModule repository layer.
 """
 import inspect
 from datetime import UTC, datetime, timedelta
-from typing import Optional
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.schemas.event import Event
 
+from ..core.domain.sync_values import (
+    SubtaskMappingRecord,
+    SyncMappingRecord,
+)
 from ..models.sync import SubtaskMapping, SyncEventOutbox, SyncLock, SyncLog, SyncMapping
 
 
@@ -17,22 +20,25 @@ class SyncMappingRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_by_op_id(self, op_id: int) -> Optional[SyncMapping]:
-        result = await self.session.execute(
-            select(SyncMapping).where(SyncMapping.op_work_package_id == op_id)
-        )
-        return result.scalar_one_or_none()
+    async def get_by_op_id(self, op_id: int) -> SyncMappingRecord | None:
+        mapping = await self._get_row_by_op_id(op_id)
+        return SyncMappingRecord.from_record(mapping) if mapping else None
 
-    async def get_by_record_id(self, record_id: str) -> Optional[SyncMapping]:
+    async def get_by_record_id(self, record_id: str) -> SyncMappingRecord | None:
         result = await self.session.execute(
             select(SyncMapping).where(SyncMapping.feishu_record_id == record_id)
         )
-        return result.scalar_one_or_none()
+        mapping = result.scalar_one_or_none()
+        return SyncMappingRecord.from_record(mapping) if mapping else None
 
     async def upsert(
-        self, op_id: int, record_id: str, project_id: int | None = None, title: str | None = None
-    ) -> SyncMapping:
-        mapping = await self.get_by_op_id(op_id)
+        self,
+        op_id: int,
+        record_id: str,
+        project_id: int | None = None,
+        title: str | None = None,
+    ) -> SyncMappingRecord:
+        mapping = await self._get_row_by_op_id(op_id)
         now = datetime.now(UTC)
         if mapping:
             mapping.feishu_record_id = record_id
@@ -52,33 +58,41 @@ class SyncMappingRepository:
             )
             self.session.add(mapping)
         await self.session.flush()
-        return mapping
+        return SyncMappingRecord.from_record(mapping)
 
-    async def list_all(self) -> list[SyncMapping]:
+    async def list_all(self) -> list[SyncMappingRecord]:
         result = await self.session.execute(select(SyncMapping))
-        return list(result.scalars().all())
+        return [SyncMappingRecord.from_record(row) for row in result.scalars().all()]
+
+    async def _get_row_by_op_id(self, op_id: int) -> SyncMapping | None:
+        result = await self.session.execute(
+            select(SyncMapping).where(SyncMapping.op_work_package_id == op_id)
+        )
+        return result.scalar_one_or_none()
 
 
 class SubtaskMappingRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_by_record_id(self, record_id: str) -> Optional[SubtaskMapping]:
-        result = await self.session.execute(
-            select(SubtaskMapping).where(SubtaskMapping.feishu_record_id == record_id)
-        )
-        return result.scalar_one_or_none()
+    async def get_by_record_id(self, record_id: str) -> SubtaskMappingRecord | None:
+        mapping = await self._get_row_by_record_id(record_id)
+        return SubtaskMappingRecord.from_record(mapping) if mapping else None
 
-    async def get_by_parent(self, parent_op_id: int) -> list[SubtaskMapping]:
+    async def get_by_parent(self, parent_op_id: int) -> list[SubtaskMappingRecord]:
         result = await self.session.execute(
             select(SubtaskMapping).where(SubtaskMapping.parent_op_id == parent_op_id)
         )
-        return list(result.scalars().all())
+        return [SubtaskMappingRecord.from_record(row) for row in result.scalars().all()]
 
     async def upsert(
-        self, parent_op_id: int, record_id: str, name: str | None = None, status: str | None = None
-    ) -> SubtaskMapping:
-        mapping = await self.get_by_record_id(record_id)
+        self,
+        parent_op_id: int,
+        record_id: str,
+        name: str | None = None,
+        status: str | None = None,
+    ) -> SubtaskMappingRecord:
+        mapping = await self._get_row_by_record_id(record_id)
         now = datetime.now(UTC)
         if mapping:
             if name is not None:
@@ -95,7 +109,13 @@ class SubtaskMappingRepository:
             )
             self.session.add(mapping)
         await self.session.flush()
-        return mapping
+        return SubtaskMappingRecord.from_record(mapping)
+
+    async def _get_row_by_record_id(self, record_id: str) -> SubtaskMapping | None:
+        result = await self.session.execute(
+            select(SubtaskMapping).where(SubtaskMapping.feishu_record_id == record_id)
+        )
+        return result.scalar_one_or_none()
 
 
 class SyncLockRepository:

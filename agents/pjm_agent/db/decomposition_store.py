@@ -3,9 +3,11 @@
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
+from shared.core.identifiers import OpenProjectProjectId, WorkPackageId
 from shared.schemas.event import Event
 
 from ..core.decomposition_ports import PJMDecompositionStore, PJMDecompositionTransaction
+from ..core.domain.lifecycle.decomposition_lifecycle import DecompositionStatus
 from .database import DatabaseManager
 from .repository import DecompositionRepository, PJMEventOutboxRepository
 
@@ -21,8 +23,8 @@ class _SqlAlchemyPJMDecompositionTransaction(PJMDecompositionTransaction):
 
     async def create(
         self,
-        wp_id: int,
-        project_id: int,
+        wp_id: WorkPackageId,
+        project_id: OpenProjectProjectId,
         decompose_result: dict,
         assignee_id: int | None = None,
     ):
@@ -33,13 +35,13 @@ class _SqlAlchemyPJMDecompositionTransaction(PJMDecompositionTransaction):
             assignee_id=assignee_id,
         )
 
-    async def get_by_wp_id(self, wp_id: int):
+    async def get_by_wp_id(self, wp_id: WorkPackageId):
         return await self._decompositions.get_by_wp_id(wp_id)
 
     async def update_status(
         self,
-        wp_id: int,
-        status: str,
+        wp_id: WorkPackageId,
+        status: DecompositionStatus,
         approved_by: str | None = None,
     ) -> bool:
         return await self._decompositions.update_status(
@@ -48,7 +50,7 @@ class _SqlAlchemyPJMDecompositionTransaction(PJMDecompositionTransaction):
             approved_by=approved_by,
         )
 
-    async def delete_by_wp_id(self, wp_id: int) -> bool:
+    async def delete_by_wp_id(self, wp_id: WorkPackageId) -> bool:
         return await self._decompositions.delete_by_wp_id(wp_id)
 
     async def stage_event(self, event: Event) -> None:

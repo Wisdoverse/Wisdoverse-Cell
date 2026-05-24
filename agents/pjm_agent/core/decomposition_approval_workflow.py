@@ -8,17 +8,20 @@ from typing import Protocol
 
 from shared.control_plane import ApprovalGateService, ApprovalRequiredError
 from shared.core import request_error
+from shared.core.identifiers import OpenProjectProjectId, WorkPackageId
 from shared.observability.privacy import hash_identifier
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
 from .decomposition_ports import PJMDecompositionStore, PJMDecompositionTransaction
+from .domain.decomposition_values import DecompositionRejectionReason
 from .domain.lifecycle.decomposition_lifecycle import (
     APPROVED,
     PENDING,
     REJECTED,
     WRITE_FAILED,
     WRITING,
+    DecompositionStatus,
 )
 
 logger = get_logger("pjm_agent.decomposition_approval_workflow")
@@ -27,8 +30,8 @@ logger = get_logger("pjm_agent.decomposition_approval_workflow")
 class PJMOpenProjectWriterPort(Protocol):
     async def write_wbs(
         self,
-        parent_wp_id: int,
-        project_id: int,
+        parent_wp_id: WorkPackageId,
+        project_id: OpenProjectProjectId,
         wbs_result: dict,
         assignee_id: int | None = None,
     ) -> dict:
@@ -36,8 +39,8 @@ class PJMOpenProjectWriterPort(Protocol):
 
     async def write_task_subtasks(
         self,
-        parent_wp_id: int,
-        project_id: int,
+        parent_wp_id: WorkPackageId,
+        project_id: OpenProjectProjectId,
         subtasks: list[dict],
         assignee_id: int | None = None,
     ) -> dict:
@@ -47,7 +50,7 @@ class PJMOpenProjectWriterPort(Protocol):
 class PJMDecompositionPushPort(Protocol):
     async def send_decompose_failure(
         self,
-        wp_id: int,
+        wp_id: WorkPackageId,
         subject: str,
         error_message: str,
     ) -> bool:
@@ -59,7 +62,7 @@ class StagedPJMEvent:
     """Event already staged in the local PJM transaction."""
 
     event: Event
-    wp_id: int | None = None
+    wp_id: WorkPackageId | None = None
 
 
 @dataclass(frozen=True)
@@ -90,7 +93,7 @@ class DecompositionApprovalWorkflow:
 
     async def approve_decomposition(
         self,
-        wp_id: int,
+        wp_id: WorkPackageId,
         approved_by: str,
     ) -> DecompositionApprovalWorkflowResult:
         async with self._decomposition_store.transaction() as decomposition:
@@ -213,10 +216,11 @@ class DecompositionApprovalWorkflow:
 
     async def reject_decomposition(
         self,
-        wp_id: int,
+        wp_id: WorkPackageId,
         rejected_by: str,
         reason: str = "",
     ) -> DecompositionApprovalWorkflowResult:
+        rejection_reason = DecompositionRejectionReason.from_text(reason)
         async with self._decomposition_store.transaction() as decomposition:
             record = await decomposition.get_by_wp_id(wp_id)
             if not record or record.status != PENDING:
@@ -258,7 +262,7 @@ class DecompositionApprovalWorkflow:
                 {
                     "wp_id": wp_id,
                     "status": "rejected",
-                    "reason": reason,
+                    "reason": rejection_reason.to_event_payload(),
                     "user_story_count": 0,
                     "task_count": 0,
                 },
@@ -270,8 +274,8 @@ class DecompositionApprovalWorkflow:
             "decompose_rejected",
             wp_id=wp_id,
             operator_hash=hash_identifier(rejected_by),
-            reason_hash=hash_identifier(reason),
-            reason_length=len(reason),
+            reason_hash=hash_identifier(rejection_reason.text),
+            reason_length=rejection_reason.length,
         )
         return DecompositionApprovalWorkflowResult(
             {"subject": subject},
@@ -281,8 +285,8 @@ class DecompositionApprovalWorkflow:
     async def _write_to_openproject(
         self,
         *,
-        wp_id: int,
-        project_id: int,
+        wp_id: WorkPackageId,
+        project_id: OpenProjectProjectId,
         assignee_id: int | None,
         wbs_result: dict,
     ) -> tuple[int, int]:
@@ -303,7 +307,9 @@ class DecompositionApprovalWorkflow:
                 assignee_id=assignee_id,
             )
             story_count = len(wbs_result.get("subtasks", []))
-            task_count = sum(len(story.get("children", [])) for story in wbs_result.get("subtasks", []))
+            task_count = sum(
+                len(story.get("children", [])) for story in wbs_result.get("subtasks", [])
+            )
 
         logger.info(
             "decompose_written_to_op",
@@ -317,9 +323,9 @@ class DecompositionApprovalWorkflow:
     def _build_dev_handoff_event(
         self,
         *,
-        wp_id: int,
+        wp_id: WorkPackageId,
         wbs_result: dict,
-        final_status: str,
+        final_status: DecompositionStatus,
     ) -> Event | None:
         if final_status != APPROVED:
             return None
@@ -336,7 +342,7 @@ class DecompositionApprovalWorkflow:
             },
         )
 
-    def _build_dev_tasks(self, wp_id: int, decompose_result: dict) -> list[dict]:
+    def _build_dev_tasks(self, wp_id: WorkPackageId, decompose_result: dict) -> list[dict]:
         """Build the dev-agent handoff payload from an approved decomposition."""
         if decompose_result.get("type") == "task_refinement":
             return [

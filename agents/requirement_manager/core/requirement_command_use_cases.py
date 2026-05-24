@@ -1,8 +1,11 @@
 """Application command use cases for Requirement mutations."""
+
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from typing import Any
+
+from shared.core.identifiers import OpenQuestionId, RequirementId
 
 from .requirement_mutation_workflow import (
     RequirementMutationResult,
@@ -54,7 +57,7 @@ class RequirementCommandUseCase:
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         return await self._mutation_workflow.confirm_requirement(
-            requirement_id=requirement_id,
+            requirement_id=RequirementId(requirement_id),
             confirmed_by=confirmed_by,
             uow=uow,
         )
@@ -88,7 +91,7 @@ class RequirementCommandUseCase:
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         return await self._mutation_workflow.reject_requirement(
-            requirement_id=requirement_id,
+            requirement_id=RequirementId(requirement_id),
             reason=reason,
             rejected_by=rejected_by,
             uow=uow,
@@ -120,7 +123,7 @@ class RequirementCommandUseCase:
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         return await self._mutation_workflow.update_requirement(
-            requirement_id=requirement_id,
+            requirement_id=RequirementId(requirement_id),
             changes=changes,
             uow=uow,
         )
@@ -151,7 +154,7 @@ class RequirementCommandUseCase:
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         return await self._mutation_workflow.delete_requirement(
-            requirement_id=requirement_id,
+            requirement_id=RequirementId(requirement_id),
             deleted_by=deleted_by,
             uow=uow,
         )
@@ -185,7 +188,7 @@ class RequirementCommandUseCase:
         uow: RequirementUnitOfWork,
     ) -> RequirementMutationResult:
         return await self._mutation_workflow.answer_question(
-            question_id,
+            OpenQuestionId(question_id),
             answer=answer,
             answered_by=answered_by,
             uow=uow,
@@ -218,7 +221,7 @@ class RequirementCommandUseCase:
         uow: RequirementUnitOfWork,
     ) -> tuple[list[dict], list[RequirementMutationResult]]:
         return await self._mutation_workflow.batch_confirm_requirements(
-            requirement_ids=requirement_ids,
+            requirement_ids=[RequirementId(requirement_id) for requirement_id in requirement_ids],
             confirmed_by=confirmed_by,
             uow=uow,
         )
@@ -253,7 +256,7 @@ class RequirementCommandUseCase:
         uow: RequirementUnitOfWork,
     ) -> tuple[list[dict], list[RequirementMutationResult]]:
         return await self._mutation_workflow.batch_reject_requirements(
-            requirement_ids=requirement_ids,
+            requirement_ids=[RequirementId(requirement_id) for requirement_id in requirement_ids],
             reason=reason,
             rejected_by=rejected_by,
             uow=uow,

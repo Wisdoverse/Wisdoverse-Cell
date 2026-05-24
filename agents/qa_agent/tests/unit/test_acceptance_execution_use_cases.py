@@ -13,6 +13,7 @@ from agents.qa_agent.models.schemas import (
     AcceptanceSummary,
     QARunRequest,
 )
+from shared.core.identifiers import AcceptanceRunId
 from shared.schemas.event import EventTypes
 
 
@@ -132,6 +133,7 @@ def _use_case(
     report_store=None,
     publish_staged=None,
     record_metrics=None,
+    run_id_factory=None,
     duplicate_error_types: tuple[type[BaseException], ...] = (),
 ) -> tuple[QAAcceptanceExecutionUseCase, SimpleNamespace]:
     if runner is None:
@@ -147,7 +149,11 @@ def _use_case(
         run_store.update_notification_summary = AsyncMock(return_value=True)
     if report_store is None:
         report_store = AsyncMock()
-        report_store.save_execution_result = AsyncMock(return_value=_run_record())
+
+        def _save_result(*args, **kwargs):
+            return _run_record(id=kwargs["run_id"])
+
+        report_store.save_execution_result = AsyncMock(side_effect=_save_result)
     uow_factory = _FakeAcceptanceUnitOfWorkFactory(report_store)
     if publish_staged is None:
         publish_staged = AsyncMock(
@@ -155,6 +161,12 @@ def _use_case(
         )
     if record_metrics is None:
         record_metrics = MagicMock()
+    if run_id_factory is None:
+
+        def _fixed_run_id() -> AcceptanceRunId:
+            return AcceptanceRunId("run_1")
+
+        run_id_factory = _fixed_run_id
 
     context = SimpleNamespace(
         runner=runner,
@@ -173,6 +185,7 @@ def _use_case(
         run_store=run_store,
         publish_staged_events=publish_staged,
         record_metrics=record_metrics,
+        run_id_factory=run_id_factory,
         duplicate_persist_error_types=duplicate_error_types,
     )
     return use_case, context
@@ -195,6 +208,9 @@ async def test_run_acceptance_persists_stages_publishes_and_notifies() -> None:
     assert result.summary.l0_gate == "FAIL"
     context.run_store.get_by_trigger_event_id.assert_awaited_once_with("evt_qa")
     context.report_store.save_execution_result.assert_awaited_once()
+    save_kwargs = context.report_store.save_execution_result.await_args.kwargs
+    assert save_kwargs["run_id"] == AcceptanceRunId("run_1")
+    assert save_kwargs["completed_at"] is not None
     context.uow.commit.assert_awaited_once()
     context.uow.rollback.assert_not_awaited()
     staged_events = context.uow.outbox.staged

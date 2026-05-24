@@ -2,24 +2,21 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
+from .report_delivery_use_cases import (
+    AnalysisReportDeliveryUseCase,
+    AnalysisReportGeneratorPort,
+)
+
 logger = get_logger("analysis_module.event_use_cases")
 
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
-
-
-class AnalysisReportGeneratorPort(Protocol):
-    async def generate(self) -> dict[str, Any]:
-        """Generate an analysis report."""
-
-    async def push_to_chat(self, content: str) -> bool:
-        """Push report content to chat."""
 
 
 class AnalysisMilestoneCheckerPort(Protocol):
@@ -91,6 +88,12 @@ class AnalysisEventUseCase:
         self._metrics = metrics or NoopAnalysisMetrics()
         self._now_china = now_china or (lambda: datetime.now(CHINA_TZ))
         self._projection_updater = projection_updater
+        self._report_delivery = AnalysisReportDeliveryUseCase(
+            daily=daily,
+            weekly=weekly,
+            event_factory=event_factory,
+            metrics=self._metrics,
+        )
 
     async def handle(self, event: Event) -> list[Event]:
         if event.event_type != EventTypes.SYNC_COMPLETED:
@@ -108,18 +111,8 @@ class AnalysisEventUseCase:
                 logger.error("projection_refresh_failed", error=str(exc))
 
         try:
-            report = await self._daily.generate()
-            await self._daily.push_to_chat(report["content"])
-            self._metrics.record_report("daily")
             events.append(
-                self._event_factory.create_event(
-                    EventTypes.REPORT_DAILY_GENERATED,
-                    {
-                        "date": datetime.now(UTC).isoformat(),
-                        "summary": report["summary"],
-                    },
-                    trace_id=trace_id,
-                )
+                await self._report_delivery.deliver_daily(trace_id=trace_id)
             )
         except Exception as exc:
             logger.error("daily_report_failed", error=str(exc))
@@ -129,7 +122,9 @@ class AnalysisEventUseCase:
             if risks:
                 await self._milestone.push_risks(risks)
                 for risk in risks:
-                    self._metrics.record_risk(risk.get("risk_level", "unknown"))
+                    self._metrics.record_risk(
+                        risk.get("risk_level") or risk.get("severity", "unknown")
+                    )
                 events.append(
                     self._event_factory.create_event(
                         EventTypes.ANALYSIS_RISK_DETECTED,
@@ -155,14 +150,8 @@ class AnalysisEventUseCase:
 
         if self._now_china().weekday() == 4:
             try:
-                report = await self._weekly.generate()
-                await self._weekly.push_to_chat(report["content"])
                 events.append(
-                    self._event_factory.create_event(
-                        EventTypes.REPORT_WEEKLY_GENERATED,
-                        {"summary": report["summary"]},
-                        trace_id=trace_id,
-                    )
+                    await self._report_delivery.deliver_weekly(trace_id=trace_id)
                 )
             except Exception as exc:
                 logger.error("weekly_report_failed", error=str(exc))

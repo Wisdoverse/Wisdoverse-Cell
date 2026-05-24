@@ -8,7 +8,9 @@ from shared.api import raise_control_plane_api_error
 from ..api_serialization import row_to_dict
 from ..approval_gate import ApprovalRequiredError
 from ..approval_use_cases import list_approvals as list_approvals_from_store
-from ..approval_use_cases import resolve_approval_and_sync_proposal
+from ..approval_use_cases import resolve_approval
+from ..domain.approval_request import InvalidApprovalTransitionError
+from ..evolution_proposal_use_cases import apply_approval_resolution_to_linked_proposal
 from ..store_factory import ControlPlaneStores
 from ..unit_of_work import ControlPlaneUnitOfWork
 from .dependencies import CompanyResolver, StoresDependency, UnitOfWorkDependency
@@ -57,7 +59,7 @@ def create_approval_router(
         stores = uow.stores
         store = stores.approvals
         try:
-            decision = await resolve_approval_and_sync_proposal(
+            decision = await resolve_approval(
                 store,
                 approval_id=approval_id,
                 resolved_by=body.resolved_by,
@@ -65,6 +67,19 @@ def create_approval_router(
             )
         except ApprovalRequiredError as exc:
             raise_control_plane_api_error(status_code=404, detail=str(exc))
+        except InvalidApprovalTransitionError:
+            raise_control_plane_api_error(
+                status_code=400,
+                detail="invalid_approval_transition",
+            )
+        await uow.commit()
+        uow.begin_next_transaction()
+        await apply_approval_resolution_to_linked_proposal(
+            stores.evolution_proposals,
+            approval_id=approval_id,
+            resolved_by=body.resolved_by,
+            approved=True,
+        )
         await uow.commit()
         return decision.__dict__
 
@@ -77,7 +92,7 @@ def create_approval_router(
         stores = uow.stores
         store = stores.approvals
         try:
-            decision = await resolve_approval_and_sync_proposal(
+            decision = await resolve_approval(
                 store,
                 approval_id=approval_id,
                 resolved_by=body.resolved_by,
@@ -85,6 +100,19 @@ def create_approval_router(
             )
         except ApprovalRequiredError as exc:
             raise_control_plane_api_error(status_code=404, detail=str(exc))
+        except InvalidApprovalTransitionError:
+            raise_control_plane_api_error(
+                status_code=400,
+                detail="invalid_approval_transition",
+            )
+        await uow.commit()
+        uow.begin_next_transaction()
+        await apply_approval_resolution_to_linked_proposal(
+            stores.evolution_proposals,
+            approval_id=approval_id,
+            resolved_by=body.resolved_by,
+            approved=False,
+        )
         await uow.commit()
         return decision.__dict__
 

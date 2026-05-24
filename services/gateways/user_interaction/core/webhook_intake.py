@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Mapping, Protocol
 
 DEDUP_TTL_SECONDS = 300
 USER_INFO_TTL_SECONDS = 3600
@@ -32,14 +32,59 @@ class FeishuUserDirectoryPort(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class FeishuWebhookMessage:
-    """Normalized metadata for one Feishu message event."""
+    """Immutable, normalized metadata for one Feishu message event."""
 
     msg_id: str
     msg_type: str
     chat_type: str
     chat_id: str
     user_id: str
-    raw_message: dict[str, Any]
+    content: str
+
+    @classmethod
+    def from_webhook_body(
+        cls,
+        body: Mapping[str, Any],
+    ) -> "FeishuWebhookMessage | None":
+        """Translate a Feishu webhook body into local message vocabulary."""
+        header = _mapping(body.get("header"))
+        event = _mapping(body.get("event"))
+        if header.get("event_type", "") != "im.message.receive_v1":
+            return None
+
+        message = _mapping(event.get("message"))
+        sender = _mapping(_mapping(event.get("sender")).get("sender_id"))
+        return cls(
+            msg_id=_text(message.get("message_id")),
+            msg_type=_text(message.get("message_type")),
+            chat_type=_text(message.get("chat_type")),
+            chat_id=_text(message.get("chat_id")),
+            user_id=_text(sender.get("open_id"), default="unknown"),
+            content=_text(message.get("content"), default="{}"),
+        )
+
+    @property
+    def is_text(self) -> bool:
+        """Return whether the message is a text message."""
+        return self.msg_type == "text"
+
+    def text_content(self) -> str | None:
+        """Return normalized text content with bot mention prefixes removed."""
+        if not self.is_text:
+            return None
+        try:
+            content = json.loads(self.content or "{}")
+            text = str(content.get("text", "")).strip()
+        except (json.JSONDecodeError, AttributeError):
+            return None
+
+        if not text:
+            return None
+        if text.startswith("@"):
+            parts = text.split(" ", 1)
+            text = parts[1] if len(parts) > 1 else ""
+        text = text.strip()
+        return text or None
 
 
 def hash_user_id(user_id: str) -> str:
@@ -74,38 +119,10 @@ class FeishuWebhookIntakeUseCase:
         self,
         body: dict[str, Any],
     ) -> FeishuWebhookMessage | None:
-        header = body.get("header", {})
-        event = body.get("event", {})
-        if header.get("event_type", "") != "im.message.receive_v1":
-            return None
-
-        message = event.get("message", {})
-        sender = event.get("sender", {}).get("sender_id", {})
-        return FeishuWebhookMessage(
-            msg_id=message.get("message_id", ""),
-            msg_type=message.get("message_type", ""),
-            chat_type=message.get("chat_type", ""),
-            chat_id=message.get("chat_id", ""),
-            user_id=sender.get("open_id", "unknown"),
-            raw_message=message,
-        )
+        return FeishuWebhookMessage.from_webhook_body(body)
 
     def extract_text(self, message: FeishuWebhookMessage) -> str | None:
-        if message.msg_type != "text":
-            return None
-        try:
-            content = json.loads(message.raw_message.get("content", "{}"))
-            text = content.get("text", "").strip()
-        except (json.JSONDecodeError, AttributeError):
-            return None
-
-        if not text:
-            return None
-        if text.startswith("@"):
-            parts = text.split(" ", 1)
-            text = parts[1] if len(parts) > 1 else ""
-        text = text.strip()
-        return text or None
+        return message.text_content()
 
     async def resolve_user_name(
         self,
@@ -127,3 +144,15 @@ class FeishuWebhookIntakeUseCase:
             return user_name
         except Exception:
             return ""
+
+
+def _mapping(value: Any) -> Mapping[str, Any]:
+    if isinstance(value, Mapping):
+        return value
+    return {}
+
+
+def _text(value: Any, *, default: str = "") -> str:
+    if value is None:
+        return default
+    return str(value)

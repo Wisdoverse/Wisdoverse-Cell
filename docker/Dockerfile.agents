@@ -51,7 +51,7 @@ COPY shared/capabilities/evolution/requirements.txt /build/requirements-evolutio
 COPY agents/pjm_agent/requirements.txt /build/requirements-pjm.txt
 COPY agents/qa_agent/requirements.txt /build/requirements-qa.txt
 COPY agents/dev_agent/requirements.txt /build/requirements-dev.txt
-COPY services/gateways/user_interaction/requirements.txt /build/requirements-chat.txt
+COPY agents/chat_agent/requirements.txt /build/requirements-chat.txt
 
 # hadolint ignore=DL3042,SC2086
 RUN --mount=type=cache,target=/root/.cache/pip \

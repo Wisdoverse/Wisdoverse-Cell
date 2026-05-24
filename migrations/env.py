@@ -8,6 +8,14 @@ from alembic import context
 from sqlalchemy import pool, text
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from agents.chat_agent.models import (  # noqa: F401
+    CardOperation,
+    ChatAgentEventOutbox,
+    ConversationHistory,
+    DailyProgress,
+)
+from agents.chat_agent.models.base import Base as ChatAgentBase
+
 # Import all models so metadata is populated for Alembic autogenerate checks.
 from agents.dev_agent.models.base import Base as DevAgentBase
 from agents.dev_agent.models.dev import (  # noqa: F401
@@ -39,13 +47,6 @@ from agents.requirement_manager.models import (  # noqa: F401
 from agents.requirement_manager.models.base import Base as RequirementManagerBase
 from services.gateways.channel.models import ChannelGatewayEventOutbox  # noqa: F401
 from services.gateways.channel.models.base import Base as ChannelGatewayBase
-from services.gateways.user_interaction.models import (  # noqa: F401
-    CardOperation,
-    ConversationHistory,
-    DailyProgress,
-    UserInteractionEventOutbox,
-)
-from services.gateways.user_interaction.models.base import Base as UserInteractionBase
 from services.orchestration.coordinator.db.base import Base as CoordinatorBase
 from services.orchestration.coordinator.db.event_outbox import (  # noqa: F401
     CoordinatorEventOutbox,
@@ -65,7 +66,9 @@ from shared.capabilities.sync.models import (  # noqa: F401
 from shared.capabilities.sync.models.base import Base as SyncBase
 from shared.config import settings
 from shared.control_plane.tables import control_plane_metadata
+from shared.db.base import Base as SharedBase
 from shared.evolution.db.tables import evolution_metadata
+from shared.models.identity_event_outbox import IdentityEventOutbox  # noqa: F401
 from shared.models.user import User  # noqa: F401
 
 config = context.config
@@ -79,12 +82,13 @@ target_metadata = [
     PJMAgentBase.metadata,
     QAAgentBase.metadata,
     DevAgentBase.metadata,
-    UserInteractionBase.metadata,
+    ChatAgentBase.metadata,
     ChannelGatewayBase.metadata,
     CoordinatorBase.metadata,
     SyncBase.metadata,
     AnalysisBase.metadata,
     evolution_metadata,
+    SharedBase.metadata,
 ]
 
 # Alembic 1.18 hardcodes `alembic_version.version_num` as `String(32)`

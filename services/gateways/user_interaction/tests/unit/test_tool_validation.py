@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from services.gateways.user_interaction.core.chat_service import ChatService
+from agents.chat_agent.core.chat_service import ChatService
 from shared.infra.audit_log import AuditAction
 
 # ---------------------------------------------------------------------------
@@ -71,8 +71,8 @@ async def test_known_tool_passes_validation(chat_service):
 
     with (
         patch.object(chat_service._llm, "create_messages", new=AsyncMock(side_effect=[first_response, final_response])),
-        patch("services.gateways.user_interaction.core.chat_service.ToolExecutor") as mock_executor_cls,
-        patch("services.gateways.user_interaction.core.chat_service.audit_log") as mock_audit,
+        patch("agents.chat_agent.core.chat_service.ToolExecutor") as mock_executor_cls,
+        patch("agents.chat_agent.core.chat_service.audit_log") as mock_audit,
     ):
         mock_executor_cls.execute = AsyncMock(return_value='{"work_packages": []}')
 
@@ -106,8 +106,8 @@ async def test_unknown_tool_rejected_and_audited(chat_service):
 
     with (
         patch.object(chat_service._llm, "create_messages", new=AsyncMock(side_effect=[first_response, final_response])),
-        patch("services.gateways.user_interaction.core.chat_service.ToolExecutor") as mock_executor_cls,
-        patch("services.gateways.user_interaction.core.chat_service.audit_log") as mock_audit,
+        patch("agents.chat_agent.core.chat_service.ToolExecutor") as mock_executor_cls,
+        patch("agents.chat_agent.core.chat_service.audit_log") as mock_audit,
     ):
         mock_executor_cls.execute = AsyncMock()
 
@@ -153,8 +153,8 @@ async def test_oversized_tool_input_rejected(chat_service):
 
     with (
         patch.object(chat_service._llm, "create_messages", new=AsyncMock(side_effect=[first_response, final_response])),
-        patch("services.gateways.user_interaction.core.chat_service.ToolExecutor") as mock_executor_cls,
-        patch("services.gateways.user_interaction.core.chat_service.audit_log") as mock_audit,
+        patch("agents.chat_agent.core.chat_service.ToolExecutor") as mock_executor_cls,
+        patch("agents.chat_agent.core.chat_service.audit_log") as mock_audit,
     ):
         mock_executor_cls.execute = AsyncMock()
 
@@ -188,8 +188,8 @@ async def test_multiple_tool_use_blocks_validated_independently(chat_service):
 
     with (
         patch.object(chat_service._llm, "create_messages", new=AsyncMock(side_effect=[first_response, final_response])),
-        patch("services.gateways.user_interaction.core.chat_service.ToolExecutor") as mock_executor_cls,
-        patch("services.gateways.user_interaction.core.chat_service.audit_log"),
+        patch("agents.chat_agent.core.chat_service.ToolExecutor") as mock_executor_cls,
+        patch("agents.chat_agent.core.chat_service.audit_log"),
     ):
         mock_executor_cls.execute = AsyncMock(return_value='{"success": true}')
 

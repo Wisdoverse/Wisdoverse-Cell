@@ -25,8 +25,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from shared.core.identifiers import WorkPackageId
+
 from .lifecycle.decomposition_lifecycle import (
     DECOMPOSITION_STATUSES,
+    DecompositionStatus,
     can_transition,
     is_terminal,
 )
@@ -35,10 +38,15 @@ from .lifecycle.decomposition_lifecycle import (
 class InvalidDecompositionTransitionError(Exception):
     """Raised when ``transition_to`` is called with an illegal target state."""
 
-    def __init__(self, *, wp_id: int, from_status: str, to_status: str) -> None:
+    def __init__(
+        self,
+        *,
+        wp_id: WorkPackageId,
+        from_status: DecompositionStatus,
+        to_status: DecompositionStatus,
+    ) -> None:
         super().__init__(
-            f"illegal decomposition transition wp_id={wp_id} "
-            f"{from_status} -> {to_status}"
+            f"illegal decomposition transition wp_id={wp_id} {from_status} -> {to_status}"
         )
         self.wp_id = wp_id
         self.from_status = from_status
@@ -49,17 +57,17 @@ class InvalidDecompositionTransitionError(Exception):
 class DecompositionStatusChanged:
     """Domain event emitted when the aggregate moves between states."""
 
-    wp_id: int
-    from_status: str
-    to_status: str
+    wp_id: WorkPackageId
+    from_status: DecompositionStatus
+    to_status: DecompositionStatus
 
 
 @dataclass(slots=True)
 class Decomposition:
     """Aggregate for a work-package decomposition record."""
 
-    wp_id: int
-    status: str
+    wp_id: WorkPackageId
+    status: DecompositionStatus
     pending_events: list[DecompositionStatusChanged] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -69,7 +77,7 @@ class Decomposition:
                 f"must be one of {DECOMPOSITION_STATUSES}"
             )
 
-    def transition_to(self, new_status: str) -> DecompositionStatusChanged:
+    def transition_to(self, new_status: DecompositionStatus) -> DecompositionStatusChanged:
         """Move the aggregate to ``new_status`` if the transition is legal.
 
         Raises:

@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from services.gateways.user_interaction.core.request_use_cases import (
-    UserInteractionRequestUseCase,
+from agents.chat_agent.core.request_use_cases import (
+    ChatAgentRequestUseCase,
 )
 from shared.core import UNKNOWN_ACTION_ERROR_CODE
 
@@ -14,8 +14,8 @@ def _use_case(
     history_store: AsyncMock | None = None,
     dispatch_morning_tasks: AsyncMock | None = None,
     collect_evening_progress: AsyncMock | None = None,
-) -> UserInteractionRequestUseCase:
-    return UserInteractionRequestUseCase(
+) -> ChatAgentRequestUseCase:
+    return ChatAgentRequestUseCase(
         chat=chat or AsyncMock(),
         history_store=history_store or AsyncMock(),
         dispatch_morning_tasks=dispatch_morning_tasks or AsyncMock(),

@@ -75,6 +75,9 @@ class SubtaskProgressProjection:
     subtask_status: str
     completed: bool
     updated_at: datetime
+    title: str = ""
+    blocked_reason: str = ""
+    feature_id: str | None = None
 
 
 @runtime_checkable

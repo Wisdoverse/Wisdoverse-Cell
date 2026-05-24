@@ -7,18 +7,16 @@ Supported commands:
 - /list: list pending requirements
 - /export: export PRD
 """
-import json
-import re
-from typing import Optional
+from shared.observability.privacy import hash_identifier
+from shared.utils.logger import get_logger
 
-from shared.integrations.feishu.cards.requirement import (
+from .acl import FeishuBotMessage
+from .cards.requirement import (
     build_bot_help_card,
     build_prd_preview_card,
     build_requirement_extracted_card,
     build_requirement_list_card,
 )
-from shared.observability.privacy import hash_identifier
-from shared.utils.logger import get_logger
 
 logger = get_logger("feishu.handlers.bot")
 
@@ -29,8 +27,6 @@ class BotHandler:
 
     Handles messages that users send to the bot.
     """
-
-    COMMAND_PATTERN = re.compile(r"^/(\w+)(?:\s+(.*))?$")
 
     def __init__(self, feishu_client, agent):
         self.client = feishu_client
@@ -43,50 +39,36 @@ class BotHandler:
         Args:
             data: Feishu message event data.
         """
-        message = data.get("message", {})
-        message_id = message.get("message_id", "")
-        chat_id = message.get("chat_id", "")
-        message_type = message.get("message_type", "")
+        message = FeishuBotMessage.from_payload(data)
 
-        # Only handle text messages
-        if message_type != "text":
-            logger.info("skipping_non_text_message", type=message_type)
+        if not message.is_text:
+            logger.info("skipping_non_text_message", type=message.message_type)
             return
 
-        # Extract text content
-        content = self._extract_text(message)
-        if not content:
+        if not message.has_text:
             return
 
         logger.info(
             "bot_message_received",
-            message_hash=hash_identifier(message_id),
-            chat_hash=hash_identifier(chat_id),
-            content_length=len(content),
+            message_hash=hash_identifier(message.message_id),
+            chat_hash=hash_identifier(message.chat_id),
+            content_length=len(message.text),
         )
 
-        # Check if it's a command
-        match = self.COMMAND_PATTERN.match(content.strip())
-        if match:
-            command, args = match.groups()
-            await self._handle_command(command, args, chat_id, message_id)
+        if message.command:
+            await self._handle_command(
+                message.command.name,
+                message.command.args,
+                message.chat_id,
+                message.message_id,
+            )
         else:
-            # Regular text - extract requirements
-            await self._handle_extract(content, chat_id, message_id)
-
-    def _extract_text(self, message: dict) -> Optional[str]:
-        """Extract text content from message"""
-        content_str = message.get("content", "")
-        try:
-            content = json.loads(content_str)
-            return content.get("text", "")
-        except json.JSONDecodeError:
-            return content_str
+            await self._handle_extract(message, message.message_id)
 
     async def _handle_command(
         self,
         command: str,
-        args: Optional[str],
+        args: str | None,
         chat_id: str,
         message_id: str
     ) -> None:
@@ -107,17 +89,12 @@ class BotHandler:
 
     async def _handle_extract(
         self,
-        content: str,
-        chat_id: str,
-        message_id: str
+        message: FeishuBotMessage,
+        message_id: str,
     ) -> None:
         """Handle text message - extract requirements"""
         try:
-            # Call agent to extract requirements
-            result = await self.agent.ingest_meeting(
-                content=content,
-                source="feishu_bot",
-            )
+            result = await self.agent.ingest_meeting(**message.ingest_kwargs())
 
             if result.requirements_extracted > 0:
                 # Build and send card
@@ -126,7 +103,7 @@ class BotHandler:
                     questions_count=result.questions_generated
                 )
                 await self.client.send_card(
-                    receive_id=chat_id,
+                    receive_id=message.chat_id,
                     receive_id_type="chat_id",
                     card=card
                 )

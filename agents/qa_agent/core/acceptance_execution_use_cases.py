@@ -1,10 +1,12 @@
 """Application use cases for QA acceptance execution."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
 from typing import Any, Protocol
 
+from shared.core.identifiers import AcceptanceRunId
+from shared.core.ids import generate_ulid
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
@@ -14,14 +16,24 @@ from ..models.schemas import (
     AcceptanceSummary,
     QARunRequest,
 )
+from .domain.acceptance_run import AcceptanceRun, AcceptanceRunCompleted
+from .domain.acceptance_verdict import AcceptanceVerdict
 from .domain.acceptance_vocabulary import (
+    FINDING_LEVEL_L0,
+    FINDING_SKIP,
     is_blocking_finding,
+    is_informational_finding,
     is_warning_finding,
 )
 from .run_store import QAAcceptanceRunRecord, QAAcceptanceRunStore
 from .unit_of_work_ports import QAUnitOfWorkFactory
 
 logger = get_logger("qa_agent.acceptance_execution")
+
+
+def _new_acceptance_run_id() -> AcceptanceRunId:
+    """Generate a QA acceptance run identity before persistence."""
+    return AcceptanceRunId(generate_ulid())
 
 
 class QAAcceptanceRunnerPort(Protocol):
@@ -49,6 +61,7 @@ class QANotifierPort(Protocol):
 
 
 RecordQAMetrics = Callable[[str, str, AcceptanceExecutionResult], None]
+RunIdFactory = Callable[[], AcceptanceRunId]
 
 
 class PublishStagedQAEvents(Protocol):
@@ -58,7 +71,7 @@ class PublishStagedQAEvents(Protocol):
         self,
         events: list[Event],
         *,
-        run_id: str | None,
+        run_id: AcceptanceRunId | None,
     ) -> dict[str, Any]:
         """Publish staged events for a persisted acceptance run."""
 
@@ -75,6 +88,7 @@ class QAAcceptanceExecutionUseCase:
         run_store: QAAcceptanceRunStore,
         publish_staged_events: PublishStagedQAEvents,
         record_metrics: RecordQAMetrics,
+        run_id_factory: RunIdFactory | None = None,
         duplicate_persist_error_types: tuple[type[BaseException], ...] = (),
     ) -> None:
         self._uow_factory = uow_factory
@@ -83,6 +97,7 @@ class QAAcceptanceExecutionUseCase:
         self._run_store = run_store
         self._publish_staged_events = publish_staged_events
         self._record_metrics = record_metrics
+        self._run_id_factory = run_id_factory or _new_acceptance_run_id
         self._duplicate_persist_error_types = duplicate_persist_error_types
 
     async def run_acceptance(
@@ -146,7 +161,7 @@ class QAAcceptanceExecutionUseCase:
             run_id = None
             staged_events = []
 
-        result.run_id = run_id or ""
+        result.run_id = str(run_id or "")
         eventbus_summary = await self._publish_staged_events(
             staged_events,
             run_id=run_id,
@@ -198,30 +213,31 @@ class QAAcceptanceExecutionUseCase:
 
         summary_data = report.get("summary", {})
         findings_data = report.get("results", [])
+        verdict = AcceptanceVerdict.from_summary(summary_data)
         result = AcceptanceExecutionResult(
-            success=summary_data.get("l0_gate") != "FAIL",
+            success=not verdict.is_blocking,
             exit_code=report.get("exit_code", -1),
             summary=AcceptanceSummary(
-                l0_gate=summary_data.get("l0_gate", "ERROR"),
-                l1_check=summary_data.get("l1_check", "ERROR"),
-                l2_report=summary_data.get("l2_report", "INFO"),
+                l0_gate=verdict.l0_gate,
+                l1_check=verdict.l1_status,
+                l2_report=verdict.l2_status,
                 total_checks=summary_data.get("total_checks", 0),
-                l0_failures=summary_data.get("l0_failures", 0),
-                l1_warnings=summary_data.get("l1_warnings", 0),
+                l0_failures=verdict.l0_failure_count,
+                l1_warnings=verdict.l1_warning_count,
             ),
             findings=[
                 AcceptanceFinding(
-                    level=f.get("level", "L0"),
+                    level=f.get("level", FINDING_LEVEL_L0),
                     category=f.get("category", ""),
                     check=f.get("check", ""),
-                    status=f.get("status", "SKIP"),
+                    status=f.get("status", FINDING_SKIP),
                     details=f.get("details"),
                     file=f.get("file"),
                     line=f.get("line"),
                     severity=derive_severity(f),
                     is_blocking=is_blocking_finding(
-                        level=f.get("level", "L0"),
-                        status=f.get("status", "SKIP"),
+                        level=f.get("level", FINDING_LEVEL_L0),
+                        status=f.get("status", FINDING_SKIP),
                     ),
                 )
                 for f in findings_data
@@ -244,28 +260,38 @@ class QAAcceptanceExecutionUseCase:
         *,
         trace_id: str | None,
         trigger_event_id: str | None,
-    ) -> tuple[str | None, list[Event]]:
+    ) -> tuple[AcceptanceRunId | None, list[Event]]:
         try:
+            aggregate = build_acceptance_run(
+                run_id=self._run_id_factory(),
+                request=request,
+                result=result,
+                summary=summary_data,
+                findings=findings_data,
+                report_markdown=report_md,
+            )
+            staged_events = build_acceptance_events_from_run(
+                aggregate,
+                trace_id=trace_id,
+            )
             async with self._uow_factory() as uow:
                 run = await uow.reports.save_execution_result(
                     request,
                     result,
+                    run_id=aggregate.run_id,
                     trace_id=trace_id,
                     trigger_event_id=trigger_event_id,
+                    completed_at=aggregate.completed_at,
                 )
-                staged_events = build_acceptance_events(
-                    run_id=run.id,
-                    request=request,
-                    result=result,
-                    summary=summary_data,
-                    findings=findings_data,
-                    report_markdown=report_md,
-                    trace_id=trace_id,
-                )
+                run_id = AcceptanceRunId(run.id)
+                if run_id != aggregate.run_id:
+                    raise RuntimeError(
+                        "persisted QA run id changed across the UOW boundary"
+                    )
                 for event in staged_events:
                     await uow.outbox.stage(event)
                 await uow.commit()
-                return run.id, staged_events
+                return run_id, staged_events
         except Exception as exc:
             if isinstance(exc, self._duplicate_persist_error_types):
                 raise
@@ -286,7 +312,7 @@ class QAAcceptanceExecutionUseCase:
         findings_data: list[dict[str, Any]],
         report_md: str | None,
         *,
-        run_id: str | None,
+        run_id: AcceptanceRunId | None,
         trace_id: str | None,
         eventbus_summary: dict[str, Any],
     ) -> dict[str, Any]:
@@ -321,7 +347,7 @@ class QAAcceptanceExecutionUseCase:
 
     async def _update_notification_summary(
         self,
-        run_id: str | None,
+        run_id: AcceptanceRunId | None,
         notification_summary: dict[str, Any],
     ) -> None:
         if not run_id:
@@ -348,9 +374,10 @@ class QAAcceptanceExecutionUseCase:
             return None
         return await self._run_store.get_by_trigger_event_id(trigger_event_id)
 
+
 def build_acceptance_events(
     *,
-    run_id: str,
+    run_id: AcceptanceRunId,
     request: QARunRequest,
     result: AcceptanceExecutionResult,
     summary: dict[str, Any],
@@ -358,59 +385,105 @@ def build_acceptance_events(
     report_markdown: str | None,
     trace_id: str | None,
 ) -> list[Event]:
-    """Build QA integration events for a persisted acceptance run."""
-    completed_payload = {
-        "run_id": run_id,
-        "agent_name": request.agent_name,
-        "commit_sha": request.commit_sha,
-        "mr_iid": request.mr_iid,
-        "gitlab_project_id": request.gitlab_project_id,
-        "trigger": request.trigger,
-        "level": request.level,
-        "target": f"agents/{request.agent_name}",
-        "summary": summary,
-        "findings": findings,
-        "duration_seconds": result.duration_seconds,
-        "report_markdown": report_markdown,
-        "completed_at": datetime.now(UTC).isoformat(),
-    }
+    """Build QA integration events from an acceptance run aggregate."""
+    aggregate = build_acceptance_run(
+        run_id=run_id,
+        request=request,
+        result=result,
+        summary=summary,
+        findings=findings,
+        report_markdown=report_markdown,
+    )
+    return build_acceptance_events_from_run(aggregate, trace_id=trace_id)
+
+
+def build_acceptance_run(
+    *,
+    run_id: AcceptanceRunId,
+    request: QARunRequest,
+    result: AcceptanceExecutionResult,
+    summary: dict[str, Any],
+    findings: list[dict[str, Any]],
+    report_markdown: str | None,
+) -> AcceptanceRun:
+    """Build and complete the domain aggregate before persistence."""
+    aggregate = AcceptanceRun.request(
+        run_id=run_id,
+        agent_name=request.agent_name,
+        commit_sha=request.commit_sha,
+        mr_iid=request.mr_iid,
+        gitlab_project_id=request.gitlab_project_id,
+        trigger=request.trigger,
+        level=request.level,
+    )
+    aggregate.start()
+    aggregate.record_completion(
+        summary=summary,
+        findings=findings,
+        duration_seconds=result.duration_seconds,
+        report_markdown=report_markdown,
+    )
+    return aggregate
+
+
+def build_acceptance_events_from_run(
+    aggregate: AcceptanceRun,
+    *,
+    trace_id: str | None,
+) -> list[Event]:
+    """Translate aggregate-raised completion events into integration events."""
+    [completion] = aggregate.pull_events()
     events = [
         Event.create(
             event_type=EventTypes.QA_ACCEPTANCE_COMPLETED,
             source_agent="qa-agent",
-            payload=completed_payload,
+            payload=_completed_payload(completion),
             trace_id=trace_id,
         )
     ]
 
-    if summary.get("l0_gate") == "FAIL":
-        blocking = [
-            finding
-            for finding in findings
-            if is_blocking_finding(
-                level=finding.get("level", ""),
-                status=finding.get("status", ""),
-            )
-        ]
+    if aggregate.is_blocking:
         events.append(
             Event.create(
                 event_type=EventTypes.QA_GATE_FAILED,
                 source_agent="qa-agent",
-                payload={
-                    "run_id": run_id,
-                    "agent_name": request.agent_name,
-                    "commit_sha": request.commit_sha,
-                    "mr_iid": request.mr_iid,
-                    "gitlab_project_id": request.gitlab_project_id,
-                    "l0_failure_count": summary.get("l0_failures", 0),
-                    "blocking_findings": blocking[:10],
-                    "duration_seconds": result.duration_seconds,
-                    "report_markdown": report_markdown,
-                },
+                payload=_gate_failed_payload(completion),
                 trace_id=trace_id,
             )
         )
     return events
+
+
+def _completed_payload(event: AcceptanceRunCompleted) -> dict[str, Any]:
+    return {
+        "run_id": str(event.run_id),
+        "agent_name": event.agent_name,
+        "commit_sha": event.commit_sha,
+        "mr_iid": event.mr_iid,
+        "gitlab_project_id": event.gitlab_project_id,
+        "trigger": event.trigger,
+        "level": event.level,
+        "target": event.target,
+        "summary": dict(event.summary),
+        "findings": [dict(finding) for finding in event.findings],
+        "duration_seconds": event.duration_seconds,
+        "report_markdown": event.report_markdown,
+        "completed_at": event.completed_at.isoformat(),
+    }
+
+
+def _gate_failed_payload(event: AcceptanceRunCompleted) -> dict[str, Any]:
+    return {
+        "run_id": str(event.run_id),
+        "agent_name": event.agent_name,
+        "commit_sha": event.commit_sha,
+        "mr_iid": event.mr_iid,
+        "gitlab_project_id": event.gitlab_project_id,
+        "l0_failure_count": event.verdict.l0_failure_count,
+        "blocking_findings": [dict(finding) for finding in event.blocking_findings[:10]],
+        "duration_seconds": event.duration_seconds,
+        "report_markdown": event.report_markdown,
+    }
 
 
 def result_from_run(run: QAAcceptanceRunRecord) -> AcceptanceExecutionResult:
@@ -421,10 +494,10 @@ def result_from_run(run: QAAcceptanceRunRecord) -> AcceptanceExecutionResult:
         try:
             findings.append(
                 AcceptanceFinding(
-                    level=finding.get("level", "L0"),
+                    level=finding.get("level", FINDING_LEVEL_L0),
                     category=finding.get("category", ""),
                     check=finding.get("check", ""),
-                    status=finding.get("status", "SKIP"),
+                    status=finding.get("status", FINDING_SKIP),
                     details=finding.get("details"),
                     file=finding.get("file"),
                     line=finding.get("line"),
@@ -439,16 +512,24 @@ def result_from_run(run: QAAcceptanceRunRecord) -> AcceptanceExecutionResult:
                 error_type=type(exc).__name__,
             )
 
+    verdict = AcceptanceVerdict(
+        l0_gate=run.l0_status,
+        l1_status=run.l1_status,
+        l2_status=run.l2_status,
+        l0_failure_count=run.l0_failure_count,
+        l1_warning_count=run.l1_warning_count,
+    )
+
     return AcceptanceExecutionResult(
-        success=run.l0_status != "FAIL",
+        success=not verdict.is_blocking,
         exit_code=run.runner_exit_code,
         summary=AcceptanceSummary(
-            l0_gate=run.l0_status,
-            l1_check=run.l1_status,
-            l2_report=run.l2_status,
+            l0_gate=verdict.l0_gate,
+            l1_check=verdict.l1_status,
+            l2_report=verdict.l2_status,
             total_checks=run.total_checks,
-            l0_failures=run.l0_failure_count,
-            l1_warnings=run.l1_warning_count,
+            l0_failures=verdict.l0_failure_count,
+            l1_warnings=verdict.l1_warning_count,
         ),
         findings=findings,
         raw_report=raw_report,
@@ -467,6 +548,6 @@ def derive_severity(finding: dict[str, Any]) -> str:
         return "critical"
     if is_warning_finding(level=level, status=status):
         return "medium"
-    if level == "L2":
+    if is_informational_finding(level=level, status=status):
         return "info"
     return "low"

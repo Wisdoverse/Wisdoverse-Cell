@@ -1,10 +1,15 @@
 # Identity / User Boundary Contract
 
-Last updated: 2026-05-18
+Last updated: 2026-05-23
 
 Status: Foundation document. Stage 3 deliverable per
 [`migration-plan.md`](./migration-plan.md) §Stage 3 item 3 (Identity /
 User write-owner path).
+
+Current branch status: the boundary now has explicit identity value
+objects, aggregate transition methods, a core identity-resolution
+application use case, and durable PII-safe integration-event staging.
+The public user/profile API remains a future extraction prerequisite.
 
 This document is the binding contract for the `users` table and the
 identity boundary in the backend. It closes the Phase 1 audit gap H9 /
@@ -19,16 +24,19 @@ the table now has one documented write owner.
 | Runtime owner | `shared/messaging/inbound/user_service.py` |
 | Persistence owner | `shared/db/user_store.py` (`SqlAlchemyUserIdentityStore`) |
 | Port contract | `shared/core/identity_ports.py` (`UserIdentityStore` Protocol) |
+| Application use case | `shared/core/identity_resolution.py` (`IdentityResolutionUseCase`) |
 | Repository implementation | `shared/db/repository.py` (`UserRepository`) |
-| Tables owned | `users` |
-| Migration | `migrations/versions/20260506_identity_users_table.py` |
-| Domain model | `shared/models/user.py` (`User`), `shared/models/platform.py` (`Platform`) |
+| Tables owned | `users`, `identity_event_outbox` |
+| Migration | `migrations/versions/20260506_identity_users_table.py`, `migrations/versions/20260527_identity_event_outbox.py` |
+| Domain model | `shared/models/user.py` (`User` aggregate), `shared/core/identity_domain.py` (`PlatformUserRef`, `EmailAddress`, `PhoneNumber`, domain events), `shared/models/platform.py` (`Platform`) |
+| Event outbox | `shared/core/identity_event_outbox.py`, `shared/db/identity_event_outbox_store.py` |
 
-The identity boundary is intentionally narrow. It exists to map
-platform-specific identifiers (Feishu, WeCom, Web, etc.) to a unified
-`User` record. It does **not** own profile preferences, organizational
-membership, or role assignments — those are control-plane concerns
-(`shared/control_plane/agent_registry_*`).
+The identity boundary is intentionally narrow. It exists to translate
+platform-specific identifiers (Feishu, WeCom, Web, OpenClaw, etc.) into
+a `PlatformUserRef`, normalize optional contact values, and map them to
+a unified `User` aggregate. It does **not** own profile preferences,
+organizational membership, or role assignments — those are
+control-plane concerns (`shared/control_plane/agent_registry_*`).
 
 ## 2. Write Owner
 
@@ -37,10 +45,15 @@ There is exactly one write path to the `users` table:
 ```text
 inbound message
    → shared/messaging/inbound/user_service.py
+        → shared/core/identity_resolution.py
         → shared/core/identity_ports.UserIdentityStore  (Protocol)
         → shared/db/user_store.SqlAlchemyUserIdentityStore  (adapter)
         → shared/db/repository.UserRepository  (SQL)
         → users table
+        → shared/core/identity_event_outbox.py
+        → shared/core/identity_ports.IdentityEventOutboxStore  (Protocol)
+        → shared/db/identity_event_outbox_store.SqlAlchemyIdentityEventOutboxStore
+        → identity_event_outbox table
 ```
 
 Rules:
@@ -51,10 +64,17 @@ Rules:
    gateways, control plane) MUST NOT import `UserRepository`,
    `SqlAlchemyUserIdentityStore`, or `shared.models.user.User` for
    write purposes.
-3. The `User` aggregate fields are persistence-managed; consumers who
+3. User creation, platform linking, and activity recording MUST route
+   through `IdentityResolutionUseCase`, which calls
+   `User.create_identity()`, `User.link_platform_account()`, and
+   `User.record_activity()` so identity invariants stay on the aggregate.
+4. Aggregate-raised identity events MUST be converted through
+   `identity_event_from_domain_event()` and staged in
+   `identity_event_outbox` before the user transaction commits.
+5. The `User` aggregate fields are persistence-managed; consumers who
    need user data fetch through the inbound user-service path or
    through a documented read path (§3).
-4. Changes to the schema require a new migration plus an update to
+6. Changes to the schema require a new migration plus an update to
    `docs/guides/backend-boundaries.md` §3.
 
 The architecture-boundary test
@@ -80,11 +100,41 @@ resolve via the port — they MUST NOT join the `users` table from their
 own repositories.
 
 A future projection / read-model service (Stage 4) MAY consume
-identity changes through an integration event so that analytics and
+identity changes from `identity_event_outbox` so that analytics and
 operator dashboards do not need to hit `UserIdentityStore` for every
 row. Until that exists, ad-hoc denormalization is not allowed.
 
-## 4. Public API Surface
+## 4. Domain Model and Events
+
+`shared/core/identity_domain.py` is the local domain contract for this
+boundary:
+
+- `PlatformUserRef` is the anti-corruption value object for Feishu,
+  WeCom, Web, and OpenClaw platform identifiers. OpenClaw currently has
+  no dedicated `users` mapping column, so it is translated and recorded
+  as activity but not persisted as a lookup key.
+- `EmailAddress` and `PhoneNumber` normalize and validate optional
+  contact values before persistence. Invalid optional email values from
+  platform adapters are ignored by the inbound ACL so user resolution
+  can continue without persisting malformed contact data.
+- `IdentityState` is derived from aggregate links and activity:
+  `unlinked` → `linked` → `active`.
+- `UserCreated`, `PlatformLinked`, and `UserActivated` are in-memory
+  domain events raised by aggregate methods and returned by
+  `IdentityResolutionUseCase`; `UserService` logs them with PII-safe
+  identifiers and stages derived integration events in
+  `identity_event_outbox`.
+
+The outbox events are cross-boundary contracts and are documented in
+the Event Catalog:
+
+| Domain event | Integration event | PII policy |
+|--------------|-------------------|------------|
+| `UserCreated` | `identity.user-created` | Carries `user_id`, occurrence time, and contact-presence booleans; never raw name/email/phone |
+| `PlatformLinked` | `identity.platform-linked` | Carries `user_id`, occurrence time, and platform name; never raw platform user id |
+| `UserActivated` | `identity.user-activated` | Carries `user_id`, occurrence time, and platform name |
+
+## 5. Public API Surface
 
 No public HTTP route exposes user records today. When such a route is
 added in a future PR:
@@ -96,13 +146,13 @@ added in a future PR:
    raw `UserRepository`).
 4. Response DTOs MUST NOT expose `User` ORM rows directly. Define a
    `UserView` Pydantic schema and copy fields explicitly.
-5. The route MUST emit a `identity.user-created` / `identity.user-updated`
-   integration event for downstream consumers (Stage 4 dependency).
+5. The route MUST reuse the existing identity aggregate and outbox path
+   instead of publishing identity events directly.
 
 Until the route exists, identity is an internal boundary. Inbound
 messaging is its only entry point.
 
-## 5. Forbidden Patterns
+## 6. Forbidden Patterns
 
 - Any runtime outside the identity boundary importing
   `shared.db.repository.UserRepository`.
@@ -114,14 +164,14 @@ messaging is its only entry point.
 - Adding `users.*` columns for runtime-specific data. Such data
   belongs in the consuming runtime's own table, keyed by `user_id`.
 
-## 6. Future Service Extraction
+## 7. Future Service Extraction
 
 Identity is the natural candidate to extract into its own runtime when
 all of the following hold:
 
-1. A public API surface (§4) is in production.
-2. At least one external consumer relies on `identity.user-*`
-   integration events.
+1. A public API surface (§5) is in production.
+2. At least one external consumer relies on `identity.*`
+   integration events staged through `identity_event_outbox`.
 3. The `users` table is migrated to its own per-runtime Alembic
    directory (Migration Plan §Stage 4 pre-condition).
 4. An operator dashboard tracks identity write rate and resolution
@@ -131,7 +181,7 @@ Until all four hold, identity stays where it is. See
 [`service-boundaries.md`](./service-boundaries.md) for the general
 extraction criteria.
 
-## 7. Maintenance
+## 8. Maintenance
 
 When this document changes:
 

@@ -7,6 +7,13 @@ from shared.control_plane import ApprovalCategory, ApprovalStatus, EvolutionTier
 from shared.utils.logger import get_logger
 
 from .control_plane_ports import EvolutionControlPlaneProposalStore
+from .domain.proposal import (
+    EVOLUTION_PROPOSAL_RISK,
+    EVOLUTION_ROLLOUT_NOTE,
+    EvolutionProposalApprovalContext,
+    EvolutionProposalScope,
+    infer_evolution_proposal_tier,
+)
 
 logger = get_logger("evolution_module.proposal_approval")
 
@@ -55,33 +62,22 @@ class EvolutionProposalApprovalUseCase:
         trace_id: str | None = None,
         tier: EvolutionTier | None = None,
     ) -> dict[str, Any]:
-        payload = dict(proposal)
+        context = EvolutionProposalApprovalContext.from_payload(
+            proposal,
+            source_agent_id=self._source_agent_id,
+            trace_id=trace_id,
+            tier=tier,
+        )
+        payload = context.mutable_payload()
         await self.ensure_company()
         try:
             approval = await self._approval_service.request_approval(
                 category=ApprovalCategory.TECHNICAL,
-                proposed_action=(
-                    "Approve evolution proposal "
-                    f"{payload.get('operation') or payload.get('pattern_id') or 'unknown'}"
-                ),
-                reason=(
-                    payload.get("rationale")
-                    or payload.get("description")
-                    or "Evolution proposal"
-                ),
-                risk=(
-                    "Changes agent skill, architecture, or collaboration behavior."
-                ),
-                rollback_note=(
-                    "Reject the proposal or roll back the rollout state before promotion."
-                ),
-                affected_resources=[
-                    str(
-                        payload.get("target_agent")
-                        or payload.get("pattern_id")
-                        or self._source_agent_id
-                    )
-                ],
+                proposed_action=context.approval_action,
+                reason=context.approval_reason,
+                risk=EVOLUTION_PROPOSAL_RISK,
+                rollback_note=EVOLUTION_ROLLOUT_NOTE,
+                affected_resources=context.affected_resources,
                 trace_id=trace_id,
             )
         except Exception as exc:
@@ -100,7 +96,7 @@ class EvolutionProposalApprovalUseCase:
             payload,
             approval=approval,
             trace_id=trace_id,
-            tier=tier or self.infer_proposal_tier(payload),
+            tier=context.tier,
         )
 
     async def ensure_company(self) -> None:
@@ -128,44 +124,28 @@ class EvolutionProposalApprovalUseCase:
         if not self._records_enabled:
             return payload
 
+        context = EvolutionProposalApprovalContext.from_payload(
+            payload,
+            source_agent_id=self._source_agent_id,
+            trace_id=trace_id,
+            tier=tier,
+        )
         approval_id = getattr(approval, "approval_id", None) or payload.get(
             "control_plane_approval_id"
         )
         approval_state = getattr(approval, "status", None) or ApprovalStatus.PENDING.value
-        evidence = {
-            "source_agent": self._source_agent_id,
-            "trace_id": trace_id,
-            "proposal": payload,
-        }
-        expected_benefit = (
-            payload.get("expected_benefit")
-            or payload.get("description")
-            or payload.get("rationale")
-            or "Improve agent behavior."
-        )
-        risk = (
-            payload.get("risk")
-            or "Changes agent skill, architecture, or collaboration behavior."
-        )
-        metadata = {
-            "proposed_by": self._source_agent_id,
-            "operation": payload.get("operation"),
-            "target_agent": payload.get("target_agent"),
-            "target_skill": payload.get("target_skill"),
-            "pattern_id": payload.get("pattern_id"),
-        }
 
         try:
             proposal_id = await self._require_proposal_store().record_proposal(
                 company_id=self._company_id,
                 tier=tier,
-                scope=self.proposal_scope(payload, tier),
-                evidence=evidence,
-                expected_benefit=expected_benefit,
-                risk=risk,
+                scope=context.scope.value,
+                evidence=context.evidence,
+                expected_benefit=context.expected_benefit,
+                risk=context.risk,
                 approval_state=approval_state,
                 approval_id=approval_id,
-                metadata=metadata,
+                metadata=context.metadata,
                 actor_id=self._source_agent_id,
                 trace_id=trace_id,
             )
@@ -189,22 +169,8 @@ class EvolutionProposalApprovalUseCase:
 
     @staticmethod
     def infer_proposal_tier(payload: dict[str, Any]) -> EvolutionTier:
-        if "pattern_id" in payload:
-            return EvolutionTier.L3
-        operation = payload.get("operation")
-        if operation in {"modify_event_subscription", "add_loop_logic"}:
-            return EvolutionTier.L2
-        return EvolutionTier.L1
+        return infer_evolution_proposal_tier(payload)
 
     @staticmethod
     def proposal_scope(payload: dict[str, Any], tier: EvolutionTier) -> str:
-        if tier == EvolutionTier.L3:
-            return (
-                "pattern:"
-                f"{payload.get('pattern_id') or payload.get('name') or 'unknown'}"
-            )
-        target_agent = payload.get("target_agent") or "unknown-agent"
-        target_skill = payload.get("target_skill")
-        if target_skill:
-            return f"agent:{target_agent}/skill:{target_skill}"
-        return f"agent:{target_agent}"
+        return EvolutionProposalScope.from_payload(payload, tier=tier).value

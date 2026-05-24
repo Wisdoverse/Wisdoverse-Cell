@@ -20,6 +20,30 @@ def test_workflow_state_creation():
     assert wf.status == "active"
 
 
+@pytest.mark.asyncio
+async def test_state_store_upserts_workflow_state_through_domain_aggregate():
+    from services.orchestration.coordinator.db.models import WorkflowState
+    from services.orchestration.coordinator.db.state_store import CoordinatorStateStore
+
+    store = CoordinatorStateStore()
+    state = WorkflowState(
+        workflow_id="wf_aggregate",
+        type="delivery",
+        status="active",
+        current_phase="planning",
+        agents_involved=["dev-agent", "qa-agent"],
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+        context={"goal_id": "goal_1"},
+    )
+
+    await store.upsert_workflow_state(state)
+
+    workflows = await store.get_workflow_states()
+    assert workflows["wf_aggregate"].agents_involved == ["dev-agent", "qa-agent"]
+    assert workflows["wf_aggregate"].context == {"goal_id": "goal_1"}
+
+
 def test_agent_state_defaults():
     from services.orchestration.coordinator.db.models import AgentStateRecord
     state = AgentStateRecord(agent_id="dev-agent", status="idle")
@@ -89,6 +113,7 @@ async def test_state_store_persists_decisions_and_agent_state():
     assert len(pending) == 1
     assert pending[0].decision_id.startswith("dec_")
     assert pending[0].workflow_id == "wf_001"
+    assert pending[0].task_id == "task_001"
     assert pending[0].target_agent == "dev-agent"
     assert pending[0].action == "dispatch_task"
     assert pending[0].reasoning == "PRD approved"

@@ -1,10 +1,16 @@
-"""
-Unit Tests - DataMapper
+"""Unit tests for the Sync data mapper."""
 
-Tests OpenProject <-> Feishu data format conversion.
-"""
+import pytest
 
-from shared.capabilities.sync.core.mapper import DataMapper, FeishuRecordData, WorkPackageData
+from shared.capabilities.sync.core.domain.sync_values import (
+    FeishuSubtaskStatus,
+    is_completed_subtask_status,
+)
+from shared.capabilities.sync.core.mapper import (
+    DataMapper,
+    FeishuRecordData,
+    WorkPackageData,
+)
 
 
 class TestOpToWorkPackageData:
@@ -74,6 +80,22 @@ class TestOpToWorkPackageData:
         assert result.project_id is None
         assert result.parent_id is None
 
+    def test_work_package_data_is_immutable_value_object(self):
+        """WorkPackageData should be equality-by-value and immutable."""
+        wp_data = WorkPackageData(op_id=1, title="Task")
+
+        with pytest.raises(AttributeError):
+            wp_data.title = "Changed"  # type: ignore[misc]
+
+    def test_work_package_data_rejects_invalid_values(self):
+        """Invalid OpenProject projection data should fail at the value object."""
+        with pytest.raises(ValueError):
+            WorkPackageData(op_id=0, title="Task")
+        with pytest.raises(ValueError):
+            WorkPackageData(op_id=1, title="")
+        with pytest.raises(ValueError):
+            WorkPackageData(op_id=1, title="Task", progress=101)
+
 
 class TestWorkPackageToFeishuFields:
     def test_work_package_to_feishu_fields_full(self):
@@ -138,6 +160,8 @@ class TestFeishuToRecordData:
         assert result.title == "设计文档"
         assert result.subtask_name == "子任务1"
         assert result.subtask_status == "完成"
+        assert result.subtask_status == FeishuSubtaskStatus("完成")
+        assert is_completed_subtask_status(result.subtask_status)
         assert result.parent_op_id == 10
         assert isinstance(result.parent_op_id, int)
 
@@ -156,3 +180,10 @@ class TestFeishuToRecordData:
         assert result.subtask_name is None
         assert result.subtask_status is None
         assert result.parent_op_id is None
+
+    def test_feishu_record_data_is_immutable_value_object(self):
+        """FeishuRecordData should be equality-by-value and immutable."""
+        record = FeishuRecordData(record_id="rec_1", subtask_status="完成")
+
+        with pytest.raises(AttributeError):
+            record.record_id = "rec_2"  # type: ignore[misc]

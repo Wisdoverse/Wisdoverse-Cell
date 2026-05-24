@@ -252,11 +252,17 @@ class EventTypes:
     EVOLUTION_PROPOSAL_CREATED = "evolution_proposal.created"
     EVOLUTION_PROPOSAL_UPDATED = "evolution_proposal.updated"
 
+    # Identity / User
+    IDENTITY_USER_CREATED = "identity.user-created"
+    IDENTITY_PLATFORM_LINKED = "identity.platform-linked"
+    IDENTITY_USER_ACTIVATED = "identity.user-activated"
+
     # PM sync
     SYNC_STARTED = "sync.started"
     SYNC_COMPLETED = "sync.completed"
     SYNC_FAILED = "sync.failed"
     SYNC_TRIGGER = "sync.trigger"
+    SYNC_PROGRESS_UPDATED = "sync.progress-updated"
 
     # Analysis reports
     REPORT_DAILY_GENERATED = "report.daily-generated"

@@ -1,4 +1,5 @@
 """Application use cases for executing control-plane work items."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,7 +12,8 @@ from .agent_operation_use_cases import (
     wake_agent_definition,
 )
 from .agent_runner import AgentWakeupError
-from .models import AgentRunStatus, WorkItem, WorkItemStatus
+from .domain.work_item import work_item_status_from_agent_run_status
+from .models import WorkItem, WorkItemStatus
 from .work_item_ports import ControlPlaneWorkItemStore
 from .work_item_use_cases import WorkItemNotFoundError, update_work_item_status_with_audit
 
@@ -127,12 +129,8 @@ def _work_item_status_from_run(
     result: AgentWakeupUseCaseResult,
 ) -> WorkItemStatus:
     if result.run is None:
-        return WorkItemStatus.RUNNING
-    if result.run.status == AgentRunStatus.SUCCEEDED:
-        return WorkItemStatus.COMPLETED
-    if result.run.status == AgentRunStatus.FAILED:
-        return WorkItemStatus.FAILED
-    return WorkItemStatus.RUNNING
+        return work_item_status_from_agent_run_status(None)
+    return work_item_status_from_agent_run_status(result.run.status)
 
 
 __all__ = [

@@ -8,19 +8,19 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from services.gateways.user_interaction.api.bitable import (
+from agents.chat_agent.api.bitable import (
     ConfirmRequest,
     CreateRequest,
     confirm_update,
     create_record,
 )
-from services.gateways.user_interaction.core.bitable_operations import (
+from agents.chat_agent.core.bitable_operations import (
     sanitize_fields as _sanitize_fields,
 )
-from services.gateways.user_interaction.core.card_ports import (
+from agents.chat_agent.core.card_ports import (
     configure_tool_card_renderer,
 )
-from services.gateways.user_interaction.core.config import UserInteractionCoreConfig
+from agents.chat_agent.core.config import ChatAgentCoreConfig
 from shared.integrations.feishu.cards.tools import (
     FeishuToolCardRenderer,
 )
@@ -130,9 +130,9 @@ def test_sanitize_fields_empty_dict():
 @pytest.mark.asyncio
 async def test_confirm_update_returns_error_card_on_failure():
     """When bitable update raises, a failure card should be returned (not an exception)."""
-    with patch("services.gateways.user_interaction.api.bitable.bitable_service") as mock_svc, \
-         patch("services.gateways.user_interaction.api.bitable.build_user_interaction_core_config", return_value=UserInteractionCoreConfig()), \
-         patch("services.gateways.user_interaction.api.bitable.record_op", new_callable=AsyncMock):
+    with patch("agents.chat_agent.api.bitable.bitable_service") as mock_svc, \
+         patch("agents.chat_agent.api.bitable.build_chat_agent_core_config", return_value=ChatAgentCoreConfig()), \
+         patch("agents.chat_agent.api.bitable.record_op", new_callable=AsyncMock):
         mock_svc.update_record = AsyncMock(side_effect=Exception("API timeout"))
 
         req = ConfirmRequest(record_id="rec_test", fields={"状态": "已完成"})
@@ -148,9 +148,9 @@ async def test_confirm_update_returns_error_card_on_failure():
 @pytest.mark.asyncio
 async def test_create_record_returns_error_card_on_failure():
     """When bitable create raises, a failure card should be returned."""
-    with patch("services.gateways.user_interaction.api.bitable.bitable_service") as mock_svc, \
-         patch("services.gateways.user_interaction.api.bitable.build_user_interaction_core_config", return_value=UserInteractionCoreConfig()), \
-         patch("services.gateways.user_interaction.api.bitable.record_op", new_callable=AsyncMock):
+    with patch("agents.chat_agent.api.bitable.bitable_service") as mock_svc, \
+         patch("agents.chat_agent.api.bitable.build_chat_agent_core_config", return_value=ChatAgentCoreConfig()), \
+         patch("agents.chat_agent.api.bitable.record_op", new_callable=AsyncMock):
         mock_svc.create_record = AsyncMock(side_effect=Exception("API timeout"))
 
         req = CreateRequest(fields={"任务": "测试任务"})
@@ -165,9 +165,9 @@ async def test_create_record_returns_error_card_on_failure():
 @pytest.mark.asyncio
 async def test_confirm_update_success_returns_success_card():
     """Successful update should return a green success card."""
-    with patch("services.gateways.user_interaction.api.bitable.bitable_service") as mock_svc, \
-         patch("services.gateways.user_interaction.api.bitable.build_user_interaction_core_config", return_value=UserInteractionCoreConfig()), \
-         patch("services.gateways.user_interaction.api.bitable.record_op", new_callable=AsyncMock):
+    with patch("agents.chat_agent.api.bitable.bitable_service") as mock_svc, \
+         patch("agents.chat_agent.api.bitable.build_chat_agent_core_config", return_value=ChatAgentCoreConfig()), \
+         patch("agents.chat_agent.api.bitable.record_op", new_callable=AsyncMock):
         mock_svc.update_record = AsyncMock(return_value=None)
 
         req = ConfirmRequest(record_id="rec_ok", fields={"状态": "已完成"})

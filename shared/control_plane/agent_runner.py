@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import shlex
-from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,6 +12,11 @@ import httpx
 from shared.config import settings
 from shared.control_plane.adapter_registry import DEFAULT_ADAPTER_REGISTRY
 from shared.control_plane.agent_operation_ports import ControlPlaneAgentOperationStore
+from shared.control_plane.domain.agent_role import (
+    AgentRole as AgentRoleAggregate,
+)
+from shared.control_plane.domain.agent_role import InvalidAgentRoleStatusError
+from shared.control_plane.domain.agent_wakeup_adapter import AgentWakeupAdapterConfig
 from shared.control_plane.domain.lifecycle.agent_run_lifecycle import (
     complete_agent_wakeup_run,
     fail_agent_wakeup_run,
@@ -23,7 +26,6 @@ from shared.utils.logger import get_logger
 
 logger = get_logger("control_plane.agent_runner")
 
-_TERMINAL_ROLE_STATUSES = {"paused", "terminated"}
 _MAX_STDIO_CHARS = 20_000
 _MAX_PROCESS_TIMEOUT_SECONDS = 900
 
@@ -57,49 +59,6 @@ def _truncate(value: str) -> str:
     return value[:_MAX_STDIO_CHARS] + "\n...[truncated]"
 
 
-def _config_string(config: dict[str, Any], *keys: str) -> str | None:
-    for key in keys:
-        value = config.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return None
-
-
-def _command_from_config(config: dict[str, Any]) -> list[str]:
-    command = config.get("command")
-    if isinstance(command, str):
-        return shlex.split(command)
-    if isinstance(command, Sequence) and not isinstance(command, (bytes, bytearray)):
-        return [str(part) for part in command if str(part)]
-    return []
-
-
-def _local_adapter_allowlist_key(
-    *,
-    agent_id: str,
-    adapter_type: str,
-    config: dict[str, Any],
-) -> str:
-    configured = _config_string(config, "allowlist_key", "registry_key")
-    return configured or f"{adapter_type}:{agent_id}"
-
-
-def _local_adapter_allowed(
-    *,
-    agent_id: str,
-    adapter_type: str,
-    config: dict[str, Any],
-) -> bool:
-    return (
-        _local_adapter_allowlist_key(
-            agent_id=agent_id,
-            adapter_type=adapter_type,
-            config=config,
-        )
-        in settings.control_plane_local_adapter_allowlist_entries
-    )
-
-
 class ControlPlaneAgentRunner:
     """Executes a persisted AgentRole through its configured adapter."""
 
@@ -117,8 +76,16 @@ class ControlPlaneAgentRunner:
         work_item_id: str | None = None,
         trigger: str = "manual_wakeup",
     ) -> AgentWakeupResult:
-        status = str(agent.status or "").lower()
-        if status in _TERMINAL_ROLE_STATUSES:
+        try:
+            role = AgentRoleAggregate.from_record(agent)
+            is_runnable = role.is_runnable
+        except InvalidAgentRoleStatusError as exc:
+            raise AgentWakeupError(
+                "invalid_agent_status",
+                status_code=409,
+                error_category="invalid_agent_status",
+            ) from exc
+        if not is_runnable:
             raise AgentWakeupError("agent_not_runnable", status_code=409)
 
         run_record = await start_agent_wakeup_run(
@@ -198,9 +165,8 @@ class ControlPlaneAgentRunner:
         goal_id: str | None,
         work_item_id: str | None,
     ) -> dict[str, Any]:
-        adapter_type = str(agent.adapter_type or "builtin")
-        config = dict(agent.adapter_config or {})
-        if not DEFAULT_ADAPTER_REGISTRY.is_registered(adapter_type):
+        adapter_config = AgentWakeupAdapterConfig.from_agent_role(agent)
+        if not DEFAULT_ADAPTER_REGISTRY.is_registered(adapter_config.adapter_type):
             raise AgentWakeupError(
                 "unsupported_adapter_type",
                 status_code=400,
@@ -208,7 +174,7 @@ class ControlPlaneAgentRunner:
             )
 
         request = {
-            "action": config.get("action", "wakeup"),
+            "action": adapter_config.action(),
             "agent_id": agent.agent_id,
             "run_id": run_id,
             "trace_id": trace_id,
@@ -217,7 +183,7 @@ class ControlPlaneAgentRunner:
             "input": input_payload,
         }
 
-        if adapter_type == "builtin":
+        if adapter_config.adapter_type == "builtin":
             return {
                 "status": "recorded",
                 "summary": (
@@ -229,43 +195,42 @@ class ControlPlaneAgentRunner:
                 "capabilities": list(agent.capabilities or []),
                 "responsibilities": list(agent.responsibilities or []),
             }
-        if adapter_type == "http":
-            return await self._execute_http(config, request)
-        if DEFAULT_ADAPTER_REGISTRY.is_local(adapter_type):
+        if adapter_config.adapter_type == "http":
+            return await self._execute_http(adapter_config, request)
+        if DEFAULT_ADAPTER_REGISTRY.is_local(adapter_config.adapter_type):
             if not settings.control_plane_local_adapter_enabled:
                 raise AgentWakeupError(
                     "local_adapter_disabled",
                     status_code=403,
                     error_category="adapter_disabled",
                 )
-            if not _local_adapter_allowed(
-                agent_id=agent.agent_id,
-                adapter_type=adapter_type,
-                config=config,
+            if (
+                adapter_config.allowlist_key()
+                not in settings.control_plane_local_adapter_allowlist_entries
             ):
                 raise AgentWakeupError(
                     "local_adapter_not_allowlisted",
                     status_code=403,
                     error_category="adapter_not_allowlisted",
                 )
-            return await self._execute_process(config, request)
+            return await self._execute_process(adapter_config, request)
         raise AgentWakeupError("unsupported_adapter_type", status_code=400)
 
     async def _execute_http(
         self,
-        config: dict[str, Any],
+        adapter_config: AgentWakeupAdapterConfig,
         request: dict[str, Any],
     ) -> dict[str, Any]:
-        base_url = _config_string(config, "base_url", "url", "endpoint")
+        base_url = adapter_config.string_value("base_url", "url", "endpoint")
         if not base_url:
             raise AgentWakeupError(
                 "http_adapter_base_url_required",
                 status_code=400,
                 error_category="adapter_config_error",
             )
-        path = _config_string(config, "path") or "/agent/request"
+        path = adapter_config.string_value("path") or "/agent/request"
         url = base_url.rstrip("/") + (path if path.startswith("/") else f"/{path}")
-        timeout = min(float(config.get("timeout_sec", 30)), 120.0)
+        timeout = adapter_config.http_timeout_seconds()
         headers = {}
         if settings.internal_service_key:
             headers["X-Internal-Key"] = settings.internal_service_key
@@ -287,20 +252,19 @@ class ControlPlaneAgentRunner:
 
     async def _execute_process(
         self,
-        config: dict[str, Any],
+        adapter_config: AgentWakeupAdapterConfig,
         request: dict[str, Any],
     ) -> dict[str, Any]:
-        command = _command_from_config(config)
+        command = adapter_config.command()
         if not command:
             raise AgentWakeupError(
                 "local_adapter_command_required",
                 status_code=400,
                 error_category="adapter_config_error",
             )
-        cwd = _config_string(config, "cwd", "working_directory")
-        timeout = min(
-            int(config.get("timeout_sec", 300)),
-            _MAX_PROCESS_TIMEOUT_SECONDS,
+        cwd = adapter_config.string_value("cwd", "working_directory")
+        timeout = adapter_config.process_timeout_seconds(
+            max_seconds=_MAX_PROCESS_TIMEOUT_SECONDS,
         )
         stdin_payload = json.dumps(request, ensure_ascii=False).encode()
         process = await asyncio.create_subprocess_exec(

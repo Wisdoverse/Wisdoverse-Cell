@@ -1,8 +1,10 @@
 """Application facade for the QA Agent service shell."""
+
 from __future__ import annotations
 
 from typing import Any
 
+from shared.core.identifiers import AcceptanceRunId
 from shared.schemas.event import Event
 
 from ..models.schemas import AcceptanceExecutionResult, QARunRequest, QARunStats
@@ -51,7 +53,7 @@ class QAApplicationFacade:
             offset=offset,
         )
 
-    async def get_run(self, run_id: str) -> dict[str, Any] | None:
+    async def get_run(self, run_id: AcceptanceRunId) -> dict[str, Any] | None:
         return await self._run_queries.get_run(run_id)
 
     async def get_stats(

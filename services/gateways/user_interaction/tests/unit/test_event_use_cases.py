@@ -2,8 +2,8 @@ from unittest.mock import patch
 
 import pytest
 
-from services.gateways.user_interaction.core.event_use_cases import (
-    UserInteractionEventUseCase,
+from agents.chat_agent.core.event_use_cases import (
+    ChatAgentEventUseCase,
 )
 from shared.observability.privacy import hash_identifier
 from shared.schemas.event import Event, EventTypes
@@ -18,9 +18,9 @@ async def test_pm_response_logs_hashed_user_id() -> None:
     )
 
     with patch(
-        "services.gateways.user_interaction.core.event_use_cases.logger"
+        "agents.chat_agent.core.event_use_cases.logger"
     ) as logger:
-        result = await UserInteractionEventUseCase().handle(event)
+        result = await ChatAgentEventUseCase().handle(event)
 
     assert result == []
     log_call = logger.info.call_args
@@ -38,9 +38,9 @@ async def test_pm_response_without_user_id_logs_empty_hash() -> None:
     )
 
     with patch(
-        "services.gateways.user_interaction.core.event_use_cases.logger"
+        "agents.chat_agent.core.event_use_cases.logger"
     ) as logger:
-        result = await UserInteractionEventUseCase().handle(event)
+        result = await ChatAgentEventUseCase().handle(event)
 
     assert result == []
     assert logger.info.call_args.kwargs["user_hash"] == ""
@@ -55,9 +55,9 @@ async def test_coordinator_response_logs_task_context() -> None:
     )
 
     with patch(
-        "services.gateways.user_interaction.core.event_use_cases.logger"
+        "agents.chat_agent.core.event_use_cases.logger"
     ) as logger:
-        result = await UserInteractionEventUseCase().handle(event)
+        result = await ChatAgentEventUseCase().handle(event)
 
     assert result == []
     log_call = logger.info.call_args
@@ -73,6 +73,6 @@ async def test_unknown_event_returns_empty_list() -> None:
         payload={},
     )
 
-    result = await UserInteractionEventUseCase().handle(event)
+    result = await ChatAgentEventUseCase().handle(event)
 
     assert result == []

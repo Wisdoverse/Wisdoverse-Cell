@@ -14,7 +14,7 @@ The product view is a control plane for company operations:
 Mission -> Goals -> Work Items -> Agent Runs -> Decisions -> Audit Trail
 ```
 
-This control-plane layer is implemented through explicit runtime and integration boundaries: the requirement manager agent turns intent into structured requirements, the PJM agent decomposes and tracks work, the sync runtime hosts separate OpenProject and Feishu Bitable synchronization boundaries, the user interaction gateway receives users, the dev agent bridges delivery workflows, the QA agent verifies outcomes, and the evolution capability proposes improvements.
+This control-plane layer is implemented through explicit runtime and integration boundaries: the requirement manager agent turns intent into structured requirements, the PJM agent decomposes and tracks work, the sync runtime hosts separate OpenProject and Feishu Bitable synchronization boundaries, the user interaction gateway receives users through platform ACLs, the chat agent owns conversation runtime state, the dev agent bridges delivery workflows, the QA agent verifies outcomes, and the evolution capability proposes improvements.
 
 ## Architecture Boundary Rules
 
@@ -64,7 +64,7 @@ graph TB
         SA[sync capability]
         AA[analysis capability]
         PM[PJM agent]
-        CA[user interaction gateway]
+        CA[chat agent]
         EA[evolution capability :8016]
         QA[QA agent]
         DA[Dev agent]
@@ -291,7 +291,7 @@ Traefik :443/:80
   ├── /agent/sync/* -> cell sync capability :8010
   ├── /agent/analysis/* -> cell analysis capability :8011
   ├── /agent/pm/*   -> cell PJM agent :8012
-  ├── /agent/chat/* -> cell user interaction gateway :8013
+  ├── /agent/chat/* -> cell chat agent :8013
   ├── /agent/qa/*   -> cell QA agent :8014
   ├── /agent/dev/*  -> cell Dev agent :8015
   ├── /agent/evolution/* -> cell evolution capability :8016

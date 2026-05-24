@@ -1,4 +1,5 @@
 """Repository architecture boundary checks."""
+
 from __future__ import annotations
 
 import ast
@@ -67,7 +68,7 @@ def _assert_documented_outbox_delivery_gap(doc_source: str) -> None:
         "PJM decomposition API events",
         "QA acceptance events",
         "Sync lifecycle/decomposition handoff events",
-        "user-interaction sync trigger commands",
+        "chat-agent sync trigger commands",
         "PJM service notifications",
         "Dev result-collection callback events",
         "channel gateway events",
@@ -93,7 +94,7 @@ def test_runtime_result_events_prefer_agent_outbox_hook() -> None:
         Path("shared/capabilities/sync/service/agent.py"),
         Path("shared/capabilities/analysis/service/agent.py"),
         Path("shared/capabilities/evolution/service/agent.py"),
-        Path("services/gateways/user_interaction/service/agent.py"),
+        Path("agents/chat_agent/service/agent.py"),
         Path("services/gateways/channel/service/agent.py"),
         Path("services/orchestration/coordinator/service/agent.py"),
     )
@@ -149,11 +150,7 @@ def test_agent_request_entrypoints_do_not_return_bare_error_dicts() -> None:
         Path("services/gateways/user_interaction/service/agent.py"),
         Path("services/orchestration/coordinator/service/agent.py"),
     )
-    offenders = [
-        str(path)
-        for path in entrypoint_paths
-        if 'return {"error":' in path.read_text()
-    ]
+    offenders = [str(path) for path in entrypoint_paths if 'return {"error":' in path.read_text()]
 
     assert offenders == []
 
@@ -271,9 +268,7 @@ def test_capabilities_do_not_cross_import_each_other() -> None:
                 parts = module.split(".")
                 if len(parts) < 3 or parts[2] == capability:
                     continue
-                raise AssertionError(
-                    f"{path} imports cross-capability module {module}"
-                )
+                raise AssertionError(f"{path} imports cross-capability module {module}")
 
 
 def test_runtime_code_does_not_import_llm_provider_sdks_directly() -> None:
@@ -297,9 +292,7 @@ def test_runtime_code_does_not_import_llm_provider_sdks_directly() -> None:
                 assert not any(
                     module == provider or module.startswith(f"{provider}.")
                     for provider in provider_modules
-                ), (
-                    f"{path} imports provider SDK module {module}; use LLMGateway"
-                )
+                ), f"{path} imports provider SDK module {module}; use LLMGateway"
 
 
 def test_runtime_code_uses_canonical_shared_paths() -> None:
@@ -397,8 +390,7 @@ def test_runtime_code_uses_core_channel_abstractions() -> None:
                 continue
             for module in _imported_modules(path):
                 assert not module.startswith("shared.integrations.channels"), (
-                    f"{path} imports channel abstractions from {module}; "
-                    "use shared.core.channels"
+                    f"{path} imports channel abstractions from {module}; use shared.core.channels"
                 )
 
 
@@ -413,8 +405,7 @@ def test_runtime_code_uses_core_id_contracts() -> None:
                 continue
             for module in _imported_modules(path):
                 assert module != "shared.utils.id_generator", (
-                    f"{path} imports ID contracts from shared.utils; "
-                    "use shared.core.ids"
+                    f"{path} imports ID contracts from shared.utils; use shared.core.ids"
                 )
 
 
@@ -529,6 +520,41 @@ def test_dev_agent_core_uses_repository_ports() -> None:
             )
 
 
+def test_dev_agent_domain_owns_task_value_objects_and_policy() -> None:
+    """Dev core should use domain-owned identifiers, value objects, and policies."""
+    identifiers_source = Path("shared/core/identifiers.py").read_text()
+    lifecycle_source = Path(
+        "agents/dev_agent/core/domain/lifecycle/task_lifecycle.py"
+    ).read_text()
+    task_source = Path("agents/dev_agent/core/domain/task.py").read_text()
+    values_source = Path("agents/dev_agent/core/domain/task_values.py").read_text()
+    policy_source = Path(
+        "agents/dev_agent/core/domain/delivery_policy.py"
+    ).read_text()
+    schemas_source = Path("agents/dev_agent/models/schemas.py").read_text()
+    repositories_source = Path("agents/dev_agent/core/repositories.py").read_text()
+    workflow_source = Path(
+        "agents/dev_agent/core/workflow_execution_use_cases.py"
+    ).read_text()
+    event_source = Path("agents/dev_agent/core/event_use_cases.py").read_text()
+    collector_source = Path("agents/dev_agent/core/result_collector.py").read_text()
+
+    assert 'DevTaskId = NewType("DevTaskId", str)' in identifiers_source
+    assert 'WorkPackageId = NewType("WorkPackageId", int)' in identifiers_source
+    assert 'TaskStatus = NewType("TaskStatus", str)' in lifecycle_source
+    assert "DevTaskId" in task_source
+    assert "class RiskLevel(str, Enum)" in values_source
+    assert "from agents.dev_agent.core.domain.task_values import RiskLevel" in (
+        schemas_source
+    )
+    assert "DevTaskId" in repositories_source
+    assert "WorkPackageId" in repositories_source
+    assert "class DevDeliveryWorkflowPolicy" in policy_source
+    assert "DevDeliveryWorkflowPolicy" in workflow_source
+    assert "DevDeliveryWorkflowPolicy" in event_source
+    assert "DevDeliveryWorkflowPolicy" in collector_source
+
+
 def test_sync_mapping_api_delegates_to_query_use_case() -> None:
     """Sync HTTP routes should not own mapping repository queries."""
     api_source = Path("shared/capabilities/sync/api/sync.py").read_text()
@@ -545,12 +571,8 @@ def test_sync_mapping_api_delegates_to_query_use_case() -> None:
 
 def test_sync_feishu_bitable_engine_uses_persistence_ports() -> None:
     """Sync core engines should route persistence through explicit ports."""
-    feishu_source = Path(
-        "shared/capabilities/sync/core/feishu_bitable/engine.py"
-    ).read_text()
-    openproject_source = Path(
-        "shared/capabilities/sync/core/openproject/engine.py"
-    ).read_text()
+    feishu_source = Path("shared/capabilities/sync/core/feishu_bitable/engine.py").read_text()
+    openproject_source = Path("shared/capabilities/sync/core/openproject/engine.py").read_text()
     engine_source = Path("shared/capabilities/sync/core/engine.py").read_text()
     locking_source = Path("shared/capabilities/sync/core/locking.py").read_text()
     ports_source = Path("shared/capabilities/sync/core/sync_ports.py").read_text()
@@ -568,6 +590,9 @@ def test_sync_feishu_bitable_engine_uses_persistence_ports() -> None:
     assert "class FeishuBitableSyncStore" in ports_source
     assert "class OpenProjectSyncStore" in ports_source
     assert "class SyncLockStore" in ports_source
+    assert "async def stage_event(self, event: Event) -> None" in ports_source
+    assert "mark_event_published" in ports_source
+    assert "mark_event_failed" in ports_source
     assert "SqlAlchemyFeishuBitableSyncStore" in adapter_source
     assert "SqlAlchemyOpenProjectSyncStore" in adapter_source
     assert "SqlAlchemySyncLockStore" in adapter_source
@@ -576,41 +601,147 @@ def test_sync_feishu_bitable_engine_uses_persistence_ports() -> None:
     assert "lock_store=SqlAlchemySyncLockStore" in service_source
 
 
-def test_user_interaction_daily_progress_api_delegates_to_query_use_case() -> None:
-    """Daily-progress HTTP route should not own repository query logic."""
-    api_source = Path("services/gateways/user_interaction/api/daily_progress.py").read_text()
-    dependency_source = Path(
-        "services/gateways/user_interaction/api/dependencies.py"
+def test_sync_mapper_uses_domain_value_objects_and_typed_ports() -> None:
+    """Sync mapper and stores should expose domain values instead of raw objects."""
+    values_source = Path(
+        "shared/capabilities/sync/core/domain/sync_values.py"
     ).read_text()
-    query_source = Path(
-        "services/gateways/user_interaction/core/daily_progress_queries.py"
+    mapper_source = Path("shared/capabilities/sync/core/mapper.py").read_text()
+    progress_source = Path("shared/capabilities/sync/core/progress.py").read_text()
+    ports_source = Path("shared/capabilities/sync/core/sync_ports.py").read_text()
+    adapter_source = Path("shared/capabilities/sync/db/sync_stores.py").read_text()
+    repository_source = Path("shared/capabilities/sync/db/repository.py").read_text()
+    mapping_queries_source = Path(
+        "shared/capabilities/sync/core/mapping_queries.py"
     ).read_text()
 
-    assert "get_daily_progress_query_service" in api_source
-    assert "DailyProgressQueryService" in api_source
-    assert "DailyProgressRepository" not in api_source
-    assert "db_manager" not in api_source
-    assert "from ..db.repository import" not in api_source
-    assert "results = []" not in api_source
-    assert "for e in entries" not in api_source
-    assert "list_progress_response" in api_source
-    assert "DailyProgressRepository" not in dependency_source
-    assert "AsyncSession" not in dependency_source
-    assert "get_db" not in dependency_source
-    assert "SqlAlchemyDailyProgressQueryStore" in dependency_source
+    assert "@dataclass(frozen=True, slots=True)" in values_source
+    assert "class WorkPackageData" in values_source
+    assert "class FeishuRecordData" in values_source
+    assert "SyncMappingId = NewType" in values_source
+    assert "SyncSubtaskMappingId = NewType" in values_source
+    assert "class SyncMappingRecord" in values_source
+    assert "class SubtaskMappingRecord" in values_source
+    assert "class SyncProjectionPolicy" in values_source
+    assert "class SyncMappingDecision" in values_source
+    assert "class ParentSubtaskRollup" in values_source
+    assert "def decide_work_package_projection(" in values_source
+    assert "def subtask_rollup_item(" in values_source
+    assert "def parent_rollups(" in values_source
+    assert "def from_record(cls, row: Any) -> \"SyncMappingRecord\"" in values_source
+    assert "def from_record(cls, row: Any) -> \"SubtaskMappingRecord\"" in values_source
+    assert 'FeishuSubtaskStatus = NewType("FeishuSubtaskStatus", str)' in values_source
+    assert "is_completed_subtask_status" in values_source
+    assert "from .domain.sync_values import" in mapper_source
+    assert "WorkPackageId(" in mapper_source
+    assert "OpenProjectProjectId(" in mapper_source
+    assert "feishu_subtask_status(" in mapper_source
+    assert "is_completed_subtask_status" in progress_source
+    assert "class SyncLogRecord(Protocol)" in ports_source
+    assert "SyncLogRecord" in ports_source
+    assert "SyncMappingRecord | None" in ports_source
+    assert "SubtaskMappingRecord" in ports_source
+    assert "FeishuSubtaskStatus | str | None" in ports_source
+    assert "SyncMappingRecord.from_record(mapping)" in repository_source
+    assert "SubtaskMappingRecord.from_record(mapping)" in repository_source
+    assert "list_all(self) -> list[SyncMappingRecord]" in repository_source
+    assert "Sequence[SyncMappingRecord]" in mapping_queries_source
+    assert "status=str(status) if status is not None else None" in adapter_source
+    assert "-> SyncMappingRecord | None" in adapter_source
+    assert "-> SyncMappingRecord" in adapter_source
+    assert "-> SubtaskMappingRecord" in adapter_source
+
+    openproject_source = Path(
+        "shared/capabilities/sync/core/openproject/engine.py"
+    ).read_text()
+    feishu_source = Path(
+        "shared/capabilities/sync/core/feishu_bitable/engine.py"
+    ).read_text()
+    assert "SyncProjectionPolicy" in openproject_source
+    assert "decide_work_package_projection(" in openproject_source
+    assert "decision.should_update_record" in openproject_source
+    assert "SyncProjectionPolicy" in feishu_source
+    assert "subtask_rollup_item(" in feishu_source
+    assert "parent_rollups(subtasks)" in feishu_source
+    assert "rollup.progress_percent" in feishu_source
+    assert "EventTypes.SYNC_PROGRESS_UPDATED" in feishu_source
+    assert "await store.stage_event(progress_event)" in feishu_source
+    assert "await self._publish_staged_sync_event(event)" in feishu_source
+
+
+def test_daily_progress_read_api_belongs_to_chat_agent_boundary() -> None:
+    """Daily-progress HTTP reads should go through chat-agent, not gateway DB wiring."""
+    chat_api_source = Path("agents/chat_agent/api/daily_progress.py").read_text()
+    gateway_api_source = Path(
+        "services/gateways/user_interaction/api/daily_progress.py"
+    ).read_text()
+    request_use_case_source = Path("agents/chat_agent/core/request_use_cases.py").read_text()
+    query_source = Path("agents/chat_agent/core/daily_progress_queries.py").read_text()
+
+    assert "request.app.state.runtime.agent.handle_request" in chat_api_source
+    assert '"action": "list_daily_progress"' in chat_api_source
+    assert "DailyProgressRepository" not in chat_api_source
+    assert "db_manager" not in chat_api_source
+    assert "from agents.chat_agent" not in gateway_api_source
+    assert "get_chat_agent_client().list_daily_progress(" in gateway_api_source
+    assert "DailyProgressQueryService" not in gateway_api_source
+    assert "db_manager" not in gateway_api_source
+    assert not Path("services/gateways/user_interaction/api/dependencies.py").exists()
+    assert 'action == "list_daily_progress"' in request_use_case_source
+    assert "list_progress_response" in request_use_case_source
     assert "class DailyProgressQueryService" in query_source
     assert "def to_response_dict" in query_source
     assert "async def list_progress_response" in query_source
 
 
+def test_user_interaction_gateway_calls_chat_agent_over_http_boundary() -> None:
+    """Webhook processing should call chat-agent by service API, not imports."""
+    app_source = Path("services/gateways/user_interaction/app/main.py").read_text()
+    service_source = Path("services/gateways/user_interaction/service/agent.py").read_text()
+    webhook_source = Path("services/gateways/user_interaction/api/webhook.py").read_text()
+    adapter_source = Path(
+        "services/gateways/user_interaction/adapters/chat_agent_client.py"
+    ).read_text()
+    chat_api_source = Path("agents/chat_agent/api/requests.py").read_text()
+    chat_app_source = Path("agents/chat_agent/app/main.py").read_text()
+
+    assert "class UserInteractionGatewayAgent" in service_source
+    assert 'agent_id="user-interaction-gateway"' in service_source
+    assert "from agents.chat_agent" not in app_source
+    assert "from agents.chat_agent" not in service_source
+    assert "from agents.chat_agent" not in webhook_source
+    for root in (
+        Path("services/gateways/user_interaction/app"),
+        Path("services/gateways/user_interaction/api"),
+        Path("services/gateways/user_interaction/service"),
+        Path("services/gateways/user_interaction/adapters"),
+    ):
+        for path in _python_files(root):
+            for module in _imported_modules(path):
+                assert not module.startswith("agents.chat_agent"), (
+                    f"{path} should call chat-agent through an HTTP adapter, not import {module}"
+                )
+    assert "get_chat_agent_client()" in webhook_source
+    assert "get_agent()" not in webhook_source
+    assert "AgentClient" in adapter_source
+    assert "settings.chat_agent_url" in adapter_source
+    assert '"/api/v1/chat-agent/requests"' in adapter_source
+    assert '"/api/daily-progress?' in adapter_source
+    assert '"/api/bitable/confirm"' in adapter_source
+    assert "request.app.state.runtime.agent.handle_request(payload)" in chat_api_source
+    assert "request_router" in chat_app_source
+
+
 def test_user_interaction_webhook_delegates_intake_to_core_use_case() -> None:
     """Feishu webhook API should not own message parsing or cache contracts."""
     api_source = Path("services/gateways/user_interaction/api/webhook.py").read_text()
-    core_source = Path(
-        "services/gateways/user_interaction/core/webhook_intake.py"
-    ).read_text()
+    core_source = Path("services/gateways/user_interaction/core/webhook_intake.py").read_text()
 
     assert "class FeishuWebhookIntakeUseCase" in core_source
+    assert "class FeishuWebhookMessage" in core_source
+    assert "@dataclass(frozen=True, slots=True)" in core_source
+    assert "def from_webhook_body(" in core_source
+    assert "def text_content(" in core_source
     assert "class WebhookCachePort(Protocol)" in core_source
     assert "class FeishuUserDirectoryPort(Protocol)" in core_source
     assert "def extract_message_event" in core_source
@@ -618,6 +749,7 @@ def test_user_interaction_webhook_delegates_intake_to_core_use_case() -> None:
     assert "async def resolve_user_name" in core_source
     assert "user_info_cache_key" in core_source
     assert "chat:dedup:" in core_source
+    assert "raw_message" not in core_source
 
     assert "FeishuWebhookIntakeUseCase" in api_source
     assert "_webhook_intake.extract_message_event(body)" in api_source
@@ -634,9 +766,7 @@ def test_user_interaction_webhook_delegates_intake_to_core_use_case() -> None:
 def test_user_interaction_webhook_process_message_delegates_to_core_use_case() -> None:
     """Feishu webhook API should not own agent calls or Feishu reply delivery."""
     api_source = Path("services/gateways/user_interaction/api/webhook.py").read_text()
-    core_source = Path(
-        "services/gateways/user_interaction/core/webhook_processing.py"
-    ).read_text()
+    core_source = Path("services/gateways/user_interaction/core/webhook_processing.py").read_text()
     process_source = _function_source(api_source, "_process_message")
 
     assert "class WebhookMessageProcessingUseCase" in core_source
@@ -662,10 +792,9 @@ def test_user_interaction_webhook_process_message_delegates_to_core_use_case() -
 
 def test_user_interaction_bitable_api_delegates_confirm_create_reject_to_core_use_case() -> None:
     """Bitable HTTP routes should not own confirmed write/reject orchestration."""
-    api_source = Path("services/gateways/user_interaction/api/bitable.py").read_text()
-    core_source = Path(
-        "services/gateways/user_interaction/core/bitable_operations.py"
-    ).read_text()
+    chat_api_source = Path("agents/chat_agent/api/bitable.py").read_text()
+    gateway_api_source = Path("services/gateways/user_interaction/api/bitable.py").read_text()
+    core_source = Path("agents/chat_agent/core/bitable_operations.py").read_text()
 
     assert "class BitableOperationUseCase" in core_source
     assert "class BitableConfirmCommand" in core_source
@@ -683,19 +812,24 @@ def test_user_interaction_bitable_api_delegates_confirm_create_reject_to_core_us
     assert "record_denial" in core_source
     assert "build_bitable_rejection" in core_source
 
-    assert "BitableOperationUseCase" in api_source
-    assert "_bitable_operation_use_case.confirm_update(" in api_source
-    assert "_bitable_operation_use_case.create_record(" in api_source
-    assert "_bitable_operation_use_case.reject_operation(" in api_source
-    assert "bitable_service.update_record" not in api_source
-    assert "bitable_service.create_record" not in api_source
-    assert "def _sanitize_fields" not in api_source
-    assert "async def _resolve_duplex_links" not in api_source
-    assert "_format_fields_display" not in api_source
-    assert "pending.get(" not in api_source
-    assert 'action = f"reject_' not in api_source
-    assert "await tracker.record_denial" not in api_source
-    assert "build_bitable_rejection" not in api_source
+    assert "BitableOperationUseCase" in chat_api_source
+    assert "_bitable_operation_use_case.confirm_update(" in chat_api_source
+    assert "_bitable_operation_use_case.create_record(" in chat_api_source
+    assert "_bitable_operation_use_case.reject_operation(" in chat_api_source
+    assert "bitable_service.update_record" not in chat_api_source
+    assert "bitable_service.create_record" not in chat_api_source
+    assert "def _sanitize_fields" not in chat_api_source
+    assert "async def _resolve_duplex_links" not in chat_api_source
+    assert "_format_fields_display" not in chat_api_source
+    assert "pending.get(" not in chat_api_source
+    assert 'action = f"reject_' not in chat_api_source
+    assert "from agents.chat_agent" not in gateway_api_source
+    assert "get_chat_agent_client().confirm_bitable_update(" in gateway_api_source
+    assert "get_chat_agent_client().reject_bitable_operation(" in gateway_api_source
+    assert "get_chat_agent_client().create_bitable_record(" in gateway_api_source
+    assert "BitableOperationUseCase" not in gateway_api_source
+    assert "await tracker.record_denial" not in chat_api_source
+    assert "build_bitable_rejection" not in chat_api_source
 
 
 def test_requirement_admin_llm_usage_api_delegates_to_query_use_case() -> None:
@@ -716,9 +850,7 @@ def test_requirement_admin_circuit_breaker_delegates_to_use_case() -> None:
     """Requirement admin HTTP routes should not own LLM gateway operations."""
     api_source = Path("agents/requirement_manager/api/admin.py").read_text()
     dependency_source = Path("agents/requirement_manager/api/dependencies.py").read_text()
-    use_case_source = Path(
-        "agents/requirement_manager/core/admin_circuit_breaker.py"
-    ).read_text()
+    use_case_source = Path("agents/requirement_manager/core/admin_circuit_breaker.py").read_text()
 
     for function_name in ("get_circuit_breaker_status", "reset_circuit_breaker"):
         start = api_source.index(f"async def {function_name}")
@@ -760,8 +892,9 @@ def test_requirement_context_api_delegates_to_query_use_case() -> None:
         "agents/requirement_manager/core/requirement_context_queries.py"
     ).read_text()
     context_source = api_source[
-        api_source.index("async def get_requirement_context") :
-        api_source.index("def _message_to_dict")
+        api_source.index("async def get_requirement_context") : api_source.index(
+            "def _message_to_dict"
+        )
     ]
 
     assert "get_requirement_context_query_service" in context_source
@@ -814,9 +947,7 @@ def test_requirement_export_api_delegates_to_use_case() -> None:
     """Export HTTP routes should not own repository query or document assembly."""
     api_source = Path("agents/requirement_manager/api/export.py").read_text()
     dependency_source = Path("agents/requirement_manager/api/dependencies.py").read_text()
-    use_case_source = Path(
-        "agents/requirement_manager/core/export_use_cases.py"
-    ).read_text()
+    use_case_source = Path("agents/requirement_manager/core/export_use_cases.py").read_text()
     generator_source = Path("agents/requirement_manager/core/generator.py").read_text()
 
     assert "get_export_use_case" in api_source
@@ -839,9 +970,7 @@ def test_requirement_analysis_routes_delegate_to_use_case() -> None:
     """Requirement analysis HTTP routes should not own repository or analyzer logic."""
     api_source = Path("agents/requirement_manager/api/requirements.py").read_text()
     dependency_source = Path("agents/requirement_manager/api/dependencies.py").read_text()
-    use_case_source = Path(
-        "agents/requirement_manager/core/requirement_analysis.py"
-    ).read_text()
+    use_case_source = Path("agents/requirement_manager/core/requirement_analysis.py").read_text()
     analyzer_source = Path("agents/requirement_manager/core/analyzer.py").read_text()
 
     for function_name in ("analyze_requirement", "analyze_text"):
@@ -923,6 +1052,30 @@ def test_requirement_extractor_uses_runtime_injected_llm() -> None:
     assert "await extractor.extract(" not in agent_source
 
 
+def test_requirement_extractor_uses_local_llm_response_acl() -> None:
+    """Raw LLM extraction responses should be translated behind a local ACL."""
+    extractor_source = Path("agents/requirement_manager/core/extractor.py").read_text()
+    acl_source = Path(
+        "agents/requirement_manager/core/llm_extraction_response.py"
+    ).read_text()
+
+    assert "class LLMExtractionResponse" in acl_source
+    assert "class LLMExtractedRequirement" in acl_source
+    assert "class LLMExtractedDecision" in acl_source
+    assert "class LLMExtractedQuestion" in acl_source
+    assert "def from_text(" in acl_source
+    assert "def _strip_markdown_json_fence(" in acl_source
+    assert "def _normalize_category(" in acl_source
+    assert "def _normalize_priority(" in acl_source
+    assert "from .llm_extraction_response import LLMExtractionResponse" in extractor_source
+    assert "LLMExtractionResponse.from_text(response)" in extractor_source
+    assert "json.loads" not in extractor_source
+    assert "def _normalize_category(" not in extractor_source
+    assert "def _normalize_priority(" not in extractor_source
+    assert "shared.infra.llm_gateway" not in acl_source
+    assert "agents.requirement_manager.db" not in acl_source
+
+
 def test_requirement_embedder_is_core_text_formatter_only() -> None:
     """Requirement core embedder must not own embedding infrastructure."""
     embedder_source = Path("agents/requirement_manager/core/embedder.py").read_text()
@@ -962,9 +1115,7 @@ def test_requirement_ingest_api_delegates_to_use_case() -> None:
 def test_requirement_agent_request_dispatch_delegates_to_application_use_case() -> None:
     """Requirement Manager direct agent requests should not own ingest branching."""
     service_source = Path("agents/requirement_manager/service/agent.py").read_text()
-    use_case_source = Path(
-        "agents/requirement_manager/core/request_use_cases.py"
-    ).read_text()
+    use_case_source = Path("agents/requirement_manager/core/request_use_cases.py").read_text()
     handle_source = _function_source(service_source, "handle_request")
 
     assert "class RequirementRequestIngestAgent(Protocol)" in use_case_source
@@ -1019,14 +1170,10 @@ def test_requirement_agent_event_dispatch_delegates_to_application_use_case() ->
 def test_requirement_ingest_uses_explicit_unit_of_work_boundary() -> None:
     """Requirement ingestion should stage events and commit through an explicit UOW."""
     port_source = Path("agents/requirement_manager/core/unit_of_work_ports.py").read_text()
-    workflow_source = Path(
-        "agents/requirement_manager/core/meeting_ingest_workflow.py"
-    ).read_text()
+    workflow_source = Path("agents/requirement_manager/core/meeting_ingest_workflow.py").read_text()
     adapter_source = Path("agents/requirement_manager/db/unit_of_work.py").read_text()
     service_source = Path("agents/requirement_manager/service/agent.py").read_text()
-    application_source = Path(
-        "agents/requirement_manager/core/application_facade.py"
-    ).read_text()
+    application_source = Path("agents/requirement_manager/core/application_facade.py").read_text()
 
     assert "class RequirementUnitOfWork(Protocol)" in port_source
     assert "class RequirementUnitOfWorkFactory(Protocol)" in port_source
@@ -1061,13 +1208,11 @@ def test_requirement_ingest_uses_explicit_unit_of_work_boundary() -> None:
     assert "class RequirementApplicationFacade" in application_source
     assert "def get_unit_of_work" in service_source
     assert "async def ingest_meeting_with_uow" in service_source
-    assert (
-        "return await self._ingest_workflow.ingest_meeting("
-        in _function_source(application_source, "ingest_meeting_with_uow")
+    assert "return await self._ingest_workflow.ingest_meeting(" in _function_source(
+        application_source, "ingest_meeting_with_uow"
     )
-    assert (
-        "return await self._application.ingest_meeting_with_uow("
-        in _function_source(service_source, "ingest_meeting_with_uow")
+    assert "return await self._application.ingest_meeting_with_uow(" in _function_source(
+        service_source, "ingest_meeting_with_uow"
     )
     assert "Meeting(" not in service_source
     assert "Requirement(" not in service_source
@@ -1099,9 +1244,8 @@ def test_requirement_session_extraction_delegates_to_application_use_case() -> N
         "return await self._session_extraction_use_case().extract_from_session"
         in _function_source(service_source, "extract_from_session")
     )
-    assert (
-        "return format_messages_for_extraction(messages)"
-        in _function_source(service_source, "_format_messages_for_extraction")
+    assert "return format_messages_for_extraction(messages)" in _function_source(
+        service_source, "_format_messages_for_extraction"
     )
     assert "await uow.messages.get_by_session(session_id)" not in service_source
     assert "await uow.messages.mark_extracted" not in service_source
@@ -1111,9 +1255,7 @@ def test_requirement_session_extraction_delegates_to_application_use_case() -> N
 def test_requirement_ingest_side_effects_use_application_boundaries() -> None:
     """Committed ingest side effects should stay out of the service shell."""
     service_source = Path("agents/requirement_manager/service/agent.py").read_text()
-    application_source = Path(
-        "agents/requirement_manager/core/application_facade.py"
-    ).read_text()
+    application_source = Path("agents/requirement_manager/core/application_facade.py").read_text()
     use_case_source = Path(
         "agents/requirement_manager/core/ingest_side_effect_use_cases.py"
     ).read_text()
@@ -1139,9 +1281,8 @@ def test_requirement_ingest_side_effects_use_application_boundaries() -> None:
         "await self._ingest_side_effects.publish_ingest_side_effects(result)"
         in _function_source(application_source, "publish_ingest_side_effects")
     )
-    assert (
-        "await self._session_card_use_case().send_session_extraction_card("
-        in _function_source(application_source, "send_session_extraction_card")
+    assert "await self._session_card_use_case().send_session_extraction_card(" in _function_source(
+        application_source, "send_session_extraction_card"
     )
     assert "notification_service.send" not in service_source
     assert "session_extraction_card_skipped" not in service_source
@@ -1153,9 +1294,7 @@ def test_requirement_feedback_api_delegates_to_use_case() -> None:
     """Feedback HTTP routes should not own agent calls or batch accounting."""
     api_source = Path("agents/requirement_manager/api/feedback.py").read_text()
     dependency_source = Path("agents/requirement_manager/api/dependencies.py").read_text()
-    use_case_source = Path(
-        "agents/requirement_manager/core/feedback_use_cases.py"
-    ).read_text()
+    use_case_source = Path("agents/requirement_manager/core/feedback_use_cases.py").read_text()
 
     assert "get_requirement_feedback_use_case" in api_source
     assert "RequirementFeedbackUseCase" in api_source
@@ -1173,6 +1312,9 @@ def test_requirement_feedback_api_delegates_to_use_case() -> None:
     assert "RequirementUnitOfWorkFactory" in use_case_source
     assert "async with self._uow_factory() as uow" in use_case_source
     assert "await uow.commit()" in use_case_source
+    assert "from shared.core.identifiers import OpenQuestionId, RequirementId" in use_case_source
+    assert "RequirementId(requirement_id)" in use_case_source
+    assert "OpenQuestionId(question_id)" in use_case_source
     assert "confirm_requirement_with_uow" not in use_case_source
     assert "session" not in use_case_source
 
@@ -1181,9 +1323,7 @@ def test_requirement_mutation_routes_delegate_to_use_case() -> None:
     """Requirement mutation HTTP routes should delegate agent/session orchestration."""
     api_source = Path("agents/requirement_manager/api/requirements.py").read_text()
     dependency_source = Path("agents/requirement_manager/api/dependencies.py").read_text()
-    use_case_source = Path(
-        "agents/requirement_manager/core/requirement_mutations.py"
-    ).read_text()
+    use_case_source = Path("agents/requirement_manager/core/requirement_mutations.py").read_text()
 
     for function_name in ("update_requirement", "delete_requirement"):
         start = api_source.index(f"async def {function_name}")
@@ -1207,6 +1347,8 @@ def test_requirement_mutation_routes_delegate_to_use_case() -> None:
     assert "RequirementUnitOfWorkFactory" in use_case_source
     assert "async with self._uow_factory() as uow" in use_case_source
     assert "await uow.commit()" in use_case_source
+    assert "from shared.core.identifiers import RequirementId" in use_case_source
+    assert "RequirementId(requirement_id)" in use_case_source
     assert "update_requirement_with_uow" not in use_case_source
     assert "session" not in use_case_source
 
@@ -1236,9 +1378,7 @@ def test_requirement_mutation_rules_live_in_core_workflow() -> None:
 def test_requirement_agent_mutation_commands_delegate_to_application_use_case() -> None:
     """Requirement service shell should not own command transactions or side effects."""
     agent_source = Path("agents/requirement_manager/service/agent.py").read_text()
-    application_source = Path(
-        "agents/requirement_manager/core/application_facade.py"
-    ).read_text()
+    application_source = Path("agents/requirement_manager/core/application_facade.py").read_text()
     command_source = Path(
         "agents/requirement_manager/core/requirement_command_use_cases.py"
     ).read_text()
@@ -1257,6 +1397,9 @@ def test_requirement_agent_mutation_commands_delegate_to_application_use_case() 
     assert "async with self._uow_factory() as active_uow" in command_source
     assert "await active_uow.commit()" in command_source
     assert "publish_requirement_mutation_side_effects(result)" in command_source
+    assert "from shared.core.identifiers import OpenQuestionId, RequirementId" in command_source
+    assert "RequirementId(requirement_id)" in command_source
+    assert "OpenQuestionId(question_id)" in command_source
 
     assert "class RequirementMutationSideEffectUseCase" in side_effect_source
     assert "class RequirementVectorDeletePort(Protocol)" in side_effect_source
@@ -1289,7 +1432,9 @@ def test_requirement_agent_mutation_commands_delegate_to_application_use_case() 
         assert "async with self.get_unit_of_work() as uow" not in function_source
         assert "await uow.commit()" not in function_source
         assert "publish_requirement_mutation_side_effects(result)" not in function_source
-        assert "publish_requirement_mutation_side_effects(result)" not in application_function_source
+        assert (
+            "publish_requirement_mutation_side_effects(result)" not in application_function_source
+        )
 
     assert "vector_store_delete_failed" not in agent_source
     assert "delete_requirement_vector_record" not in agent_source
@@ -1301,9 +1446,7 @@ def test_webui_read_routes_delegate_to_query_use_case() -> None:
     api_source = Path("agents/requirement_manager/api/webui.py").read_text()
     query_source = Path("agents/requirement_manager/core/webui_queries.py").read_text()
     port_source = Path("agents/requirement_manager/core/webui_ports.py").read_text()
-    adapter_source = Path(
-        "agents/requirement_manager/db/webui_control_plane_store.py"
-    ).read_text()
+    adapter_source = Path("agents/requirement_manager/db/webui_control_plane_store.py").read_text()
 
     for function_name in (
         "list_agent_runtime_statuses",
@@ -1336,13 +1479,9 @@ def test_webui_read_routes_delegate_to_query_use_case() -> None:
 def test_webui_prompt_config_routes_delegate_to_use_case() -> None:
     """WebUI prompt-config routes should not own Control Plane mutations."""
     api_source = Path("agents/requirement_manager/api/webui.py").read_text()
-    use_case_source = Path(
-        "agents/requirement_manager/core/webui_prompt_config.py"
-    ).read_text()
+    use_case_source = Path("agents/requirement_manager/core/webui_prompt_config.py").read_text()
     port_source = Path("agents/requirement_manager/core/webui_ports.py").read_text()
-    adapter_source = Path(
-        "agents/requirement_manager/db/webui_control_plane_store.py"
-    ).read_text()
+    adapter_source = Path("agents/requirement_manager/db/webui_control_plane_store.py").read_text()
 
     for function_name in ("get_agent_prompt_config", "update_agent_prompt_config"):
         start = api_source.index(f"async def {function_name}")
@@ -1421,9 +1560,7 @@ def test_requirement_routes_delegate_mutations_to_agent_boundary() -> None:
 def test_requirement_question_use_cases_use_persistence_port() -> None:
     """Question use cases should not directly construct SQLAlchemy repositories."""
     agent_source = Path("agents/requirement_manager/service/agent.py").read_text()
-    application_source = Path(
-        "agents/requirement_manager/core/application_facade.py"
-    ).read_text()
+    application_source = Path("agents/requirement_manager/core/application_facade.py").read_text()
     workflow_source = Path(
         "agents/requirement_manager/core/requirement_mutation_workflow.py"
     ).read_text()
@@ -1440,11 +1577,16 @@ def test_requirement_question_use_cases_use_persistence_port() -> None:
 
     answer_with_uow_source = _function_source(workflow_source, "answer_question")
     assert "uow.questions.answer" in answer_with_uow_source
+    assert "question_id: OpenQuestionId" in answer_with_uow_source
     assert "QuestionRepository(" not in answer_with_uow_source
 
     assert "class RequirementQuestionStore(Protocol)" in port_source
+    assert "from shared.core.identifiers import OpenQuestionId" in port_source
+    assert "question_id: OpenQuestionId" in port_source
     assert "create_batch" in port_source
     assert "class SqlAlchemyRequirementQuestionStore" in adapter_source
+    assert "from shared.core.identifiers import OpenQuestionId" in adapter_source
+    assert "question_id: OpenQuestionId" in adapter_source
     assert "QuestionRepository" in adapter_source
     assert "QuestionRepository" not in agent_source
 
@@ -1457,7 +1599,15 @@ def test_requirement_agent_uses_requirement_store_port() -> None:
     uow_source = Path("agents/requirement_manager/db/unit_of_work.py").read_text()
 
     assert "class RequirementStore(Protocol)" in port_source
+    assert "from shared.core.identifiers import RequirementId" in port_source
+    assert "get_by_id(self, requirement_id: RequirementId)" in port_source
+    assert "update(self, requirement_id: RequirementId" in port_source
+    assert "confirm(" in port_source
+    assert "requirement_id: RequirementId" in port_source
+    assert "delete(self, requirement_id: RequirementId)" in port_source
     assert "class SqlAlchemyRequirementStore" in adapter_source
+    assert "from shared.core.identifiers import RequirementId" in adapter_source
+    assert "get_by_id(self, requirement_id: RequirementId)" in adapter_source
     assert "RequirementRepository" in adapter_source
     assert "SqlAlchemyRequirementStore(session)" in uow_source
     assert "RequirementRepository" not in agent_source
@@ -1475,7 +1625,13 @@ def test_requirement_agent_uses_meeting_and_message_store_ports() -> None:
     uow_source = Path("agents/requirement_manager/db/unit_of_work.py").read_text()
 
     assert "class RequirementMeetingStore(Protocol)" in meeting_port_source
+    assert "from shared.core.identifiers import MeetingId" in meeting_port_source
+    assert "get_by_id(self, meeting_id: MeetingId)" in meeting_port_source
+    assert "mark_processed(self, meeting_id: MeetingId)" in meeting_port_source
     assert "class SqlAlchemyRequirementMeetingStore" in meeting_adapter_source
+    assert "from shared.core.identifiers import MeetingId" in meeting_adapter_source
+    assert "get_by_id(self, meeting_id: MeetingId)" in meeting_adapter_source
+    assert "mark_processed(self, meeting_id: MeetingId)" in meeting_adapter_source
     assert "MeetingRepository" in meeting_adapter_source
     assert "SqlAlchemyRequirementMeetingStore(session)" in uow_source
     assert "MeetingRepository" not in agent_source
@@ -1495,25 +1651,25 @@ def test_requirement_agent_uses_meeting_and_message_store_ports() -> None:
 def test_requirement_agent_read_facade_delegates_to_application_use_case() -> None:
     """Requirement service shell should not own agent-facing read projections."""
     agent_source = Path("agents/requirement_manager/service/agent.py").read_text()
-    application_source = Path(
-        "agents/requirement_manager/core/application_facade.py"
-    ).read_text()
-    read_model_source = Path(
-        "agents/requirement_manager/core/agent_read_use_cases.py"
-    ).read_text()
-    query_source = Path(
-        "agents/requirement_manager/core/read_query_use_cases.py"
-    ).read_text()
+    application_source = Path("agents/requirement_manager/core/application_facade.py").read_text()
+    read_model_source = Path("agents/requirement_manager/core/agent_read_use_cases.py").read_text()
+    query_source = Path("agents/requirement_manager/core/read_query_use_cases.py").read_text()
 
     assert "class RequirementAgentReadUseCase" in read_model_source
+    assert "from shared.core.identifiers import MeetingId, RequirementId" in read_model_source
+    assert "get_requirement(self, requirement_id: RequirementId)" in read_model_source
+    assert "get_meeting(self, meeting_id: MeetingId)" in read_model_source
     assert "def list_pending_requirements" in read_model_source
     assert "def get_confirmed_requirements" in read_model_source
     assert "def get_requirement" in read_model_source
     assert "def get_meeting" in read_model_source
     assert "def list_open_questions" in read_model_source
-    assert "status=\"PENDING\"" in read_model_source
-    assert "status=\"CONFIRMED\"" in read_model_source
+    assert 'status="PENDING"' in read_model_source
+    assert 'status="CONFIRMED"' in read_model_source
     assert "class RequirementReadQueryUseCase" in query_source
+    assert "from shared.core.identifiers import MeetingId, RequirementId" in query_source
+    assert "RequirementId(requirement_id)" in query_source
+    assert "MeetingId(meeting_id)" in query_source
     assert "RequirementUnitOfWorkFactory" in query_source
     assert "async with self._uow_factory() as uow" in query_source
     assert "RequirementAgentReadUseCase(" in query_source
@@ -1521,35 +1677,26 @@ def test_requirement_agent_read_facade_delegates_to_application_use_case() -> No
     assert "RequirementReadQueryUseCase" in agent_source
     assert "class RequirementApplicationFacade" in application_source
     assert "def _read_query_use_case" not in agent_source
-    assert (
-        "return await self._application.list_pending_requirements("
-        in _function_source(
-            agent_source,
-            "list_pending_requirements",
-        )
+    assert "return await self._application.list_pending_requirements(" in _function_source(
+        agent_source,
+        "list_pending_requirements",
     )
-    assert (
-        "return await self._application.get_confirmed_requirements()"
-        in _function_source(
-            agent_source,
-            "get_confirmed_requirements",
-        )
+    assert "return await self._application.get_confirmed_requirements()" in _function_source(
+        agent_source,
+        "get_confirmed_requirements",
     )
-    assert (
-        "return await self._application.get_requirement(requirement_id)"
-        in _function_source(agent_source, "get_requirement")
+    assert "return await self._application.get_requirement(requirement_id)" in _function_source(
+        agent_source, "get_requirement"
     )
-    assert (
-        "return await self._application.get_meeting(meeting_id)"
-        in _function_source(agent_source, "get_meeting")
+    assert "return await self._application.get_meeting(meeting_id)" in _function_source(
+        agent_source, "get_meeting"
     )
     assert (
         "return await self._application.list_open_questions(session=session, limit=limit)"
         in _function_source(agent_source, "list_open_questions")
     )
-    assert (
-        "return await self._read_query_use_case.list_pending_requirements("
-        in _function_source(application_source, "list_pending_requirements")
+    assert "return await self._read_query_use_case.list_pending_requirements(" in _function_source(
+        application_source, "list_pending_requirements"
     )
     assert (
         "return await self._read_query_use_case.get_confirmed_requirements()"
@@ -1558,8 +1705,8 @@ def test_requirement_agent_read_facade_delegates_to_application_use_case() -> No
     assert "def _read_use_case_for_session" not in agent_source
     assert "def _read_use_case_for_uow" not in agent_source
     assert "self._db_manager.session()" not in agent_source
-    assert "status=\"PENDING\"" not in agent_source
-    assert "status=\"CONFIRMED\"" not in agent_source
+    assert 'status="PENDING"' not in agent_source
+    assert 'status="CONFIRMED"' not in agent_source
     assert '"source_quote": r.source_quote' not in agent_source
 
 
@@ -1586,18 +1733,238 @@ def test_feishu_message_integration_uses_message_store_port() -> None:
 
 def test_requirement_feedback_learning_uses_persistence_port() -> None:
     """Feedback-learning service should not directly construct repositories."""
-    service_source = Path(
-        "agents/requirement_manager/service/feedback_learning.py"
-    ).read_text()
+    service_source = Path("agents/requirement_manager/service/feedback_learning.py").read_text()
+    core_source = Path("agents/requirement_manager/core/feedback_learning.py").read_text()
     port_source = Path("agents/requirement_manager/core/feedback_ports.py").read_text()
     adapter_source = Path("agents/requirement_manager/db/feedback_store.py").read_text()
+    repository_source = Path("agents/requirement_manager/db/repository.py").read_text()
+    identifiers_source = Path("shared/core/identifiers.py").read_text()
+    ids_source = Path("shared/core/ids.py").read_text()
 
     assert "class RequirementFeedbackStore(Protocol)" in port_source
     assert "class SqlAlchemyRequirementFeedbackStore" in adapter_source
     assert "FeedbackRepository" in adapter_source
+    assert "FeedbackRecordId = NewType" in identifiers_source
+    assert "def new_feedback_record_id()" in identifiers_source
+    assert 'FEEDBACK = "fb"' in ids_source
+    assert "FeedbackRecordId" in port_source
+    assert "FeedbackRecordId" in adapter_source
+    assert "FeedbackRecordId" in repository_source
+    assert "RequirementId" in port_source
+    assert "RequirementId" in repository_source
+    assert "feedback_id: FeedbackRecordId" in repository_source
+    assert "feedback_ids: list[FeedbackRecordId]" in repository_source
+    assert "requirement_id: RequirementId" in repository_source
+    assert "new_feedback_record_id()" in core_source
+    assert "feedback_id: str" not in repository_source
+    assert "feedback_ids: list[str]" not in repository_source
+    assert "requirement_id: str) -> list" not in repository_source
     assert "FeedbackRepository" not in service_source
     assert "RequirementRepository" not in service_source
-    assert "feedback_store" in service_source
+    assert "FeedbackRepository" not in core_source
+    assert "RequirementRepository" not in core_source
+    assert "feedback_store" in core_source
+
+
+def test_requirement_feedback_learning_rules_live_in_domain_service() -> None:
+    """Feedback-learning classification rules should live in core/domain."""
+    domain_source = Path("agents/requirement_manager/core/domain/feedback_learning.py").read_text()
+    core_source = Path("agents/requirement_manager/core/feedback_learning.py").read_text()
+
+    assert "class RequirementFeedbackLearningPolicy" in domain_source
+    assert "class RequirementFeedbackDraft" in domain_source
+    assert "class RequirementExtractionSnapshot" in domain_source
+    assert "RequirementFeedbackLearningPolicy" in core_source
+    assert "self._feedback_policy.correction(" in core_source
+    assert "self._feedback_policy.rejection(" in core_source
+    assert 'feedback_type="correction"' not in core_source
+    assert 'feedback_type="rejection"' not in core_source
+    assert 'corrected_title="[REJECTED]"' not in core_source
+    assert "FeedbackRecord" not in domain_source
+    assert "agents.requirement_manager.db" not in domain_source
+
+
+def test_requirement_meeting_ingest_uses_source_metadata_value_object() -> None:
+    """Meeting source metadata should be normalized through a domain value object."""
+    domain_source = Path("agents/requirement_manager/core/domain/meeting_source.py").read_text()
+    workflow_source = Path("agents/requirement_manager/core/meeting_ingest_workflow.py").read_text()
+
+    assert "class MeetingSourceMetadata" in domain_source
+    assert "@dataclass(frozen=True, slots=True)" in domain_source
+    assert "def meeting_kwargs(" in domain_source
+    assert "def meeting_date_iso(" in domain_source
+    assert "def participants_for_extraction(" in domain_source
+    assert "MeetingSourceMetadata.from_values(" in workflow_source
+    assert "source_metadata.meeting_kwargs(raw_content=content)" in workflow_source
+    assert "source_metadata.meeting_date_iso()" in workflow_source
+    assert "source_metadata.participants_for_extraction()" in workflow_source
+    assert "participants=participants or []" not in workflow_source
+    assert "meeting_date.isoformat() if meeting_date else None" not in workflow_source
+    assert "agents.requirement_manager.db" not in domain_source
+    assert "Meeting(" not in domain_source
+
+
+def test_requirement_extraction_materialization_rules_live_in_domain_service() -> None:
+    """Extractor result materialization should be a pure Requirement domain service."""
+    domain_source = Path(
+        "agents/requirement_manager/core/domain/extraction_materialization.py"
+    ).read_text()
+    workflow_source = Path("agents/requirement_manager/core/meeting_ingest_workflow.py").read_text()
+
+    assert "class RequirementExtractionMaterializer" in domain_source
+    assert "class RequirementExtractionPlan" in domain_source
+    assert "class ExtractedRequirementDraft" in domain_source
+    assert "class ExtractedOpenQuestionDraft" in domain_source
+    assert "class MaterializedOpenQuestionDraft" in domain_source
+    assert "class MaterializedRequirementSummary" in domain_source
+    assert "class RequirementExtractionPublication" in domain_source
+    assert "class RequirementExtractionPublicationPolicy" in domain_source
+    assert "@dataclass(frozen=True, slots=True)" in domain_source
+    assert "def materialize(" in domain_source
+    assert "def materialize_open_questions(" in domain_source
+    assert "def requirement_kwargs(" in domain_source
+    assert "def open_question_kwargs(" in domain_source
+    assert "def event_payload(" in domain_source
+    assert "def search_index_documents(" in domain_source
+    assert "requirement_index=0" in domain_source
+
+    assert "RequirementExtractionMaterializer" in workflow_source
+    assert "RequirementExtractionPublicationPolicy" in workflow_source
+    assert "self._extraction_materializer = RequirementExtractionMaterializer()" in workflow_source
+    assert "self._publication_policy = RequirementExtractionPublicationPolicy()" in workflow_source
+    assert "extraction_plan = self._extraction_materializer.materialize(" in workflow_source
+    assert "Requirement(**requirement.requirement_kwargs())" in workflow_source
+    assert "publication = self._publication_policy.build(" in workflow_source
+    assert "publication.search_index_documents()" in workflow_source
+    assert "payload=publication.event_payload()" in workflow_source
+    assert "extraction_plan.materialize_open_questions(" in workflow_source
+    assert "OpenQuestion(**question.open_question_kwargs())" in workflow_source
+    assert "for requirement in extraction.requirements" not in workflow_source
+    assert "for question in extraction.open_questions" not in workflow_source
+    assert '"requirement_ids": [requirement.id for requirement in requirements]' not in workflow_source
+    assert "agents.requirement_manager.db" not in domain_source
+    assert "agents.requirement_manager.models" not in domain_source
+    assert "Requirement(" not in domain_source
+    assert "OpenQuestion(" not in domain_source
+
+
+def test_requirement_aggregate_consistency_rules_live_in_domain_policy() -> None:
+    """Requirement cross-aggregate writes should use declared consistency scopes."""
+    domain_source = Path(
+        "agents/requirement_manager/core/domain/aggregate_consistency.py"
+    ).read_text()
+    ingest_source = Path("agents/requirement_manager/core/meeting_ingest_workflow.py").read_text()
+    mutation_source = Path(
+        "agents/requirement_manager/core/requirement_mutation_workflow.py"
+    ).read_text()
+    readme_source = Path("agents/requirement_manager/README.md").read_text()
+
+    assert "class RequirementAggregateConsistencyPolicy" in domain_source
+    assert "class RequirementTransactionScope" in domain_source
+    assert "class RequirementAggregateConsistencyError" in domain_source
+    assert "def meeting_ingest(" in domain_source
+    assert "def requirement_lifecycle_mutation(" in domain_source
+    assert "def question_answer(" in domain_source
+    assert "def assert_allows_same_transaction(" in domain_source
+    assert "primary_aggregate=MEETING" in domain_source
+    assert "primary_aggregate=REQUIREMENT" in domain_source
+    assert "primary_aggregate=OPEN_QUESTION" in domain_source
+    assert "post_commit_side_effects=(\"vector_index\", \"notification\")" in domain_source
+    assert "agents.requirement_manager.db" not in domain_source
+    assert "agents.requirement_manager.models" not in domain_source
+
+    assert "RequirementAggregateConsistencyPolicy" in ingest_source
+    assert "self._consistency_policy = RequirementAggregateConsistencyPolicy()" in ingest_source
+    assert "consistency_scope = self._consistency_policy.meeting_ingest(" in ingest_source
+    assert "consistency_scope.assert_allows_same_transaction(" in ingest_source
+    assert "def _meeting_ingest_write_set(" in ingest_source
+
+    assert "RequirementAggregateConsistencyPolicy" in mutation_source
+    assert "self._consistency_policy.requirement_lifecycle_mutation(" in mutation_source
+    assert "self._consistency_policy.question_answer()" in mutation_source
+    assert "FEEDBACK_RECORD" in mutation_source
+    assert "REQUIREMENT_EVENT_OUTBOX" in mutation_source
+
+    assert "## Consistency Boundaries" in readme_source
+    for scope_name in (
+        "meeting_ingest",
+        "requirement_lifecycle_mutation",
+        "question_answer",
+    ):
+        assert scope_name in readme_source
+
+
+def test_requirement_prd_generation_uses_document_draft_value_object() -> None:
+    """PRD composition should go through immutable domain value objects."""
+    domain_source = Path("agents/requirement_manager/core/domain/prd_document.py").read_text()
+    generator_source = Path("agents/requirement_manager/core/generator.py").read_text()
+
+    assert "class PRDRequirementSnapshot" in domain_source
+    assert "class PRDDocumentDraft" in domain_source
+    assert "@dataclass(frozen=True, slots=True)" in domain_source
+    assert "def metadata_payload(" in domain_source
+    assert "def requirements_payload(" in domain_source
+    assert "def sorted_requirements(" in domain_source
+    assert "from .domain.prd_document import PRDDocumentDraft" in generator_source
+    assert "PRDDocumentDraft.from_requirements(" in generator_source
+    assert "draft.metadata_payload()" in generator_source
+    assert "draft.requirements_payload()" in generator_source
+    assert "draft.sorted_requirements()" in generator_source
+    assert '"total_requirements": len(requirements)' not in generator_source
+    assert "sorted(\n            requirements" not in generator_source
+    assert "agents.requirement_manager.db" not in domain_source
+
+
+def test_requirement_manager_readme_documents_ddd_context_map() -> None:
+    """Requirement Manager should publish its DDD vocabulary and context map."""
+    readme_source = Path("agents/requirement_manager/README.md").read_text()
+    module_boundaries_source = Path("docs/architecture/module-boundaries.md").read_text()
+
+    assert "## Bounded Context" in readme_source
+    assert "## Ubiquitous Language" in readme_source
+    assert "## Domain Services" in readme_source
+    assert "## Consistency Boundaries" in readme_source
+    assert "## Context-Map Relationships" in readme_source
+    for term in ("Meeting", "Requirement", "Open Question", "Feedback Record", "PRD"):
+        assert f"| **{term}** |" in readme_source
+
+    for identifier in (
+        "RequirementId",
+        "MeetingId",
+        "OpenQuestionId",
+        "FeedbackRecordId",
+    ):
+        assert identifier in readme_source
+
+    for domain_service in (
+        "RequirementExtractionMaterializer",
+        "RequirementExtractionPublicationPolicy",
+        "RequirementFeedbackLearningPolicy",
+        "RequirementAggregateConsistencyPolicy",
+    ):
+        assert domain_service in readme_source
+
+    expected_relationships = (
+        "Anti-Corruption Layer to Interaction Gateway",
+        "Feishu via `shared/integrations/feishu/`",
+        "LLM Gateway extraction responses via `core/llm_extraction_response.py`",
+        "Customer/Supplier to PJM Agent",
+        "emits `requirement.*` integration events",
+        "Conformist to Control Plane",
+        "`AgentRun`, `AuditEvent` Published Language",
+    )
+    for relationship in expected_relationships:
+        assert relationship in readme_source
+        assert relationship in module_boundaries_source
+
+    for owned_table in (
+        "meetings",
+        "requirements",
+        "open_questions",
+        "feedback_records",
+        "requirement_event_outbox",
+    ):
+        assert owned_table in readme_source
 
 
 def test_requirement_api_uses_shared_error_contract() -> None:
@@ -1612,11 +1979,11 @@ def test_requirement_api_uses_shared_error_contract() -> None:
     assert "raise_question_not_found" in feedback_source
     assert "raise_session_not_found" in messages_source
     assert "raise_agent_not_found" in webui_source
-    assert "HTTPException(status_code=404, detail=\"Requirement not found\")" not in (
+    assert 'HTTPException(status_code=404, detail="Requirement not found")' not in (
         requirements_source + feedback_source + messages_source + webui_source
     )
-    assert "HTTPException(status_code=404, detail=\"Session not found" not in messages_source
-    assert "HTTPException(status_code=404, detail=\"agent_not_found\")" not in webui_source
+    assert 'HTTPException(status_code=404, detail="Session not found' not in messages_source
+    assert 'HTTPException(status_code=404, detail="agent_not_found")' not in webui_source
 
 
 def test_pjm_and_qa_api_use_shared_error_contracts() -> None:
@@ -1643,10 +2010,7 @@ def test_pjm_and_qa_api_use_shared_error_contracts() -> None:
     assert "raise_pm_decomposition_retry_failed" in decomposition_source
     assert "raise_pm_decomposition_forbidden" in decomposition_source
 
-    assert (
-        'HTTPException(status_code=404, detail="QA acceptance run not found")'
-        not in qa_source
-    )
+    assert 'HTTPException(status_code=404, detail="QA acceptance run not found")' not in qa_source
     assert "from fastapi import APIRouter, HTTPException" not in qa_source
     assert "HTTPException(status_code=504" not in qa_source
     assert "HTTPException(status_code=500" not in qa_source
@@ -1708,7 +2072,7 @@ def test_qa_agent_request_dispatch_delegates_to_application_use_case() -> None:
     assert 'action == "get_run"' in use_case_source
     assert 'action == "stats"' in use_case_source
     assert "QARunRequest(" in use_case_source
-    assert "request_error(\"not found\", \"qa_run_not_found\")" in use_case_source
+    assert 'request_error("not found", "qa_run_not_found")' in use_case_source
     assert "unknown_action_error()" in use_case_source
 
     assert "QARequestUseCase" in service_source
@@ -1718,27 +2082,41 @@ def test_qa_agent_request_dispatch_delegates_to_application_use_case() -> None:
     assert 'action == "get_run"' not in handle_source
     assert 'action == "stats"' not in handle_source
     assert "QARunRequest(" not in handle_source
-    assert "request_error(\"not found\"" not in handle_source
+    assert 'request_error("not found"' not in handle_source
     assert "unknown_action_error()" not in handle_source
 
 
 def test_qa_agent_event_dispatch_delegates_to_application_use_case() -> None:
     """QA service shell should not own event payload parsing."""
     service_source = Path("agents/qa_agent/service/agent.py").read_text()
+    adapter_source = Path("agents/qa_agent/adapters/acceptance_request_acl.py").read_text()
     use_case_source = Path("agents/qa_agent/core/event_use_cases.py").read_text()
     handle_source = _function_source(service_source, "handle_event")
 
     assert "class QAEventUseCase" in use_case_source
     assert "class QAEventRunnerPort(Protocol)" in use_case_source
+    assert "class QAAcceptanceRequestEnvelopePort(Protocol)" in use_case_source
+    assert "class QAAcceptanceRequestTranslatorPort(Protocol)" in use_case_source
     assert "EventTypes.CODE_COMMITTED" in use_case_source
     assert "EventTypes.QA_RUN_REQUESTED" in use_case_source
-    assert "CodeCommittedPayload.model_validate(event.payload)" in use_case_source
-    assert "QARunRequestedPayload.model_validate(event.payload)" in use_case_source
-    assert "QARunRequest(" in use_case_source
+    assert "CodeCommittedPayload" not in use_case_source
+    assert "QARunRequestedPayload" not in use_case_source
+    assert "self._request_translator.from_code_committed(event)" in use_case_source
+    assert "self._request_translator.from_run_requested(event)" in use_case_source
+    assert "translated.request" in use_case_source
     assert "coordinator_instruction_received" in use_case_source
     assert "trigger_event_id=event.event_id" in use_case_source
+    assert "class QAAcceptanceRequestACL" in adapter_source
+    assert "class QAAcceptanceRequestEnvelope" in adapter_source
+    assert "class GitLabMergeRequestContext" in adapter_source
+    assert "class OpenProjectWorkPackageContext" in adapter_source
+    assert "CodeCommittedPayload.model_validate(event.payload)" in adapter_source
+    assert "QARunRequestedPayload.model_validate(event.payload)" in adapter_source
+    assert "QARunRequest(" in adapter_source
 
     assert "QAEventUseCase" in service_source
+    assert "QAAcceptanceRequestACL" in service_source
+    assert "request_translator=self._acceptance_request_acl" in service_source
     assert "def _event_use_case" in service_source
     assert "return await self._event_use_case().handle(event)" in handle_source
     assert "if event.event_type == EventTypes.CODE_COMMITTED" not in handle_source
@@ -1752,9 +2130,7 @@ def test_qa_agent_event_dispatch_delegates_to_application_use_case() -> None:
 def test_qa_agent_acceptance_execution_delegates_to_application_use_case() -> None:
     """QA service shell should not own acceptance execution orchestration."""
     service_source = Path("agents/qa_agent/service/agent.py").read_text()
-    use_case_source = Path(
-        "agents/qa_agent/core/acceptance_execution_use_cases.py"
-    ).read_text()
+    use_case_source = Path("agents/qa_agent/core/acceptance_execution_use_cases.py").read_text()
     application_source = Path("agents/qa_agent/core/application_facade.py").read_text()
     uow_adapter_source = Path("agents/qa_agent/db/unit_of_work.py").read_text()
     uow_source = Path("agents/qa_agent/core/unit_of_work_ports.py").read_text()
@@ -1859,22 +2235,20 @@ def test_pjm_agent_request_dispatch_delegates_to_application_use_case() -> None:
     assert 'action == "weekly_report"' in use_case_source
     assert 'action == "check_stale_approvals"' in use_case_source
     assert "unknown_action_error()" in use_case_source
-    assert "request_error(\"report_failed\", \"report_failed\")" in use_case_source
+    assert 'request_error("report_failed", "report_failed")' in use_case_source
 
     assert "PJMRequestUseCase" not in service_source
     assert "def _request_use_case" not in service_source
     assert "PJMRequestUseCase" in facade_source
     assert "return await self._application.handle_request(request)" in handle_source
     assert "return await self._request_use_case().handle(request)" not in handle_source
-    assert "standard_response = await self._standard_request_handler(request)" in (
-        facade_source
-    )
+    assert "standard_response = await self._standard_request_handler(request)" in (facade_source)
     assert 'action == "config"' not in handle_source
     assert 'action == "alerts"' not in handle_source
     assert 'action == "retry_decompose"' not in handle_source
     assert 'action == "daily_report"' not in handle_source
     assert "unknown_action_error()" not in handle_source
-    assert "request_error(\"report_failed\"" not in handle_source
+    assert 'request_error("report_failed"' not in handle_source
 
 
 def test_pjm_agent_event_dispatch_delegates_to_application_use_case() -> None:
@@ -1909,9 +2283,7 @@ def test_pjm_agent_event_dispatch_delegates_to_application_use_case() -> None:
     assert "return await self._event_use_case().handle(event)" not in handle_source
     assert "if event.event_type == EventTypes.SYNC_COMPLETED" not in handle_source
     assert "if event.event_type == EventTypes.CHAT_PM_QUERY" not in handle_source
-    assert "if event.event_type == EventTypes.SYNC_TASK_NEEDS_DECOMPOSE" not in (
-        handle_source
-    )
+    assert "if event.event_type == EventTypes.SYNC_TASK_NEEDS_DECOMPOSE" not in (handle_source)
     assert "_run_alerts" not in service_source
     assert "_handle_risks" not in service_source
     assert "_handle_chat_query" not in service_source
@@ -1938,9 +2310,7 @@ def test_pjm_decomposition_api_delegates_to_application_use_case() -> None:
         function_source = _function_source(api_source, function_name)
         assert "get_agent()" not in function_source
         assert "agent." not in function_source
-        assert "PMApiUseCase = Depends(get_decomposition_api_use_case)" in (
-            function_source
-        )
+        assert "PMApiUseCase = Depends(get_decomposition_api_use_case)" in (function_source)
 
 
 def test_pjm_scheduler_delegates_to_application_use_case() -> None:
@@ -1961,9 +2331,7 @@ def test_pjm_scheduler_delegates_to_application_use_case() -> None:
 
     scheduled_source = _function_source(app_source, "_run_scheduled_action")
     assert ".handle_request(" not in scheduled_source
-    assert "get_pjm_scheduler_use_case().run_scheduled_action(action)" in (
-        scheduled_source
-    )
+    assert "get_pjm_scheduler_use_case().run_scheduled_action(action)" in (scheduled_source)
 
 
 def test_analysis_api_uses_shared_error_contracts() -> None:
@@ -1980,9 +2348,7 @@ def test_analysis_api_uses_shared_error_contracts() -> None:
 def test_analysis_api_delegates_to_application_use_case() -> None:
     """Analysis HTTP routes should not own agent request/action orchestration."""
     api_source = Path("shared/capabilities/analysis/api/analysis.py").read_text()
-    use_case_source = Path(
-        "shared/capabilities/analysis/core/api_use_cases.py"
-    ).read_text()
+    use_case_source = Path("shared/capabilities/analysis/core/api_use_cases.py").read_text()
 
     assert "class AnalysisApiAgentPort(Protocol)" in use_case_source
     assert "class AnalysisApiUseCase" in use_case_source
@@ -1998,22 +2364,14 @@ def test_analysis_api_delegates_to_application_use_case() -> None:
         function_source = _function_source(api_source, function_name)
         assert "get_agent()" not in function_source
         assert "agent.handle_request" not in function_source
-        assert "AnalysisApiUseCase = Depends(get_analysis_api_use_case)" in (
-            function_source
-        )
+        assert "AnalysisApiUseCase = Depends(get_analysis_api_use_case)" in (function_source)
 
 
 def test_analysis_agent_request_dispatch_delegates_to_application_use_case() -> None:
     """Analysis service shell should not own request action orchestration."""
-    service_source = Path(
-        "shared/capabilities/analysis/service/agent.py"
-    ).read_text()
-    facade_source = Path(
-        "shared/capabilities/analysis/core/application_facade.py"
-    ).read_text()
-    use_case_source = Path(
-        "shared/capabilities/analysis/core/request_use_cases.py"
-    ).read_text()
+    service_source = Path("shared/capabilities/analysis/service/agent.py").read_text()
+    facade_source = Path("shared/capabilities/analysis/core/application_facade.py").read_text()
+    use_case_source = Path("shared/capabilities/analysis/core/request_use_cases.py").read_text()
     handle_source = _function_source(service_source, "handle_request")
 
     assert "class AnalysisApplicationFacade" in facade_source
@@ -2041,30 +2399,35 @@ def test_analysis_agent_request_dispatch_delegates_to_application_use_case() -> 
 
 def test_analysis_agent_event_dispatch_delegates_to_application_use_case() -> None:
     """Analysis service shell should not own sync.completed event workflow."""
-    service_source = Path(
-        "shared/capabilities/analysis/service/agent.py"
-    ).read_text()
-    facade_source = Path(
-        "shared/capabilities/analysis/core/application_facade.py"
-    ).read_text()
-    use_case_source = Path(
-        "shared/capabilities/analysis/core/event_use_cases.py"
+    service_source = Path("shared/capabilities/analysis/service/agent.py").read_text()
+    facade_source = Path("shared/capabilities/analysis/core/application_facade.py").read_text()
+    use_case_source = Path("shared/capabilities/analysis/core/event_use_cases.py").read_text()
+    report_delivery_source = Path(
+        "shared/capabilities/analysis/core/report_delivery_use_cases.py"
     ).read_text()
     handle_source = _function_source(service_source, "handle_event")
 
     assert "class AnalysisApplicationFacade" in facade_source
     assert "class AnalysisEventUseCase" in use_case_source
+    assert "class AnalysisReportDeliveryUseCase" in report_delivery_source
     assert "class AnalysisEventFactoryPort(Protocol)" in use_case_source
     assert "class AnalysisMetricsPort(Protocol)" in use_case_source
     assert "EventTypes.SYNC_COMPLETED" in use_case_source
-    assert "REPORT_DAILY_GENERATED" in use_case_source
+    assert "AnalysisReportDeliveryUseCase" in use_case_source
+    assert "deliver_daily(trace_id=trace_id)" in use_case_source
+    assert "deliver_weekly(trace_id=trace_id)" in use_case_source
+    assert "REPORT_DAILY_GENERATED" in report_delivery_source
     assert "ANALYSIS_RISK_DETECTED" in use_case_source
     assert "ANALYSIS_QUALITY_EVALUATED" in use_case_source
-    assert "REPORT_WEEKLY_GENERATED" in use_case_source
+    assert "REPORT_WEEKLY_GENERATED" in report_delivery_source
+    assert "await self._daily.push_to_chat(report[\"content\"])" in report_delivery_source
+    assert "await self._weekly.push_to_chat(report[\"content\"])" in report_delivery_source
     assert "daily_report_failed" in use_case_source
     assert "milestone_check_failed" in use_case_source
     assert "quality_eval_failed" in use_case_source
     assert "weekly_report_failed" in use_case_source
+    assert "self._daily.generate" not in use_case_source
+    assert "self._weekly.generate" not in use_case_source
 
     assert "AnalysisEventUseCase" not in service_source
     assert "def _event_use_case" not in service_source
@@ -2082,12 +2445,8 @@ def test_analysis_agent_event_dispatch_delegates_to_application_use_case() -> No
 
 def test_analysis_outbox_delivery_delegates_to_application_use_case() -> None:
     """Analysis service shell should not own outbox delivery branching."""
-    service_source = Path(
-        "shared/capabilities/analysis/service/agent.py"
-    ).read_text()
-    facade_source = Path(
-        "shared/capabilities/analysis/core/application_facade.py"
-    ).read_text()
+    service_source = Path("shared/capabilities/analysis/service/agent.py").read_text()
+    facade_source = Path("shared/capabilities/analysis/core/application_facade.py").read_text()
     use_case_source = Path(
         "shared/capabilities/analysis/core/outbox_delivery_use_cases.py"
     ).read_text()
@@ -2107,13 +2466,11 @@ def test_analysis_outbox_delivery_delegates_to_application_use_case() -> None:
     assert "AnalysisOutboxDeliveryUseCase" not in service_source
     assert "def _outbox_delivery_use_case" not in service_source
     assert "def _outbox_delivery_use_case" in facade_source
-    assert (
-        "return await self._application.publish_pending_analysis_events"
-        in _function_source(service_source, "publish_pending_analysis_events")
+    assert "return await self._application.publish_pending_analysis_events" in _function_source(
+        service_source, "publish_pending_analysis_events"
     )
-    assert (
-        "return await self._application.publish_event_via_outbox(event)"
-        in _function_source(service_source, "publish_event_via_outbox")
+    assert "return await self._application.publish_event_via_outbox(event)" in _function_source(
+        service_source, "publish_event_via_outbox"
     )
     assert "rows = await self._outbox_store.list_pending" not in service_source
     assert "def _event_from_outbox" not in service_source
@@ -2138,7 +2495,7 @@ def test_sync_api_delegates_trigger_and_status_to_application_use_case() -> None
 
     assert "class SyncApiAgentPort(Protocol)" in use_case_source
     assert "class SyncApiUseCase" in use_case_source
-    assert "triggered_by=\"api\"" in use_case_source
+    assert 'triggered_by="api"' in use_case_source
     assert "agent.trigger_sync" not in api_source
     assert "agent.trigger_openproject_sync" not in api_source
     assert "agent.trigger_feishu_bitable_sync" not in api_source
@@ -2159,12 +2516,8 @@ def test_sync_api_delegates_trigger_and_status_to_application_use_case() -> None
 def test_sync_agent_request_dispatch_delegates_to_application_use_case() -> None:
     """Sync service shell should not own request action orchestration."""
     service_source = Path("shared/capabilities/sync/service/agent.py").read_text()
-    facade_source = Path(
-        "shared/capabilities/sync/core/application_facade.py"
-    ).read_text()
-    use_case_source = Path(
-        "shared/capabilities/sync/core/request_use_cases.py"
-    ).read_text()
+    facade_source = Path("shared/capabilities/sync/core/application_facade.py").read_text()
+    use_case_source = Path("shared/capabilities/sync/core/request_use_cases.py").read_text()
     handle_source = _function_source(service_source, "handle_request")
 
     assert "class SyncRequestUseCase" in use_case_source
@@ -2187,21 +2540,17 @@ def test_sync_agent_request_dispatch_delegates_to_application_use_case() -> None
     assert 'action == "sync_openproject"' not in handle_source
     assert 'action == "sync_feishu_bitable"' not in handle_source
     assert 'action == "status"' not in handle_source
-    assert "trigger_sync(triggered_by=\"manual\")" not in handle_source
-    assert "trigger_openproject_sync(triggered_by=\"manual\")" not in handle_source
-    assert "trigger_feishu_bitable_sync(triggered_by=\"manual\")" not in handle_source
+    assert 'trigger_sync(triggered_by="manual")' not in handle_source
+    assert 'trigger_openproject_sync(triggered_by="manual")' not in handle_source
+    assert 'trigger_feishu_bitable_sync(triggered_by="manual")' not in handle_source
     assert "unknown_action_error()" not in handle_source
 
 
 def test_sync_agent_event_dispatch_delegates_to_application_use_case() -> None:
     """Sync service shell should not own sync.trigger event parsing."""
     service_source = Path("shared/capabilities/sync/service/agent.py").read_text()
-    facade_source = Path(
-        "shared/capabilities/sync/core/application_facade.py"
-    ).read_text()
-    use_case_source = Path(
-        "shared/capabilities/sync/core/event_use_cases.py"
-    ).read_text()
+    facade_source = Path("shared/capabilities/sync/core/application_facade.py").read_text()
+    use_case_source = Path("shared/capabilities/sync/core/event_use_cases.py").read_text()
     handle_source = _function_source(service_source, "handle_event")
 
     assert "class SyncEventRunnerPort(Protocol)" in use_case_source
@@ -2231,12 +2580,8 @@ def test_sync_agent_event_dispatch_delegates_to_application_use_case() -> None:
 def test_sync_scope_execution_delegates_to_application_use_case() -> None:
     """Sync service shell should not own scoped lifecycle event orchestration."""
     service_source = Path("shared/capabilities/sync/service/agent.py").read_text()
-    facade_source = Path(
-        "shared/capabilities/sync/core/application_facade.py"
-    ).read_text()
-    use_case_source = Path(
-        "shared/capabilities/sync/core/scope_execution_use_cases.py"
-    ).read_text()
+    facade_source = Path("shared/capabilities/sync/core/application_facade.py").read_text()
+    use_case_source = Path("shared/capabilities/sync/core/scope_execution_use_cases.py").read_text()
     run_source = _function_source(service_source, "_run_sync_scope")
 
     assert "class SyncScopeExecutionUseCase" in use_case_source
@@ -2247,9 +2592,7 @@ def test_sync_scope_execution_delegates_to_application_use_case() -> None:
     assert "EventTypes.SYNC_STARTED" in use_case_source
     assert "EventTypes.SYNC_COMPLETED" in use_case_source
     assert "EventTypes.SYNC_FAILED" in use_case_source
-    assert "await self._event_publisher.publish_sync_event_via_outbox(event)" in (
-        use_case_source
-    )
+    assert "await self._event_publisher.publish_sync_event_via_outbox(event)" in (use_case_source)
     assert "def _sync_errors" in use_case_source
     assert "def _synced_count" in use_case_source
 
@@ -2266,16 +2609,14 @@ def test_sync_scope_execution_delegates_to_application_use_case() -> None:
     assert "EventTypes.SYNC_STARTED" not in run_source
     assert "EventTypes.SYNC_COMPLETED" not in run_source
     assert "EventTypes.SYNC_FAILED" not in run_source
-    assert "result.get(\"op_to_feishu\"" not in service_source
+    assert 'result.get("op_to_feishu"' not in service_source
     assert "SYNC_DURATION.observe(time.perf_counter()" not in service_source
 
 
 def test_sync_scheduler_delegates_to_application_use_case() -> None:
     """Sync scheduler should not own agent trigger orchestration."""
     app_source = Path("shared/capabilities/sync/app/main.py").read_text()
-    use_case_source = Path(
-        "shared/capabilities/sync/core/scheduler_use_cases.py"
-    ).read_text()
+    use_case_source = Path("shared/capabilities/sync/core/scheduler_use_cases.py").read_text()
 
     assert "class SyncSchedulerAgentPort(Protocol)" in use_case_source
     assert "class SyncSchedulerUseCase" in use_case_source
@@ -2291,9 +2632,7 @@ def test_sync_scheduler_delegates_to_application_use_case() -> None:
 def test_evolution_app_api_delegates_to_application_use_case() -> None:
     """Evolution HTTP routes should not own agent request/action orchestration."""
     app_source = Path("shared/capabilities/evolution/app/main.py").read_text()
-    use_case_source = Path(
-        "shared/capabilities/evolution/core/api_use_cases.py"
-    ).read_text()
+    use_case_source = Path("shared/capabilities/evolution/core/api_use_cases.py").read_text()
 
     assert "class EvolutionApiAgentPort(Protocol)" in use_case_source
     assert "class EvolutionApiUseCase" in use_case_source
@@ -2302,22 +2641,14 @@ def test_evolution_app_api_delegates_to_application_use_case() -> None:
 
     function_source = _function_source(app_source, "trigger_analysis")
     assert "agent.handle_request" not in function_source
-    assert "EvolutionApiUseCase = Depends(get_evolution_api_use_case)" in (
-        function_source
-    )
+    assert "EvolutionApiUseCase = Depends(get_evolution_api_use_case)" in (function_source)
 
 
 def test_evolution_agent_request_dispatch_delegates_to_application_use_case() -> None:
     """Evolution service shell should not own trigger-analysis orchestration."""
-    service_source = Path(
-        "shared/capabilities/evolution/service/agent.py"
-    ).read_text()
-    facade_source = Path(
-        "shared/capabilities/evolution/core/application_facade.py"
-    ).read_text()
-    use_case_source = Path(
-        "shared/capabilities/evolution/core/request_use_cases.py"
-    ).read_text()
+    service_source = Path("shared/capabilities/evolution/service/agent.py").read_text()
+    facade_source = Path("shared/capabilities/evolution/core/application_facade.py").read_text()
+    use_case_source = Path("shared/capabilities/evolution/core/request_use_cases.py").read_text()
     handle_source = _function_source(service_source, "handle_request")
 
     assert "class EvolutionApplicationFacade" in facade_source
@@ -2341,15 +2672,9 @@ def test_evolution_agent_request_dispatch_delegates_to_application_use_case() ->
 
 def test_evolution_agent_event_dispatch_delegates_to_application_use_case() -> None:
     """Evolution service shell should not own event workflow branching."""
-    service_source = Path(
-        "shared/capabilities/evolution/service/agent.py"
-    ).read_text()
-    facade_source = Path(
-        "shared/capabilities/evolution/core/application_facade.py"
-    ).read_text()
-    use_case_source = Path(
-        "shared/capabilities/evolution/core/event_use_cases.py"
-    ).read_text()
+    service_source = Path("shared/capabilities/evolution/service/agent.py").read_text()
+    facade_source = Path("shared/capabilities/evolution/core/application_facade.py").read_text()
+    use_case_source = Path("shared/capabilities/evolution/core/event_use_cases.py").read_text()
     handle_source = _function_source(service_source, "handle_event")
 
     assert "class EvolutionApplicationFacade" in facade_source
@@ -2372,9 +2697,7 @@ def test_evolution_agent_event_dispatch_delegates_to_application_use_case() -> N
     assert "return await self._application.handle_event(event)" in handle_source
     assert "def _event_use_case" in facade_source
     assert "return await self._event_use_case().handle(event)" in facade_source
-    assert "if event.event_type == EventTypes.EVOLUTION_CYCLE_TRIGGERED" not in (
-        handle_source
-    )
+    assert "if event.event_type == EventTypes.EVOLUTION_CYCLE_TRIGGERED" not in (handle_source)
     assert "EventTypes.EVOLUTION_HUMAN_FEEDBACK" not in handle_source
     assert "EventTypes.EVOLUTION_PATTERN_APPROVED" not in handle_source
     assert "_analyze_and_propose" not in service_source
@@ -2386,12 +2709,8 @@ def test_evolution_agent_event_dispatch_delegates_to_application_use_case() -> N
 
 def test_evolution_outbox_delivery_delegates_to_application_use_case() -> None:
     """Evolution service shell should not own outbox delivery branching."""
-    service_source = Path(
-        "shared/capabilities/evolution/service/agent.py"
-    ).read_text()
-    facade_source = Path(
-        "shared/capabilities/evolution/core/application_facade.py"
-    ).read_text()
+    service_source = Path("shared/capabilities/evolution/service/agent.py").read_text()
+    facade_source = Path("shared/capabilities/evolution/core/application_facade.py").read_text()
     use_case_source = Path(
         "shared/capabilities/evolution/core/outbox_delivery_use_cases.py"
     ).read_text()
@@ -2411,13 +2730,11 @@ def test_evolution_outbox_delivery_delegates_to_application_use_case() -> None:
     assert "EvolutionOutboxDeliveryUseCase" not in service_source
     assert "def _outbox_delivery_use_case" not in service_source
     assert "def _outbox_delivery_use_case" in facade_source
-    assert (
-        "return await self._application.publish_pending_evolution_events"
-        in _function_source(service_source, "publish_pending_evolution_events")
+    assert "return await self._application.publish_pending_evolution_events" in _function_source(
+        service_source, "publish_pending_evolution_events"
     )
-    assert (
-        "return await self._application.publish_event_via_outbox(event)"
-        in _function_source(service_source, "publish_event_via_outbox")
+    assert "return await self._application.publish_event_via_outbox(event)" in _function_source(
+        service_source, "publish_event_via_outbox"
     )
     assert "rows = await self._outbox_store.list_pending" not in service_source
     assert "def _event_from_outbox" not in service_source
@@ -2437,9 +2754,7 @@ def test_evolution_outbox_delivery_delegates_to_application_use_case() -> None:
 
 def test_evolution_proposal_approval_delegates_to_application_use_case() -> None:
     """Evolution service shell should not own approval/proposal-record branching."""
-    service_source = Path(
-        "shared/capabilities/evolution/service/agent.py"
-    ).read_text()
+    service_source = Path("shared/capabilities/evolution/service/agent.py").read_text()
     use_case_source = Path(
         "shared/capabilities/evolution/core/proposal_approval_use_cases.py"
     ).read_text()
@@ -2458,9 +2773,7 @@ def test_evolution_proposal_approval_delegates_to_application_use_case() -> None
     attach_source = _function_source(service_source, "_attach_proposal_approval")
     assert "EvolutionProposalApprovalUseCase" in service_source
     assert "def _proposal_approval_use_case" in service_source
-    assert "return await self._proposal_approval_use_case().attach_approval" in (
-        attach_source
-    )
+    assert "return await self._proposal_approval_use_case().attach_approval" in (attach_source)
     assert "ApprovalCategory.TECHNICAL" not in service_source
     assert "record_control_plane_proposal(" not in service_source
     assert "def _infer_proposal_tier" not in service_source
@@ -2468,17 +2781,19 @@ def test_evolution_proposal_approval_delegates_to_application_use_case() -> None
 
 
 def test_user_interaction_scheduler_delegates_to_application_use_case() -> None:
-    """User Interaction scheduler should not own agent request/action orchestration."""
-    app_source = Path("services/gateways/user_interaction/app/main.py").read_text()
-    use_case_source = Path(
-        "services/gateways/user_interaction/core/scheduler_use_cases.py"
-    ).read_text()
+    """Chat-agent scheduler should not own request/action orchestration."""
+    app_source = Path("agents/chat_agent/app/main.py").read_text()
+    gateway_app_source = Path("services/gateways/user_interaction/app/main.py").read_text()
+    use_case_source = Path("agents/chat_agent/core/scheduler_use_cases.py").read_text()
 
-    assert "class UserInteractionSchedulerAgentPort(Protocol)" in use_case_source
-    assert "class UserInteractionSchedulerUseCase" in use_case_source
+    assert "class ChatAgentSchedulerAgentPort(Protocol)" in use_case_source
+    assert "class ChatAgentSchedulerUseCase" in use_case_source
+    assert "ChatAgentSchedulerUseCase = ChatAgentSchedulerUseCase" not in use_case_source
     assert '{"action": action}' in use_case_source
     assert ".handle_request(" not in app_source
-    assert "UserInteractionSchedulerUseCase" in app_source
+    assert "ChatAgentSchedulerUseCase" in app_source
+    assert "AsyncIOScheduler" not in gateway_app_source
+    assert "ChatAgentSchedulerUseCase" not in gateway_app_source
 
     function_source = _function_source(app_source, "_run_scheduled_action")
     assert ".handle_request(" not in function_source
@@ -2547,17 +2862,16 @@ def test_dev_agent_request_dispatch_delegates_to_application_use_case() -> None:
     assert "def _request_use_case" not in service_source
     assert "def _request_boundary_use_case" not in service_source
     assert "return await self._application.handle_request(request)" in handle_source
-    assert (
-        "return await self._request_boundary_use_case().handle(request)"
-        in _function_source(application_source, "handle_request")
+    assert "return await self._request_boundary_use_case().handle(request)" in _function_source(
+        application_source, "handle_request"
     )
     assert "async with self._get_unit_of_work() as uow" not in handle_source
     assert "await uow.commit()" not in handle_source
     assert "database_not_initialized" not in handle_source
     assert "list_active_workflows" not in handle_source
     assert "await session.commit()" not in handle_source
-    assert "if action == \"get_task_status\"" not in handle_source
-    assert "if action == \"approve_workflow\"" not in handle_source
+    assert 'if action == "get_task_status"' not in handle_source
+    assert 'if action == "approve_workflow"' not in handle_source
     assert "WorkflowPlan.model_validate" not in service_source
     assert "approve_workflow_control_plane_required" not in service_source
 
@@ -2577,7 +2891,8 @@ def test_dev_agent_event_dispatch_delegates_to_application_use_case() -> None:
     assert "EventTypes.PM_TASKS_READY_FOR_DEV" in use_case_source
     assert "EventTypes.QA_ACCEPTANCE_COMPLETED" in use_case_source
     assert "TaskInput(" in use_case_source
-    assert "RiskLevel.CRITICAL" in use_case_source
+    assert "DevDeliveryWorkflowPolicy" in use_case_source
+    assert "rejects_automatic_delivery" in use_case_source
     assert "task_rejected_critical" in use_case_source
     assert "qa_result_received" in use_case_source
     assert "result_collector_not_available" in use_case_source
@@ -2586,16 +2901,11 @@ def test_dev_agent_event_dispatch_delegates_to_application_use_case() -> None:
     assert "DevApplicationFacade(" in service_source
     assert "def _event_use_case" not in service_source
     assert "return await self._application.handle_event(event)" in handle_source
-    assert (
-        "return await self._event_use_case().handle(event)"
-        in _function_source(application_source, "handle_event")
+    assert "return await self._event_use_case().handle(event)" in _function_source(
+        application_source, "handle_event"
     )
-    assert "if event.event_type == EventTypes.PM_TASKS_READY_FOR_DEV" not in (
-        handle_source
-    )
-    assert "if event.event_type == EventTypes.QA_ACCEPTANCE_COMPLETED" not in (
-        handle_source
-    )
+    assert "if event.event_type == EventTypes.PM_TASKS_READY_FOR_DEV" not in (handle_source)
+    assert "if event.event_type == EventTypes.QA_ACCEPTANCE_COMPLETED" not in (handle_source)
     assert "_handle_tasks_ready" not in service_source
     assert "_handle_qa_result" not in service_source
     assert "TaskInput(" not in service_source
@@ -2645,9 +2955,7 @@ def test_dev_agent_workflow_execution_delegates_to_application_use_case() -> Non
     """Dev service shell should not own task planning or AgentForge submission."""
     service_source = Path("agents/dev_agent/service/agent.py").read_text()
     application_source = Path("agents/dev_agent/core/application_facade.py").read_text()
-    use_case_source = Path(
-        "agents/dev_agent/core/workflow_execution_use_cases.py"
-    ).read_text()
+    use_case_source = Path("agents/dev_agent/core/workflow_execution_use_cases.py").read_text()
 
     assert "class DevWorkflowExecutionUseCase" in use_case_source
     assert "class DevWorkflowPlannerPort(Protocol)" in use_case_source
@@ -2812,21 +3120,111 @@ def test_control_plane_api_uses_shared_error_contracts() -> None:
     combined_source = control_plane_source + route_source
 
     assert "raise_control_plane_api_error" in combined_source
-    assert "from fastapi import APIRouter, Depends, HTTPException, Query" not in (
-        combined_source
-    )
+    assert "from fastapi import APIRouter, Depends, HTTPException, Query" not in (combined_source)
     assert "raise HTTPException(" not in combined_source
+
+
+def test_control_plane_readme_documents_ddd_context_map() -> None:
+    """Control Plane should keep its ubiquitous language near the runtime."""
+    readme_source = Path("shared/control_plane/README.md").read_text()
+    boundary_source = Path("docs/architecture/module-boundaries.md").read_text()
+    audit_source = Path("docs/architecture/ddd-compliance-audit.md").read_text()
+
+    assert "# Control Plane / Governance" in readme_source
+    assert "## Ubiquitous Language" in readme_source
+    assert "## Boundary Rules" in readme_source
+    assert "## Context-Map Relationships" in readme_source
+    assert "## Aggregate Ownership" in readme_source
+    assert "Control Plane aggregate catalog" in readme_source
+    assert "`domain/aggregate_catalog.py`" in readme_source
+    assert "`AuditEvent` aggregate in `domain/audit_event.py`" in readme_source
+    for term in (
+        "Company context",
+        "Goal",
+        "Work item",
+        "Agent role",
+        "Agent prompt config",
+        "Agent run",
+        "Decision",
+        "Approval request",
+        "Budget policy",
+        "Budget usage",
+        "Artifact",
+        "Audit event",
+        "Control Plane event outbox",
+        "Evolution proposal",
+        "Agent wakeup adapter config",
+        "Control Plane metadata",
+        "Control Plane state machine",
+        "Control Plane domain service",
+        "Control Plane aggregate catalog",
+    ):
+        assert term in readme_source
+    assert "Open-Host Service" in readme_source
+    assert "Anti-Corruption Layer" in readme_source
+    assert "Customer/Supplier" in readme_source
+    assert "Conformist" in readme_source
+    assert "Separate Ways" in readme_source
+    assert "shared/control_plane/README.md" in boundary_source
+    assert "ControlPlaneStateMachine" in boundary_source
+    assert "domain/aggregate_catalog.py" in audit_source
+    assert "CONTROL_PLANE_AGGREGATES" in audit_source
+    assert "12 ✓ / 0 ⚠ / 0 ✗" in audit_source
+
+
+def test_control_plane_aggregate_catalog_is_architecture_source_of_truth() -> None:
+    """Control Plane aggregate inventory should be domain-owned and guarded."""
+    from shared.control_plane.domain.aggregate_catalog import (
+        CONTROL_PLANE_AGGREGATES,
+        aggregate_record_names,
+    )
+
+    readme_source = Path("shared/control_plane/README.md").read_text()
+    audit_source = Path("docs/architecture/ddd-compliance-audit.md").read_text()
+
+    assert aggregate_record_names() == (
+        "CompanyContext",
+        "Goal",
+        "AgentRole",
+        "WorkItem",
+        "AgentRun",
+        "Decision",
+        "ApprovalRequest",
+        "BudgetPolicy",
+        "BudgetUsage",
+        "Artifact",
+        "AuditEvent",
+        "EvolutionProposal",
+        "AgentPromptConfig",
+    )
+    assert len(CONTROL_PLANE_AGGREGATES) == 13
+    for definition in CONTROL_PLANE_AGGREGATES:
+        assert Path(definition.module_path).exists()
+        assert Path(definition.test_path).exists()
+        assert definition.aggregate_name in readme_source
+        assert definition.module_path in audit_source
+        assert definition.test_path in audit_source
 
 
 def test_control_plane_approval_gate_uses_approval_store_port() -> None:
     """Approval-gate services should not directly construct repositories."""
     gate_source = Path("shared/control_plane/approval_gate.py").read_text()
+    domain_source = Path("shared/control_plane/domain/approval_request.py").read_text()
     port_source = Path("shared/control_plane/approval_ports.py").read_text()
     adapter_source = Path("shared/control_plane/approval_store.py").read_text()
 
     assert "class ControlPlaneApprovalStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneApprovalStore" in adapter_source
     assert "ApprovalRequestTable" in adapter_source
+    assert "class ApprovalRequest" in domain_source
+    assert "VALID_TRANSITIONS" in domain_source
+    assert "def approval_status_is_approved(" in domain_source
+    assert "ApprovalRequestAggregate.from_record(existing)" in gate_source
+    assert "aggregate.transition_to(ApprovalStatus.APPROVED)" in gate_source
+    assert "aggregate.transition_to(ApprovalStatus.REJECTED)" in gate_source
+    assert "ApprovalRequestAggregate.from_record(row)" in gate_source
+    assert "if not aggregate.is_approved:" in gate_source
+    assert "row.status != ApprovalStatus.APPROVED.value" not in gate_source
     assert "ControlPlaneRepository" not in adapter_source
     assert "ControlPlaneRepository" not in gate_source
     assert "ControlPlaneApprovalStore" in gate_source
@@ -2842,6 +3240,7 @@ def test_control_plane_approval_api_delegates_to_use_case() -> None:
     """Control-plane approval routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
     route_source = Path("shared/control_plane/api_routes/approvals.py").read_text()
+    domain_service_source = Path("shared/control_plane/domain/approval_resolution.py").read_text()
     use_case_source = Path("shared/control_plane/approval_use_cases.py").read_text()
 
     assert "create_approval_router" in api_source
@@ -2856,10 +3255,61 @@ def test_control_plane_approval_api_delegates_to_use_case() -> None:
         assert "append_audit_event" not in function_source
         assert "update_evolution_proposal_approval_state_by_approval" not in function_source
 
-    assert "resolve_approval_and_sync_proposal" in route_source
+    assert "resolve_approval(" in route_source
+    assert "apply_approval_resolution_to_linked_proposal" in route_source
+    assert "begin_next_transaction()" in route_source
+    assert "InvalidApprovalTransitionError" in route_source
+    assert "class ApprovalResolutionPolicy" in domain_service_source
+    assert "ControlPlaneDomainService" in domain_service_source
+    assert "class ApprovalResolutionPolicy(ControlPlaneDomainService)" in (
+        domain_service_source
+    )
+    assert "class ApprovalResolutionEffect" in domain_service_source
+    assert "proposal_update_kwargs" in domain_service_source
+    assert "proposal_audit_detail" in domain_service_source
+    assert "ApprovalResolutionPolicy().resolve" not in use_case_source
     assert "ApprovalGate(" in use_case_source
-    assert "update_evolution_proposal_approval_state_by_approval" in use_case_source
-    assert "append_audit_event" in use_case_source
+    assert "update_evolution_proposal_approval_state_by_approval" not in use_case_source
+    assert "append_audit_event" not in use_case_source
+    evolution_use_case_source = Path(
+        "shared/control_plane/evolution_proposal_use_cases.py"
+    ).read_text()
+    assert "ApprovalResolutionPolicy().resolve" in evolution_use_case_source
+    assert "apply_approval_resolution_event_to_linked_proposal" in (
+        evolution_use_case_source
+    )
+    assert "update_evolution_proposal_approval_state_by_approval" in (
+        evolution_use_case_source
+    )
+    assert "append_audit_event" in evolution_use_case_source
+    assert "EvolutionRolloutState.REJECTED" not in use_case_source
+    assert "ApprovalStatus.REJECTED" not in use_case_source
+    assert "ApprovalStatus.APPROVED" not in use_case_source
+
+
+def test_control_plane_cross_aggregate_policies_use_domain_service_contract() -> None:
+    """Control Plane cross-aggregate rules should use named domain services."""
+    service_source = Path("shared/control_plane/domain/services.py").read_text()
+    approval_source = Path("shared/control_plane/domain/approval_resolution.py").read_text()
+    execution_link_source = Path("shared/control_plane/domain/execution_links.py").read_text()
+    budget_policy_source = Path("shared/control_plane/domain/budget_policy.py").read_text()
+    readme_source = Path("shared/control_plane/README.md").read_text()
+    audit_source = Path("docs/architecture/ddd-compliance-audit.md").read_text()
+
+    assert "class ControlPlaneDomainService" in service_source
+    assert "__slots__ = ()" in service_source
+    assert "def service_name(" in service_source
+    assert "class ApprovalResolutionPolicy(ControlPlaneDomainService)" in (
+        approval_source
+    )
+    assert "class ExecutionLinkConsistencyPolicy(ControlPlaneDomainService)" in (
+        execution_link_source
+    )
+    assert "class BudgetPolicyConflictPolicy(ControlPlaneDomainService)" in (
+        budget_policy_source
+    )
+    assert "Control Plane domain service" in readme_source
+    assert "Domain services | ✓" in audit_source
 
 
 def test_control_plane_agent_registry_api_delegates_to_use_cases() -> None:
@@ -2868,18 +3318,29 @@ def test_control_plane_agent_registry_api_delegates_to_use_cases() -> None:
     route_source = Path("shared/control_plane/api_routes/agents.py").read_text()
     port_source = Path("shared/control_plane/agent_registry_ports.py").read_text()
     adapter_source = Path("shared/control_plane/agent_registry_store.py").read_text()
-    use_case_source = Path(
-        "shared/control_plane/agent_registry_use_cases.py"
-    ).read_text()
+    use_case_source = Path("shared/control_plane/agent_registry_use_cases.py").read_text()
+    domain_source = Path("shared/control_plane/domain/agent_role.py").read_text()
 
     assert "class ControlPlaneAgentRegistryStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneAgentRegistryStore" in adapter_source
     assert "ControlPlaneRepository" not in adapter_source
+    assert "class AgentRole" in domain_source
+    assert "class AgentRoleStatus" in domain_source
+    assert "VALID_TRANSITIONS" in domain_source
+    assert "RUNNABLE_STATUSES" in domain_source
     assert "create_agent_role_with_audit" in use_case_source
     assert "update_agent_role_with_audit" in use_case_source
     assert "update_agent_status_with_audit" in use_case_source
     assert "append_audit_event" in use_case_source
+    assert "AgentRoleAggregate.from_record(existing)" in use_case_source
+    assert "aggregate.transition_to(status)" in use_case_source
+    assert "append_control_plane_domain_event_audits" in use_case_source
     assert "DEFAULT_ADAPTER_REGISTRY" in use_case_source
+    assert "from shared.core.identifiers import AgentRoleId, CompanyId" in port_source
+    assert "agent_id: AgentRoleId" in port_source
+    assert "AgentRoleId(agent_id)" in use_case_source
+    assert "AgentRoleId(role.agent_id)" in use_case_source
+    assert "CompanyId(company_id)" in use_case_source
     assert "create_agent_router" in api_source
     assert "class AgentDefinitionCreateRequest" not in api_source
 
@@ -2954,6 +3415,7 @@ def test_control_plane_command_routes_use_explicit_unit_of_work() -> None:
     assert "class ControlPlaneUnitOfWork" in uow_source
     assert "ControlPlaneStores(session)" in uow_source
     assert "await self._session.commit()" in uow_source
+    assert "def begin_next_transaction(" in uow_source
     assert "await self._session.rollback()" in uow_source
     assert "control_plane_db_manager.async_session()" in api_source
 
@@ -2969,6 +3431,7 @@ def test_control_plane_company_api_delegates_to_use_cases() -> None:
     """Control-plane company routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
     route_source = Path("shared/control_plane/api_routes/companies.py").read_text()
+    domain_source = Path("shared/control_plane/domain/company_context.py").read_text()
     port_source = Path("shared/control_plane/company_ports.py").read_text()
     adapter_source = Path("shared/control_plane/company_store.py").read_text()
     use_case_source = Path("shared/control_plane/company_use_cases.py").read_text()
@@ -2979,7 +3442,17 @@ def test_control_plane_company_api_delegates_to_use_cases() -> None:
     assert "CompanyContextTable" in adapter_source
     assert "create_company_with_audit" in use_case_source
     assert "update_company_with_audit" in use_case_source
-    assert "append_audit_event" in use_case_source
+    assert "class CompanyContext" in domain_source
+    assert "class CompanyContextCreated" in domain_source
+    assert "class CompanyContextUpdated" in domain_source
+    assert "clean_company_name" in domain_source
+    assert "CompanyContextAggregate.for_creation(" in use_case_source
+    assert "CompanyContextAggregate.from_record(existing)" in use_case_source
+    assert "aggregate.apply_update(" in use_case_source
+    assert "aggregate.mark_created()" in use_case_source
+    assert "append_control_plane_domain_event_audits" in use_case_source
+    assert "append_audit_event" not in use_case_source
+    assert "InvalidCompanyContextError" in route_source
     assert "create_company_router" in api_source
     assert "class CompanyCreateRequest" not in api_source
 
@@ -3006,6 +3479,7 @@ def test_control_plane_goal_api_delegates_to_use_cases() -> None:
     """Control-plane goal routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
     route_source = Path("shared/control_plane/api_routes/goals.py").read_text()
+    domain_source = Path("shared/control_plane/domain/goal.py").read_text()
     port_source = Path("shared/control_plane/goal_ports.py").read_text()
     adapter_source = Path("shared/control_plane/goal_store.py").read_text()
     use_case_source = Path("shared/control_plane/goal_use_cases.py").read_text()
@@ -3018,6 +3492,12 @@ def test_control_plane_goal_api_delegates_to_use_cases() -> None:
     assert "update_goal_status_with_audit" in use_case_source
     assert "append_audit_event" in use_case_source
     assert "ParentGoalNotFoundError" in use_case_source
+    assert "class Goal" in domain_source
+    assert "VALID_TRANSITIONS" in domain_source
+    assert "def goal_current_value_for_transition(" in domain_source
+    assert "GoalAggregate.from_record(existing)" in use_case_source
+    assert "aggregate.transition_to(status)" in use_case_source
+    assert "InvalidGoalTransitionError" in route_source
     assert "create_goal_router" in api_source
     assert "class GoalCreateRequest" not in api_source
 
@@ -3044,9 +3524,8 @@ def test_control_plane_work_item_api_delegates_to_use_cases() -> None:
     route_source = Path("shared/control_plane/api_routes/work_items.py").read_text()
     port_source = Path("shared/control_plane/work_item_ports.py").read_text()
     adapter_source = Path("shared/control_plane/work_item_store.py").read_text()
-    use_case_source = Path(
-        "shared/control_plane/work_item_use_cases.py"
-    ).read_text()
+    use_case_source = Path("shared/control_plane/work_item_use_cases.py").read_text()
+    domain_source = Path("shared/control_plane/domain/work_item.py").read_text()
     execution_use_case_source = Path(
         "shared/control_plane/work_item_execution_use_cases.py"
     ).read_text()
@@ -3063,12 +3542,21 @@ def test_control_plane_work_item_api_delegates_to_use_cases() -> None:
     assert "append_audit_event" in use_case_source
     assert "WorkItemGoalNotFoundError" in use_case_source
     assert "WorkItemDependencyNotFoundError" in use_case_source
+    assert "class WorkItem" in domain_source
+    assert "VALID_TRANSITIONS" in domain_source
+    assert "def is_work_item_close_status(" in domain_source
+    assert "def work_item_status_from_agent_run_status(" in domain_source
+    assert "WorkItemAggregate.from_record(existing)" in use_case_source
+    assert "aggregate.transition_to(status)" in use_case_source
     assert "run_work_item_with_agent" in execution_use_case_source
     assert "ControlPlaneAgentOperationStore" in execution_use_case_source
     assert "wake_agent_definition" in execution_use_case_source
+    assert "work_item_status_from_agent_run_status" in execution_use_case_source
     assert "reassign_work_item" in operation_use_case_source
     assert "block_work_item" in operation_use_case_source
     assert "close_work_item" in operation_use_case_source
+    assert "is_work_item_close_status(status)" in operation_use_case_source
+    assert "WorkItemStatus.COMPLETED," not in operation_use_case_source
     assert "create_work_item_router" in api_source
     assert "class WorkItemCreateRequest" not in api_source
 
@@ -3107,11 +3595,11 @@ def test_control_plane_decision_api_delegates_to_use_cases() -> None:
     """Control-plane decision routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
     route_source = Path("shared/control_plane/api_routes/decisions.py").read_text()
+    domain_source = Path("shared/control_plane/domain/decision.py").read_text()
+    execution_link_source = Path("shared/control_plane/domain/execution_links.py").read_text()
     port_source = Path("shared/control_plane/decision_ports.py").read_text()
     adapter_source = Path("shared/control_plane/decision_store.py").read_text()
-    use_case_source = Path(
-        "shared/control_plane/decision_use_cases.py"
-    ).read_text()
+    use_case_source = Path("shared/control_plane/decision_use_cases.py").read_text()
 
     assert "class ControlPlaneDecisionStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneDecisionStore" in adapter_source
@@ -3121,6 +3609,25 @@ def test_control_plane_decision_api_delegates_to_use_cases() -> None:
     assert "update_decision_status_with_audit" in use_case_source
     assert "append_audit_event" in use_case_source
     assert "DecisionLinkMismatchError" in use_case_source
+    assert "class Decision" in domain_source
+    assert "VALID_TRANSITIONS" in domain_source
+    assert "class ExecutionLinks" in execution_link_source
+    assert "class ExecutionLinkConsistencyPolicy(ControlPlaneDomainService)" in (
+        execution_link_source
+    )
+    assert "def resolve_agent_run(" in execution_link_source
+    assert "def resolve_work_item(" in execution_link_source
+    assert "ExecutionLinkConsistencyPolicy()" in use_case_source
+    assert "link_policy.requested_links(" in use_case_source
+    assert "link_policy.resolve_agent_run(links, run)" in use_case_source
+    assert "link_policy.resolve_work_item(links, work_item)" in use_case_source
+    assert "link_policy.persistence_refs(links)" in use_case_source
+    assert "run.work_item_id != " not in use_case_source
+    assert "run.goal_id != " not in use_case_source
+    assert "work_item.goal_id != " not in use_case_source
+    assert "DecisionAggregate.from_record(existing)" in use_case_source
+    assert "aggregate.transition_to(status)" in use_case_source
+    assert "InvalidDecisionTransitionError" in route_source
     assert "create_decision_router" in api_source
     assert "class DecisionCreateRequest" not in api_source
 
@@ -3142,23 +3649,215 @@ def test_control_plane_decision_api_delegates_to_use_cases() -> None:
         assert "validate_execution_links" not in function_source
 
 
+def test_control_plane_domain_events_share_base_type_contract() -> None:
+    """Control-plane aggregate events should share one domain-event base."""
+    event_base_source = Path("shared/control_plane/domain/events.py").read_text()
+    expected_events = {
+        "shared/control_plane/domain/agent_prompt_config.py": "AgentPromptConfigUpdated",
+        "shared/control_plane/domain/agent_role.py": "AgentRoleStatusChanged",
+        "shared/control_plane/domain/agent_run.py": "AgentRunStatusChanged",
+        "shared/control_plane/domain/approval_request.py": "ApprovalStatusChanged",
+        "shared/control_plane/domain/artifact.py": "ArtifactCreated",
+        "shared/control_plane/domain/budget_policy.py": "BudgetPolicyUpdated",
+        "shared/control_plane/domain/budget_usage.py": "BudgetUsageRecorded",
+        "shared/control_plane/domain/company_context.py": "CompanyContextUpdated",
+        "shared/control_plane/domain/decision.py": "DecisionStatusChanged",
+        "shared/control_plane/domain/evolution_proposal.py": ("EvolutionRolloutStatusChanged"),
+        "shared/control_plane/domain/goal.py": "GoalStatusChanged",
+        "shared/control_plane/domain/work_item.py": "WorkItemStatusChanged",
+    }
+
+    assert "class ControlPlaneDomainEvent" in event_base_source
+    assert "def event_name(self)" in event_base_source
+    assert "def to_payload(self)" in event_base_source
+
+    for module_path, event_class in expected_events.items():
+        source = Path(module_path).read_text()
+        assert "from .events import ControlPlaneDomainEvent" in source
+        assert f"class {event_class}(ControlPlaneDomainEvent):" in source
+
+
+def test_control_plane_domain_events_have_audit_collection_boundary() -> None:
+    """Control-plane aggregate events should be collected through audit/outbox boundaries."""
+    collector_source = Path("shared/control_plane/domain_event_audit.py").read_text()
+    outbox_mapper_source = Path("shared/control_plane/domain_event_outbox.py").read_text()
+    outbox_store_source = Path("shared/control_plane/event_outbox_store.py").read_text()
+    outbox_port_source = Path("shared/control_plane/event_outbox_ports.py").read_text()
+    audit_store_source = Path("shared/control_plane/audit_event_store.py").read_text()
+    table_source = Path("shared/control_plane/tables.py").read_text()
+    migration_source = Path(
+        "migrations/versions/20260526_control_plane_event_outbox.py"
+    ).read_text()
+    use_case_paths = (
+        "shared/control_plane/approval_gate.py",
+        "shared/control_plane/agent_prompt_config.py",
+        "shared/control_plane/agent_registry_use_cases.py",
+        "shared/control_plane/artifact_use_cases.py",
+        "shared/control_plane/budget_guard.py",
+        "shared/control_plane/budget_use_cases.py",
+        "shared/control_plane/company_use_cases.py",
+        "shared/control_plane/decision_use_cases.py",
+        "shared/control_plane/domain/lifecycle/agent_run_lifecycle.py",
+        "shared/control_plane/evolution_proposal_use_cases.py",
+        "shared/control_plane/goal_use_cases.py",
+        "shared/control_plane/run_evidence.py",
+        "shared/control_plane/work_item_use_cases.py",
+    )
+
+    assert "class ControlPlaneDomainEventAuditStore(Protocol)" in collector_source
+    assert "class DomainEventAuditContext" in collector_source
+    assert "def audit_event_from_domain_event" in collector_source
+    assert "async def append_control_plane_domain_event_audits" in collector_source
+    assert "event.to_payload()" in collector_source
+    assert '"domain_event"' in collector_source
+    assert "AgentPromptConfigUpdated" in collector_source
+    assert "EventTypes.AGENT_PROMPT_CONFIG_UPDATED" in collector_source
+    assert "AgentRoleStatusChanged" in collector_source
+    assert "EventTypes.AGENT_ROLE_STATUS_UPDATED" in collector_source
+    assert "ArtifactCreated" in collector_source
+    assert "EventTypes.ARTIFACT_CREATED" in collector_source
+    assert "BudgetPolicyCreated" in collector_source
+    assert "EventTypes.BUDGET_POLICY_CREATED" in collector_source
+    assert "BudgetPolicyUpdated" in collector_source
+    assert "EventTypes.BUDGET_POLICY_UPDATED" in collector_source
+    assert "BudgetUsageRecorded" in collector_source
+    assert "EventTypes.BUDGET_USAGE_RECORDED" in collector_source
+    assert "CompanyContextCreated" in collector_source
+    assert "EventTypes.COMPANY_CREATED" in collector_source
+    assert "CompanyContextUpdated" in collector_source
+    assert "EventTypes.COMPANY_UPDATED" in collector_source
+    assert "clean_audit_detail(event.to_payload())" in collector_source
+    assert "def outbox_event_from_audit_event(" in outbox_mapper_source
+    assert "audit_event_carries_domain_event" in outbox_mapper_source
+    assert 'CONTROL_PLANE_EVENT_SOURCE_AGENT = "control-plane"' in outbox_mapper_source
+    assert "EventMetadata(" in outbox_mapper_source
+    assert "class ControlPlaneEventOutboxStore(Protocol)" in outbox_port_source
+    assert "class ControlPlaneEventOutboxTable" in table_source
+    assert '__tablename__ = "control_plane_event_outbox"' in table_source
+    assert "class SqlAlchemyControlPlaneEventOutboxStore" in outbox_store_source
+    assert "def list_pending(" in outbox_store_source
+    assert "def mark_published(" in outbox_store_source
+    assert "def mark_failed(" in outbox_store_source
+    assert "audit_event_carries_domain_event(event)" in audit_store_source
+    assert "outbox_event_from_audit_event(event)" in audit_store_source
+    assert "SqlAlchemyControlPlaneEventOutboxStore(self._session).add" in (
+        audit_store_source
+    )
+    assert "control_plane_event_outbox" in migration_source
+
+    for path in use_case_paths:
+        source = Path(path).read_text()
+        assert "append_control_plane_domain_event_audits" in source
+        assert "DomainEventAuditContext" in source
+        assert "pull_events()" in source
+
+
+def test_control_plane_audit_event_store_uses_domain_aggregate() -> None:
+    """Audit-event persistence should normalize through the domain boundary."""
+    domain_source = Path("shared/control_plane/domain/audit_event.py").read_text()
+    store_source = Path("shared/control_plane/audit_event_store.py").read_text()
+
+    assert "class AuditEvent" in domain_source
+    assert "class InvalidAuditEventError" in domain_source
+    assert "def clean_audit_detail(" in domain_source
+    assert "def for_append(" in domain_source
+    assert "AuditEventAggregate.for_append(event)" in store_source
+    assert "event = aggregate.record" in store_source
+    assert "AuditEventTable(**model_values(event))" in store_source
+
+
+def test_control_plane_metadata_value_object_guards_json_boundaries() -> None:
+    """Control-plane metadata/config dictionaries should normalize in the domain."""
+    metadata_source = Path("shared/control_plane/domain/metadata.py").read_text()
+    domain_init_source = Path("shared/control_plane/domain/__init__.py").read_text()
+    adoption_paths = (
+        "shared/control_plane/domain/agent_prompt_config.py",
+        "shared/control_plane/domain/agent_wakeup_adapter.py",
+        "shared/control_plane/domain/artifact.py",
+        "shared/control_plane/domain/audit_event.py",
+        "shared/control_plane/domain/company_context.py",
+    )
+
+    assert "class ControlPlaneMetadata" in metadata_source
+    assert "class InvalidControlPlaneMetadataError" in metadata_source
+    assert "MappingProxyType" in metadata_source
+    assert "def keys_tuple(" in metadata_source
+    assert "def as_dict(" in metadata_source
+    assert "ControlPlaneMetadata" in domain_init_source
+    assert "InvalidControlPlaneMetadataError" in domain_init_source
+
+    for path in adoption_paths:
+        source = Path(path).read_text()
+        assert "from .metadata import ControlPlaneMetadata" in source
+        assert "ControlPlaneMetadata.from_mapping(" in source
+
+
+def test_control_plane_state_machines_use_shared_domain_value_object() -> None:
+    """Control-plane lifecycle aggregates should use one FSM value object."""
+    state_machine_source = Path("shared/control_plane/domain/state_machine.py").read_text()
+    domain_init_source = Path("shared/control_plane/domain/__init__.py").read_text()
+    adoption_paths = (
+        "shared/control_plane/domain/agent_role.py",
+        "shared/control_plane/domain/agent_run.py",
+        "shared/control_plane/domain/approval_request.py",
+        "shared/control_plane/domain/budget_policy.py",
+        "shared/control_plane/domain/decision.py",
+        "shared/control_plane/domain/evolution_proposal.py",
+        "shared/control_plane/domain/goal.py",
+        "shared/control_plane/domain/work_item.py",
+    )
+
+    assert "class ControlPlaneStateMachine" in state_machine_source
+    assert "class InvalidControlPlaneStateMachineError" in state_machine_source
+    assert "MappingProxyType" in state_machine_source
+    assert "def ensure_can_transition(" in state_machine_source
+    assert "def terminal_states(" in state_machine_source
+    assert "ControlPlaneStateMachine" in domain_init_source
+    assert "InvalidControlPlaneStateMachineError" in domain_init_source
+
+    for path in adoption_paths:
+        source = Path(path).read_text()
+        assert "from .state_machine import ControlPlaneStateMachine" in source
+        assert "ControlPlaneStateMachine.from_transitions(" in source
+        assert ".ensure_can_transition(" in source
+
+
 def test_control_plane_artifact_api_delegates_to_use_cases() -> None:
     """Control-plane artifact routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
     route_source = Path("shared/control_plane/api_routes/artifacts.py").read_text()
+    artifact_domain_source = Path("shared/control_plane/domain/artifact.py").read_text()
+    execution_link_source = Path("shared/control_plane/domain/execution_links.py").read_text()
     port_source = Path("shared/control_plane/artifact_ports.py").read_text()
     adapter_source = Path("shared/control_plane/artifact_store.py").read_text()
-    use_case_source = Path(
-        "shared/control_plane/artifact_use_cases.py"
-    ).read_text()
+    use_case_source = Path("shared/control_plane/artifact_use_cases.py").read_text()
 
     assert "class ControlPlaneArtifactStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneArtifactStore" in adapter_source
     assert "ArtifactTable" in adapter_source
     assert "ControlPlaneRepository" not in adapter_source
+    assert "class Artifact" in artifact_domain_source
+    assert "class ArtifactCreated" in artifact_domain_source
+    assert "def with_execution_links(" in artifact_domain_source
     assert "create_artifact_with_audit" in use_case_source
-    assert "append_audit_event" in use_case_source
+    assert "ArtifactAggregate.for_creation(artifact)" in use_case_source
+    assert "aggregate.with_execution_links(" in use_case_source
+    assert "aggregate.mark_created()" in use_case_source
+    assert "append_control_plane_domain_event_audits" in use_case_source
+    assert "append_audit_event" not in use_case_source
     assert "ArtifactLinkMismatchError" in use_case_source
+    assert "class ExecutionLinks" in execution_link_source
+    assert "class ExecutionLinkConsistencyPolicy(ControlPlaneDomainService)" in (
+        execution_link_source
+    )
+    assert "ExecutionLinkConsistencyPolicy()" in use_case_source
+    assert "link_policy.requested_links(" in use_case_source
+    assert "link_policy.resolve_agent_run(links, run)" in use_case_source
+    assert "link_policy.resolve_work_item(links, work_item)" in use_case_source
+    assert "link_policy.persistence_refs(links)" in use_case_source
+    assert "run.work_item_id != " not in use_case_source
+    assert "run.goal_id != " not in use_case_source
+    assert "work_item.goal_id != " not in use_case_source
     assert "create_artifact_router" in api_source
     assert "class ArtifactCreateRequest" not in api_source
 
@@ -3190,11 +3889,10 @@ def test_control_plane_operator_use_cases_return_domain_records() -> None:
         "approval_request_record": Path("shared/control_plane/approval_store.py"),
         "decision_record": Path("shared/control_plane/decision_store.py"),
         "artifact_record": Path("shared/control_plane/artifact_store.py"),
+        "audit_event_record": Path("shared/control_plane/audit_event_store.py"),
         "budget_policy_record": Path("shared/control_plane/budget_store.py"),
         "budget_usage_record": Path("shared/control_plane/budget_store.py"),
-        "evolution_proposal_record": Path(
-            "shared/control_plane/evolution_proposal_store.py"
-        ),
+        "evolution_proposal_record": Path("shared/control_plane/evolution_proposal_store.py"),
     }
     use_case_paths = (
         Path("shared/control_plane/company_use_cases.py"),
@@ -3254,15 +3952,10 @@ def test_control_plane_evolution_proposal_api_delegates_to_use_cases() -> None:
     """Control-plane evolution proposal routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
     route_source = Path("shared/control_plane/api_routes/evolution_proposals.py").read_text()
-    port_source = Path(
-        "shared/control_plane/evolution_proposal_ports.py"
-    ).read_text()
-    adapter_source = Path(
-        "shared/control_plane/evolution_proposal_store.py"
-    ).read_text()
-    use_case_source = Path(
-        "shared/control_plane/evolution_proposal_use_cases.py"
-    ).read_text()
+    domain_source = Path("shared/control_plane/domain/evolution_proposal.py").read_text()
+    port_source = Path("shared/control_plane/evolution_proposal_ports.py").read_text()
+    adapter_source = Path("shared/control_plane/evolution_proposal_store.py").read_text()
+    use_case_source = Path("shared/control_plane/evolution_proposal_use_cases.py").read_text()
 
     assert "class ControlPlaneEvolutionProposalStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneEvolutionProposalStore" in adapter_source
@@ -3271,6 +3964,23 @@ def test_control_plane_evolution_proposal_api_delegates_to_use_cases() -> None:
     assert "update_evolution_proposal_status_with_audit" in use_case_source
     assert "ApprovalGate(store)" in use_case_source
     assert "append_audit_event" in use_case_source
+    assert "def rollout_state_requires_approval(" in domain_source
+    assert "def approval_state_is_approved(" in domain_source
+    assert "EvolutionProposalAggregate.from_record(existing)" in use_case_source
+    assert "aggregate.advance_rollout(rollout_state_target)" in use_case_source
+    assert (
+        "from shared.core.identifiers import ApprovalRequestId, CompanyId, EvolutionProposalId"
+        in (port_source)
+    )
+    assert "proposal_id: EvolutionProposalId" in port_source
+    assert "approval_id: ApprovalRequestId" in port_source
+    assert "EvolutionProposalId(proposal_id)" in use_case_source
+    assert "ApprovalRequestId(approval_id)" in use_case_source
+    assert "CompanyId(company_id)" in use_case_source
+    assert "rollout_state_requires_approval(rollout_state_target)" in use_case_source
+    assert "approval_state_is_approved(" in use_case_source
+    assert "effective_approval_state" in use_case_source
+    assert "def _rollout_requires_approval(" not in use_case_source
     assert "create_evolution_proposal_router" in api_source
     assert "class EvolutionProposalCreateRequest" not in api_source
 
@@ -3300,19 +4010,48 @@ def test_control_plane_budget_api_delegates_to_use_cases() -> None:
     """Control-plane budget routes should not own repository mutations."""
     api_source = Path("shared/control_plane/api.py").read_text()
     route_source = Path("shared/control_plane/api_routes/budgets.py").read_text()
+    domain_source = Path("shared/control_plane/domain/budget_policy.py").read_text()
+    usage_domain_source = Path("shared/control_plane/domain/budget_usage.py").read_text()
     port_source = Path("shared/control_plane/budget_ports.py").read_text()
+    guard_port_source = Path("shared/control_plane/budget_guard_ports.py").read_text()
     adapter_source = Path("shared/control_plane/budget_store.py").read_text()
+    guard_source = Path("shared/control_plane/budget_guard.py").read_text()
     use_case_source = Path("shared/control_plane/budget_use_cases.py").read_text()
 
     assert "class ControlPlaneBudgetStore(Protocol)" in port_source
+    assert "async def record_budget_usage(" in port_source
     assert "SqlAlchemyControlPlaneBudgetStore" in adapter_source
     assert "BudgetPolicyTable" in adapter_source
     assert "BudgetUsageTable" in adapter_source
     assert "ControlPlaneRepository" not in adapter_source
     assert "create_budget_policy_with_audit" in use_case_source
     assert "update_budget_policy_with_audit" in use_case_source
-    assert "append_audit_event" in use_case_source
+    assert "class BudgetPolicy" in domain_source
+    assert "class BudgetPolicyConflictPolicy(ControlPlaneDomainService)" in (
+        domain_source
+    )
+    assert "class BudgetPolicyConflictError" in domain_source
+    assert "class BudgetPolicyCreated" in domain_source
+    assert "class BudgetPolicyUpdated" in domain_source
+    assert "class BudgetUsage" in usage_domain_source
+    assert "class BudgetUsageRecorded" in usage_domain_source
+    assert "clean_budget_usage_model" in usage_domain_source
+    assert "VALID_TRANSITIONS" in domain_source
+    assert "BudgetPolicyAggregate.for_creation(budget)" in use_case_source
+    assert "BudgetPolicyAggregate.from_record(existing)" in use_case_source
+    assert "aggregate.apply_update(" in use_case_source
+    assert "aggregate.mark_created()" in use_case_source
+    assert "append_control_plane_domain_event_audits" in use_case_source
+    assert "append_audit_event" not in use_case_source
+    assert "BudgetUsageAggregate.for_recording(usage)" in adapter_source
+    assert "BudgetUsageAggregate.for_recording(" in guard_source
+    assert "usage.mark_recorded()" in guard_source
+    assert "append_control_plane_domain_event_audits" in guard_source
+    assert "append_audit_event" in guard_port_source
     assert "ActiveBudgetPolicyConflictError" in use_case_source
+    assert "BudgetPolicyConflictPolicy()" in use_case_source
+    assert "conflict_policy.ensure_no_active_conflict(" in use_case_source
+    assert "InvalidBudgetPolicyTransitionError" in route_source
     assert "create_budget_router" in api_source
     assert "class BudgetPolicyCreateRequest" not in api_source
 
@@ -3335,6 +4074,67 @@ def test_control_plane_budget_api_delegates_to_use_cases() -> None:
         assert "ensure_no_active_budget_policy_conflict" not in function_source
 
 
+def test_control_plane_budget_policy_status_vocabulary_lives_in_domain() -> None:
+    """BudgetPolicy active-state conflicts must use the domain vocabulary."""
+    domain_source = Path("shared/control_plane/domain/budget_policy.py").read_text()
+    amount_source = Path("shared/control_plane/domain/budget_amount.py").read_text()
+    api_source = Path("shared/control_plane/api_routes/budgets.py").read_text()
+    adapter_source = Path("shared/control_plane/budget_store.py").read_text()
+    guard_source = Path("shared/control_plane/budget_guard.py").read_text()
+    use_case_source = Path("shared/control_plane/budget_use_cases.py").read_text()
+
+    assert "BUDGET_POLICY_STATUS_ACTIVE" in domain_source
+    assert "BUDGET_POLICY_STATUS_PAUSED" in domain_source
+    assert "BUDGET_POLICY_STATUS_ARCHIVED" in domain_source
+    assert "def is_active_budget_policy_status(" in domain_source
+    assert "def is_budget_policy_status(" in domain_source
+    assert "def normalize_budget_policy_status(" in domain_source
+    assert "class BudgetPolicyStatus" in domain_source
+    assert "class InvalidBudgetPolicyTransitionError" in domain_source
+    assert "VALID_TRANSITIONS" in domain_source
+    assert "@dataclass(frozen=True, slots=True, order=True)" in amount_source
+    assert "class BudgetAmount" in amount_source
+    assert "class BudgetWarningThreshold" in amount_source
+    assert "def positive_usd(" in amount_source
+    assert "def non_negative_usd(" in amount_source
+    assert "def plus(" in amount_source
+    assert "def exceeds(" in amount_source
+
+    assert "from ..domain.budget_policy import" in api_source
+    assert "BUDGET_POLICY_STATUSES =" not in api_source
+    assert "is_budget_policy_status(" in api_source
+    assert "normalize_budget_policy_status(" in api_source
+
+    assert "from .domain.budget_policy import BUDGET_POLICY_STATUS_ACTIVE" in (adapter_source)
+    assert "BudgetPolicyTable.status == BUDGET_POLICY_STATUS_ACTIVE" in adapter_source
+    assert 'BudgetPolicyTable.status == "active"' not in adapter_source
+
+    assert "from .domain.budget_policy import (" in use_case_source
+    assert "is_active_budget_policy_status" not in use_case_source
+    assert "BudgetPolicyConflictPolicy" in use_case_source
+    assert "BudgetPolicyAggregate.for_creation(budget)" in use_case_source
+    assert "BudgetPolicyAggregate.from_record(existing)" in use_case_source
+    assert "aggregate.apply_update(" in use_case_source
+    assert "BudgetAmount.positive_usd(self.record.limit_usd)" in domain_source
+    assert "BudgetAmount.positive_usd(limit_usd)" in domain_source
+    assert "BudgetWarningThreshold.from_ratio(" in domain_source
+    assert "conflict_policy.requires_unique_active_policy(aggregate.status)" in (
+        use_case_source
+    )
+    assert "conflict_policy.requires_unique_active_policy(budget_policy_status(status))" in (
+        use_case_source
+    )
+    assert 'budget.status == "active"' not in use_case_source
+    assert 'status == "active"' not in use_case_source
+
+    assert "from .domain.budget_amount import BudgetAmount" in guard_source
+    assert "BudgetAmount.non_negative_usd(estimated_cost_usd)" in guard_source
+    assert "BudgetAmount.positive_usd(policy.limit_usd)" in guard_source
+    assert "BudgetAmount.non_negative_usd(cost_usd)" in guard_source
+    assert "current.plus(estimated_cost)" in guard_source
+    assert "estimated_total.exceeds(limit)" in guard_source
+
+
 def test_control_plane_budget_guard_uses_budget_store_port() -> None:
     """Infra budget enforcement should not construct control-plane repositories."""
     guard_source = Path("shared/control_plane/budget_guard.py").read_text()
@@ -3350,6 +4150,7 @@ def test_control_plane_budget_guard_uses_budget_store_port() -> None:
     assert "ControlPlaneRepository" not in adapter_source
     assert "ControlPlaneBudgetGuardStore" in guard_source
     assert "ControlPlaneRepository" not in guard_source
+    assert "append_audit_event" in port_source + adapter_source
 
     for source in (llm_source, tool_source):
         assert "ControlPlaneRepository" not in source
@@ -3362,9 +4163,7 @@ def test_control_plane_audit_timeline_api_delegates_to_use_cases() -> None:
     route_source = Path("shared/control_plane/api_routes/audit.py").read_text()
     port_source = Path("shared/control_plane/audit_timeline_ports.py").read_text()
     adapter_source = Path("shared/control_plane/audit_timeline_store.py").read_text()
-    use_case_source = Path(
-        "shared/control_plane/audit_timeline_use_cases.py"
-    ).read_text()
+    use_case_source = Path("shared/control_plane/audit_timeline_use_cases.py").read_text()
 
     assert "class ControlPlaneAuditTimelineStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlaneAuditTimelineStore" in adapter_source
@@ -3394,12 +4193,13 @@ def test_control_plane_agent_operations_delegate_to_use_cases_and_ports() -> Non
     route_source = Path("shared/control_plane/api_routes/agents.py").read_text()
     port_source = Path("shared/control_plane/agent_operation_ports.py").read_text()
     adapter_source = Path("shared/control_plane/agent_operation_store.py").read_text()
-    use_case_source = Path(
-        "shared/control_plane/agent_operation_use_cases.py"
-    ).read_text()
+    use_case_source = Path("shared/control_plane/agent_operation_use_cases.py").read_text()
     runner_source = Path("shared/control_plane/agent_runner.py").read_text()
     lifecycle_source = Path(
         "shared/control_plane/domain/lifecycle/agent_run_lifecycle.py"
+    ).read_text()
+    adapter_config_source = Path(
+        "shared/control_plane/domain/agent_wakeup_adapter.py"
     ).read_text()
     scheduler_source = Path("shared/control_plane/scheduler.py").read_text()
     evidence_source = Path("shared/control_plane/run_evidence.py").read_text()
@@ -3426,6 +4226,14 @@ def test_control_plane_agent_operations_delegate_to_use_cases_and_ports() -> Non
     assert "start_agent_wakeup_run" in runner_source
     assert "complete_agent_wakeup_run" in runner_source
     assert "fail_agent_wakeup_run" in runner_source
+    assert "AgentRoleAggregate.from_record(agent)" in runner_source
+    assert "role.is_runnable" in runner_source
+    assert "_TERMINAL_ROLE_STATUSES" not in runner_source
+    assert "class AgentWakeupAdapterConfig" in adapter_config_source
+    assert "AgentWakeupAdapterConfig.from_agent_role(agent)" in runner_source
+    assert "AgentWakeupAdapterConfig.from_agent_role(agent)" in scheduler_source
+    assert "dict(agent.adapter_config or {})" not in runner_source
+    assert "dict(agent.adapter_config or {})" not in scheduler_source
     assert "AgentRun(" not in runner_source
     assert "AuditEvent(" not in runner_source
     assert "create_run_evidence_artifact" not in runner_source
@@ -3476,9 +4284,7 @@ def test_control_plane_runtime_plugin_delegates_to_use_cases_and_ports() -> None
     plugin_source = Path("shared/app/plugins/control_plane.py").read_text()
     port_source = Path("shared/control_plane/runtime_plugin_ports.py").read_text()
     adapter_source = Path("shared/control_plane/runtime_plugin_store.py").read_text()
-    use_case_source = Path(
-        "shared/control_plane/runtime_plugin_use_cases.py"
-    ).read_text()
+    use_case_source = Path("shared/control_plane/runtime_plugin_use_cases.py").read_text()
     evidence_port_source = Path("shared/control_plane/run_evidence_ports.py").read_text()
 
     assert "class ControlPlaneRuntimePluginStore" in port_source
@@ -3524,19 +4330,25 @@ def test_control_plane_role_bootstrap_uses_store_port() -> None:
     assert "ControlPlaneRepository" not in adapter_source
     assert "session.begin_nested" in adapter_source
     assert "IntegrityError" in adapter_source
-    assert "SqlAlchemyControlPlaneRoleBootstrapStore(self._session)" in (
-        runtime_adapter_source
-    )
+    assert "SqlAlchemyControlPlaneRoleBootstrapStore(self._session)" in (runtime_adapter_source)
 
 
 def test_control_plane_prompt_config_uses_prompt_store_port() -> None:
     """Prompt-config helpers should not directly construct repositories."""
     helper_source = Path("shared/control_plane/agent_prompt_config.py").read_text()
+    domain_source = Path("shared/control_plane/domain/agent_prompt_config.py").read_text()
     port_source = Path("shared/control_plane/prompt_config_ports.py").read_text()
     adapter_source = Path("shared/control_plane/prompt_config_store.py").read_text()
 
     assert "class ControlPlanePromptConfigStore(Protocol)" in port_source
     assert "SqlAlchemyControlPlanePromptConfigStore" in adapter_source
+    assert "class AgentPromptConfig" in domain_source
+    assert "class AgentPromptConfigUpdated" in domain_source
+    assert "def clean_system_prompt(" in domain_source
+    assert "def clean_updated_by(" in domain_source
+    assert "AgentPromptConfigAggregate.for_target(" in helper_source
+    assert "aggregate.update(" in helper_source
+    assert "append_control_plane_domain_event_audits" in helper_source
     assert "ControlPlaneRepository" not in adapter_source
     assert "ControlPlaneRepository" not in helper_source
     assert "ControlPlanePromptConfigStore" in helper_source
@@ -3582,6 +4394,7 @@ def test_backend_boundary_contract_documents_table_owners() -> None:
     required_tables = (
         "control_plane_companies",
         "control_plane_agent_roles",
+        "control_plane_event_outbox",
         "requirements",
         "requirement_event_outbox",
         "open_questions",
@@ -3604,6 +4417,7 @@ def test_backend_boundary_contract_documents_table_owners() -> None:
         "evolution_event_outbox",
         "evolution_traces",
         "users",
+        "identity_event_outbox",
     )
     for table_name in required_tables:
         assert f"`{table_name}`" in source
@@ -3617,31 +4431,81 @@ def test_backend_boundary_contract_documents_table_owners() -> None:
 def test_identity_user_table_has_migration_and_owner_contract() -> None:
     """The shared User model must have a durable migration and explicit owner."""
     migration_path = Path("migrations/versions/20260506_identity_users_table.py")
+    outbox_migration_path = Path("migrations/versions/20260527_identity_event_outbox.py")
     env_source = Path("migrations/env.py").read_text()
     doc_source = Path("docs/guides/backend-boundaries.md").read_text()
     migration_source = migration_path.read_text()
+    outbox_migration_source = outbox_migration_path.read_text()
 
     assert migration_path.exists()
+    assert outbox_migration_path.exists()
     assert "shared.models.user" in env_source
+    assert "shared.models.identity_event_outbox" in env_source
     assert 'op.create_table(\n        "users"' in migration_source
     assert 'op.create_index("ix_users_email", "users", ["email"], unique=True)' in migration_source
-    assert "`users` | Identity / User | Identity/user service path only" in doc_source
+    assert 'op.create_table(\n        "identity_event_outbox"' in outbox_migration_source
+    assert "`users`, `identity_event_outbox` | Identity / User |" in doc_source
 
 
 def test_inbound_user_service_uses_identity_store_port() -> None:
     """Inbound identity resolution should not directly construct repositories."""
     service_source = Path("shared/messaging/inbound/user_service.py").read_text()
+    use_case_source = Path("shared/core/identity_resolution.py").read_text()
+    outbox_mapper_source = Path("shared/core/identity_event_outbox.py").read_text()
     port_source = Path("shared/core/identity_ports.py").read_text()
+    domain_source = Path("shared/core/identity_domain.py").read_text()
+    model_source = Path("shared/models/user.py").read_text()
     adapter_source = Path("shared/db/user_store.py").read_text()
+    outbox_store_source = Path("shared/db/identity_event_outbox_store.py").read_text()
 
     assert "class UserIdentityStore(Protocol)" in port_source
+    assert "class IdentityEventOutboxStore(Protocol)" in port_source
+    assert "class PlatformUserRef" in domain_source
+    assert "class EmailAddress" in domain_source
+    assert "class PhoneNumber" in domain_source
+    assert "class UserCreated" in domain_source
+    assert "class PlatformLinked" in domain_source
+    assert "class UserActivated" in domain_source
+    assert "def create_identity(" in model_source
+    assert "def link_platform_account(" in model_source
+    assert "def record_activity(" in model_source
+    assert "def pull_domain_events(" in model_source
     assert "SqlAlchemyUserIdentityStore" in adapter_source
     assert "UserRepository" in adapter_source
+    assert "SqlAlchemyIdentityEventOutboxStore" in outbox_store_source
+    assert "IdentityEventOutbox" in outbox_store_source
     assert "shared.core.identity_ports" in adapter_source
     assert "shared.messaging.inbound" not in adapter_source
     assert "UserRepository" not in service_source
     assert "UserIdentityStore" in service_source
+    assert "IdentityEventOutboxStore" in service_source
+    assert "PlatformUserRef" in service_source
+    assert "identity_event_from_domain_event" in service_source
+    assert "identity_event_from_domain_event" in outbox_mapper_source
+    assert "EventTypes.IDENTITY_USER_CREATED" in outbox_mapper_source
+    assert '"email_present"' in outbox_mapper_source
+    assert '"email":' not in outbox_mapper_source
+    assert "shared.core.identity_resolution" in service_source
+    assert not Path("shared/messaging/inbound/identity_resolution_use_cases.py").exists()
+    assert "IdentityResolutionUseCase" in service_source
+    assert "class IdentityResolutionUseCase" in use_case_source
+    assert "class IdentityPlatformDirectoryPort(Protocol)" in use_case_source
+    assert "from shared.models.platform import Platform" in use_case_source
+    assert "shared.messaging.inbound" not in use_case_source
+    assert "record_activity(" in use_case_source
+    assert "link_platform_account(" in use_case_source
+    assert "store.get_by_platform_id(" in use_case_source
+    assert "store.get_by_email(" in use_case_source
+    assert "store.update(user)" in use_case_source
+    assert "UserRepository" not in use_case_source
+    assert "SqlAlchemyUserIdentityStore" not in use_case_source
     assert "_new_user_store" in service_source
+    assert "IdentityResolutionUseCase" in Path(
+        "docs/architecture/identity-boundary.md"
+    ).read_text()
+    assert "12 ✓ / 0 ⚠ / 0 ✗" in Path(
+        "docs/architecture/ddd-compliance-audit.md"
+    ).read_text()
 
 
 def test_requirement_events_have_durable_outbox_contract() -> None:
@@ -3660,9 +4524,7 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
         "agents/requirement_manager/core/requirement_mutation_workflow.py"
     ).read_text()
     service_source = Path("agents/requirement_manager/service/agent.py").read_text()
-    application_source = Path(
-        "agents/requirement_manager/core/application_facade.py"
-    ).read_text()
+    application_source = Path("agents/requirement_manager/core/application_facade.py").read_text()
     doc_source = Path("docs/guides/backend-boundaries.md").read_text()
 
     assert migration_path.exists()
@@ -3694,21 +4556,17 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
     assert "EventBusEventPublisher(self._event_bus)" in service_source
     assert "def _outbox_delivery_use_case" not in service_source
     assert "RequirementOutboxDeliveryUseCase" in application_source
-    assert (
-        "return await self._outbox_delivery.publish_pending_events"
-        in _function_source(application_source, "publish_pending_requirement_events")
+    assert "return await self._outbox_delivery.publish_pending_events" in _function_source(
+        application_source, "publish_pending_requirement_events"
     )
-    assert (
-        "return await self._application.publish_pending_requirement_events"
-        in _function_source(service_source, "publish_pending_requirement_events")
+    assert "return await self._application.publish_pending_requirement_events" in _function_source(
+        service_source, "publish_pending_requirement_events"
     )
-    assert (
-        "return await self._outbox_delivery.publish_event_via_outbox(event)"
-        in _function_source(application_source, "publish_event_via_outbox")
+    assert "return await self._outbox_delivery.publish_event_via_outbox(event)" in _function_source(
+        application_source, "publish_event_via_outbox"
     )
-    assert (
-        "return await self._application.publish_event_via_outbox(event)"
-        in _function_source(service_source, "publish_event_via_outbox")
+    assert "return await self._application.publish_event_via_outbox(event)" in _function_source(
+        service_source, "publish_event_via_outbox"
     )
     assert "await self._event_publisher.publish(event)" not in service_source
     assert "await self._event_bus.publish(event)" not in service_source
@@ -3717,9 +4575,7 @@ def test_requirement_events_have_durable_outbox_contract() -> None:
     _assert_documented_outbox_delivery_gap(doc_source)
 
     app_source = Path("agents/requirement_manager/app/main.py").read_text()
-    plugin_source = Path(
-        "agents/requirement_manager/app/plugins/outbox_dispatcher.py"
-    ).read_text()
+    plugin_source = Path("agents/requirement_manager/app/plugins/outbox_dispatcher.py").read_text()
     assert "RequirementOutboxDispatcherPlugin()" in app_source
     assert "publish_pending_requirement_events" in plugin_source
 
@@ -3747,9 +4603,7 @@ def test_pjm_decomposition_api_events_have_durable_outbox_contract() -> None:
         "agents/pjm_agent/core/decomposition_recovery_workflow.py"
     ).read_text()
     event_use_case_source = Path("agents/pjm_agent/core/event_use_cases.py").read_text()
-    application_facade_source = Path(
-        "agents/pjm_agent/core/application_facade.py"
-    ).read_text()
+    application_facade_source = Path("agents/pjm_agent/core/application_facade.py").read_text()
     doc_source = Path("docs/guides/backend-boundaries.md").read_text()
 
     assert migration_path.exists()
@@ -3811,16 +4665,12 @@ def test_pjm_decomposition_api_events_have_durable_outbox_contract() -> None:
     assert "DecompositionRepository" not in service_source
     assert "AlertLogRepository" not in service_source
     assert "self._decomposition_store.list_stale_pending" not in service_source
-    assert "self._decomposition_store_provider().list_stale_pending" in (
-        application_facade_source
-    )
+    assert "self._decomposition_store_provider().list_stale_pending" in (application_facade_source)
     assert "self._alert_log_store.record_alerts" in event_use_case_source
     assert "await self._decomposition.publish_event_via_outbox(failure_event)" in (
         event_use_case_source
     )
-    assert "await self.publish_event_via_outbox(timeout_event)" in (
-        application_facade_source
-    )
+    assert "await self.publish_event_via_outbox(timeout_event)" in (application_facade_source)
     assert "self._event_bus.publish(" not in service_source
     assert "self._event_bus.publish(" not in event_use_case_source
     assert "`pjm_agent_event_outbox`" in doc_source
@@ -3832,12 +4682,91 @@ def test_pjm_decomposition_api_events_have_durable_outbox_contract() -> None:
     assert "publish_pending_pjm_events" in plugin_source
 
 
+def test_pjm_decomposition_approval_uses_work_package_id_value_object() -> None:
+    """PJM approval internals should not keep using raw OpenProject ints."""
+    identifier_source = Path("shared/core/identifiers.py").read_text()
+    domain_source = Path("agents/pjm_agent/core/domain/decomposition.py").read_text()
+    decomposition_port_source = Path("agents/pjm_agent/core/decomposition_ports.py").read_text()
+    approval_workflow_source = Path(
+        "agents/pjm_agent/core/decomposition_approval_workflow.py"
+    ).read_text()
+    request_workflow_source = Path(
+        "agents/pjm_agent/core/decomposition_request_workflow.py"
+    ).read_text()
+    recovery_workflow_source = Path(
+        "agents/pjm_agent/core/decomposition_recovery_workflow.py"
+    ).read_text()
+    lifecycle_source = Path(
+        "agents/pjm_agent/core/domain/lifecycle/decomposition_lifecycle.py"
+    ).read_text()
+    value_source = Path("agents/pjm_agent/core/domain/decomposition_values.py").read_text()
+    orchestrator_source = Path("agents/pjm_agent/core/decomposition_orchestrator.py").read_text()
+
+    assert 'WorkPackageId = NewType("WorkPackageId", int)' in identifier_source
+    assert 'OpenProjectProjectId = NewType("OpenProjectProjectId", int)' in identifier_source
+    assert 'DecompositionStatus = NewType("DecompositionStatus", str)' in lifecycle_source
+    assert "from shared.core.identifiers import WorkPackageId" in domain_source
+    assert "WorkPackageId" in decomposition_port_source
+    assert "WorkPackageId" in approval_workflow_source
+    assert "WorkPackageId" in request_workflow_source
+    assert "WorkPackageId" in recovery_workflow_source
+    assert "OpenProjectProjectId" in decomposition_port_source
+    assert "OpenProjectProjectId" in approval_workflow_source
+    assert "OpenProjectProjectId" in request_workflow_source
+    assert "OpenProjectProjectId" in recovery_workflow_source
+    assert "wp_id: WorkPackageId" in domain_source
+    assert "status: DecompositionStatus" in domain_source
+    assert "wp_id: WorkPackageId" in decomposition_port_source
+    assert "project_id: OpenProjectProjectId" in decomposition_port_source
+    assert "status: DecompositionStatus" in decomposition_port_source
+    assert "wp_id: WorkPackageId" in approval_workflow_source
+    assert "project_id: OpenProjectProjectId" in approval_workflow_source
+    assert "wp_id = WorkPackageId(payload.wp_id)" in request_workflow_source
+    assert "project_id = OpenProjectProjectId(payload.project_id)" in request_workflow_source
+    assert "wp_id: WorkPackageId" in request_workflow_source
+    assert "project_id: OpenProjectProjectId" in request_workflow_source
+    assert "wp_id: WorkPackageId" in recovery_workflow_source
+    assert "work_package_id = WorkPackageId(wp_id)" in orchestrator_source
+    assert "work_package_id = WorkPackageId(wp_id) if wp_id else None" in orchestrator_source
+    assert "class DecompositionRejectionReason" in value_source
+    assert "DecompositionRejectionReason.from_text(reason)" in approval_workflow_source
+    assert "wp_id,\n            approved_by," not in orchestrator_source
+    assert "wp_id,\n            rejected_by," not in orchestrator_source
+    assert "wp_id = payload.wp_id" not in request_workflow_source
+    assert "project_id = payload.project_id" not in request_workflow_source
+
+
+def test_pjm_decomposition_workflows_use_domain_policy_service() -> None:
+    """PJM request/recovery status rules should live in a domain service."""
+    policy_source = Path("agents/pjm_agent/core/domain/decomposition_policy.py").read_text()
+    request_workflow_source = Path(
+        "agents/pjm_agent/core/decomposition_request_workflow.py"
+    ).read_text()
+    recovery_workflow_source = Path(
+        "agents/pjm_agent/core/decomposition_recovery_workflow.py"
+    ).read_text()
+    policy_test_path = Path("agents/pjm_agent/tests/unit/test_decomposition_workflow_policy.py")
+
+    assert "class DecompositionWorkflowPolicy" in policy_source
+    assert "class DecompositionIntakeDecision" in policy_source
+    assert "class DecompositionRetryDecision" in policy_source
+    assert "def intake_decision(" in policy_source
+    assert "def retry_decision(" in policy_source
+    assert "DecompositionWorkflowPolicy" in request_workflow_source
+    assert "self._workflow_policy = DecompositionWorkflowPolicy()" in request_workflow_source
+    assert "intake_decision = self._workflow_policy.intake_decision(" in request_workflow_source
+    assert "DecompositionWorkflowPolicy" in recovery_workflow_source
+    assert "self._workflow_policy = DecompositionWorkflowPolicy()" in recovery_workflow_source
+    assert "retry_decision = self._workflow_policy.retry_decision(" in recovery_workflow_source
+    assert "_EXISTING_BLOCKING_STATUSES" not in request_workflow_source
+    assert "_RECOVERABLE_STATUSES" not in recovery_workflow_source
+    assert policy_test_path.exists()
+
+
 def test_coordinator_service_uses_state_store_port() -> None:
     """Coordinator orchestration should depend on a state-store port."""
     service_source = Path("services/orchestration/coordinator/service/agent.py").read_text()
-    port_source = Path(
-        "services/orchestration/coordinator/core/state_ports.py"
-    ).read_text()
+    port_source = Path("services/orchestration/coordinator/core/state_ports.py").read_text()
 
     assert "class CoordinatorStateStorePort(Protocol)" in port_source
     assert "state_store: CoordinatorStateStorePort | None = None" in service_source
@@ -3851,14 +4780,66 @@ def test_coordinator_event_orchestration_delegates_to_application_use_case() -> 
     facade_source = Path(
         "services/orchestration/coordinator/core/application_facade.py"
     ).read_text()
-    use_case_source = Path(
-        "services/orchestration/coordinator/core/event_use_cases.py"
+    use_case_source = Path("services/orchestration/coordinator/core/event_use_cases.py").read_text()
+    dispatcher_source = Path("services/orchestration/coordinator/core/dispatcher.py").read_text()
+    dispatch_domain_source = Path(
+        "services/orchestration/coordinator/core/domain/dispatch.py"
+    ).read_text()
+    workflow_domain_source = Path(
+        "services/orchestration/coordinator/core/domain/workflow_state.py"
+    ).read_text()
+    state_record_domain_source = Path(
+        "services/orchestration/coordinator/core/domain/state_records.py"
+    ).read_text()
+    scratchpad_domain_source = Path(
+        "services/orchestration/coordinator/core/domain/scratchpad.py"
+    ).read_text()
+    state_store_source = Path(
+        "services/orchestration/coordinator/db/state_store.py"
+    ).read_text()
+    postgres_state_store_source = Path(
+        "services/orchestration/coordinator/db/postgres_state_store.py"
+    ).read_text()
+    state_port_source = Path(
+        "services/orchestration/coordinator/core/state_ports.py"
     ).read_text()
     handle_source = _function_source(service_source, "handle_event")
 
     assert "class CoordinatorEventUseCase" in use_case_source
     assert "class CoordinatorScratchpadPort(Protocol)" in use_case_source
     assert "class CoordinatorThinkerPort(Protocol)" in use_case_source
+    assert "class CoordinatorDispatchPolicy" in dispatch_domain_source
+    assert "class CoordinatorDispatchTarget" in dispatch_domain_source
+    assert "class CoordinatorDispatchRoute" in dispatch_domain_source
+    assert "class CoordinatorDispatchEnvelope" in dispatch_domain_source
+    assert "class CoordinatorWorkflowState" in workflow_domain_source
+    assert "class CoordinatorWorkflowStatus" in workflow_domain_source
+    assert "CoordinatorWorkflowStatusChanged" in workflow_domain_source
+    assert "CoordinatorAgentId = NewType" in state_record_domain_source
+    assert "CoordinatorDecisionId = NewType" in state_record_domain_source
+    assert "class CoordinatorAgentStateRecord" in state_record_domain_source
+    assert "class CoordinatorDecisionRecord" in state_record_domain_source
+    assert "class CoordinatorAgentStatus" in state_record_domain_source
+    assert "class CoordinatorScratchpadProjectionPlan" in scratchpad_domain_source
+    assert "class CoordinatorScratchpadConsistencyPolicy" in scratchpad_domain_source
+    assert "requires_projection_update" in scratchpad_domain_source
+    assert "decisions_persisted and projection_updated" in scratchpad_domain_source
+    assert "def model_dump(" in state_record_domain_source
+    assert "def transition_to(" in workflow_domain_source
+    assert "def upsert_workflow_state" in state_port_source
+    assert "dict[str, CoordinatorAgentStateRecord]" in state_port_source
+    assert "list[CoordinatorDecisionRecord]" in state_port_source
+    assert "CoordinatorAgentStateRecord.create(" in state_store_source
+    assert "CoordinatorDecisionRecord.create(" in state_store_source
+    assert "CoordinatorAgentStateRecord.create(" in postgres_state_store_source
+    assert "CoordinatorDecisionRecord.create(" in postgres_state_store_source
+    assert "CoordinatorWorkflowState.from_record(state)" in state_store_source
+    assert "WorkflowStateAggregate.from_record(state)" in postgres_state_store_source
+    assert "CoordinatorDispatchPolicy" in dispatcher_source
+    assert ".envelope_for(decision)" in dispatcher_source
+    assert 'target == "dev-agent"' not in dispatcher_source
+    assert 'target == "qa-agent"' not in dispatcher_source
+    assert 'target == "chat-agent"' not in dispatcher_source
     assert "classify_event(event)" in use_case_source
     assert 'classified.kind == "progress"' in use_case_source
     assert "update_agent_state(" in use_case_source
@@ -3867,6 +4848,9 @@ def test_coordinator_event_orchestration_delegates_to_application_use_case() -> 
     assert "get_pending_decisions()" in use_case_source
     assert "decision_to_event(decision)" in use_case_source
     assert "state_store.persist(decisions)" in use_case_source
+    assert "plan_after_decision_synthesis(" in use_case_source
+    assert "requires_projection_update" in use_case_source
+    assert "decisions_for_projection()" in use_case_source
     assert "asyncio.create_task" in use_case_source
 
     assert "CoordinatorEventUseCase" in facade_source
@@ -3890,9 +4874,7 @@ def test_dev_result_collection_events_have_durable_outbox_contract() -> None:
     model_source = Path("agents/dev_agent/models/dev.py").read_text()
     repository_source = Path("agents/dev_agent/db/repository.py").read_text()
     port_source = Path("agents/dev_agent/core/outbox_ports.py").read_text()
-    delivery_source = Path(
-        "agents/dev_agent/core/outbox_delivery_use_cases.py"
-    ).read_text()
+    delivery_source = Path("agents/dev_agent/core/outbox_delivery_use_cases.py").read_text()
     adapter_source = Path("agents/dev_agent/db/outbox_store.py").read_text()
     workflow_log_adapter_source = Path("agents/dev_agent/db/workflow_log_store.py").read_text()
     service_source = Path("agents/dev_agent/service/agent.py").read_text()
@@ -3917,9 +4899,10 @@ def test_dev_result_collection_events_have_durable_outbox_contract() -> None:
     assert "DevWorkflowLogRepository" in workflow_log_adapter_source
     assert "from ..db.repository import DevWorkflowLogRepository" not in service_source
     assert "DevWorkflowLogRepository(session)" not in service_source
-    assert "SqlAlchemyDevWorkflowLogStore(session)" in Path(
-        "agents/dev_agent/db/unit_of_work.py"
-    ).read_text()
+    assert (
+        "SqlAlchemyDevWorkflowLogStore(session)"
+        in Path("agents/dev_agent/db/unit_of_work.py").read_text()
+    )
     assert "publish_pending_dev_events" in service_source
     assert "publish_staged_dev_events" in service_source
     assert "DevEventOutboxRepository" not in service_source
@@ -3930,25 +4913,22 @@ def test_dev_result_collection_events_have_durable_outbox_contract() -> None:
         "return await self._outbox_delivery_use_case().publish_pending_events"
         in _function_source(application_source, "publish_pending_dev_events")
     )
-    assert (
-        "return await self._application.publish_pending_dev_events"
-        in _function_source(service_source, "publish_pending_dev_events")
+    assert "return await self._application.publish_pending_dev_events" in _function_source(
+        service_source, "publish_pending_dev_events"
     )
     assert (
         "return await self._outbox_delivery_use_case().publish_staged_events(events)"
         in _function_source(application_source, "publish_staged_dev_events")
     )
-    assert (
-        "return await self._application.publish_staged_dev_events"
-        in _function_source(service_source, "publish_staged_dev_events")
+    assert "return await self._application.publish_staged_dev_events" in _function_source(
+        service_source, "publish_staged_dev_events"
     )
     assert (
         "return await self._outbox_delivery_use_case().publish_event_via_outbox(event)"
         in _function_source(application_source, "publish_event_via_outbox")
     )
-    assert (
-        "return await self._application.publish_event_via_outbox(event)"
-        in _function_source(service_source, "publish_event_via_outbox")
+    assert "return await self._application.publish_event_via_outbox(event)" in _function_source(
+        service_source, "publish_event_via_outbox"
     )
     assert "await self._event_publisher.publish(event)" not in service_source
     assert "dev_outbox_publish_failed" not in service_source
@@ -3971,14 +4951,15 @@ def test_channel_gateway_events_have_durable_outbox_contract() -> None:
     """Channel gateway produced events must be staged before external publish."""
     migration_path = Path("migrations/versions/20260513_channel_event_outbox.py")
     migration_source = migration_path.read_text()
+    lifecycle_source = Path(
+        "services/gateways/channel/core/outbox_lifecycle.py"
+    ).read_text()
     model_source = Path("services/gateways/channel/models/event_outbox.py").read_text()
     repository_source = Path("services/gateways/channel/db/repository.py").read_text()
     port_source = Path("services/gateways/channel/core/outbox_ports.py").read_text()
     adapter_source = Path("services/gateways/channel/db/outbox_store.py").read_text()
     service_source = Path("services/gateways/channel/service/agent.py").read_text()
-    facade_source = Path(
-        "services/gateways/channel/core/application_facade.py"
-    ).read_text()
+    facade_source = Path("services/gateways/channel/core/application_facade.py").read_text()
     use_case_source = Path(
         "services/gateways/channel/core/outbox_delivery_use_cases.py"
     ).read_text()
@@ -3988,8 +4969,20 @@ def test_channel_gateway_events_have_durable_outbox_contract() -> None:
 
     assert migration_path.exists()
     assert 'op.create_table(\n        "channel_gateway_event_outbox"' in migration_source
+    assert "class ChannelGatewayOutboxLifecycle" in lifecycle_source
+    assert "class ChannelGatewayOutboxStatus" in lifecycle_source
+    assert "InvalidChannelGatewayOutboxTransitionError" in lifecycle_source
     assert "class ChannelGatewayEventOutbox" in model_source
     assert "class ChannelGatewayEventOutboxRepository" in repository_source
+    assert "ChannelGatewayOutboxLifecycle.stage(event.event_id)" in repository_source
+    assert "ChannelGatewayOutboxLifecycle.from_record(row).mark_published()" in (
+        repository_source
+    )
+    assert "ChannelGatewayOutboxLifecycle.from_record(row).record_failure(error)" in (
+        repository_source
+    )
+    assert 'status="pending"' not in repository_source
+    assert 'status="published"' not in repository_source
     assert "class ChannelGatewayEventOutboxStore" in port_source
     assert "SqlAlchemyChannelGatewayEventOutboxStore" in adapter_source
     assert "class ChannelGatewayApplicationFacade" in facade_source
@@ -3999,12 +4992,10 @@ def test_channel_gateway_events_have_durable_outbox_contract() -> None:
     assert "await self.publish_channel_event_via_outbox(e)" in service_source
     assert "return await self._application.publish_pending_channel_events" in service_source
     assert "return await self._application.publish_channel_event_via_outbox" in service_source
-    assert "record_outbox_pending_age(\"channel-gateway\", rows)" in use_case_source
+    assert 'record_outbox_pending_age("channel-gateway", rows)' in use_case_source
     assert "await self._event_publisher.publish(event)" in use_case_source
     assert "await self._outbox_store.mark_published(event.event_id)" in use_case_source
-    assert "await self._outbox_store.mark_failed(event.event_id, str(error))" in (
-        use_case_source
-    )
+    assert "await self._outbox_store.mark_failed(event.event_id, str(error))" in (use_case_source)
     assert "ChannelGatewayEventOutboxRepository" not in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
     assert "await self._event_publisher.publish(event)" not in service_source
@@ -4015,32 +5006,54 @@ def test_channel_gateway_events_have_durable_outbox_contract() -> None:
     assert "`channel_gateway_event_outbox`" in doc_source
     assert "`channel_gateway_event_outbox`" in event_catalog_source
 
-    plugin_source = Path(
-        "services/gateways/channel/app/plugins/outbox_dispatcher.py"
-    ).read_text()
+    plugin_source = Path("services/gateways/channel/app/plugins/outbox_dispatcher.py").read_text()
     assert "ChannelOutboxDispatcherPlugin()" in app_source
     assert "publish_pending_channel_events" in plugin_source
+
+
+def test_channel_gateway_readme_documents_context_map_relationships() -> None:
+    """Channel Gateway must document its gateway relationships locally."""
+    readme_source = Path("services/gateways/channel/README.md").read_text()
+    boundary_source = Path("docs/architecture/module-boundaries.md").read_text()
+    audit_source = Path("docs/architecture/ddd-compliance-audit.md").read_text()
+
+    assert "## Context-Map Relationships" in readme_source
+    assert "Open-Host Service" in readme_source
+    assert "Customer/Supplier" in readme_source
+    assert "Anti-Corruption Layer" in readme_source
+    assert "Conformist" in readme_source
+    assert "channel.message.outbound" in readme_source
+    assert "Channel Gateway is Open-Host Service" in boundary_source
+    assert "ChannelProviderACL" in boundary_source
+    assert "ChannelGatewayOutboxLifecycle" in audit_source
+    assert "7 ✓ / 0 ⚠ / 0 ✗ / 5 n/a" in audit_source
 
 
 def test_channel_gateway_event_orchestration_delegates_to_application_use_case() -> None:
     """Channel gateway service shell should not own outbound delivery branching."""
     service_source = Path("services/gateways/channel/service/agent.py").read_text()
-    facade_source = Path(
-        "services/gateways/channel/core/application_facade.py"
-    ).read_text()
-    use_case_source = Path(
-        "services/gateways/channel/core/event_use_cases.py"
+    facade_source = Path("services/gateways/channel/core/application_facade.py").read_text()
+    use_case_source = Path("services/gateways/channel/core/event_use_cases.py").read_text()
+    provider_acl_source = Path(
+        "services/gateways/channel/core/provider_acl.py"
     ).read_text()
     handle_source = _function_source(service_source, "handle_event")
 
     assert "class ChannelGatewayApplicationFacade" in facade_source
-    assert "class ChannelAdapterPort(Protocol)" in use_case_source
-    assert "class ChannelAdapterRegistryPort(Protocol)" in use_case_source
+    assert "class ChannelProviderAdapterPort(Protocol)" in provider_acl_source
+    assert "class ChannelProviderRegistryPort(Protocol)" in provider_acl_source
+    assert "class ChannelProviderDeliveryRequest" in provider_acl_source
+    assert "class ChannelProviderDeliveryResponse" in provider_acl_source
+    assert "class ChannelProviderACL" in provider_acl_source
+    assert "ChannelProviderDeliveryRequest(" in use_case_source
+    assert "provider_acl.deliver(" in use_case_source
+    assert "provider_acl.adapter_missing(" in use_case_source
     assert "class ChannelGatewayEventUseCase" in use_case_source
     assert "MessageOutboundPayload.model_validate" in use_case_source
     assert "MessageDeliveredPayload" in use_case_source
-    assert "DeliveryResult(" in use_case_source
-    assert "adapter.send_message(message)" in use_case_source
+    assert "DeliveryResult(" not in use_case_source
+    assert "adapter.send_message(message)" not in use_case_source
+    assert "adapter.send_message(request.message)" in provider_acl_source
 
     assert "service.event_handlers" not in service_source
     assert "dispatch_event" not in service_source
@@ -4055,12 +5068,8 @@ def test_channel_gateway_event_orchestration_delegates_to_application_use_case()
 def test_channel_gateway_lifecycle_delegates_to_application_use_case() -> None:
     """Channel gateway service shell should not own adapter lifecycle payloads."""
     service_source = Path("services/gateways/channel/service/agent.py").read_text()
-    facade_source = Path(
-        "services/gateways/channel/core/application_facade.py"
-    ).read_text()
-    use_case_source = Path(
-        "services/gateways/channel/core/lifecycle_use_cases.py"
-    ).read_text()
+    facade_source = Path("services/gateways/channel/core/application_facade.py").read_text()
+    use_case_source = Path("services/gateways/channel/core/lifecycle_use_cases.py").read_text()
 
     assert "class ChannelGatewayApplicationFacade" in facade_source
     assert "class ChannelGatewayLifecycleUseCase" in use_case_source
@@ -4080,16 +5089,15 @@ def test_channel_gateway_lifecycle_delegates_to_application_use_case() -> None:
     assert "ChannelGatewayLifecycleUseCase" in facade_source
     assert "def channel_lifecycle_use_case" not in service_source
     assert "def channel_lifecycle_use_case" in facade_source
-    assert (
-        "await self._application.connect_adapters()"
-        in _function_source(service_source, "_connect_adapters")
+    assert "await self._application.connect_adapters()" in _function_source(
+        service_source, "_connect_adapters"
     )
     assert "await self.channel_lifecycle_use_case().connect_adapters()" not in (
         _function_source(service_source, "_connect_adapters")
     )
     assert "MessageInboundPayload" not in service_source
     assert "AdapterStatusPayload" not in service_source
-    assert "payload.model_dump(mode=\"json\")" not in service_source
+    assert 'payload.model_dump(mode="json")' not in service_source
 
 
 def test_analysis_events_have_durable_outbox_contract() -> None:
@@ -4101,9 +5109,7 @@ def test_analysis_events_have_durable_outbox_contract() -> None:
     adapter_source = Path("shared/capabilities/analysis/db/outbox_store.py").read_text()
     port_source = Path("shared/capabilities/analysis/core/outbox_ports.py").read_text()
     service_source = Path("shared/capabilities/analysis/service/agent.py").read_text()
-    facade_source = Path(
-        "shared/capabilities/analysis/core/application_facade.py"
-    ).read_text()
+    facade_source = Path("shared/capabilities/analysis/core/application_facade.py").read_text()
     use_case_source = Path(
         "shared/capabilities/analysis/core/outbox_delivery_use_cases.py"
     ).read_text()
@@ -4122,12 +5128,8 @@ def test_analysis_events_have_durable_outbox_contract() -> None:
     assert "await self._event_publisher.publish(event)" in use_case_source
     assert "publish_staged_event(event)" in use_case_source
     assert "def _outbox_delivery_use_case" in facade_source
-    assert "return await self._application.publish_pending_analysis_events" in (
-        service_source
-    )
-    assert "return await self._application.publish_event_via_outbox(event)" in (
-        service_source
-    )
+    assert "return await self._application.publish_pending_analysis_events" in (service_source)
+    assert "return await self._application.publish_event_via_outbox(event)" in (service_source)
     assert "AnalysisEventOutboxRepository" not in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
     assert "await self._event_publisher.publish(event)" not in service_source
@@ -4142,22 +5144,167 @@ def test_analysis_events_have_durable_outbox_contract() -> None:
     assert "publish_pending_analysis_events" in plugin_source
 
 
+def test_analysis_report_log_persistence_uses_domain_record() -> None:
+    """Analysis report-log persistence must not leak ORM records into core callers."""
+    domain_source = Path(
+        "shared/capabilities/analysis/core/domain/report_log.py"
+    ).read_text()
+    repository_source = Path("shared/capabilities/analysis/db/repository.py").read_text()
+    readme_source = Path("shared/capabilities/analysis/README.md").read_text()
+    audit_source = Path("docs/architecture/ddd-compliance-audit.md").read_text()
+
+    assert "AnalysisReportLogId = NewType" in domain_source
+    assert "class AnalysisReportLogRecord" in domain_source
+    assert "AnalysisReportStatus" in domain_source
+    assert "def mark_pushed(" in domain_source
+    assert "InvalidAnalysisReportTransitionError" in domain_source
+    assert "AnalysisReportLogRecord.create(" in repository_source
+    assert "AnalysisReportLogRecord.from_record(log)" in repository_source
+    assert "-> AnalysisReportLogRecord" in repository_source
+    assert "-> AnalysisReportLogRecord | None" in repository_source
+    assert "log.status = update_values[\"status\"]" in repository_source
+    assert 'log.status = "pushed"' not in repository_source
+    assert "Optional[ReportLog]" not in repository_source
+    assert "-> ReportLog" not in repository_source
+    assert "Report log" in readme_source
+    assert "AnalysisReportLogRecord" in audit_source
+    assert "12 ✓ / 0 ⚠ / 0 ✗" in audit_source
+
+
+def test_analysis_feishu_task_acl_owns_bitable_field_translation() -> None:
+    """Analysis report generators should not consume raw Feishu field dicts."""
+    acl_source = Path(
+        "shared/capabilities/analysis/core/domain/feishu_task.py"
+    ).read_text()
+    report_source = Path(
+        "shared/capabilities/analysis/core/domain/report.py"
+    ).read_text()
+    daily_source = Path("shared/capabilities/analysis/core/daily_report.py").read_text()
+    weekly_source = Path("shared/capabilities/analysis/core/weekly_report.py").read_text()
+    readme_source = Path("shared/capabilities/analysis/README.md").read_text()
+    boundary_source = Path("docs/architecture/module-boundaries.md").read_text()
+    audit_source = Path("docs/architecture/ddd-compliance-audit.md").read_text()
+
+    assert "class AnalysisFeishuTaskStatus" in acl_source
+    assert "class AnalysisFeishuTaskSnapshot" in acl_source
+    assert "class AnalysisFeishuTaskACL" in acl_source
+    assert "def from_bitable_record(" in acl_source
+    assert "def from_bitable_records(" in acl_source
+    assert "def from_projection(" in acl_source
+    assert "def from_projection_rows(" in acl_source
+    assert "AnalysisFeishuTaskSnapshot" in report_source
+    assert "tasks: Sequence[AnalysisFeishuTaskSnapshot]" in report_source
+    assert "AnalysisFeishuTaskACL()" in daily_source
+    assert "AnalysisFeishuTaskACL()" in weekly_source
+    assert "from_projection_rows(projections)" in daily_source
+    assert "from_projection_rows(projections)" in weekly_source
+    assert "BitableTablePort" not in daily_source
+    assert "BitableTablePort" not in weekly_source
+    assert "list_all_records" not in daily_source
+    assert "list_all_records" not in weekly_source
+    assert 't.get("状态"' not in daily_source
+    assert 't.get("状态"' not in weekly_source
+    assert "task.is_blocked" in daily_source
+    assert "task.is_completed" in weekly_source
+    assert "AnalysisFeishuTaskACL" in readme_source
+    assert "AnalysisFeishuTaskSnapshot" in boundary_source
+    assert "Analysis Feishu task ACL" in audit_source
+
+
+def test_analysis_assessment_value_objects_own_risk_and_quality_payloads() -> None:
+    """Analysis risk and quality flows should use local value objects."""
+    domain_source = Path(
+        "shared/capabilities/analysis/core/domain/assessment.py"
+    ).read_text()
+    milestone_source = Path(
+        "shared/capabilities/analysis/core/milestone_checker.py"
+    ).read_text()
+    quality_source = Path(
+        "shared/capabilities/analysis/core/quality_evaluator.py"
+    ).read_text()
+    readme_source = Path("shared/capabilities/analysis/README.md").read_text()
+    audit_source = Path("docs/architecture/ddd-compliance-audit.md").read_text()
+
+    assert "class MilestoneRiskSignal" in domain_source
+    assert "class AnalysisRiskSeverity" in domain_source
+    assert "class AnalysisRiskType" in domain_source
+    assert "class DeliverableQualityTask" in domain_source
+    assert "class QualityEvaluation" in domain_source
+    assert "class AnalysisQualityVerdict" in domain_source
+    assert "class DeliverableQualityResult" in domain_source
+    assert "to_event_payload" in domain_source
+    assert "to_write_back_fields" in domain_source
+    assert "MilestoneRiskSignal.blocked_subtasks" in milestone_source
+    assert "MilestoneRiskSignal.low_progress" in milestone_source
+    assert "MilestoneRiskSignal.from_event_payload" in milestone_source
+    assert "AnalysisMilestoneTaskSnapshot.from_projection" in milestone_source
+    assert "list_subtask_progress" in milestone_source
+    assert "BitableTablePort" not in milestone_source
+    assert "list_all_records" not in milestone_source
+    assert 't.get("状态"' not in milestone_source
+    assert "DeliverableQualityTask.from_bitable_record" in quality_source
+    assert "DeliverableQualityResult(" in quality_source
+    assert "evaluation.to_write_back_fields()" in quality_source
+    assert '"交付物质量": quality' not in quality_source
+    assert "MilestoneRiskSignal" in readme_source
+    assert "QualityEvaluation" in readme_source
+    assert "Analysis assessment value objects" in audit_source
+
+
+def test_evolution_proposal_value_objects_own_scope_and_context_map() -> None:
+    """Evolution approval proposals should use local value objects."""
+    domain_source = Path(
+        "shared/capabilities/evolution/core/domain/proposal.py"
+    ).read_text()
+    experiment_source = Path("shared/evolution/domain/experiment.py").read_text()
+    approval_source = Path(
+        "shared/capabilities/evolution/core/proposal_approval_use_cases.py"
+    ).read_text()
+    canary_source = Path("shared/evolution/canary_router.py").read_text()
+    optimizer_source = Path("shared/evolution/skill_optimizer.py").read_text()
+    analyzer_source = Path(
+        "shared/capabilities/evolution/service/global_analyzer.py"
+    ).read_text()
+    readme_source = Path("shared/capabilities/evolution/README.md").read_text()
+    runtime_readme_source = Path("shared/evolution/README.md").read_text()
+    audit_source = Path("docs/architecture/ddd-compliance-audit.md").read_text()
+
+    assert "@dataclass(frozen=True, slots=True)" in domain_source
+    assert "class EvolutionProposalOperation" in domain_source
+    assert "class EvolutionProposalScope" in domain_source
+    assert "class EvolutionProposalApprovalContext" in domain_source
+    assert "MappingProxyType" in domain_source
+    assert "infer_evolution_proposal_tier" in domain_source
+    assert "class EvolutionExperiment" in experiment_source
+    assert "def route(" in experiment_source
+    assert "def optimizer_rollout_decision(" in experiment_source
+    assert "def canary_rollout_decision(" in experiment_source
+    assert "EvolutionExperiment.from_record" in canary_source
+    assert "aggregate.route(" in canary_source
+    assert "aggregate.canary_rollout_decision(" in canary_source
+    assert "EvolutionExperiment.from_record" in optimizer_source
+    assert "aggregate.optimizer_rollout_decision(" in optimizer_source
+    assert "EvolutionProposalApprovalContext.from_payload" in approval_source
+    assert "EvolutionProposalScope.from_payload" in approval_source
+    assert "ALLOWED_EVOLUTION_OPERATIONS" in analyzer_source
+    assert "## Ubiquitous Language" in readme_source
+    assert "## Context-Map Relationships" in readme_source
+    assert "EvolutionProposalApprovalContext" in readme_source
+    assert "Evolution experiment" in readme_source
+    assert "EvolutionExperiment" in runtime_readme_source
+    assert "Conformist" in readme_source
+    assert "Evolution experiment aggregate" in audit_source
+    assert "12 ✓ / 0 ⚠ / 0 ✗" in audit_source
+
+
 def test_coordinator_events_have_durable_outbox_contract() -> None:
     """Coordinator dispatch and handoff events must be staged before publish."""
     migration_path = Path("migrations/versions/20260515_coordinator_event_outbox.py")
     migration_source = migration_path.read_text()
-    model_source = Path(
-        "services/orchestration/coordinator/db/event_outbox.py"
-    ).read_text()
-    repository_source = Path(
-        "services/orchestration/coordinator/db/repository.py"
-    ).read_text()
-    port_source = Path(
-        "services/orchestration/coordinator/core/outbox_ports.py"
-    ).read_text()
-    adapter_source = Path(
-        "services/orchestration/coordinator/db/outbox_store.py"
-    ).read_text()
+    model_source = Path("services/orchestration/coordinator/db/event_outbox.py").read_text()
+    repository_source = Path("services/orchestration/coordinator/db/repository.py").read_text()
+    port_source = Path("services/orchestration/coordinator/core/outbox_ports.py").read_text()
+    adapter_source = Path("services/orchestration/coordinator/db/outbox_store.py").read_text()
     service_source = Path("services/orchestration/coordinator/service/agent.py").read_text()
     outbox_use_case_source = Path(
         "services/orchestration/coordinator/core/outbox_delivery_use_cases.py"
@@ -4179,12 +5326,8 @@ def test_coordinator_events_have_durable_outbox_contract() -> None:
     assert "def event_from_outbox" in outbox_use_case_source
     assert "await self._event_bus.connect()" in outbox_use_case_source
     assert "await self._event_publisher.publish(event)" in outbox_use_case_source
-    assert "return await self._application.publish_pending_coordinator_events" in (
-        service_source
-    )
-    assert "return await self._application.publish_event_via_outbox(event)" in (
-        service_source
-    )
+    assert "return await self._application.publish_pending_coordinator_events" in (service_source)
+    assert "return await self._application.publish_event_via_outbox(event)" in (service_source)
     assert "CoordinatorEventOutboxRepository" not in service_source
     assert "EventMetadata" not in service_source
     assert "record_outbox_pending_age" not in service_source
@@ -4214,9 +5357,7 @@ def test_evolution_events_have_durable_outbox_contract() -> None:
     port_source = Path("shared/capabilities/evolution/core/outbox_ports.py").read_text()
     adapter_source = Path("shared/capabilities/evolution/db/outbox_store.py").read_text()
     service_source = Path("shared/capabilities/evolution/service/agent.py").read_text()
-    facade_source = Path(
-        "shared/capabilities/evolution/core/application_facade.py"
-    ).read_text()
+    facade_source = Path("shared/capabilities/evolution/core/application_facade.py").read_text()
     use_case_source = Path(
         "shared/capabilities/evolution/core/outbox_delivery_use_cases.py"
     ).read_text()
@@ -4234,12 +5375,8 @@ def test_evolution_events_have_durable_outbox_contract() -> None:
     assert "publish_event_via_outbox" in service_source
     assert "publish_staged_event(event)" in use_case_source
     assert "def _outbox_delivery_use_case" in facade_source
-    assert "return await self._application.publish_pending_evolution_events" in (
-        service_source
-    )
-    assert "return await self._application.publish_event_via_outbox(event)" in (
-        service_source
-    )
+    assert "return await self._application.publish_pending_evolution_events" in (service_source)
+    assert "return await self._application.publish_event_via_outbox(event)" in (service_source)
     assert "EvolutionEventOutboxRepository" not in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
     assert "await self._event_publisher.publish(event)" in use_case_source
@@ -4255,18 +5392,44 @@ def test_evolution_events_have_durable_outbox_contract() -> None:
     assert "publish_pending_evolution_events" in plugin_source
 
 
+def test_integration_plane_ports_are_exported_and_documented() -> None:
+    """Integration Plane ACL ports should match the current public surface."""
+    import shared.core as core
+
+    port_source = Path("shared/core/integration_ports.py").read_text()
+    core_source = Path("shared/core/__init__.py").read_text()
+    audit_source = Path("docs/architecture/ddd-compliance-audit.md").read_text()
+    module_source = Path("docs/architecture/module-boundaries.md").read_text()
+
+    assert hasattr(core, "WecomMessengerPort")
+    assert hasattr(core, "OpenClawIntegrationPort")
+    assert hasattr(core, "OpenProjectWorkPackagePort")
+    assert "class WecomMessengerPort" in port_source
+    assert "class OpenClawIntegrationPort" in port_source
+    assert "OpenProjectWorkPackage" in port_source
+    assert "-> list[OpenProjectWorkPackage]" in port_source
+    assert "-> OpenProjectWorkPackage" in port_source
+    assert "WecomMessengerPort" in core_source
+    assert "OpenClawIntegrationPort" in core_source
+    assert "WecomMessengerPort" in audit_source
+    assert "OpenClawIntegrationPort" in audit_source
+    assert "OpenProjectWorkPackage` TypedDict" in audit_source
+    assert "WecomMessengerPort" in module_source
+    assert "OpenClawIntegrationPort" in module_source
+    assert "OpenProject port still returns `dict[str, Any]`" not in audit_source
+    assert "OpenProject port still returns `dict[str, Any]`" not in module_source
+    assert "OpenClaw takes raw dicts" not in audit_source
+    assert "OpenClaw takes raw dicts" not in module_source
+    assert "WeCom lacks a dedicated port" not in audit_source
+    assert "WeCom lacks a dedicated port" not in module_source
+
+
 def test_evolution_global_analyzer_uses_trace_analysis_store_port() -> None:
     """Global analysis should depend on a read-side port, not DB sessions."""
-    analyzer_source = Path(
-        "shared/capabilities/evolution/service/global_analyzer.py"
-    ).read_text()
+    analyzer_source = Path("shared/capabilities/evolution/service/global_analyzer.py").read_text()
     service_source = Path("shared/capabilities/evolution/service/agent.py").read_text()
-    port_source = Path(
-        "shared/capabilities/evolution/core/analysis_ports.py"
-    ).read_text()
-    adapter_source = Path(
-        "shared/capabilities/evolution/db/trace_analysis_store.py"
-    ).read_text()
+    port_source = Path("shared/capabilities/evolution/core/analysis_ports.py").read_text()
+    adapter_source = Path("shared/capabilities/evolution/db/trace_analysis_store.py").read_text()
 
     assert "class EvolutionTraceAnalysisStore" in port_source
     assert "class AgentPerformanceSnapshot" in port_source
@@ -4283,18 +5446,12 @@ def test_evolution_global_analyzer_uses_trace_analysis_store_port() -> None:
 def test_evolution_seed_bootstrap_uses_skill_seed_store_port() -> None:
     """Evolution startup should delegate seed persistence to a DB adapter."""
     service_source = Path("shared/capabilities/evolution/service/agent.py").read_text()
-    facade_source = Path(
-        "shared/capabilities/evolution/core/application_facade.py"
-    ).read_text()
+    facade_source = Path("shared/capabilities/evolution/core/application_facade.py").read_text()
     use_case_source = Path(
         "shared/capabilities/evolution/core/seed_bootstrap_use_cases.py"
     ).read_text()
-    port_source = Path(
-        "shared/capabilities/evolution/core/seed_ports.py"
-    ).read_text()
-    adapter_source = Path(
-        "shared/capabilities/evolution/db/skill_seed_store.py"
-    ).read_text()
+    port_source = Path("shared/capabilities/evolution/core/seed_ports.py").read_text()
+    adapter_source = Path("shared/capabilities/evolution/db/skill_seed_store.py").read_text()
 
     assert "class EvolutionSkillSeedStore" in port_source
     assert "SqlAlchemyEvolutionSkillSeedStore" in adapter_source
@@ -4317,28 +5474,20 @@ def test_evolution_seed_bootstrap_uses_skill_seed_store_port() -> None:
 def test_evolution_health_check_uses_health_store_port() -> None:
     """Evolution readiness should delegate database probing to an adapter."""
     service_source = Path("shared/capabilities/evolution/service/agent.py").read_text()
-    facade_source = Path(
-        "shared/capabilities/evolution/core/application_facade.py"
-    ).read_text()
-    use_case_source = Path(
-        "shared/capabilities/evolution/core/health_use_cases.py"
-    ).read_text()
-    port_source = Path(
-        "shared/capabilities/evolution/core/health_ports.py"
-    ).read_text()
-    adapter_source = Path(
-        "shared/capabilities/evolution/db/health_store.py"
-    ).read_text()
+    facade_source = Path("shared/capabilities/evolution/core/application_facade.py").read_text()
+    use_case_source = Path("shared/capabilities/evolution/core/health_use_cases.py").read_text()
+    port_source = Path("shared/capabilities/evolution/core/health_ports.py").read_text()
+    adapter_source = Path("shared/capabilities/evolution/db/health_store.py").read_text()
 
     assert "class EvolutionHealthStore" in port_source
     assert "SqlAlchemyEvolutionHealthStore" in adapter_source
-    assert "text(\"SELECT 1\")" in adapter_source
+    assert 'text("SELECT 1")' in adapter_source
     assert "class EvolutionHealthUseCase" in use_case_source
     assert "class EvolutionEventBusHealthPort(Protocol)" in use_case_source
     assert "await self._health_store.is_database_ready()" in use_case_source
     assert "collaboration_approval_gateway" in use_case_source
     assert "from sqlalchemy import text" not in service_source
-    assert "text(\"SELECT 1\")" not in service_source
+    assert 'text("SELECT 1")' not in service_source
     assert "health_store" in service_source
     assert "SqlAlchemyEvolutionHealthStore(self._db_manager)" in service_source
     assert "def _health_use_case" not in service_source
@@ -4352,32 +5501,24 @@ def test_evolution_health_check_uses_health_store_port() -> None:
 def test_analysis_and_sync_health_checks_use_health_store_ports() -> None:
     """Analysis and Sync readiness should delegate database probing to adapters."""
     analysis_service = Path("shared/capabilities/analysis/service/agent.py").read_text()
-    analysis_facade = Path(
-        "shared/capabilities/analysis/core/application_facade.py"
-    ).read_text()
+    analysis_facade = Path("shared/capabilities/analysis/core/application_facade.py").read_text()
     analysis_port = Path("shared/capabilities/analysis/core/health_ports.py").read_text()
-    analysis_use_case = Path(
-        "shared/capabilities/analysis/core/health_use_cases.py"
-    ).read_text()
+    analysis_use_case = Path("shared/capabilities/analysis/core/health_use_cases.py").read_text()
     analysis_adapter = Path("shared/capabilities/analysis/db/health_store.py").read_text()
     sync_service = Path("shared/capabilities/sync/service/agent.py").read_text()
     sync_port = Path("shared/capabilities/sync/core/health_ports.py").read_text()
-    sync_use_case = Path(
-        "shared/capabilities/sync/core/health_use_cases.py"
-    ).read_text()
+    sync_use_case = Path("shared/capabilities/sync/core/health_use_cases.py").read_text()
     sync_adapter = Path("shared/capabilities/sync/db/health_store.py").read_text()
-    sync_facade = Path(
-        "shared/capabilities/sync/core/application_facade.py"
-    ).read_text()
+    sync_facade = Path("shared/capabilities/sync/core/application_facade.py").read_text()
 
     assert "class AnalysisHealthStore(Protocol)" in analysis_port
     assert "SqlAlchemyAnalysisHealthStore" in analysis_adapter
-    assert "text(\"SELECT 1\")" in analysis_adapter
+    assert 'text("SELECT 1")' in analysis_adapter
     assert "class AnalysisHealthUseCase" in analysis_use_case
     assert "await self._health_store.is_database_ready()" in analysis_use_case
     assert '"event_bus": self._event_bus is not None' in analysis_use_case
     assert "from sqlalchemy import text" not in analysis_service
-    assert "text(\"SELECT 1\")" not in analysis_service
+    assert 'text("SELECT 1")' not in analysis_service
     assert "health_store" in analysis_service
     assert "SqlAlchemyAnalysisHealthStore(" in analysis_service
     assert "def _health_use_case" not in analysis_service
@@ -4388,11 +5529,11 @@ def test_analysis_and_sync_health_checks_use_health_store_ports() -> None:
 
     assert "class SyncHealthStore(Protocol)" in sync_port
     assert "SqlAlchemySyncHealthStore" in sync_adapter
-    assert "text(\"SELECT 1\")" in sync_adapter
+    assert 'text("SELECT 1")' in sync_adapter
     assert "class SyncHealthUseCase" in sync_use_case
     assert "await self._health_store.is_database_ready()" in sync_use_case
     assert "from sqlalchemy import text" not in sync_service
-    assert "text(\"SELECT 1\")" not in sync_service
+    assert 'text("SELECT 1")' not in sync_service
     assert "health_store" in sync_service
     assert "SqlAlchemySyncHealthStore(" in sync_service
     assert "def _health_use_case" not in sync_service
@@ -4415,11 +5556,11 @@ def test_qa_and_pjm_health_checks_use_health_store_ports() -> None:
 
     assert "class QAHealthStore(Protocol)" in qa_port
     assert "SqlAlchemyQAHealthStore" in qa_adapter
-    assert "text(\"SELECT 1\")" in qa_adapter
+    assert 'text("SELECT 1")' in qa_adapter
     assert "class QAHealthUseCase" in qa_use_case
     assert "await self._health_store.is_database_ready()" in qa_use_case
     assert "from sqlalchemy import text" not in qa_service
-    assert "text(\"SELECT 1\")" not in qa_service
+    assert 'text("SELECT 1")' not in qa_service
     assert "health_store" in qa_service
     assert "SqlAlchemyQAHealthStore(" in qa_service
     assert "def _health_use_case" in qa_service
@@ -4428,12 +5569,12 @@ def test_qa_and_pjm_health_checks_use_health_store_ports() -> None:
 
     assert "class PJMHealthStore(Protocol)" in pjm_port
     assert "SqlAlchemyPJMHealthStore" in pjm_adapter
-    assert "text(\"SELECT 1\")" in pjm_adapter
+    assert 'text("SELECT 1")' in pjm_adapter
     assert "class PJMHealthUseCase" in pjm_use_case
     assert "await self._health_store.is_database_ready()" in pjm_use_case
     assert "def _config_has_members" in pjm_use_case
     assert "from sqlalchemy import text" not in pjm_service
-    assert "text(\"SELECT 1\")" not in pjm_service
+    assert 'text("SELECT 1")' not in pjm_service
     assert "health_store" in pjm_service
     assert "SqlAlchemyPJMHealthStore(" in pjm_service
     pjm_facade = Path("agents/pjm_agent/core/application_facade.py").read_text()
@@ -4449,49 +5590,41 @@ def test_requirement_and_user_interaction_health_checks_use_health_store_ports()
     """Requirement and User Interaction readiness should use health-store ports."""
     req_service = Path("agents/requirement_manager/service/agent.py").read_text()
     req_port = Path("agents/requirement_manager/core/health_ports.py").read_text()
-    req_use_case = Path(
-        "agents/requirement_manager/core/health_use_cases.py"
-    ).read_text()
+    req_use_case = Path("agents/requirement_manager/core/health_use_cases.py").read_text()
     req_adapter = Path("agents/requirement_manager/db/health_store.py").read_text()
-    chat_service = Path("services/gateways/user_interaction/service/agent.py").read_text()
-    chat_port = Path("services/gateways/user_interaction/core/health_ports.py").read_text()
-    chat_use_case = Path(
-        "services/gateways/user_interaction/core/health_use_cases.py"
-    ).read_text()
-    chat_adapter = Path("services/gateways/user_interaction/db/health_store.py").read_text()
-    chat_facade = Path(
-        "services/gateways/user_interaction/core/application_facade.py"
-    ).read_text()
+    chat_service = Path("agents/chat_agent/service/agent.py").read_text()
+    chat_port = Path("agents/chat_agent/core/health_ports.py").read_text()
+    chat_use_case = Path("agents/chat_agent/core/health_use_cases.py").read_text()
+    chat_adapter = Path("agents/chat_agent/db/health_store.py").read_text()
+    chat_facade = Path("agents/chat_agent/core/application_facade.py").read_text()
 
     assert "class RequirementHealthStore(Protocol)" in req_port
     assert "SqlAlchemyRequirementHealthStore" in req_adapter
-    assert "text(\"SELECT 1\")" in req_adapter
+    assert 'text("SELECT 1")' in req_adapter
     assert "class RequirementHealthUseCase" in req_use_case
     assert "class RequirementEventBusHealthPort(Protocol)" in req_use_case
     assert "await self._health_store.is_database_ready()" in req_use_case
-    assert '"event_bus": bool(getattr(self._event_bus, "is_connected", False))' in (
-        req_use_case
-    )
+    assert '"event_bus": bool(getattr(self._event_bus, "is_connected", False))' in (req_use_case)
     assert '"messenger": self._messenger is not None' in req_use_case
     assert '"card_renderer": self._card_renderer is not None' in req_use_case
     assert "from sqlalchemy import text" not in req_service
-    assert "text(\"SELECT 1\")" not in req_service
+    assert 'text("SELECT 1")' not in req_service
     assert "health_store" in req_service
     assert "SqlAlchemyRequirementHealthStore(" in req_service
     assert "def _health_use_case" in req_service
     assert "return await self._health_use_case().check()" in req_service
     assert "is_database_ready" not in req_service
 
-    assert "class UserInteractionHealthStore(Protocol)" in chat_port
-    assert "SqlAlchemyUserInteractionHealthStore" in chat_adapter
-    assert "text(\"SELECT 1\")" in chat_adapter
-    assert "class UserInteractionHealthUseCase" in chat_use_case
+    assert "class ChatAgentHealthStore(Protocol)" in chat_port
+    assert "SqlAlchemyChatAgentHealthStore" in chat_adapter
+    assert 'text("SELECT 1")' in chat_adapter
+    assert "class ChatAgentHealthUseCase" in chat_use_case
     assert "await self._health_store.is_database_ready()" in chat_use_case
     assert '"chat_service": self._chat_service is not None' in chat_use_case
     assert "from sqlalchemy import text" not in chat_service
-    assert "text(\"SELECT 1\")" not in chat_service
+    assert 'text("SELECT 1")' not in chat_service
     assert "health_store" in chat_service
-    assert "SqlAlchemyUserInteractionHealthStore(" in chat_service
+    assert "SqlAlchemyChatAgentHealthStore(" in chat_service
     assert "def _health_use_case" not in chat_service
     assert "return await self._application.health_check()" in chat_service
     assert "def _health_use_case" in chat_facade
@@ -4511,7 +5644,7 @@ def test_requirement_grpc_servicer_uses_store_ports() -> None:
     assert "RequirementRepository" in adapter_source
     assert "RequirementRepository" not in servicer_source
     assert "from sqlalchemy import text" not in servicer_source
-    assert "text(\"SELECT 1\")" not in servicer_source
+    assert 'text("SELECT 1")' not in servicer_source
     assert "RequirementGrpcStore" in servicer_source
     assert "RequirementHealthStore" in servicer_source
     assert "self._requirements" in servicer_source
@@ -4526,15 +5659,9 @@ def test_dev_and_coordinator_health_checks_use_health_store_ports() -> None:
     dev_port = Path("agents/dev_agent/core/health_ports.py").read_text()
     dev_use_case = Path("agents/dev_agent/core/health_use_cases.py").read_text()
     dev_adapter = Path("agents/dev_agent/db/health_store.py").read_text()
-    coordinator_service = Path(
-        "services/orchestration/coordinator/service/agent.py"
-    ).read_text()
-    coordinator_port = Path(
-        "services/orchestration/coordinator/core/health_ports.py"
-    ).read_text()
-    coordinator_adapter = Path(
-        "services/orchestration/coordinator/db/health_store.py"
-    ).read_text()
+    coordinator_service = Path("services/orchestration/coordinator/service/agent.py").read_text()
+    coordinator_port = Path("services/orchestration/coordinator/core/health_ports.py").read_text()
+    coordinator_adapter = Path("services/orchestration/coordinator/db/health_store.py").read_text()
     coordinator_use_case = Path(
         "services/orchestration/coordinator/core/health_use_cases.py"
     ).read_text()
@@ -4545,9 +5672,9 @@ def test_dev_and_coordinator_health_checks_use_health_store_ports() -> None:
     assert "class DevHealthStore(Protocol)" in dev_port
     assert "class DevHealthUseCase" in dev_use_case
     assert "SqlAlchemyDevHealthStore" in dev_adapter
-    assert "text(\"SELECT 1\")" in dev_adapter
+    assert 'text("SELECT 1")' in dev_adapter
     assert "from sqlalchemy import text" not in dev_service
-    assert "text(\"SELECT 1\")" not in dev_service
+    assert 'text("SELECT 1")' not in dev_service
     assert "health_store" in dev_service
     assert "SqlAlchemyDevHealthStore(self._db_manager)" in dev_service
     assert "is_database_ready" in dev_use_case
@@ -4559,9 +5686,9 @@ def test_dev_and_coordinator_health_checks_use_health_store_ports() -> None:
     assert "class CoordinatorHealthStore(Protocol)" in coordinator_port
     assert "SqlAlchemyCoordinatorHealthStore" in coordinator_adapter
     assert "class CoordinatorHealthUseCase" in coordinator_use_case
-    assert "text(\"SELECT 1\")" in coordinator_adapter
+    assert 'text("SELECT 1")' in coordinator_adapter
     assert "from sqlalchemy import text" not in coordinator_service
-    assert "text(\"SELECT 1\")" not in coordinator_service
+    assert 'text("SELECT 1")' not in coordinator_service
     assert "health_store" in coordinator_service
     assert "SqlAlchemyCoordinatorHealthStore(self._db_manager)" in coordinator_service
     assert "is_database_ready" not in coordinator_service
@@ -4580,12 +5707,8 @@ def test_evolution_control_plane_records_use_proposal_store_port() -> None:
     use_case_source = Path(
         "shared/capabilities/evolution/core/proposal_approval_use_cases.py"
     ).read_text()
-    port_source = Path(
-        "shared/capabilities/evolution/core/control_plane_ports.py"
-    ).read_text()
-    adapter_source = Path(
-        "shared/capabilities/evolution/db/control_plane_store.py"
-    ).read_text()
+    port_source = Path("shared/capabilities/evolution/core/control_plane_ports.py").read_text()
+    adapter_source = Path("shared/capabilities/evolution/db/control_plane_store.py").read_text()
 
     assert "class EvolutionControlPlaneProposalStore(Protocol)" in port_source
     assert "SqlAlchemyEvolutionControlPlaneProposalStore" in adapter_source
@@ -4618,9 +5741,7 @@ def test_qa_acceptance_events_have_durable_outbox_contract() -> None:
     model_source = Path("agents/qa_agent/models/qa.py").read_text()
     repository_source = Path("agents/qa_agent/db/repository.py").read_text()
     port_source = Path("agents/qa_agent/core/outbox_ports.py").read_text()
-    delivery_source = Path(
-        "agents/qa_agent/core/outbox_delivery_use_cases.py"
-    ).read_text()
+    delivery_source = Path("agents/qa_agent/core/outbox_delivery_use_cases.py").read_text()
     adapter_source = Path("agents/qa_agent/db/outbox_store.py").read_text()
     report_port_source = Path("agents/qa_agent/core/report_store.py").read_text()
     report_adapter_source = Path("agents/qa_agent/db/report_store.py").read_text()
@@ -4661,7 +5782,7 @@ def test_qa_acceptance_events_have_durable_outbox_contract() -> None:
     assert "AcceptanceRunRepository" not in service_source
     assert "self._run_store.list_runs" in run_query_source
     assert "self._run_store.get_by_id" in run_query_source
-    assert "raw_report.get(\"results\"" in run_query_source
+    assert 'raw_report.get("results"' in run_query_source
     assert "class QAApplicationFacade" in application_source
     assert "def _run_query_use_case" not in service_source
     assert "return await self._run_queries.list_runs" in _function_source(
@@ -4680,32 +5801,26 @@ def test_qa_acceptance_events_have_durable_outbox_contract() -> None:
         service_source,
         "get_run",
     )
-    assert "raw_report.get(\"results\"" not in service_source
+    assert 'raw_report.get("results"' not in service_source
     assert "self._run_store.get_by_trigger_event_id" in execution_use_case_source
     assert "await uow.outbox.stage(event)" in execution_use_case_source
     assert "QAEventOutboxRepository" not in service_source
-    assert "publish_staged_events=self._outbox_delivery.publish_staged_events" in (
-        service_source
-    )
+    assert "publish_staged_events=self._outbox_delivery.publish_staged_events" in (service_source)
     assert "publish_pending_qa_events" in service_source
     assert "EventBusEventPublisher(self._event_bus)" in service_source
     assert "def _outbox_delivery_use_case" not in service_source
     assert "QAOutboxDeliveryUseCase" in application_source
-    assert (
-        "return await self._outbox_delivery.publish_pending_events"
-        in _function_source(application_source, "publish_pending_qa_events")
+    assert "return await self._outbox_delivery.publish_pending_events" in _function_source(
+        application_source, "publish_pending_qa_events"
     )
-    assert (
-        "return await self._application.publish_pending_qa_events"
-        in _function_source(service_source, "publish_pending_qa_events")
+    assert "return await self._application.publish_pending_qa_events" in _function_source(
+        service_source, "publish_pending_qa_events"
     )
-    assert (
-        "return await self._outbox_delivery.publish_event_via_outbox(event)"
-        in _function_source(application_source, "publish_event_via_outbox")
+    assert "return await self._outbox_delivery.publish_event_via_outbox(event)" in _function_source(
+        application_source, "publish_event_via_outbox"
     )
-    assert (
-        "return await self._application.publish_event_via_outbox(event)"
-        in _function_source(service_source, "publish_event_via_outbox")
+    assert "return await self._application.publish_event_via_outbox(event)" in _function_source(
+        service_source, "publish_event_via_outbox"
     )
     assert "await self._event_publisher.publish(event)" not in service_source
     assert "qa_event_publish_failed" not in service_source
@@ -4727,9 +5842,7 @@ def test_sync_events_have_durable_outbox_contract() -> None:
     model_source = Path("shared/capabilities/sync/models/sync.py").read_text()
     repository_source = Path("shared/capabilities/sync/db/repository.py").read_text()
     service_source = Path("shared/capabilities/sync/service/agent.py").read_text()
-    use_case_source = Path(
-        "shared/capabilities/sync/core/scope_execution_use_cases.py"
-    ).read_text()
+    use_case_source = Path("shared/capabilities/sync/core/scope_execution_use_cases.py").read_text()
     outbox_use_case_source = Path(
         "shared/capabilities/sync/core/outbox_delivery_use_cases.py"
     ).read_text()
@@ -4745,9 +5858,7 @@ def test_sync_events_have_durable_outbox_contract() -> None:
     assert "class SyncEventOutboxRepository" in repository_source
     assert "class SyncEventOutboxStore" in port_source
     assert "SqlAlchemySyncEventOutboxStore" in adapter_source
-    assert "await self._event_publisher.publish_sync_event_via_outbox(event)" in (
-        use_case_source
-    )
+    assert "await self._event_publisher.publish_sync_event_via_outbox(event)" in (use_case_source)
     assert "class SyncOutboxDeliveryUseCase" in outbox_use_case_source
     assert 'record_outbox_pending_age("sync-module", rows)' in outbox_use_case_source
     assert "def event_from_outbox" in outbox_use_case_source
@@ -4785,55 +5896,37 @@ def test_user_interaction_sync_trigger_events_have_durable_outbox_contract() -> 
     """Gateway sync trigger commands must be staged before external publish."""
     migration_path = Path("migrations/versions/20260511_user_interaction_event_outbox.py")
     migration_source = migration_path.read_text()
-    model_source = Path(
-        "services/gateways/user_interaction/models/event_outbox.py"
-    ).read_text()
-    repository_source = Path(
-        "services/gateways/user_interaction/db/repository.py"
-    ).read_text()
-    port_source = Path(
-        "services/gateways/user_interaction/core/event_ports.py"
-    ).read_text()
-    adapter_source = Path(
-        "services/gateways/user_interaction/db/outbox_store.py"
-    ).read_text()
-    service_source = Path(
-        "services/gateways/user_interaction/service/agent.py"
-    ).read_text()
-    facade_source = Path(
-        "services/gateways/user_interaction/core/application_facade.py"
-    ).read_text()
-    outbox_use_case_source = Path(
-        "services/gateways/user_interaction/core/outbox_delivery_use_cases.py"
-    ).read_text()
-    tools_source = Path(
-        "services/gateways/user_interaction/core/tools.py"
-    ).read_text()
+    model_source = Path("agents/chat_agent/models/event_outbox.py").read_text()
+    repository_source = Path("agents/chat_agent/db/repository.py").read_text()
+    port_source = Path("agents/chat_agent/core/event_ports.py").read_text()
+    adapter_source = Path("agents/chat_agent/db/outbox_store.py").read_text()
+    service_source = Path("agents/chat_agent/service/agent.py").read_text()
+    facade_source = Path("agents/chat_agent/core/application_facade.py").read_text()
+    outbox_use_case_source = Path("agents/chat_agent/core/outbox_delivery_use_cases.py").read_text()
+    tools_source = Path("agents/chat_agent/core/tools.py").read_text()
     doc_source = Path("docs/guides/backend-boundaries.md").read_text()
     event_catalog_source = Path("docs/guides/event-catalog.md").read_text()
 
     assert migration_path.exists()
     assert 'op.create_table(\n        "chat_agent_event_outbox"' in migration_source
-    assert "class UserInteractionEventOutbox" in model_source
-    assert "class UserInteractionEventOutboxRepository" in repository_source
-    assert "class UserInteractionEventOutboxStore" in port_source
-    assert "SqlAlchemyUserInteractionEventOutboxStore" in adapter_source
+    assert "class ChatAgentEventOutbox" in model_source
+    assert "class ChatAgentEventOutboxRepository" in repository_source
+    assert "class ChatAgentEventOutboxStore" in port_source
+    assert "SqlAlchemyChatAgentEventOutboxStore" in adapter_source
     assert "event_publisher: GatewayEventPublisherPort" in tools_source
     assert "await deps.event_publisher.publish_sync_trigger" in tools_source
     assert "EventTypes.SYNC_TRIGGER" in facade_source
-    assert "class UserInteractionOutboxDeliveryUseCase" in outbox_use_case_source
+    assert "class ChatAgentOutboxDeliveryUseCase" in outbox_use_case_source
     assert 'record_outbox_pending_age("chat-agent", rows)' in outbox_use_case_source
     assert "def event_from_outbox" in outbox_use_case_source
     assert "await self._event_bus.connect()" in outbox_use_case_source
     assert "await self._event_publisher.publish(event)" in outbox_use_case_source
-    assert "publish_pending_user_interaction_events" in service_source
-    assert "return await self._application.publish_pending_user_interaction_events" in (
-        service_source
-    )
-    assert "return await self._application.publish_event_via_outbox(event)" in (
-        service_source
-    )
-    assert "UserInteractionEventOutboxRepository" not in service_source
+    assert "publish_pending_chat_agent_events" in service_source
+    assert "return await self._application.publish_pending_chat_agent_events" in (service_source)
+    assert "publish_pending_user_interaction_events" not in service_source
+    assert "return await self._application.publish_event_via_outbox(event)" in (service_source)
+    assert "ChatAgentEventOutboxRepository" not in service_source
+    assert "ChatAgentEventOutboxRepository" not in service_source
     assert "EventMetadata" not in service_source
     assert "record_outbox_pending_age" not in service_source
     assert "def _event_from_outbox" not in service_source
@@ -4847,12 +5940,12 @@ def test_user_interaction_sync_trigger_events_have_durable_outbox_contract() -> 
     assert "`chat_agent_event_outbox`" in event_catalog_source
     assert "event_bus.publish" not in tools_source
 
-    app_source = Path("services/gateways/user_interaction/app/main.py").read_text()
-    plugin_source = Path(
-        "services/gateways/user_interaction/app/plugins/outbox_dispatcher.py"
-    ).read_text()
-    assert "UserInteractionOutboxDispatcherPlugin()" in app_source
-    assert "publish_pending_user_interaction_events" in plugin_source
+    app_source = Path("agents/chat_agent/app/main.py").read_text()
+    gateway_app_source = Path("services/gateways/user_interaction/app/main.py").read_text()
+    plugin_source = Path("agents/chat_agent/app/plugins/outbox_dispatcher.py").read_text()
+    assert "ChatAgentOutboxDispatcherPlugin()" in app_source
+    assert "UserInteractionOutboxDispatcherPlugin()" not in gateway_app_source
+    assert "publish_pending_chat_agent_events" in plugin_source
 
 
 def test_feishu_card_renderers_live_in_shared_integrations() -> None:
@@ -4866,9 +5959,7 @@ def test_feishu_card_renderers_live_in_shared_integrations() -> None:
     ]
     for path in shim_paths:
         tree = ast.parse(path.read_text())
-        class_names = [
-            node.name for node in tree.body if isinstance(node, ast.ClassDef)
-        ]
+        class_names = [node.name for node in tree.body if isinstance(node, ast.ClassDef)]
         assert not class_names, (
             f"{path} defines Feishu card classes {class_names}; "
             "put concrete card renderers in shared/integrations/feishu/cards"
@@ -4878,6 +5969,159 @@ def test_feishu_card_renderers_live_in_shared_integrations() -> None:
                 f"{path} imports {module}; compatibility shims should only "
                 "re-export shared Feishu card implementations"
             )
+
+
+def test_requirement_manager_feishu_card_acl_uses_local_adapter_path() -> None:
+    """Requirement Manager should cross Feishu card schemas through local adapters."""
+    app_source = Path("agents/requirement_manager/app/main.py").read_text()
+    bot_source = Path("agents/requirement_manager/integrations/feishu/bot.py").read_text()
+    event_source = Path("agents/requirement_manager/integrations/feishu/event.py").read_text()
+    card_source = Path("agents/requirement_manager/integrations/feishu/card.py").read_text()
+    adapter_source = Path("agents/requirement_manager/adapters/feishu_cards.py").read_text()
+    shim_source = Path(
+        "agents/requirement_manager/integrations/feishu/cards/requirement.py"
+    ).read_text()
+
+    assert "from ..adapters.feishu_cards import FeishuRequirementCardRenderer" in app_source
+    assert "from .cards.requirement import" in bot_source
+    assert "from .cards.requirement import" in event_source
+    assert "from .cards.requirement import" in card_source
+    assert "shared.integrations.feishu.cards.requirement" not in app_source
+    assert "shared.integrations.feishu.cards.requirement" not in bot_source
+    assert "shared.integrations.feishu.cards.requirement" not in event_source
+    assert "shared.integrations.feishu.cards.requirement" not in card_source
+    assert "shared.integrations.feishu.cards.requirement" in adapter_source
+    assert "shared.integrations.feishu.cards.requirement" in shim_source
+
+
+def test_pjm_feishu_card_acl_uses_local_adapter_path() -> None:
+    """PJM should translate Decomposition card data through a local ACL."""
+    service_source = Path("agents/pjm_agent/service/agent.py").read_text()
+    adapter_source = Path("agents/pjm_agent/adapters/feishu_card_acl.py").read_text()
+    request_workflow_source = Path(
+        "agents/pjm_agent/core/decomposition_request_workflow.py"
+    ).read_text()
+
+    assert "from ..adapters.feishu_card_acl import PJMFeishuCardACL" in service_source
+    assert "PJMFeishuCardACL(FeishuPJMCardRenderer())" in service_source
+    assert "class FeishuDecompositionApprovalCard" in adapter_source
+    assert "class FeishuTaskRefinementApprovalCard" in adapter_source
+    assert "class PJMFeishuCardACL" in adapter_source
+    assert "shared.integrations.feishu.cards.pjm" in adapter_source
+    assert '"wp_id": int(self.wp_id)' in adapter_source
+    assert "deepcopy(dict(wbs_result))" in adapter_source
+    assert "deepcopy(task)" in adapter_source
+    assert "shared.integrations.feishu.cards" not in request_workflow_source
+    assert "FeishuPJMCardRenderer()" not in request_workflow_source
+
+
+def test_requirement_manager_feishu_events_use_inbound_acl() -> None:
+    """Feishu event payload trees should be translated through a local ACL."""
+    acl_source = Path("agents/requirement_manager/integrations/feishu/acl.py").read_text()
+    event_source = Path("agents/requirement_manager/integrations/feishu/event.py").read_text()
+
+    assert "class FeishuMeetingEndedEvent" in acl_source
+    assert "class FeishuRequirementCalendarEvent" in acl_source
+    assert "@dataclass(frozen=True, slots=True)" in acl_source
+    assert "def from_payload(" in acl_source
+    assert "def ingest_kwargs(" in acl_source
+    assert "def reminder_card_kwargs(" in acl_source
+    assert "REQUIREMENT_CALENDAR_KEYWORDS" in acl_source
+
+    assert (
+        "from .acl import FeishuMeetingEndedEvent, FeishuRequirementCalendarEvent" in event_source
+    )
+    assert "FeishuMeetingEndedEvent.from_payload(data)" in event_source
+    assert "FeishuRequirementCalendarEvent.from_payload(data)" in event_source
+    assert "meeting.ingest_kwargs()" in event_source
+    assert "calendar_event.reminder_card_kwargs()" in event_source
+    assert 'data.get("event"' not in event_source
+    assert 'event.get("meeting"' not in event_source
+    assert 'calendar_event.get("organizer"' not in event_source
+    assert "datetime.fromtimestamp" not in event_source
+    assert "re.compile" not in event_source
+    assert "shared.integrations.feishu" not in acl_source
+    assert "agents.requirement_manager.models" not in acl_source
+
+
+def test_requirement_manager_feishu_bot_messages_use_inbound_acl() -> None:
+    """Feishu bot-message payload and command parsing should live in the ACL."""
+    acl_source = Path("agents/requirement_manager/integrations/feishu/acl.py").read_text()
+    bot_source = Path("agents/requirement_manager/integrations/feishu/bot.py").read_text()
+
+    assert "class FeishuBotMessage" in acl_source
+    assert "class FeishuBotCommand" in acl_source
+    assert "BOT_COMMAND_PATTERN" in acl_source
+    assert "def ingest_kwargs(" in acl_source
+    assert "def _message_text(" in acl_source
+    assert "def _bot_command(" in acl_source
+
+    assert "from .acl import FeishuBotMessage" in bot_source
+    assert "FeishuBotMessage.from_payload(data)" in bot_source
+    assert "message.command.name" in bot_source
+    assert "message.ingest_kwargs()" in bot_source
+    assert 'data.get("message"' not in bot_source
+    assert 'message.get("content"' not in bot_source
+    assert "json.loads" not in bot_source
+    assert "re.compile" not in bot_source
+    assert "COMMAND_PATTERN" not in bot_source
+    assert "shared.integrations.feishu" not in acl_source
+    assert "agents.requirement_manager.models" not in acl_source
+
+
+def test_requirement_manager_feishu_card_actions_use_inbound_acl() -> None:
+    """Feishu card callback payload parsing should live in the local ACL."""
+    acl_source = Path("agents/requirement_manager/integrations/feishu/acl.py").read_text()
+    card_source = Path("agents/requirement_manager/integrations/feishu/card.py").read_text()
+
+    assert "class FeishuCardAction" in acl_source
+    assert "class FeishuCardActionResponse" in acl_source
+    assert "DEFAULT_REQUIREMENT_REJECTION_REASON" in acl_source
+    assert "DEFAULT_BATCH_REJECTION_REASON" in acl_source
+    assert "def requirement_rejection_reason(" in acl_source
+    assert "def batch_rejection_reason(" in acl_source
+    assert "def decomposition_rejection_reason(" in acl_source
+    assert "def requirement_ids_list(" in acl_source
+    assert "def to_payload(" in acl_source
+
+    assert "from .acl import FeishuCardAction, FeishuCardActionResponse" in card_source
+    assert "FeishuCardAction.from_payload(data)" in card_source
+    assert "FeishuCardActionResponse.error(" in card_source
+    assert "FeishuCardActionResponse.success(" in card_source
+    assert "FeishuCardActionResponse.info(" in card_source
+    assert "FeishuCardActionResponse.card_only(" in card_source
+    assert "action.requirement_id" in card_source
+    assert "action.requirement_rejection_reason" in card_source
+    assert "action.batch_rejection_reason" in card_source
+    assert "action.decomposition_rejection_reason" in card_source
+    assert "action.work_package_id" in card_source
+    assert '{"toast":' not in card_source
+    assert '{"card":' not in card_source
+    assert 'data.get("action"' not in card_source
+    assert 'action_value.get("' not in card_source
+    assert 'form_value.get("' not in card_source
+    assert 'operator.get("open_id"' not in card_source
+    assert "shared.integrations.feishu" not in acl_source
+    assert "agents.requirement_manager.models" not in acl_source
+
+
+def test_requirement_manager_feishu_router_is_agent_local_adapter() -> None:
+    """Requirement Manager should isolate the shared Feishu router behind a local adapter."""
+    app_source = Path("agents/requirement_manager/app/main.py").read_text()
+    package_source = Path("agents/requirement_manager/integrations/feishu/__init__.py").read_text()
+    adapter_source = Path("agents/requirement_manager/integrations/feishu/router.py").read_text()
+
+    assert "from ..integrations.feishu import router as feishu_router" in app_source
+    assert "from shared.integrations.feishu.router import router as feishu_router" not in app_source
+    assert "shared.integrations.feishu.router" not in package_source
+    assert "register_requirement_feishu_handlers(" in package_source
+    assert "from .router import register_requirement_feishu_handlers, router" in package_source
+    assert "init_handlers(" not in package_source
+
+    assert "from shared.integrations.feishu.router import" in adapter_source
+    assert "init_handlers as _register_shared_handlers" in adapter_source
+    assert "def register_requirement_feishu_handlers(" in adapter_source
+    assert "_register_shared_handlers(" in adapter_source
 
 
 def test_business_layers_do_not_bind_feishu_card_implementations() -> None:
@@ -4952,7 +6196,7 @@ def test_user_interaction_routes_do_not_build_feishu_cards_directly() -> None:
 
 def test_user_interaction_schema_mutations_use_control_plane_approval() -> None:
     """Bitable schema mutations must not rely on ad hoc approval flags."""
-    path = Path("services/gateways/user_interaction/core/tools.py")
+    path = Path("agents/chat_agent/core/tools.py")
     text = path.read_text()
 
     assert "approved_sensitive_actions" not in text
@@ -5043,7 +6287,9 @@ def test_pjm_app_mounted_routes_do_not_duplicate_http_contracts() -> None:
         for node in ast.walk(tree):
             if not isinstance(node, ast.Assign):
                 continue
-            if not any(isinstance(target, ast.Name) and target.id == "router" for target in node.targets):
+            if not any(
+                isinstance(target, ast.Name) and target.id == "router" for target in node.targets
+            ):
                 continue
             call = node.value
             if not isinstance(call, ast.Call):
@@ -5069,11 +6315,7 @@ def test_pjm_app_mounted_routes_do_not_duplicate_http_contracts() -> None:
                     continue
                 routes.append((decorator.func.attr.upper(), prefix + str(decorator.args[0].value)))
 
-    duplicates = [
-        (method, path)
-        for (method, path), count in Counter(routes).items()
-        if count > 1
-    ]
+    duplicates = [(method, path) for (method, path), count in Counter(routes).items() if count > 1]
     assert duplicates == []
 
 
@@ -5139,9 +6381,9 @@ def test_gateway_core_does_not_import_platform_adapters_directly() -> None:
 
 def test_user_interaction_chat_and_daily_tasks_do_not_read_global_settings() -> None:
     paths = [
-        Path("services/gateways/user_interaction/core/chat_service.py"),
-        Path("services/gateways/user_interaction/core/daily_tasks.py"),
-        Path("services/gateways/user_interaction/core/tools.py"),
+        Path("agents/chat_agent/core/chat_service.py"),
+        Path("agents/chat_agent/core/daily_tasks.py"),
+        Path("agents/chat_agent/core/tools.py"),
     ]
     for path in paths:
         for module in _imported_modules(path):
@@ -5151,13 +6393,9 @@ def test_user_interaction_chat_and_daily_tasks_do_not_read_global_settings() -> 
 
 
 def test_user_interaction_daily_tasks_uses_injected_llm_and_progress_ports() -> None:
-    core_source = Path("services/gateways/user_interaction/core/daily_tasks.py").read_text()
-    service_source = Path(
-        "services/gateways/user_interaction/service/agent.py"
-    ).read_text()
-    adapter_source = Path(
-        "services/gateways/user_interaction/db/daily_progress_store.py"
-    ).read_text()
+    core_source = Path("agents/chat_agent/core/daily_tasks.py").read_text()
+    service_source = Path("agents/chat_agent/service/agent.py").read_text()
+    adapter_source = Path("agents/chat_agent/db/daily_progress_store.py").read_text()
 
     assert "from shared.infra.llm_gateway import llm_gateway" not in core_source
     assert "from ..db.database import db_manager" not in core_source
@@ -5171,15 +6409,11 @@ def test_user_interaction_daily_tasks_uses_injected_llm_and_progress_ports() -> 
 
 
 def test_user_interaction_chat_service_uses_injected_persistence_ports() -> None:
-    core_source = Path("services/gateways/user_interaction/core/chat_service.py").read_text()
-    port_source = Path("services/gateways/user_interaction/core/chat_ports.py").read_text()
-    request_use_case_source = Path(
-        "services/gateways/user_interaction/core/request_use_cases.py"
-    ).read_text()
-    service_source = Path(
-        "services/gateways/user_interaction/service/agent.py"
-    ).read_text()
-    adapter_source = Path("services/gateways/user_interaction/db/chat_store.py").read_text()
+    core_source = Path("agents/chat_agent/core/chat_service.py").read_text()
+    port_source = Path("agents/chat_agent/core/chat_ports.py").read_text()
+    request_use_case_source = Path("agents/chat_agent/core/request_use_cases.py").read_text()
+    service_source = Path("agents/chat_agent/service/agent.py").read_text()
+    adapter_source = Path("agents/chat_agent/db/chat_store.py").read_text()
 
     assert "from ..db.database import db_manager" not in core_source
     assert "from ..db.repository import ConversationRepository" not in core_source
@@ -5200,30 +6434,24 @@ def test_user_interaction_chat_service_uses_injected_persistence_ports() -> None
 
 
 def test_user_interaction_agent_request_dispatch_delegates_to_application_use_case() -> None:
-    service_source = Path(
-        "services/gateways/user_interaction/service/agent.py"
-    ).read_text()
-    facade_source = Path(
-        "services/gateways/user_interaction/core/application_facade.py"
-    ).read_text()
-    use_case_source = Path(
-        "services/gateways/user_interaction/core/request_use_cases.py"
-    ).read_text()
+    service_source = Path("agents/chat_agent/service/agent.py").read_text()
+    facade_source = Path("agents/chat_agent/core/application_facade.py").read_text()
+    use_case_source = Path("agents/chat_agent/core/request_use_cases.py").read_text()
     handle_source = _function_source(service_source, "handle_request")
 
-    assert "class UserInteractionRequestUseCase" in use_case_source
-    assert "class UserInteractionChatPort(Protocol)" in use_case_source
+    assert "class ChatAgentRequestUseCase" in use_case_source
+    assert "class ChatAgentChatPort(Protocol)" in use_case_source
     assert "async def handle(" in use_case_source
     assert 'action == "chat"' in use_case_source
     assert 'action == "chat_user_assistant"' in use_case_source
     assert 'action == "cleanup_conversations"' in use_case_source
     assert "unknown_action_error()" in use_case_source
 
-    assert "class UserInteractionApplicationFacade" in facade_source
-    assert "UserInteractionRequestUseCase" in facade_source
+    assert "class ChatAgentApplicationFacade" in facade_source
+    assert "ChatAgentRequestUseCase" in facade_source
     assert "def _request_use_case" in facade_source
     assert "return await self._request_use_case().handle(request)" in facade_source
-    assert "UserInteractionRequestUseCase" not in service_source
+    assert "ChatAgentRequestUseCase" not in service_source
     assert "def _request_use_case" not in service_source
     assert "return await self._application.handle_request(request)" in handle_source
     assert "return await self._request_use_case().handle(request)" not in handle_source
@@ -5236,28 +6464,22 @@ def test_user_interaction_agent_request_dispatch_delegates_to_application_use_ca
 
 
 def test_user_interaction_agent_event_dispatch_delegates_to_application_use_case() -> None:
-    service_source = Path(
-        "services/gateways/user_interaction/service/agent.py"
-    ).read_text()
-    facade_source = Path(
-        "services/gateways/user_interaction/core/application_facade.py"
-    ).read_text()
-    use_case_source = Path(
-        "services/gateways/user_interaction/core/event_use_cases.py"
-    ).read_text()
+    service_source = Path("agents/chat_agent/service/agent.py").read_text()
+    facade_source = Path("agents/chat_agent/core/application_facade.py").read_text()
+    use_case_source = Path("agents/chat_agent/core/event_use_cases.py").read_text()
     handle_source = _function_source(service_source, "handle_event")
 
-    assert "class UserInteractionEventUseCase" in use_case_source
+    assert "class ChatAgentEventUseCase" in use_case_source
     assert "EventTypes.CHAT_PM_RESPONSE" in use_case_source
     assert "EventTypes.COORDINATOR_RESPONSE" in use_case_source
     assert "project_management_response_received" in use_case_source
     assert "coordinator_response_received" in use_case_source
     assert "hash_identifier(user_id)" in use_case_source
 
-    assert "UserInteractionEventUseCase" in facade_source
+    assert "ChatAgentEventUseCase" in facade_source
     assert "def _event_use_case" in facade_source
     assert "return await self._event_use_case().handle(event)" in facade_source
-    assert "UserInteractionEventUseCase" not in service_source
+    assert "ChatAgentEventUseCase" not in service_source
     assert "def _event_use_case" not in service_source
     assert "return await self._application.handle_event(event)" in handle_source
     assert "return await self._event_use_case().handle(event)" not in handle_source
@@ -5268,28 +6490,22 @@ def test_user_interaction_agent_event_dispatch_delegates_to_application_use_case
 
 
 def test_user_interaction_ops_logger_uses_injected_store_port() -> None:
-    core_source = Path("services/gateways/user_interaction/core/ops_logger.py").read_text()
-    service_source = Path(
-        "services/gateways/user_interaction/service/agent.py"
-    ).read_text()
+    core_source = Path("agents/chat_agent/core/ops_logger.py").read_text()
+    service_source = Path("agents/chat_agent/service/agent.py").read_text()
     app_source = Path("services/gateways/user_interaction/app/main.py").read_text()
-    adapter_source = Path(
-        "services/gateways/user_interaction/db/operation_log_store.py"
-    ).read_text()
+    adapter_source = Path("agents/chat_agent/db/operation_log_store.py").read_text()
 
     assert "from ..db.database import db_manager" not in core_source
     assert "from ..db.repository import CardOperationRepository" not in core_source
     assert "class CardOperationLogStore" in core_source
     assert "configure_operation_log_store" in service_source
-    assert "configure_operation_log_store" in app_source
+    assert "configure_operation_log_store" not in app_source
     assert "CardOperationRepository" in adapter_source
 
 
 def test_user_interaction_tools_use_injected_persistence_ports() -> None:
-    tools_source = Path("services/gateways/user_interaction/core/tools.py").read_text()
-    service_source = Path(
-        "services/gateways/user_interaction/service/agent.py"
-    ).read_text()
+    tools_source = Path("agents/chat_agent/core/tools.py").read_text()
+    service_source = Path("agents/chat_agent/service/agent.py").read_text()
 
     assert "from ..db.database import db_manager" not in tools_source
     assert "from ..db.repository import CardOperationRepository" not in tools_source
@@ -5402,14 +6618,13 @@ def test_frontend_locale_layout_keeps_provider_composition_in_widget() -> None:
     forbidden_imports = (
         "@/components",
         "next/font",
-        "next-intl\"",
+        'next-intl"',
     )
 
     assert "@/widgets/root-shell" in source
     for token in forbidden_imports:
         assert token not in source, (
-            f"{path} owns root shell composition through {token}; "
-            "compose LocaleRootShell instead"
+            f"{path} owns root shell composition through {token}; compose LocaleRootShell instead"
         )
 
 
@@ -5432,8 +6647,7 @@ def test_frontend_ui_primitives_live_in_shared_ui() -> None:
             continue
         source = path.read_text()
         assert "@/components/ui/" not in source, (
-            f"{path} imports UI primitives from legacy components; "
-            "use frontend/src/shared/ui"
+            f"{path} imports UI primitives from legacy components; use frontend/src/shared/ui"
         )
 
 
@@ -5446,9 +6660,7 @@ def test_frontend_generic_shared_components_live_in_shared_ui() -> None:
         "stat-card",
     )
     for component in generic_components:
-        assert not (
-            Path("frontend/src/components/shared") / f"{component}.tsx"
-        ).exists()
+        assert not (Path("frontend/src/components/shared") / f"{component}.tsx").exists()
         assert (Path("frontend/src/shared/ui") / f"{component}.tsx").exists()
 
     legacy_prefix = "@/components/shared/"
@@ -5470,17 +6682,13 @@ def test_frontend_app_shell_owns_event_listener() -> None:
     assert Path("frontend/src/widgets/app-shell/ui/event-listener.tsx").exists()
     assert not Path("frontend/src/components/shared/event-listener.tsx").exists()
     assert "@/components/shared/event-listener" not in source
-    assert './event-listener' in source
+    assert "./event-listener" in source
 
 
 def test_frontend_requirement_ui_lives_in_requirement_entity() -> None:
     for component in ("priority-badge", "status-badge"):
-        assert not (
-            Path("frontend/src/components/shared") / f"{component}.tsx"
-        ).exists()
-        assert (
-            Path("frontend/src/entities/requirement/ui") / f"{component}.tsx"
-        ).exists()
+        assert not (Path("frontend/src/components/shared") / f"{component}.tsx").exists()
+        assert (Path("frontend/src/entities/requirement/ui") / f"{component}.tsx").exists()
 
     for path in Path("frontend/src").rglob("*.ts*"):
         source = path.read_text()
@@ -5496,9 +6704,7 @@ def test_frontend_agent_display_ui_lives_in_agent_entity() -> None:
         "domain-badge",
     )
     for component in legacy_components:
-        assert not (
-            Path("frontend/src/components/shared") / f"{component}.tsx"
-        ).exists()
+        assert not (Path("frontend/src/components/shared") / f"{component}.tsx").exists()
 
     expected_entity_files = (
         "agent-display-avatar",
@@ -5606,15 +6812,11 @@ def test_frontend_page_local_components_live_in_widgets() -> None:
                 Path("frontend/src/components") / legacy_group / f"{component}.tsx"
             ).exists()
             assert (
-                Path("frontend/src/widgets")
-                / config["target"]
-                / "ui"
-                / f"{component}.tsx"
+                Path("frontend/src/widgets") / config["target"] / "ui" / f"{component}.tsx"
             ).exists()
 
     forbidden_prefixes = tuple(
-        f"@/components/{legacy_group}/"
-        for legacy_group in widget_components
+        f"@/components/{legacy_group}/" for legacy_group in widget_components
     )
     for path in Path("frontend/src").rglob("*.ts*"):
         source = path.read_text()
@@ -5643,10 +6845,7 @@ def test_frontend_user_action_components_live_in_features() -> None:
                 Path("frontend/src/components") / legacy_group / f"{component}.tsx"
             ).exists()
             assert (
-                Path("frontend/src/features")
-                / config["target"]
-                / "ui"
-                / f"{component}.tsx"
+                Path("frontend/src/features") / config["target"] / "ui" / f"{component}.tsx"
             ).exists()
 
     for path in Path("frontend/src").rglob("*.ts*"):
@@ -5668,36 +6867,21 @@ def test_frontend_requirements_ui_lives_in_fsd_slices() -> None:
     widget_components = ("requirements-filters",)
 
     for component in entity_components:
-        assert not (
-            Path("frontend/src/components/requirements") / f"{component}.tsx"
-        ).exists()
-        assert (
-            Path("frontend/src/entities/requirement/ui") / f"{component}.tsx"
-        ).exists()
+        assert not (Path("frontend/src/components/requirements") / f"{component}.tsx").exists()
+        assert (Path("frontend/src/entities/requirement/ui") / f"{component}.tsx").exists()
 
     for component in feature_components:
-        assert not (
-            Path("frontend/src/components/requirements") / f"{component}.tsx"
-        ).exists()
-        assert (
-            Path("frontend/src/features/requirement-review/ui")
-            / f"{component}.tsx"
-        ).exists()
+        assert not (Path("frontend/src/components/requirements") / f"{component}.tsx").exists()
+        assert (Path("frontend/src/features/requirement-review/ui") / f"{component}.tsx").exists()
 
     for component in widget_components:
-        assert not (
-            Path("frontend/src/components/requirements") / f"{component}.tsx"
-        ).exists()
-        assert (
-            Path("frontend/src/widgets/requirements/ui") / f"{component}.tsx"
-        ).exists()
+        assert not (Path("frontend/src/components/requirements") / f"{component}.tsx").exists()
+        assert (Path("frontend/src/widgets/requirements/ui") / f"{component}.tsx").exists()
 
     assert not Path(
         "frontend/src/components/requirements/__tests__/requirements-table.test.tsx"
     ).exists()
-    assert Path(
-        "frontend/src/entities/requirement/ui/requirements-table.test.tsx"
-    ).exists()
+    assert Path("frontend/src/entities/requirement/ui/requirements-table.test.tsx").exists()
 
     for path in Path("frontend/src").rglob("*.ts*"):
         source = path.read_text()
@@ -5778,13 +6962,10 @@ def test_api_reference_documents_current_qa_stats_endpoint() -> None:
 def test_api_reference_does_not_duplicate_pjm_decomposition_routes() -> None:
     api_reference = Path("docs/guides/api-reference.md").read_text()
     pjm_decomposition_rows = [
-        line
-        for line in api_reference.splitlines()
-        if "| `/api/v1/pm/decompose/{wp_id}" in line
+        line for line in api_reference.splitlines() if "| `/api/v1/pm/decompose/{wp_id}" in line
     ]
     method_paths = [
-        tuple(cell.strip(" `") for cell in line.split("|")[1:3])
-        for line in pjm_decomposition_rows
+        tuple(cell.strip(" `") for cell in line.split("|")[1:3]) for line in pjm_decomposition_rows
     ]
 
     assert len(method_paths) == len(set(method_paths))
@@ -5806,8 +6987,8 @@ def test_application_facade_depends_on_ports_and_use_cases_only() -> None:
         Path("agents/pjm_agent/core/application_facade.py"),
         Path("agents/qa_agent/core/application_facade.py"),
         Path("agents/dev_agent/core/application_facade.py"),
+        Path("agents/chat_agent/core/application_facade.py"),
         Path("services/orchestration/coordinator/core/application_facade.py"),
-        Path("services/gateways/user_interaction/core/application_facade.py"),
         Path("services/gateways/channel/core/application_facade.py"),
         Path("shared/capabilities/sync/core/application_facade.py"),
         Path("shared/capabilities/analysis/core/application_facade.py"),
@@ -5881,9 +7062,7 @@ def test_lifecycle_modules_live_in_canonical_domain_path() -> None:
 
         domain_dir = core_dir / "domain"
         if domain_dir.exists():
-            misplaced_in_domain = sorted(
-                p.as_posix() for p in domain_dir.glob("*_lifecycle.py")
-            )
+            misplaced_in_domain = sorted(p.as_posix() for p in domain_dir.glob("*_lifecycle.py"))
             assert not misplaced_in_domain, (
                 f"DDD-002: lifecycle module(s) at core/domain/ for {agent}: "
                 f"{misplaced_in_domain}. Canonical location is "
@@ -5910,6 +7089,8 @@ def test_business_aggregates_have_unit_tests() -> None:
     their tests so future aggregate additions cannot land without
     tests.
     """
+    from shared.control_plane.domain.aggregate_catalog import CONTROL_PLANE_AGGREGATES
+
     expected: list[tuple[str, str]] = [
         # Business agent aggregates (Stage 1).
         (
@@ -5925,17 +7106,34 @@ def test_business_aggregates_have_unit_tests() -> None:
             "agents/dev_agent/tests/unit/test_task_aggregate.py",
         ),
         (
+            "agents/qa_agent/core/domain/acceptance_run.py",
+            "agents/qa_agent/tests/unit/test_acceptance_run_aggregate.py",
+        ),
+        (
             "agents/qa_agent/core/domain/acceptance_verdict.py",
             "agents/qa_agent/tests/unit/test_acceptance_verdict.py",
         ),
-        # Control Plane aggregates (DDD-001 + DDD-005).
         (
-            "shared/control_plane/domain/agent_run.py",
-            "shared/control_plane/tests/test_agent_run_aggregate.py",
+            "agents/chat_agent/core/domain/daily_progress.py",
+            "agents/chat_agent/tests/test_daily_progress_aggregate.py",
         ),
         (
-            "shared/control_plane/domain/evolution_proposal.py",
-            "shared/control_plane/tests/test_evolution_proposal_aggregate.py",
+            "agents/chat_agent/core/domain/conversation.py",
+            "agents/chat_agent/tests/test_conversation_aggregate.py",
+        ),
+        (
+            "agents/chat_agent/core/domain/card_operation.py",
+            "agents/chat_agent/tests/test_card_operation_aggregate.py",
+        ),
+        # Control Plane aggregates (DDD-001 + DDD-005).
+        *(
+            (definition.module_path, definition.test_path)
+            for definition in CONTROL_PLANE_AGGREGATES
+        ),
+        # Evolution runtime aggregate.
+        (
+            "shared/evolution/domain/experiment.py",
+            "shared/evolution/tests/test_experiment_aggregate.py",
         ),
         # Capability aggregates (DDD-003 + DDD-004).
         (
@@ -5945,6 +7143,14 @@ def test_business_aggregates_have_unit_tests() -> None:
         (
             "shared/capabilities/analysis/core/domain/projection.py",
             "shared/capabilities/analysis/tests/test_projection_seed.py",
+        ),
+        (
+            "shared/capabilities/analysis/core/domain/report.py",
+            "shared/capabilities/analysis/tests/test_report_aggregate.py",
+        ),
+        (
+            "services/orchestration/coordinator/core/domain/workflow_state.py",
+            "services/orchestration/coordinator/tests/test_workflow_state_aggregate.py",
         ),
     ]
     for aggregate_path, test_path in expected:
@@ -5960,3 +7166,75 @@ def test_business_aggregates_have_unit_tests() -> None:
             "state transitions + invariants (see architecture-principles.md "
             "§4.8 + ddd-compliance-audit.md row DDD-015)."
         )
+
+
+def test_qa_acceptance_verdict_owns_gate_vocabulary() -> None:
+    """QA gate decisions should go through the domain verdict vocabulary."""
+    domain_dir = Path("agents/qa_agent/core/domain")
+    run_source = (domain_dir / "acceptance_run.py").read_text()
+    shared_source = Path("shared/core/qa_acceptance.py").read_text()
+    assert not (domain_dir / "acceptance_verdicts.py").exists(), (
+        "DDD-012: QA verdict vocabulary must stay consolidated in acceptance_vocabulary.py"
+    )
+
+    verdict_source = (domain_dir / "acceptance_verdict.py").read_text()
+    vocabulary_source = (domain_dir / "acceptance_vocabulary.py").read_text()
+    use_case_source = Path("agents/qa_agent/core/acceptance_execution_use_cases.py").read_text()
+    notifier_source = Path("agents/qa_agent/core/notifier.py").read_text()
+    dev_result_collector_source = Path("agents/dev_agent/core/result_collector.py").read_text()
+    api_use_case_source = Path("agents/qa_agent/core/api_use_cases.py").read_text()
+    repository_source = Path("agents/qa_agent/db/repository.py").read_text()
+    run_store_source = Path("agents/qa_agent/core/run_store.py").read_text()
+    run_query_source = Path("agents/qa_agent/core/run_query_use_cases.py").read_text()
+    request_use_case_source = Path("agents/qa_agent/core/request_use_cases.py").read_text()
+    service_source = Path("agents/qa_agent/service/agent.py").read_text()
+
+    assert "def is_qa_acceptance_passed(" in shared_source
+    assert "def qa_api_status_from_l0_gate(" in shared_source
+    assert "L2_STATUS_VALUES" in vocabulary_source
+    assert "FINDING_LEVEL_L2" in vocabulary_source
+    assert "FINDING_INFO" in vocabulary_source
+    assert "from shared.core.qa_acceptance import" in vocabulary_source
+    assert "def is_failing_gate(" in vocabulary_source
+    assert "def is_informational_finding(" in vocabulary_source
+    assert "def from_summary(" in verdict_source
+    assert "class AcceptanceRun" in run_source
+    assert "class AcceptanceRunStatus" in run_source
+    assert "class AcceptanceRunCompleted" in run_source
+    assert "def request(" in run_source
+    assert "def start(" in run_source
+    assert "def record_completion(" in run_source
+    assert "def complete(" in run_source
+    assert "def pull_events(" in run_source
+    assert "def blocking_findings(" in run_source
+    assert "AcceptanceVerdict.from_summary" in use_case_source
+    assert "build_acceptance_run(" in use_case_source
+    assert "AcceptanceRun.request" in use_case_source
+    assert "aggregate.start()" in use_case_source
+    assert "aggregate.record_completion(" in use_case_source
+    assert "run_id=aggregate.run_id" in use_case_source
+    assert "completed_at=aggregate.completed_at" in use_case_source
+    assert "aggregate.pull_events()" in use_case_source
+    assert "_gate_failed_payload(completion)" in use_case_source
+    assert "from shared.core.identifiers import AcceptanceRunId" in run_store_source
+    assert "id: AcceptanceRunId" in run_store_source
+    assert "get_by_id(self, run_id: AcceptanceRunId)" in run_store_source
+    assert "update_notification_summary" in run_store_source
+    assert "run_id: AcceptanceRunId" in run_store_source
+    assert "async def get_run(self, run_id: AcceptanceRunId)" in run_query_source
+    assert 'AcceptanceRunId(request["run_id"])' in request_use_case_source
+    assert "AcceptanceRunId(run_id)" in api_use_case_source
+    assert "async def get_run(self, run_id: AcceptanceRunId)" in service_source
+    assert "AcceptanceVerdict.from_summary" in notifier_source
+    assert "is_qa_acceptance_passed(summary)" in dev_result_collector_source
+    assert "qa_api_status_from_l0_gate(result.summary.l0_gate)" in api_use_case_source
+    assert "QA_GATE_PASS" in repository_source
+    assert "QA_FINDING_LEVEL_L0" in repository_source
+    assert "agents.qa_agent" not in dev_result_collector_source
+    assert 'summary.get("l0_gate") == "FAIL"' not in use_case_source
+    assert 'summary.get("l0_gate") == "FAIL"' not in notifier_source
+    assert 'run.l0_status != "FAIL"' not in use_case_source
+    assert 'summary.get("l0_gate") == "PASS"' not in dev_result_collector_source
+    assert '"PASS": "passed"' not in api_use_case_source
+    assert 'QAAcceptanceRun.l0_status == "PASS"' not in repository_source
+    assert 'QAAcceptanceResult.level == "L0"' not in repository_source

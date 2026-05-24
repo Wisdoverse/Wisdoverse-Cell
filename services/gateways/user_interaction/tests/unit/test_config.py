@@ -1,10 +1,10 @@
 """Unit tests for user interaction gateway core configuration values."""
 
-from services.gateways.user_interaction.core.config import UserInteractionCoreConfig
+from agents.chat_agent.core.config import ChatAgentCoreConfig
 
 
 def test_user_interaction_core_config_preserves_models() -> None:
-    config = UserInteractionCoreConfig.from_values(
+    config = ChatAgentCoreConfig.from_values(
         chat_model="chat-model",
         summary_model="summary-model",
         redis_url="redis://redis:6379/1",
@@ -26,7 +26,7 @@ def test_user_interaction_core_config_preserves_models() -> None:
 
 
 def test_user_interaction_core_config_uses_model_defaults_when_empty() -> None:
-    config = UserInteractionCoreConfig.from_values(chat_model="", summary_model="")
+    config = ChatAgentCoreConfig.from_values(chat_model="", summary_model="")
 
     assert config.chat_model == "claude-sonnet-4-20250514"
     assert config.summary_model == "claude-haiku-4-5-20251001"

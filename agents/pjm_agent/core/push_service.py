@@ -3,6 +3,7 @@
 import json
 
 from shared.core import FeishuMessengerPort
+from shared.core.identifiers import WorkPackageId
 from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
@@ -62,7 +63,9 @@ class PushService:
         content = json.dumps({"text": text}, ensure_ascii=False)
         return await self.send_to_chat(chat_id, content)
 
-    async def send_decompose_failure(self, wp_id: int, subject: str, error_message: str) -> bool:
+    async def send_decompose_failure(
+        self, wp_id: WorkPackageId, subject: str, error_message: str
+    ) -> bool:
         """Notify Feishu chat that a decomposition failed."""
         chat_id = self._config.decompose_notification_chat_id
         if not chat_id:
@@ -76,7 +79,7 @@ class PushService:
         content = json.dumps({"text": text}, ensure_ascii=False)
         return await self.send_to_chat(chat_id, content)
 
-    async def send_stale_approval_reminder(self, wp_id: int, subject: str) -> bool:
+    async def send_stale_approval_reminder(self, wp_id: WorkPackageId, subject: str) -> bool:
         """Send a reminder for a decomposition pending approval > 24 hours."""
         chat_id = self._config.decompose_notification_chat_id
         if not chat_id:

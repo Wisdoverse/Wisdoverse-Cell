@@ -34,6 +34,8 @@ from dataclasses import dataclass, field
 
 from ..models import AgentRun as AgentRunRecord
 from ..models import AgentRunStatus
+from .events import ControlPlaneDomainEvent
+from .state_machine import ControlPlaneStateMachine
 
 
 class InvalidAgentRunTransitionError(ValueError):
@@ -58,14 +60,13 @@ VALID_TRANSITIONS: dict[AgentRunStatus, frozenset[AgentRunStatus]] = {
     AgentRunStatus.TIMED_OUT: frozenset(),
 }
 
+STATE_MACHINE = ControlPlaneStateMachine.from_transitions(VALID_TRANSITIONS)
 
-TERMINAL_STATUSES: frozenset[AgentRunStatus] = frozenset(
-    status for status, allowed in VALID_TRANSITIONS.items() if not allowed
-)
+TERMINAL_STATUSES: frozenset[AgentRunStatus] = STATE_MACHINE.terminal_states
 
 
 @dataclass(frozen=True, slots=True)
-class AgentRunStatusChanged:
+class AgentRunStatusChanged(ControlPlaneDomainEvent):
     """In-memory domain event raised by AgentRun.transition_to()."""
 
     run_id: str
@@ -104,15 +105,16 @@ class AgentRun:
     @property
     def is_terminal(self) -> bool:
         """True when the aggregate cannot transition further."""
-        return not VALID_TRANSITIONS[self.status]
+        return STATE_MACHINE.is_terminal(self.status)
 
     def transition_to(self, target: AgentRunStatus) -> None:
         """Move the aggregate to a new status if permitted by the FSM."""
-        if target not in VALID_TRANSITIONS[self.status]:
-            raise InvalidAgentRunTransitionError(
-                f"AgentRun {self.run_id}: illegal transition "
-                f"{self.status} -> {target}"
-            )
+        STATE_MACHINE.ensure_can_transition(
+            self.status,
+            target,
+            subject=f"AgentRun {self.run_id}",
+            error_type=InvalidAgentRunTransitionError,
+        )
         previous = self.status
         self.record = self.record.model_copy(update={"status": target})
         self._events.append(

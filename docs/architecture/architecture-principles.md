@@ -119,6 +119,10 @@ review before merge.
 - Control Plane HTTP commands use `ControlPlaneUnitOfWork` and explicitly
   commit after the application use case succeeds; failed commands roll back in
   dependency cleanup.
+- Cross-aggregate follow-up writes should consume a domain/integration event
+  or run as a named handler in a separate local transaction. The compatibility
+  path may invoke that handler immediately after the initiating transaction
+  commits, but it must not share the same commit.
 - Use cases depend on ports (`*_ports.py`), not on adapters.
 - Domain events emitted by aggregates are collected by the use case and
   written to the outbox in the same transaction as the aggregate state.

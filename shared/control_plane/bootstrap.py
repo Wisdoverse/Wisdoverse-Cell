@@ -8,6 +8,7 @@ from shared.control_plane.agent_catalog import (
 )
 from shared.control_plane.bootstrap_ports import ControlPlaneRoleBootstrapStore
 from shared.control_plane.models import AgentRole, AuditEvent, CompanyContext
+from shared.core.identifiers import AgentRoleId, CompanyId
 from shared.schemas.event import EventTypes
 
 
@@ -199,7 +200,10 @@ async def ensure_core_organization_role_agents(
     created_agent_ids: list[str] = []
 
     for template in ORGANIZATION_ROLE_TEMPLATES:
-        if await store.get_agent_role(company_id=company_id, agent_id=template.agent_id):
+        if await store.get_agent_role(
+            company_id=CompanyId(company_id),
+            agent_id=AgentRoleId(template.agent_id),
+        ):
             continue
 
         seed = CORE_ORGANIZATION_ROLE_AGENT_SEEDS[template.agent_id]
@@ -255,7 +259,10 @@ async def ensure_core_runtime_agent_roles(
     for module in RUNTIME_MODULES:
         if not module.frontend_managed:
             continue
-        if await store.get_agent_role(company_id=company_id, agent_id=module.agent_id):
+        if await store.get_agent_role(
+            company_id=CompanyId(company_id),
+            agent_id=AgentRoleId(module.agent_id),
+        ):
             continue
 
         role = module.to_agent_role(company_id=company_id, created_by=created_by)
@@ -298,7 +305,7 @@ async def _ensure_company(
     company_id: str,
     company_name: str,
 ) -> None:
-    if await store.get_company(company_id) is not None:
+    if await store.get_company(CompanyId(company_id)) is not None:
         return
 
     await store.create_company_if_absent(
@@ -317,9 +324,7 @@ def _build_role_agent(
     company_id: str,
     created_by: str,
 ) -> AgentRole:
-    template = next(
-        item for item in ORGANIZATION_ROLE_TEMPLATES if item.agent_id == template_id
-    )
+    template = next(item for item in ORGANIZATION_ROLE_TEMPLATES if item.agent_id == template_id)
     seed = CORE_ORGANIZATION_ROLE_AGENT_SEEDS[template.agent_id]
     role = template.to_agent_role(
         company_id=company_id,

@@ -7,10 +7,16 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.config import settings
+from shared.core.identifiers import ApprovalRequestId
 
 from .approval_ports import ControlPlaneApprovalStore
 from .approval_store import SqlAlchemyControlPlaneApprovalStore
 from .context import get_current_run_context
+from .domain.approval_request import ApprovalRequest as ApprovalRequestAggregate
+from .domain_event_audit import (
+    DomainEventAuditContext,
+    append_control_plane_domain_event_audits,
+)
 from .models import ApprovalCategory, ApprovalRequest, ApprovalStatus
 
 
@@ -69,13 +75,38 @@ class ApprovalGate:
         )
 
     async def approve(self, approval_id: str, *, resolved_by: str) -> ApprovalDecision:
+        approval_identifier = ApprovalRequestId(approval_id)
+        existing = await self._store.get_approval(approval_identifier)
+        if existing is None:
+            raise ApprovalRequiredError(f"approval_not_found: {approval_id}")
+        aggregate = ApprovalRequestAggregate.from_record(existing)
+        aggregate.transition_to(ApprovalStatus.APPROVED)
+        domain_events = aggregate.pull_events()
         row = await self._store.resolve_approval(
-            approval_id,
+            approval_identifier,
             status=ApprovalStatus.APPROVED,
             resolved_by=resolved_by,
         )
         if row is None:
             raise ApprovalRequiredError(f"approval_not_found: {approval_id}")
+        await append_control_plane_domain_event_audits(
+            self._store,
+            domain_events,
+            DomainEventAuditContext(
+                actor_type="user",
+                actor_id=resolved_by,
+                trace_id=row.trace_id,
+                run_id=row.run_id,
+                work_item_id=row.work_item_id,
+                detail={
+                    "status": row.status,
+                    "resolved_by": row.resolved_by,
+                    "category": row.category,
+                    "source_agent_id": row.source_agent_id,
+                    "goal_id": row.goal_id,
+                },
+            ),
+        )
         return ApprovalDecision(
             approval_id=row.approval_id,
             status=row.status,
@@ -83,13 +114,38 @@ class ApprovalGate:
         )
 
     async def reject(self, approval_id: str, *, resolved_by: str) -> ApprovalDecision:
+        approval_identifier = ApprovalRequestId(approval_id)
+        existing = await self._store.get_approval(approval_identifier)
+        if existing is None:
+            raise ApprovalRequiredError(f"approval_not_found: {approval_id}")
+        aggregate = ApprovalRequestAggregate.from_record(existing)
+        aggregate.transition_to(ApprovalStatus.REJECTED)
+        domain_events = aggregate.pull_events()
         row = await self._store.resolve_approval(
-            approval_id,
+            approval_identifier,
             status=ApprovalStatus.REJECTED,
             resolved_by=resolved_by,
         )
         if row is None:
             raise ApprovalRequiredError(f"approval_not_found: {approval_id}")
+        await append_control_plane_domain_event_audits(
+            self._store,
+            domain_events,
+            DomainEventAuditContext(
+                actor_type="user",
+                actor_id=resolved_by,
+                trace_id=row.trace_id,
+                run_id=row.run_id,
+                work_item_id=row.work_item_id,
+                detail={
+                    "status": row.status,
+                    "resolved_by": row.resolved_by,
+                    "category": row.category,
+                    "source_agent_id": row.source_agent_id,
+                    "goal_id": row.goal_id,
+                },
+            ),
+        )
         return ApprovalDecision(
             approval_id=row.approval_id,
             status=row.status,
@@ -97,13 +153,12 @@ class ApprovalGate:
         )
 
     async def ensure_approved(self, approval_id: str) -> ApprovalDecision:
-        row = await self._store.get_approval(approval_id)
+        row = await self._store.get_approval(ApprovalRequestId(approval_id))
         if row is None:
             raise ApprovalRequiredError(f"approval_not_found: {approval_id}")
-        if row.status != ApprovalStatus.APPROVED.value:
-            raise ApprovalRequiredError(
-                f"approval_required: {approval_id} status={row.status}"
-            )
+        aggregate = ApprovalRequestAggregate.from_record(row)
+        if not aggregate.is_approved:
+            raise ApprovalRequiredError(f"approval_required: {approval_id} status={row.status}")
         return ApprovalDecision(
             approval_id=row.approval_id,
             status=row.status,

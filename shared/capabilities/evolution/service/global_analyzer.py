@@ -11,17 +11,12 @@ from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.utils.logger import get_logger
 
 from ..core.analysis_ports import EvolutionTraceAnalysisStore
+from ..core.domain.proposal import ALLOWED_EVOLUTION_OPERATIONS
 
 logger = get_logger("evolution_module.global_analyzer")
 
 # Operation whitelist (from design spec Section 5.2)
-ALLOWED_OPERATIONS = [
-    "add_skill",
-    "adjust_skill_ordering",
-    "modify_event_subscription",
-    "adjust_sampling_parameters",
-    "add_loop_logic",
-]
+ALLOWED_OPERATIONS = list(ALLOWED_EVOLUTION_OPERATIONS)
 
 # Known runtime IDs in the system.
 _KNOWN_AGENT_IDS = [

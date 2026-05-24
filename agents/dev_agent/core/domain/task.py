@@ -22,10 +22,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from shared.core.identifiers import DevTaskId
+
 from .lifecycle.task_lifecycle import (
     ACTIVE_STATUSES,
     IN_PROGRESS_STATUSES,
     VALID_TRANSITIONS,
+    TaskStatus,
     can_transition,
 )
 
@@ -33,61 +36,70 @@ from .lifecycle.task_lifecycle import (
 class InvalidTaskTransitionError(Exception):
     """Raised when ``transition_to`` is called with an illegal target state."""
 
-    def __init__(self, *, task_id: str, from_status: str, to_status: str) -> None:
+    def __init__(
+        self,
+        *,
+        task_id: DevTaskId | str,
+        from_status: TaskStatus | str,
+        to_status: TaskStatus | str,
+    ) -> None:
         super().__init__(
             f"illegal dev task transition task_id={task_id} "
             f"{from_status} -> {to_status}"
         )
-        self.task_id = task_id
-        self.from_status = from_status
-        self.to_status = to_status
+        self.task_id = DevTaskId(str(task_id))
+        self.from_status = TaskStatus(str(from_status))
+        self.to_status = TaskStatus(str(to_status))
 
 
 @dataclass(frozen=True, slots=True)
 class TaskStatusChanged:
     """Domain event emitted when the aggregate moves between states."""
 
-    task_id: str
-    from_status: str
-    to_status: str
+    task_id: DevTaskId
+    from_status: TaskStatus
+    to_status: TaskStatus
 
 
 @dataclass(slots=True)
 class Task:
     """Aggregate for one delivery task."""
 
-    task_id: str
-    status: str
+    task_id: DevTaskId
+    status: TaskStatus
     pending_events: list[TaskStatusChanged] = field(default_factory=list)
 
     def __post_init__(self) -> None:
+        self.task_id = DevTaskId(str(self.task_id))
+        self.status = TaskStatus(str(self.status))
         if self.status not in VALID_TRANSITIONS:
             raise ValueError(
                 f"unknown dev task status {self.status!r}; "
                 f"must be one of {tuple(VALID_TRANSITIONS)}"
             )
 
-    def transition_to(self, new_status: str) -> TaskStatusChanged:
+    def transition_to(self, new_status: TaskStatus | str) -> TaskStatusChanged:
         """Move the aggregate to ``new_status`` if the transition is legal.
 
         Raises:
             InvalidTaskTransitionError: if the lifecycle policy
                 does not allow this transition.
         """
-        if new_status not in VALID_TRANSITIONS or not can_transition(
+        target_status = TaskStatus(str(new_status))
+        if target_status not in VALID_TRANSITIONS or not can_transition(
             self.status, new_status
         ):
             raise InvalidTaskTransitionError(
                 task_id=self.task_id,
                 from_status=self.status,
-                to_status=new_status,
+                to_status=target_status,
             )
         event = TaskStatusChanged(
             task_id=self.task_id,
             from_status=self.status,
-            to_status=new_status,
+            to_status=target_status,
         )
-        self.status = new_status
+        self.status = target_status
         self.pending_events.append(event)
         return event
 

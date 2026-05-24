@@ -6,9 +6,13 @@ import hashlib
 import json
 from typing import Any
 
-from shared.control_plane.models import Artifact, ArtifactType, AuditEvent
+from shared.control_plane.domain.artifact import Artifact as ArtifactAggregate
+from shared.control_plane.domain_event_audit import (
+    DomainEventAuditContext,
+    append_control_plane_domain_event_audits,
+)
+from shared.control_plane.models import Artifact, ArtifactType
 from shared.control_plane.run_evidence_ports import ControlPlaneRunEvidenceStore
-from shared.schemas.event import EventTypes
 
 
 def canonical_evidence_json(value: dict[str, Any]) -> str:
@@ -88,7 +92,7 @@ async def create_run_evidence_artifact(
         "error_message": error_message,
     }
     content_hash = hash_evidence(evidence)
-    artifact = await repo.create_artifact(
+    artifact_aggregate = ArtifactAggregate.for_creation(
         Artifact(
             company_id=company_id,
             artifact_type=ArtifactType.RUN_WALKTHROUGH,
@@ -106,24 +110,25 @@ async def create_run_evidence_artifact(
             },
         )
     )
-    await repo.append_audit_event(
-        AuditEvent(
-            company_id=company_id,
-            action=EventTypes.ARTIFACT_CREATED,
-            target_type="artifact",
-            target_id=artifact.artifact_id,
+    artifact = await repo.create_artifact(
+        artifact_aggregate.record,
+    )
+    artifact_aggregate.record = artifact
+    artifact_aggregate.mark_created()
+    await append_control_plane_domain_event_audits(
+        repo,
+        artifact_aggregate.pull_events(),
+        DomainEventAuditContext(
             actor_type=actor_type,
             actor_id=actor_id,
             trace_id=trace_id,
             run_id=run_id,
             work_item_id=work_item_id,
             detail={
-                "artifact_id": artifact.artifact_id,
-                "artifact_type": ArtifactType.RUN_WALKTHROUGH.value,
                 "uri": artifact.uri,
                 "content_hash": content_hash,
                 "evidence_for": "agent_run",
             },
-        )
+        ),
     )
     return artifact

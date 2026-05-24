@@ -1,6 +1,7 @@
 """Write WBS decomposition results to OpenProject as child work packages."""
 
 from shared.core import OpenProjectWorkPackagePort
+from shared.core.identifiers import OpenProjectProjectId, WorkPackageId
 from shared.utils.logger import get_logger
 
 logger = get_logger("pjm_agent.op_writer")
@@ -16,8 +17,8 @@ class OPWriterService:
 
     async def write_wbs(
         self,
-        parent_wp_id: int,
-        project_id: int,
+        parent_wp_id: WorkPackageId,
+        project_id: OpenProjectProjectId,
         wbs_result: dict,
         assignee_id: int | None = None,
     ) -> dict:
@@ -76,8 +77,8 @@ class OPWriterService:
 
     async def write_task_subtasks(
         self,
-        parent_wp_id: int,
-        project_id: int,
+        parent_wp_id: WorkPackageId,
+        project_id: OpenProjectProjectId,
         subtasks: list[dict],
         assignee_id: int | None = None,
     ) -> dict:

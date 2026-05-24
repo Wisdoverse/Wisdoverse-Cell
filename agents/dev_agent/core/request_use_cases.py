@@ -6,11 +6,12 @@ from typing import Any, Protocol
 
 from shared.control_plane import ApprovalRequiredError
 from shared.core import request_error
+from shared.core.identifiers import DevTaskId, WorkPackageId
 from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
 from ..models.schemas import WorkflowPlan
-from .domain.lifecycle.task_lifecycle import AWAITING_APPROVAL, FAILED
+from .domain.lifecycle.task_lifecycle import AWAITING_APPROVAL, FAILED, PLANNING
 from .repositories import DevTaskRepositoryPort, DevWorkflowLogRepositoryPort
 from .unit_of_work_ports import DevUnitOfWorkFactory
 
@@ -90,7 +91,8 @@ class DevRequestUseCase:
         if not wp_id:
             return request_error("wp_id required", "wp_id_required")
 
-        task = await self._repo.get_by_wp_id(wp_id)
+        work_package_id = WorkPackageId(int(wp_id))
+        task = await self._repo.get_by_wp_id(work_package_id)
         if not task:
             return request_error(
                 f"Task not found for wp_id={wp_id}",
@@ -143,7 +145,8 @@ class DevRequestUseCase:
         if not task_id:
             return request_error("task_id required", "task_id_required")
 
-        task = await self._repo.get_by_id(task_id)
+        dev_task_id = DevTaskId(str(task_id))
+        task = await self._repo.get_by_id(dev_task_id)
         if not task or task.status != FAILED:
             return request_error(
                 "Task not found or not in failed state",
@@ -152,8 +155,8 @@ class DevRequestUseCase:
             )
 
         success = await self._repo.update_status(
-            task_id,
-            "planning",
+            dev_task_id,
+            PLANNING,
             retry_count=task.retry_count + 1,
         )
         return {"success": success, "task_id": task_id}
@@ -163,9 +166,10 @@ class DevRequestUseCase:
         if not task_id:
             return request_error("task_id required", "task_id_required")
 
+        dev_task_id = DevTaskId(str(task_id))
         success = await self._repo.update_status(
-            task_id,
-            "failed",
+            dev_task_id,
+            FAILED,
             error_message="Manually cancelled",
         )
         return {"success": success}
@@ -175,7 +179,8 @@ class DevRequestUseCase:
         if not task_id:
             return request_error("task_id required", "task_id_required")
 
-        task = await self._repo.get_by_id(task_id)
+        dev_task_id = DevTaskId(str(task_id))
+        task = await self._repo.get_by_id(dev_task_id)
         if not task or task.status != AWAITING_APPROVAL:
             return request_error(
                 "Task not found or not awaiting approval",
@@ -183,7 +188,7 @@ class DevRequestUseCase:
                 task_id=task_id,
             )
 
-        workflow_log = await self._log_repo.get_by_task_id(task_id)
+        workflow_log = await self._log_repo.get_by_task_id(dev_task_id)
         if not workflow_log or not workflow_log.workflow_json:
             logger.error(
                 "approve_missing_workflow_plan",

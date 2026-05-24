@@ -19,6 +19,7 @@ from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
+from ..adapters.feishu_card_acl import PJMFeishuCardACL
 from ..adapters.feishu_cards import FeishuPJMCardRenderer
 from ..core.alert_ports import PJMAlertLogStore
 from ..core.alert_service import AlertService
@@ -47,6 +48,7 @@ except ImportError:
     _metrics_available = False
 
 logger = get_logger("pjm_agent.service")
+
 
 class _PJMMetrics(PJMMetricsPort):
     def record_alert_triggered(self, *, alert_type: str, severity: str) -> None:
@@ -130,7 +132,7 @@ class PMAgent(BaseAgent):
         )
         op_client = get_op_client()
         feishu_client = get_feishu_client()
-        card_renderer = FeishuPJMCardRenderer()
+        card_renderer = PJMFeishuCardACL(FeishuPJMCardRenderer())
 
         self._push = PushService(feishu_client, config=self._core_config)
         self._decompose = DecomposeService(llm_gateway, config=self._core_config)

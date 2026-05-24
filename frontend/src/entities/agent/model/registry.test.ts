@@ -57,8 +57,10 @@ describe("agent registry architecture boundary", () => {
         }),
         expect.objectContaining({
           id: "chat-agent",
-          agentKind: "integration_gateway",
+          agentKind: "business_runtime_agent",
           interactionMode: "direct",
+          runtimeBoundary: "root_agent",
+          businessAgent: true,
         }),
         expect.objectContaining({
           id: "coordinator",
@@ -79,7 +81,13 @@ describe("agent registry architecture boundary", () => {
       .map((agent) => agent.id)
       .sort();
 
-    expect(businessAgentIds).toEqual(["dev-agent", "pjm-agent", "qa-agent", "requirement-manager"]);
+    expect(businessAgentIds).toEqual([
+      "chat-agent",
+      "dev-agent",
+      "pjm-agent",
+      "qa-agent",
+      "requirement-manager",
+    ]);
     expect(AGENT_REGISTRY["channel-gateway"]).toMatchObject({
       runtimeBoundary: "gateway",
       implemented: true,

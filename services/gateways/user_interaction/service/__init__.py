@@ -1,4 +1,5 @@
-"""ChatAgent Service."""
-from .agent import ChatAgent, agent, get_agent
+"""User-interaction gateway service shell."""
 
-__all__ = ["ChatAgent", "agent", "get_agent"]
+from .agent import UserInteractionGatewayAgent, agent, get_agent
+
+__all__ = ["UserInteractionGatewayAgent", "agent", "get_agent"]

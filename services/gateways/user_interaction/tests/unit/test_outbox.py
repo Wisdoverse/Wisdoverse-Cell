@@ -5,14 +5,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from services.gateways.user_interaction.core.event_ports import (
-    UserInteractionEventOutboxStore,
+from agents.chat_agent.core.event_ports import (
+    ChatAgentEventOutboxStore,
 )
-from services.gateways.user_interaction.db.repository import (
-    UserInteractionEventOutboxRepository,
+from agents.chat_agent.db.repository import (
+    ChatAgentEventOutboxRepository,
 )
-from services.gateways.user_interaction.models import UserInteractionEventOutbox
-from services.gateways.user_interaction.service.agent import ChatAgent
+from agents.chat_agent.models import ChatAgentEventOutbox
+from agents.chat_agent.service.agent import ChatAgent
 from shared.schemas.event import Event, EventTypes
 
 
@@ -29,10 +29,10 @@ def _outbox_row(**overrides):
         "created_at": datetime.now(UTC),
     }
     defaults.update(overrides)
-    return MagicMock(spec=UserInteractionEventOutbox, **defaults)
+    return MagicMock(spec=ChatAgentEventOutbox, **defaults)
 
 
-class FakeUserInteractionEventOutboxStore(UserInteractionEventOutboxStore):
+class FakeChatAgentEventOutboxStore(ChatAgentEventOutboxStore):
     def __init__(self, rows=None):
         self.rows = rows or []
         self.added: list[Event] = []
@@ -58,7 +58,7 @@ class FakeUserInteractionEventOutboxStore(UserInteractionEventOutboxStore):
 async def test_user_interaction_outbox_repository_add_preserves_event_contract():
     session = MagicMock()
     session.flush = AsyncMock()
-    repo = UserInteractionEventOutboxRepository(session)
+    repo = ChatAgentEventOutboxRepository(session)
     event = Event.create(
         event_type=EventTypes.SYNC_TRIGGER,
         source_agent="chat-agent",
@@ -83,7 +83,7 @@ async def test_publish_sync_trigger_stages_event_before_publish():
     bus = MagicMock()
     bus.connect = AsyncMock()
     bus.publish = AsyncMock(return_value=True)
-    outbox_store = FakeUserInteractionEventOutboxStore()
+    outbox_store = FakeChatAgentEventOutboxStore()
     agent = ChatAgent(bus=bus, outbox_store=outbox_store)
 
     ok = await agent.publish_sync_trigger(scope="full")
@@ -101,17 +101,17 @@ async def test_publish_sync_trigger_stages_event_before_publish():
 
 
 @pytest.mark.asyncio
-async def test_publish_pending_user_interaction_events_marks_failure_and_continues():
+async def test_publish_pending_chat_agent_events_marks_failure_and_continues():
     bus = MagicMock()
     bus.connect = AsyncMock()
     bus.publish = AsyncMock(side_effect=[False, True])
 
     failed_row = _outbox_row(event_id="evt_failed")
     ok_row = _outbox_row(event_id="evt_ok", payload={"scope": "openproject"})
-    outbox_store = FakeUserInteractionEventOutboxStore(rows=[failed_row, ok_row])
+    outbox_store = FakeChatAgentEventOutboxStore(rows=[failed_row, ok_row])
     agent = ChatAgent(bus=bus, outbox_store=outbox_store)
 
-    result = await agent.publish_pending_user_interaction_events(limit=2)
+    result = await agent.publish_pending_chat_agent_events(limit=2)
 
     assert outbox_store.last_limit == 2
     assert bus.publish.await_count == 2

@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from shared.core.identifiers import OpenQuestionId, RequirementId
+
 from .requirement_mutation_workflow import (
     RequirementMutationSideEffectPublisher,
     RequirementMutationWorkflow,
@@ -41,7 +43,7 @@ class RequirementFeedbackUseCase:
     ) -> object | None:
         async with self._uow_factory() as uow:
             result = await self._mutation_workflow.confirm_requirement(
-                requirement_id=requirement_id,
+                requirement_id=RequirementId(requirement_id),
                 confirmed_by=confirmed_by,
                 uow=uow,
             )
@@ -61,7 +63,7 @@ class RequirementFeedbackUseCase:
     ) -> object | None:
         async with self._uow_factory() as uow:
             result = await self._mutation_workflow.reject_requirement(
-                requirement_id=requirement_id,
+                requirement_id=RequirementId(requirement_id),
                 reason=reason,
                 rejected_by=rejected_by,
                 uow=uow,
@@ -82,7 +84,7 @@ class RequirementFeedbackUseCase:
     ) -> object | None:
         async with self._uow_factory() as uow:
             result = await self._mutation_workflow.answer_question(
-                question_id,
+                OpenQuestionId(question_id),
                 answer=answer,
                 answered_by=answered_by,
                 uow=uow,
@@ -105,7 +107,9 @@ class RequirementFeedbackUseCase:
     ) -> BatchOperationSummary:
         async with self._uow_factory() as uow:
             results, mutation_results = await self._mutation_workflow.batch_confirm_requirements(
-                requirement_ids=requirement_ids,
+                requirement_ids=[
+                    RequirementId(requirement_id) for requirement_id in requirement_ids
+                ],
                 confirmed_by=confirmed_by,
                 uow=uow,
             )
@@ -124,7 +128,9 @@ class RequirementFeedbackUseCase:
     ) -> BatchOperationSummary:
         async with self._uow_factory() as uow:
             results, mutation_results = await self._mutation_workflow.batch_reject_requirements(
-                requirement_ids=requirement_ids,
+                requirement_ids=[
+                    RequirementId(requirement_id) for requirement_id in requirement_ids
+                ],
                 reason=reason,
                 rejected_by=rejected_by,
                 uow=uow,

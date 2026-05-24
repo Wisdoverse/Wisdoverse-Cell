@@ -3,11 +3,17 @@ import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from shared.core import BitableTablePort, FeishuMessengerPort
+from shared.core import FeishuMessengerPort
 from shared.utils.logger import get_logger
 
 from .config import AnalysisCoreConfig
+from .domain.feishu_task import AnalysisFeishuTaskACL, AnalysisFeishuTaskSnapshot
 from .domain.projection import WorkPackageProjection, WorkPackageProjectionPort
+from .domain.report import (
+    AnalysisReportKind,
+    AnalysisReportStats,
+    GeneratedAnalysisReport,
+)
 
 logger = get_logger("analysis_module.weekly_report")
 
@@ -18,24 +24,38 @@ _COMPLETED_STATUSES = {"closed", "done", "resolved", "completed"}
 class WeeklyReportGenerator:
     def __init__(
         self,
-        bitable: BitableTablePort,
         messenger: FeishuMessengerPort,
         projection_port: WorkPackageProjectionPort,
         config: AnalysisCoreConfig | None = None,
     ):
-        self._bitable = bitable
         self._messenger = messenger
         self._projection_port = projection_port
         self._config = config or AnalysisCoreConfig()
+        self._feishu_task_acl = AnalysisFeishuTaskACL()
 
     async def generate(self) -> dict:
         feishu_tasks = await self._fetch_feishu_tasks()
         op_tasks = await self._fetch_op_tasks()
         if not feishu_tasks and not op_tasks:
-            return {"content": "暂无任务数据", "summary": "无数据"}
+            report = GeneratedAnalysisReport.generate(
+                report_kind=AnalysisReportKind.WEEKLY,
+                content="暂无任务数据",
+                summary="无数据",
+                stats=None,
+            )
+            self._drain_report_events(report)
+            return report.to_response(include_stats=False)
 
-        content = self._format_report(feishu_tasks, op_tasks)
-        return {"content": content, "summary": f"共 {len(feishu_tasks) + len(op_tasks)} 个任务"}
+        stats = self._compute_stats(feishu_tasks, op_tasks)
+        content = self._format_report(feishu_tasks, op_tasks, stats=stats)
+        report = GeneratedAnalysisReport.generate(
+            report_kind=AnalysisReportKind.WEEKLY,
+            content=content,
+            summary=f"共 {stats.total} 个任务",
+            stats=stats,
+        )
+        self._drain_report_events(report)
+        return report.to_response(include_stats=False)
 
     async def push_to_chat(self, content: str) -> bool:
         chat_id = self._config.feishu_report_chat_id
@@ -55,18 +75,9 @@ class WeeklyReportGenerator:
             logger.error("weekly_report_push_failed", error=str(e))
             return False
 
-    async def _fetch_feishu_tasks(self) -> list[dict]:
-        app_token = self._config.feishu_pm_app_token
-        table_id = self._config.feishu_pm_task_table_id
-        if not app_token or not table_id:
-            logger.warning(
-                "fetch_feishu_tasks_missing_config",
-                has_app_token=bool(app_token),
-                has_table_id=bool(table_id),
-            )
-            return []
-        records = await self._bitable.list_all_records(app_token=app_token, table_id=table_id)
-        return [r.get("fields", {}) for r in records]
+    async def _fetch_feishu_tasks(self) -> list[AnalysisFeishuTaskSnapshot]:
+        projections = await self._projection_port.list_subtask_progress()
+        return self._feishu_task_acl.from_projection_rows(projections)
 
     async def _fetch_op_tasks(self) -> list[WorkPackageProjection]:
         if not self._config.decompose_project_ids:
@@ -84,36 +95,36 @@ class WeeklyReportGenerator:
 
     def _format_report(
         self,
-        feishu_tasks: list[dict],
+        feishu_tasks: list[AnalysisFeishuTaskSnapshot],
         op_tasks: list[WorkPackageProjection],
+        *,
+        stats: AnalysisReportStats | None = None,
     ) -> str:
         now = datetime.now(_CHINA_TZ).strftime("%Y-%m-%d")
+        stats = stats or self._compute_stats(feishu_tasks, op_tasks)
 
         # Feishu task categories
-        fs_completed = [t for t in feishu_tasks if "完成" in t.get("状态", "")]
-        fs_in_progress = [t for t in feishu_tasks if "进行中" in t.get("状态", "")]
-        fs_blocked = [t for t in feishu_tasks if "阻塞" in t.get("状态", "")]
+        fs_completed = [task for task in feishu_tasks if task.is_completed]
+        fs_blocked = [task for task in feishu_tasks if task.is_blocked]
 
         # OpenProject task categories — typed projection access
         op_completed = [
             wp for wp in op_tasks if wp.status_name.lower() in _COMPLETED_STATUSES
         ]
-        op_in_progress = [
-            wp for wp in op_tasks if "progress" in wp.status_name.lower()
-        ]
 
         lines = [
             f"📋 每周项目周报 ({now})\n",
-            f"🔹 飞书任务：完成 {len(fs_completed)} 个，"
-            f"进行中 {len(fs_in_progress)} 个，"
-            f"阻塞 {len(fs_blocked)} 个",
-            f"🔹 OP 任务：完成 {len(op_completed)} 个，进行中 {len(op_in_progress)} 个\n",
+            f"🔹 飞书任务：完成 {stats.feishu.completed} 个，"
+            f"进行中 {stats.feishu.in_progress} 个，"
+            f"阻塞 {stats.feishu.blocked} 个",
+            f"🔹 OP 任务：完成 {stats.op.completed} 个，"
+            f"进行中 {stats.op.in_progress} 个\n",
         ]
 
         if fs_completed:
             lines.append("✅ 飞书本周完成：")
-            for t in fs_completed[:10]:
-                lines.append(f"  • {t.get('任务(动宾短语)', '未命名')}")
+            for task in fs_completed[:10]:
+                lines.append(f"  • {task.title}")
 
         if op_completed:
             lines.append("\n✅ OP 本周完成：")
@@ -122,9 +133,26 @@ class WeeklyReportGenerator:
 
         if fs_blocked:
             lines.append("\n🚫 阻塞中（飞书）：")
-            for t in fs_blocked:
-                name = t.get("任务(动宾短语)", "未命名")
-                reason = t.get("阻塞原因", "未说明")
-                lines.append(f"  • {name} — {reason}")
+            for task in fs_blocked:
+                lines.append(f"  • {task.title} — {task.blocked_reason_or_default}")
 
         return "\n".join(lines)
+
+    def _compute_stats(
+        self,
+        feishu_tasks: list[AnalysisFeishuTaskSnapshot],
+        op_tasks: list[WorkPackageProjection],
+    ) -> AnalysisReportStats:
+        return AnalysisReportStats.from_sources(
+            feishu_tasks=feishu_tasks,
+            op_tasks=op_tasks,
+        )
+
+    def _drain_report_events(self, report: GeneratedAnalysisReport) -> None:
+        for event in report.pull_events():
+            logger.debug(
+                "analysis_report_domain_event_raised",
+                domain_event=event.event_name,
+                report_kind=event.report_kind.value,
+                total_tasks=event.total_tasks,
+            )

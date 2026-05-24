@@ -5,10 +5,10 @@ Seeds the DDD identifier value-object pattern per
 DDD-007.
 
 The wrappers are `typing.NewType` aliases: at runtime they are plain
-``str`` (zero overhead), but the static type checker treats each
+values (zero overhead), but the static type checker treats each
 identifier as a distinct type. That means a function that takes a
 ``WorkItemId`` cannot silently accept a ``GoalId`` or a raw ``str``,
-catching identifier-mix bugs that the previous string-typed signatures
+catching identifier-mix bugs that the previous primitive-typed signatures
 could not detect.
 
 Adoption pattern (one PR per identifier so changes stay reviewable):
@@ -55,6 +55,8 @@ OpenQuestionId = NewType("OpenQuestionId", str)
 FeedbackRecordId = NewType("FeedbackRecordId", str)
 DevTaskId = NewType("DevTaskId", str)
 AcceptanceRunId = NewType("AcceptanceRunId", str)
+WorkPackageId = NewType("WorkPackageId", int)
+OpenProjectProjectId = NewType("OpenProjectProjectId", int)
 
 # Cross-cutting identifiers.
 EventId = NewType("EventId", str)
@@ -132,6 +134,11 @@ def new_open_question_id() -> OpenQuestionId:
     return OpenQuestionId(generate_id(IDPrefix.QUESTION))
 
 
+def new_feedback_record_id() -> FeedbackRecordId:
+    """Generate a fresh FeedbackRecordId."""
+    return FeedbackRecordId(generate_id(IDPrefix.FEEDBACK))
+
+
 def new_event_id() -> EventId:
     """Generate a fresh EventId."""
     return EventId(generate_id(IDPrefix.EVENT))
@@ -156,9 +163,11 @@ __all__ = [
     "GoalId",
     "MeetingId",
     "OpenQuestionId",
+    "OpenProjectProjectId",
     "RequirementId",
     "TraceId",
     "UserId",
+    "WorkPackageId",
     "WorkItemId",
     "new_agent_run_id",
     "new_approval_id",
@@ -170,6 +179,7 @@ __all__ = [
     "new_decision_id",
     "new_event_id",
     "new_evolution_proposal_id",
+    "new_feedback_record_id",
     "new_goal_id",
     "new_meeting_id",
     "new_open_question_id",

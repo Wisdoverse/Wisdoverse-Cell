@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from .budget_store import SqlAlchemyControlPlaneBudgetStore
     from .company_store import SqlAlchemyControlPlaneCompanyStore
     from .decision_store import SqlAlchemyControlPlaneDecisionStore
+    from .event_outbox_store import SqlAlchemyControlPlaneEventOutboxStore
     from .evolution_proposal_store import SqlAlchemyControlPlaneEvolutionProposalStore
     from .goal_store import SqlAlchemyControlPlaneGoalStore
     from .prompt_config_store import SqlAlchemyControlPlanePromptConfigStore
@@ -112,6 +113,12 @@ class ControlPlaneStores:
         from .audit_timeline_store import SqlAlchemyControlPlaneAuditTimelineStore
 
         return SqlAlchemyControlPlaneAuditTimelineStore(self._session)
+
+    @property
+    def event_outbox(self) -> "SqlAlchemyControlPlaneEventOutboxStore":
+        from .event_outbox_store import SqlAlchemyControlPlaneEventOutboxStore
+
+        return SqlAlchemyControlPlaneEventOutboxStore(self._session)
 
     @property
     def budgets(self) -> "SqlAlchemyControlPlaneBudgetStore":

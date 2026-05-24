@@ -6,10 +6,14 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from agents.requirement_manager.core.domain.extraction_materialization import (
+    RequirementExtractionPublicationPolicy,
+)
 from agents.requirement_manager.core.meeting_ingest_workflow import (
     RequirementMeetingIngestWorkflow,
     create_requirements_extracted_event,
 )
+from shared.core.identifiers import MeetingId
 from shared.schemas.event import EventTypes
 
 
@@ -37,14 +41,14 @@ def _extracted_question(**overrides):
 class FakeMeetingStore:
     def __init__(self):
         self.created = []
-        self.processed: list[str] = []
+        self.processed: list[MeetingId] = []
 
     async def create(self, meeting):
         meeting.id = "mtg_1"
         self.created.append(meeting)
         return meeting
 
-    async def mark_processed(self, meeting_id: str):
+    async def mark_processed(self, meeting_id: MeetingId):
         self.processed.append(meeting_id)
 
 
@@ -115,12 +119,22 @@ async def test_ingest_meeting_persists_requirements_questions_index_and_event():
     meeting = uow.meetings.created[0]
     assert meeting.id == "mtg_1"
     assert meeting.title == "Planning"
+    assert meeting.source == "upload"
+    assert meeting.source_id == "src_1"
+    assert meeting.meeting_date == datetime(2026, 5, 22, 10, 0, tzinfo=UTC)
     assert meeting.participants == ["Alice"]
+    extractor.extract.assert_awaited_once_with(
+        content="Meeting notes",
+        source="upload",
+        meeting_date="2026-05-22T10:00:00+00:00",
+        participants=["Alice"],
+        context="Sprint planning",
+    )
     assert result.meeting_id == "mtg_1"
     assert result.requirement_ids == ["req_1", "req_2"]
     assert result.requirements_extracted == 2
     assert result.questions_generated == 1
-    assert uow.meetings.processed == ["mtg_1"]
+    assert uow.meetings.processed == [MeetingId("mtg_1")]
     assert len(uow.requirements.created) == 2
     assert uow.questions.created[0].requirement_id == "req_1"
     assert uow.outbox.staged[0].event_type == EventTypes.REQUIREMENT_EXTRACTED
@@ -144,10 +158,17 @@ async def test_ingest_meeting_without_requirements_skips_index_questions_and_eve
         vector_index=vector_index,
     ).ingest_meeting(content="Chit chat", source="upload", uow=uow)
 
+    extractor.extract.assert_awaited_once_with(
+        content="Chit chat",
+        source="upload",
+        meeting_date=None,
+        participants=None,
+        context=None,
+    )
     assert result.requirements_extracted == 0
     assert result.questions_generated == 0
     assert result.requirement_ids == []
-    assert uow.meetings.processed == ["mtg_1"]
+    assert uow.meetings.processed == [MeetingId("mtg_1")]
     assert uow.requirements.created == []
     assert uow.questions.created == []
     assert uow.outbox.staged == []
@@ -180,13 +201,17 @@ def test_create_requirements_extracted_event_uses_requirement_contract():
     requirement = SimpleNamespace(
         id="req_1",
         title="Offline capture",
+        description="Capture notes without connectivity",
         priority="high",
         category="功能",
     )
+    publication = RequirementExtractionPublicationPolicy().build(
+        meeting_id=MeetingId("mtg_1"),
+        requirements=[requirement],
+    )
 
     event = create_requirements_extracted_event(
-        requirements=[requirement],
-        meeting_id="mtg_1",
+        publication=publication,
     )
 
     assert event.event_type == EventTypes.REQUIREMENT_EXTRACTED

@@ -6,6 +6,7 @@ from shared.core import (
     FeishuMessengerPort,
     OpenProjectWorkPackagePort,
 )
+from shared.core.identifiers import WorkPackageId
 from shared.observability.outbox import record_outbox_pending_age
 from shared.schemas.event import Event, EventMetadata
 from shared.utils.logger import get_logger
@@ -208,8 +209,9 @@ class DecompositionOrchestrator:
         return await self._request_workflow().handle_decompose(event)
 
     async def approve_decomposition(self, wp_id: int, approved_by: str) -> dict | None:
+        work_package_id = WorkPackageId(wp_id)
         result = await self._approval_workflow().approve_decomposition(
-            wp_id,
+            work_package_id,
             approved_by,
         )
         for staged_event in result.staged_events:
@@ -217,19 +219,22 @@ class DecompositionOrchestrator:
         return result.response
 
     async def retry_decompose(self, wp_id: int) -> dict:
-        result = await self._recovery_workflow().retry_decompose(wp_id)
+        work_package_id = WorkPackageId(wp_id) if wp_id else None
+        result = await self._recovery_workflow().retry_decompose(work_package_id)
         for staged_event in result.staged_events:
             await self._publish_staged_pjm_event(staged_event.event, wp_id=staged_event.wp_id)
         return result.response
 
     async def get_decompose(self, wp_id: int | None) -> dict:
-        return await self._recovery_workflow().get_decompose(wp_id)
+        work_package_id = WorkPackageId(wp_id) if wp_id else None
+        return await self._recovery_workflow().get_decompose(work_package_id)
 
     async def reject_decomposition(
         self, wp_id: int, rejected_by: str, reason: str = ""
     ) -> dict | None:
+        work_package_id = WorkPackageId(wp_id)
         result = await self._approval_workflow().reject_decomposition(
-            wp_id,
+            work_package_id,
             rejected_by,
             reason,
         )

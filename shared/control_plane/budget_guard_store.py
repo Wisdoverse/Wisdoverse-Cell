@@ -8,7 +8,7 @@ from shared.core.identifiers import CompanyId
 from .agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from .budget_guard_ports import ControlPlaneBudgetGuardStore
 from .budget_store import SqlAlchemyControlPlaneBudgetStore
-from .models import AgentRun, BudgetPeriod, BudgetPolicy, BudgetScope, BudgetUsage
+from .models import AgentRun, AuditEvent, BudgetPeriod, BudgetPolicy, BudgetScope, BudgetUsage
 
 
 class SqlAlchemyControlPlaneBudgetGuardStore(ControlPlaneBudgetGuardStore):
@@ -38,6 +38,9 @@ class SqlAlchemyControlPlaneBudgetGuardStore(ControlPlaneBudgetGuardStore):
 
     async def record_budget_usage(self, usage: BudgetUsage) -> BudgetUsage:
         return await self._budgets.record_budget_usage(usage)
+
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
+        return await self._budgets.append_audit_event(event)
 
     async def add_agent_run_usage(
         self,

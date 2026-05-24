@@ -2,13 +2,15 @@
 
 from typing import Any, Protocol
 
+from shared.core.identifiers import AcceptanceRunId
+
 from ..models.schemas import QARunStats
 
 
 class QAAcceptanceRunRecord(Protocol):
     """Read model exposed by QA acceptance run persistence."""
 
-    id: str
+    id: AcceptanceRunId
     agent_name: str
     commit_sha: str | None
     mr_iid: int | None
@@ -33,7 +35,7 @@ class QAAcceptanceRunRecord(Protocol):
 class QAAcceptanceRunStore(Protocol):
     """Persistence port for QA acceptance run reads and updates."""
 
-    async def get_by_id(self, run_id: str) -> QAAcceptanceRunRecord | None:
+    async def get_by_id(self, run_id: AcceptanceRunId) -> QAAcceptanceRunRecord | None:
         """Fetch one acceptance run by id."""
 
     async def get_by_trigger_event_id(
@@ -61,7 +63,7 @@ class QAAcceptanceRunStore(Protocol):
 
     async def update_notification_summary(
         self,
-        run_id: str,
+        run_id: AcceptanceRunId,
         notification_summary: dict[str, Any],
     ) -> bool:
         """Update notification delivery summary for a run."""

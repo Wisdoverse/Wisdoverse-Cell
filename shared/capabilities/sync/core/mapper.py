@@ -1,33 +1,15 @@
 """Shared data mapper for OpenProject and Feishu Bitable sync boundaries."""
-from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any, Optional
+from typing import Any
 
+from shared.core.identifiers import OpenProjectProjectId, WorkPackageId
 
-@dataclass
-class WorkPackageData:
-    """Normalized work package data."""
-    op_id: int
-    title: str
-    description: Optional[str] = None
-    status: Optional[str] = None
-    assignee: Optional[str] = None
-    due_date: Optional[str] = None
-    progress: int = 0
-    priority: Optional[str] = None
-    project_id: Optional[int] = None
-    parent_id: Optional[int] = None
-
-
-@dataclass
-class FeishuRecordData:
-    """Normalized Feishu record data."""
-    record_id: Optional[str] = None
-    op_id: Optional[int] = None
-    title: Optional[str] = None
-    subtask_name: Optional[str] = None
-    subtask_status: Optional[str] = None
-    parent_op_id: Optional[int] = None
+from .domain.sync_values import (
+    FeishuRecordData,
+    WorkPackageData,
+    feishu_record_id,
+    feishu_subtask_status,
+)
 
 
 class DataMapper:
@@ -75,7 +57,7 @@ class DataMapper:
         priority = links.get("priority", {}).get("title", "")
 
         return WorkPackageData(
-            op_id=wp.get("id"),
+            op_id=WorkPackageId(int(wp.get("id"))),
             title=wp.get("subject", ""),
             description=wp.get("description", {}).get("raw", "") if wp.get("description") else None,
             status=status,
@@ -83,8 +65,8 @@ class DataMapper:
             due_date=due_date or None,
             progress=wp.get("percentageDone", 0),
             priority=priority or None,
-            project_id=project_id,
-            parent_id=parent_id,
+            project_id=OpenProjectProjectId(project_id) if project_id else None,
+            parent_id=WorkPackageId(parent_id) if parent_id else None,
         )
 
     @staticmethod
@@ -144,12 +126,14 @@ class DataMapper:
             parent_op_id = int(parent_op_id)
 
         return FeishuRecordData(
-            record_id=record.get("record_id"),
-            op_id=op_id,
+            record_id=feishu_record_id(record.get("record_id")),
+            op_id=WorkPackageId(int(op_id)) if op_id else None,
             title=fields.get(cls.FIELD_TITLE),
             subtask_name=fields.get(cls.FIELD_SUBTASK_NAME),
-            subtask_status=fields.get(cls.FIELD_SUBTASK_STATUS),
-            parent_op_id=parent_op_id,
+            subtask_status=feishu_subtask_status(
+                fields.get(cls.FIELD_SUBTASK_STATUS)
+            ),
+            parent_op_id=WorkPackageId(int(parent_op_id)) if parent_op_id else None,
         )
 
 

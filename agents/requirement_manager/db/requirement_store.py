@@ -2,6 +2,8 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import RequirementId
+
 from ..core.requirement_ports import RequirementStore
 from .repository import RequirementRepository
 
@@ -15,7 +17,7 @@ class SqlAlchemyRequirementStore(RequirementStore):
     async def create_batch(self, requirements: list):
         return await self._requirements.create_batch(requirements)
 
-    async def get_by_id(self, requirement_id: str):
+    async def get_by_id(self, requirement_id: RequirementId):
         return await self._requirements.get_by_id(requirement_id)
 
     async def list_all(
@@ -34,15 +36,15 @@ class SqlAlchemyRequirementStore(RequirementStore):
             limit=limit,
         )
 
-    async def update(self, requirement_id: str, **kwargs):
+    async def update(self, requirement_id: RequirementId, **kwargs):
         return await self._requirements.update(requirement_id, **kwargs)
 
-    async def confirm(self, requirement_id: str, confirmed_by: str):
+    async def confirm(self, requirement_id: RequirementId, confirmed_by: str):
         return await self._requirements.confirm(requirement_id, confirmed_by)
 
     async def reject(
         self,
-        requirement_id: str,
+        requirement_id: RequirementId,
         reason: str,
         rejected_by: str,
     ):
@@ -52,5 +54,5 @@ class SqlAlchemyRequirementStore(RequirementStore):
             rejected_by=rejected_by,
         )
 
-    async def delete(self, requirement_id: str):
+    async def delete(self, requirement_id: RequirementId):
         return await self._requirements.delete(requirement_id)

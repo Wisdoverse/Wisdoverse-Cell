@@ -1,6 +1,6 @@
 # Data Ownership
 
-Last updated: 2026-05-18
+Last updated: 2026-05-23
 
 Status: Foundation document.
 
@@ -28,9 +28,10 @@ This document defines the rules that mapping must respect.
 4. **Analysis reads only projections.** The Analysis capability must depend
    on projection ports; direct source-table reads are forbidden. This rule
    lands with Migration Plan Stage 3.
-5. **Identity has a single public path.** Writes to `users` go through the
-   Identity / User API; no other runtime writes to identity tables. This
-   rule lands with Migration Plan Stage 3.
+5. **Identity has a single write path.** Writes to `users` and
+   `identity_event_outbox` go through the Identity / User service path; no
+   other runtime writes to identity tables. This rule lands with Migration
+   Plan Stage 3.
 6. **No ORM Entity as cross-service contract.** ORM `*Table` classes are
    private to the owning runtime. Cross-boundary contracts use Pydantic
    DTOs or integration event payloads.
@@ -57,17 +58,18 @@ documents disagree, the guide wins; update this document to match.
 
 | Tables (representative) | Owner runtime | Reader policy |
 |--------------------------|---------------|---------------|
-| `control_plane_*` | Control Plane | `/api/v1/control-plane/*`; explicit read paths |
+| `control_plane_*` including `control_plane_event_outbox` | Control Plane | `/api/v1/control-plane/*`; explicit read paths; Control Plane outbox dispatcher |
 | `meetings`, `requirements`, `open_questions`, `feedback_records`, `llm_usage`, `chat_messages`, `requirement_event_outbox` | Requirement Manager | Requirement API/RPC, events, projection |
 | `pjm_agent_*` | PJM Agent | PJM API/events, projection |
 | `dev_agent_*` | Dev Agent | Dev API/events, projection |
 | `qa_acceptance_*`, `qa_agent_event_outbox` | QA Agent | QA API/events, projection |
 | `sync_agent_*` | Sync (OpenProject + Feishu Bitable sub-boundaries) | Sync API/status, projection |
-| `chat_agent_*`, `channel_gateway_event_outbox` | User Interaction + Channel Gateways | Gateway API/events, analytics projection |
+| `chat_agent_*` | Chat Agent | Chat-agent API/events, analytics projection |
+| `channel_gateway_event_outbox` | Channel Gateway | Gateway API/events, analytics projection |
 | `coordinator_event_outbox` | Coordinator | Coordinator events, operator replay |
 | `analysis_agent_*` | Analysis | Analysis API/events |
 | `evolution_*` | Evolution | Evolution API/events; proposal views via Control Plane |
-| `users` | Identity (target boundary; not finalized) | Identity / User API |
+| `users`, `identity_event_outbox` | Identity / User | Identity / User API, inbound user service, and identity event outbox dispatcher |
 
 Outbox tables (one per runtime, all integration-event publishers):
 
@@ -75,7 +77,8 @@ Outbox tables (one per runtime, all integration-event publishers):
 `dev_event_outbox` (or `dev_agent_event_outbox`), `qa_agent_event_outbox`,
 `sync_agent_event_outbox`, `analysis_agent_event_outbox`,
 `evolution_event_outbox`, `coordinator_event_outbox`,
-`channel_gateway_event_outbox`, `chat_agent_event_outbox`.
+`channel_gateway_event_outbox`, `chat_agent_event_outbox`,
+`control_plane_event_outbox`, `identity_event_outbox`.
 
 ---
 

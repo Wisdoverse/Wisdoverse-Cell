@@ -17,6 +17,7 @@ from ..company_use_cases import (
 )
 from ..company_use_cases import get_company as get_company_from_store
 from ..company_use_cases import list_companies as list_companies_from_store
+from ..domain.company_context import InvalidCompanyContextError
 from ..store_factory import ControlPlaneStores
 from ..unit_of_work import ControlPlaneUnitOfWork
 from .dependencies import StoresDependency, UnitOfWorkDependency
@@ -105,6 +106,8 @@ def create_company_router(
             )
         except CompanyAlreadyExistsError:
             raise_control_plane_api_error(status_code=409, detail="company_already_exists")
+        except InvalidCompanyContextError:
+            raise_control_plane_api_error(status_code=400, detail="invalid_company_context")
         await uow.commit()
         return row_to_dict(row)
 
@@ -137,6 +140,8 @@ def create_company_router(
             )
         except CompanyNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="company_not_found")
+        except InvalidCompanyContextError:
+            raise_control_plane_api_error(status_code=400, detail="invalid_company_context")
         await uow.commit()
         return row_to_dict(row)
 

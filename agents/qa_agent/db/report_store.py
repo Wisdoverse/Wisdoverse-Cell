@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import AcceptanceRunId
 from shared.utils.logger import get_logger
 
 from ..core.report_store import QAReportStore
@@ -28,36 +29,42 @@ class SqlAlchemyQAReportStore(QAReportStore):
         request: QARunRequest,
         result: AcceptanceExecutionResult,
         *,
+        run_id: AcceptanceRunId | None = None,
         trace_id: str | None = None,
         trigger_event_id: str | None = None,
+        completed_at: datetime | None = None,
         notification_summary: dict[str, Any] | None = None,
     ) -> QAAcceptanceRun:
         """Persist an acceptance execution result to the database."""
-        run = await self.run_repo.create(
-            trace_id=trace_id,
-            trigger_event_id=trigger_event_id,
-            agent_name=request.agent_name,
-            target_path=f"agents/{request.agent_name}",
-            commit_sha=request.commit_sha,
-            branch=request.branch,
-            mr_iid=request.mr_iid,
-            gitlab_project_id=request.gitlab_project_id,
-            trigger=request.trigger,
-            level=request.level,
-            l0_status=result.summary.l0_gate,
-            l1_status=result.summary.l1_check,
-            l2_status=result.summary.l2_report,
-            total_checks=result.summary.total_checks,
-            l0_failure_count=result.summary.l0_failures,
-            l1_warning_count=result.summary.l1_warnings,
-            duration_seconds=result.duration_seconds,
-            runner_exit_code=result.exit_code,
-            files_changed=request.files_changed,
-            raw_report=result.raw_report,
-            report_markdown=result.report_markdown,
-            notification_summary=notification_summary or {},
-            completed_at=datetime.now(UTC),
-        )
+        run_data: dict[str, Any] = {
+            "trace_id": trace_id,
+            "trigger_event_id": trigger_event_id,
+            "agent_name": request.agent_name,
+            "target_path": f"agents/{request.agent_name}",
+            "commit_sha": request.commit_sha,
+            "branch": request.branch,
+            "mr_iid": request.mr_iid,
+            "gitlab_project_id": request.gitlab_project_id,
+            "trigger": request.trigger,
+            "level": request.level,
+            "l0_status": result.summary.l0_gate,
+            "l1_status": result.summary.l1_check,
+            "l2_status": result.summary.l2_report,
+            "total_checks": result.summary.total_checks,
+            "l0_failure_count": result.summary.l0_failures,
+            "l1_warning_count": result.summary.l1_warnings,
+            "duration_seconds": result.duration_seconds,
+            "runner_exit_code": result.exit_code,
+            "files_changed": request.files_changed,
+            "raw_report": result.raw_report,
+            "report_markdown": result.report_markdown,
+            "notification_summary": notification_summary or {},
+            "completed_at": completed_at or datetime.now(UTC),
+        }
+        if run_id:
+            run_data["id"] = str(run_id)
+
+        run = await self.run_repo.create(**run_data)
 
         if result.findings:
             finding_dicts = [

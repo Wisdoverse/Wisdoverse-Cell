@@ -1,11 +1,12 @@
 """Approval use cases shared by control-plane HTTP adapters."""
+
 from __future__ import annotations
 
-from shared.schemas.event import EventTypes
+from shared.core.identifiers import CompanyId
 
 from .approval_gate import ApprovalDecision, ApprovalGate
 from .approval_ports import ControlPlaneApprovalStore
-from .models import ApprovalRequest, ApprovalStatus, AuditEvent, EvolutionRolloutState
+from .models import ApprovalRequest
 
 
 async def list_approvals(
@@ -20,7 +21,7 @@ async def list_approvals(
 ) -> list[ApprovalRequest]:
     """List approval requests for one company."""
     return await store.list_approvals(
-        company_id=company_id,
+        company_id=CompanyId(company_id),
         status=status,
         run_id=run_id,
         trace_id=trace_id,
@@ -29,47 +30,15 @@ async def list_approvals(
     )
 
 
-async def resolve_approval_and_sync_proposal(
+async def resolve_approval(
     store: ControlPlaneApprovalStore,
     *,
     approval_id: str,
     resolved_by: str,
     approved: bool,
 ) -> ApprovalDecision:
-    """Resolve an approval and sync any tied evolution proposal."""
+    """Resolve one approval request through the ApprovalRequest aggregate."""
     gate = ApprovalGate(store)
     if approved:
-        decision = await gate.approve(approval_id, resolved_by=resolved_by)
-        proposal = await store.update_evolution_proposal_approval_state_by_approval(
-            approval_id,
-            approval_state=ApprovalStatus.APPROVED.value,
-        )
-    else:
-        decision = await gate.reject(approval_id, resolved_by=resolved_by)
-        proposal = await store.update_evolution_proposal_approval_state_by_approval(
-            approval_id,
-            approval_state=ApprovalStatus.REJECTED.value,
-            rollout_state=EvolutionRolloutState.REJECTED.value,
-        )
-
-    if proposal is not None:
-        detail = {
-            "proposal_id": proposal.proposal_id,
-            "approval_state": proposal.approval_state,
-            "approval_id": approval_id,
-        }
-        if not approved:
-            detail["rollout_state"] = proposal.rollout_state
-        await store.append_audit_event(
-            AuditEvent(
-                company_id=proposal.company_id,
-                action=EventTypes.EVOLUTION_PROPOSAL_UPDATED,
-                target_type="evolution_proposal",
-                target_id=proposal.proposal_id,
-                actor_type="user",
-                actor_id=resolved_by,
-                detail=detail,
-            )
-        )
-
-    return decision
+        return await gate.approve(approval_id, resolved_by=resolved_by)
+    return await gate.reject(approval_id, resolved_by=resolved_by)

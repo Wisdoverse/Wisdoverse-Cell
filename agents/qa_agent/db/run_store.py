@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from shared.core.identifiers import AcceptanceRunId
+
 from ..core.run_store import QAAcceptanceRunRecord, QAAcceptanceRunStore
 from ..models.schemas import QARunStats
 from .database import DatabaseManager
@@ -14,7 +16,7 @@ class SqlAlchemyQAAcceptanceRunStore(QAAcceptanceRunStore):
     def __init__(self, db_manager: DatabaseManager):
         self._db_manager = db_manager
 
-    async def get_by_id(self, run_id: str) -> QAAcceptanceRunRecord | None:
+    async def get_by_id(self, run_id: AcceptanceRunId) -> QAAcceptanceRunRecord | None:
         async with self._db_manager.session() as session:
             repo = AcceptanceRunRepository(session)
             return await repo.get_by_id(run_id)
@@ -54,7 +56,7 @@ class SqlAlchemyQAAcceptanceRunStore(QAAcceptanceRunStore):
 
     async def update_notification_summary(
         self,
-        run_id: str,
+        run_id: AcceptanceRunId,
         notification_summary: dict[str, Any],
     ) -> bool:
         async with self._db_manager.session() as session:

@@ -1,9 +1,19 @@
 """Application use cases for control-plane decisions."""
+
 from __future__ import annotations
 
 from shared.schemas.event import EventTypes
 
 from .decision_ports import ControlPlaneDecisionStore
+from .domain.decision import Decision as DecisionAggregate
+from .domain.execution_links import ExecutionLinkConsistencyPolicy
+from .domain.execution_links import (
+    ExecutionLinkMismatchError as DomainExecutionLinkMismatchError,
+)
+from .domain_event_audit import (
+    DomainEventAuditContext,
+    append_control_plane_domain_event_audits,
+)
 from .models import AuditEvent, CompanyContext, Decision, DecisionStatus
 
 
@@ -122,7 +132,10 @@ async def update_decision_status_with_audit(
     if existing is None or existing.company_id != company_id:
         raise DecisionNotFoundError(decision_id)
 
-    status_value = status.value if isinstance(status, DecisionStatus) else status
+    aggregate = DecisionAggregate.from_record(existing)
+    aggregate.transition_to(status)
+    domain_events = aggregate.pull_events()
+    status_value = aggregate.status.value
     updated = await store.update_decision_status(
         decision_id,
         status=status_value,
@@ -131,6 +144,26 @@ async def update_decision_status_with_audit(
     )
     if updated is None:
         raise DecisionNotFoundError(decision_id)
+
+    detail = {
+        "status": updated.status,
+        "selected_option": updated.selected_option,
+        "decided_by": updated.decided_by,
+        "goal_id": updated.goal_id,
+    }
+    if domain_events:
+        await append_control_plane_domain_event_audits(
+            store,
+            domain_events,
+            DomainEventAuditContext(
+                actor_type="user",
+                actor_id=actor_id,
+                run_id=updated.run_id,
+                work_item_id=updated.work_item_id,
+                detail=detail,
+            ),
+        )
+        return updated
 
     await store.append_audit_event(
         AuditEvent(
@@ -142,12 +175,7 @@ async def update_decision_status_with_audit(
             actor_id=actor_id,
             run_id=updated.run_id,
             work_item_id=updated.work_item_id,
-            detail={
-                "status": updated.status,
-                "selected_option": updated.selected_option,
-                "decided_by": updated.decided_by,
-                "goal_id": updated.goal_id,
-            },
+            detail=detail,
         )
     )
     return updated
@@ -176,30 +204,30 @@ async def _validate_execution_links(
     work_item_id: str | None = None,
     goal_id: str | None = None,
 ) -> tuple[str | None, str | None]:
-    resolved_goal_id = goal_id
-    resolved_work_item_id = work_item_id
+    link_policy = ExecutionLinkConsistencyPolicy()
+    links = link_policy.requested_links(
+        run_id=run_id,
+        work_item_id=work_item_id,
+        goal_id=goal_id,
+    )
     if run_id:
         run = await store.get_agent_run(run_id)
         if run is None or run.company_id != company_id:
             raise DecisionRunNotFoundError(run_id)
-        if run.work_item_id:
-            if resolved_work_item_id and resolved_work_item_id != run.work_item_id:
-                raise DecisionLinkMismatchError("work_item")
-            resolved_work_item_id = run.work_item_id
-        if run.goal_id:
-            if resolved_goal_id and resolved_goal_id != run.goal_id:
-                raise DecisionLinkMismatchError("goal")
-            resolved_goal_id = run.goal_id
-    if resolved_work_item_id:
-        work_item = await store.get_work_item(resolved_work_item_id)
+        try:
+            links = link_policy.resolve_agent_run(links, run)
+        except DomainExecutionLinkMismatchError as exc:
+            raise DecisionLinkMismatchError(exc.target) from exc
+    if links.work_item_id:
+        work_item = await store.get_work_item(links.work_item_id)
         if work_item is None or work_item.company_id != company_id:
-            raise DecisionWorkItemNotFoundError(resolved_work_item_id)
-        if work_item.goal_id:
-            if resolved_goal_id and resolved_goal_id != work_item.goal_id:
-                raise DecisionLinkMismatchError("goal")
-            resolved_goal_id = work_item.goal_id
-    if resolved_goal_id:
-        goal = await store.get_goal(resolved_goal_id)
+            raise DecisionWorkItemNotFoundError(links.work_item_id)
+        try:
+            links = link_policy.resolve_work_item(links, work_item)
+        except DomainExecutionLinkMismatchError as exc:
+            raise DecisionLinkMismatchError(exc.target) from exc
+    if links.goal_id:
+        goal = await store.get_goal(links.goal_id)
         if goal is None or goal.company_id != company_id:
-            raise DecisionGoalNotFoundError(resolved_goal_id)
-    return resolved_goal_id, resolved_work_item_id
+            raise DecisionGoalNotFoundError(links.goal_id)
+    return link_policy.persistence_refs(links)

@@ -3,16 +3,19 @@
 from contextlib import AbstractAsyncContextManager
 from typing import Any, Protocol
 
+from shared.core.identifiers import OpenProjectProjectId, WorkPackageId
 from shared.schemas.event import Event
+
+from .domain.lifecycle.decomposition_lifecycle import DecompositionStatus
 
 
 class PJMDecompositionRecord(Protocol):
     """Read model exposed by decomposition persistence."""
 
     id: Any
-    wp_id: int
-    project_id: int
-    status: str
+    wp_id: WorkPackageId
+    project_id: OpenProjectProjectId
+    status: DecompositionStatus
     assignee_id: int | None
     decompose_result: dict[str, Any] | None
     created_at: Any
@@ -27,25 +30,25 @@ class PJMDecompositionTransaction(Protocol):
 
     async def create(
         self,
-        wp_id: int,
-        project_id: int,
+        wp_id: WorkPackageId,
+        project_id: OpenProjectProjectId,
         decompose_result: dict[str, Any],
         assignee_id: int | None = None,
     ) -> PJMDecompositionRecord:
         """Create a decomposition record."""
 
-    async def get_by_wp_id(self, wp_id: int) -> PJMDecompositionRecord | None:
+    async def get_by_wp_id(self, wp_id: WorkPackageId) -> PJMDecompositionRecord | None:
         """Fetch one decomposition record by OpenProject work-package id."""
 
     async def update_status(
         self,
-        wp_id: int,
-        status: str,
+        wp_id: WorkPackageId,
+        status: DecompositionStatus,
         approved_by: str | None = None,
     ) -> bool:
         """Update decomposition status."""
 
-    async def delete_by_wp_id(self, wp_id: int) -> bool:
+    async def delete_by_wp_id(self, wp_id: WorkPackageId) -> bool:
         """Delete a decomposition record by OpenProject work-package id."""
 
     async def stage_event(self, event: Event) -> None:

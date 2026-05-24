@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from services.gateways.user_interaction.core.config import UserInteractionCoreConfig
+from agents.chat_agent.core.config import ChatAgentCoreConfig
 
 
 class FakeToolCardRenderer:
@@ -49,7 +49,7 @@ class FakeApprovalGate:
 
 @pytest.fixture
 def tool_dependencies():
-    from services.gateways.user_interaction.core.tools import (
+    from agents.chat_agent.core.tools import (
         ToolDependencies,
         configure_tool_dependencies,
     )
@@ -75,7 +75,7 @@ def tool_dependencies():
             card_operation_store=mock_card_operation_store,
             daily_progress_store=mock_daily_progress_store,
             approval_gate=approval_gate,
-            config=UserInteractionCoreConfig.from_values(
+            config=ChatAgentCoreConfig.from_values(
                 redis_url="redis://redis:6379/2",
                 feishu_bitable_app_token="app-token",
                 feishu_bitable_member_table_id="member-table",
@@ -101,7 +101,7 @@ def tool_dependencies():
 
 @pytest.fixture
 def executor(tool_dependencies):
-    from services.gateways.user_interaction.core.tools import ToolExecutor
+    from agents.chat_agent.core.tools import ToolExecutor
 
     return ToolExecutor
 
@@ -200,6 +200,7 @@ async def test_update_daily_progress_uses_injected_store(executor, tool_dependen
         date=datetime(2026, 5, 17, tzinfo=UTC).date(),
         task_record_id="rec_task_1",
         task_title="Build report",
+        status="completed",
     )
     store.update_progress = AsyncMock(return_value=progress)
     store.get_pending = AsyncMock(return_value=[SimpleNamespace(status="completed")])
@@ -216,6 +217,42 @@ async def test_update_daily_progress_uses_injected_store(executor, tool_dependen
     store.update_progress.assert_awaited_once_with(1, "completed", note="done")
     store.get_pending.assert_awaited_once_with("ou_user_1", progress.date)
     bitable.update_record.assert_awaited_once_with("rec_task_1", {"状态": "已完成"})
+
+
+@pytest.mark.asyncio
+async def test_update_daily_progress_keeps_pending_items_open(
+    executor, tool_dependencies,
+):
+    """Pending remaining rows should keep all_tasks_updated false."""
+    store = tool_dependencies["daily_progress_store"]
+    bitable = tool_dependencies["bitable"]
+    progress = SimpleNamespace(
+        id=1,
+        user_id="ou_user_1",
+        date=datetime(2026, 5, 17, tzinfo=UTC).date(),
+        task_record_id="rec_task_1",
+        task_title="Build report",
+        status="blocked",
+    )
+    store.update_progress = AsyncMock(return_value=progress)
+    store.get_pending = AsyncMock(
+        return_value=[
+            SimpleNamespace(status="blocked"),
+            SimpleNamespace(status="pending"),
+        ]
+    )
+    bitable.update_record = AsyncMock()
+
+    result_str = await executor.execute(
+        "update_daily_progress",
+        {"progress_id": 1, "status": "blocked", "note": "waiting"},
+    )
+
+    result = json.loads(result_str)
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert "all_tasks_updated" not in result
+    bitable.update_record.assert_not_awaited()
 
 
 @pytest.mark.asyncio

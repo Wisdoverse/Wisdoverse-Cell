@@ -4,15 +4,20 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Protocol
 
+from shared.core.identifiers import DevTaskId, WorkPackageId
+
+from .domain.lifecycle.task_lifecycle import TaskStatus
+from .domain.task_values import RiskLevel
+
 
 class DevTaskRecord(Protocol):
     """Task fields consumed by dev-agent core use cases."""
 
-    id: str
-    wp_id: int
-    status: str
+    id: DevTaskId
+    wp_id: WorkPackageId
+    status: TaskStatus
     task_title: str | None
-    risk_level: str | None
+    risk_level: RiskLevel | str | None
     created_at: datetime | None
     updated_at: datetime | None
     workflow_id: str | None
@@ -27,16 +32,16 @@ class DevTaskRepositoryPort(Protocol):
 
     async def create_task(
         self,
-        wp_id: int,
+        wp_id: WorkPackageId,
         task_title: str,
-        risk_level: str = "MEDIUM",
+        risk_level: RiskLevel | str = RiskLevel.MEDIUM,
     ) -> DevTaskRecord | None:
         """Create a task record if the work package has not been seen."""
 
-    async def get_by_wp_id(self, wp_id: int) -> DevTaskRecord | None:
+    async def get_by_wp_id(self, wp_id: WorkPackageId) -> DevTaskRecord | None:
         """Return one task by OpenProject work-package id."""
 
-    async def get_by_id(self, task_id: str) -> DevTaskRecord | None:
+    async def get_by_id(self, task_id: DevTaskId) -> DevTaskRecord | None:
         """Return one task by internal task id."""
 
     async def get_by_mr_iid(self, mr_iid: int) -> DevTaskRecord | None:
@@ -44,13 +49,13 @@ class DevTaskRepositoryPort(Protocol):
 
     async def update_status(
         self,
-        task_id: str,
-        new_status: str,
+        task_id: DevTaskId,
+        new_status: TaskStatus,
         **kwargs: Any,
     ) -> bool:
         """Persist a task lifecycle transition."""
 
-    async def mark_polled(self, task_id: str, *, polled_at: datetime) -> bool:
+    async def mark_polled(self, task_id: DevTaskId, *, polled_at: datetime) -> bool:
         """Persist that an external workflow status poll was attempted."""
 
     async def list_active_tasks(self) -> list[DevTaskRecord]:
@@ -81,8 +86,12 @@ class DevWorkflowLogRecord(Protocol):
 class DevWorkflowLogRepositoryPort(Protocol):
     """Persistence operations required for workflow logs."""
 
-    async def create_log(self, task_id: str, **kwargs: Any) -> DevWorkflowLogRecord:
+    async def create_log(
+        self,
+        task_id: DevTaskId,
+        **kwargs: Any,
+    ) -> DevWorkflowLogRecord:
         """Persist a workflow log entry."""
 
-    async def get_by_task_id(self, task_id: str) -> DevWorkflowLogRecord | None:
+    async def get_by_task_id(self, task_id: DevTaskId) -> DevWorkflowLogRecord | None:
         """Return the latest workflow log for a task."""

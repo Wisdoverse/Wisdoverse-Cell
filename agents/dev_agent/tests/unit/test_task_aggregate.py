@@ -7,13 +7,17 @@ import pytest
 from agents.dev_agent.core.domain.lifecycle.task_lifecycle import (
     ACTIVE_STATUSES,
     IN_PROGRESS_STATUSES,
+    PENDING,
+    PLANNING,
     VALID_TRANSITIONS,
+    TaskStatus,
 )
 from agents.dev_agent.core.domain.task import (
     InvalidTaskTransitionError,
     Task,
     TaskStatusChanged,
 )
+from shared.core.identifiers import DevTaskId
 
 
 def test_construct_with_valid_status():
@@ -21,6 +25,15 @@ def test_construct_with_valid_status():
     assert task.status == "pending"
     assert task.task_id == "t-1"
     assert task.pending_events == []
+
+
+def test_construct_with_typed_identifier_and_status():
+    task = Task(task_id=DevTaskId("t-1"), status=PENDING)
+    event = task.transition_to(PLANNING)
+
+    assert task.task_id == DevTaskId("t-1")
+    assert task.status == PLANNING
+    assert event.to_status == TaskStatus("planning")
 
 
 def test_construct_with_invalid_status_raises():

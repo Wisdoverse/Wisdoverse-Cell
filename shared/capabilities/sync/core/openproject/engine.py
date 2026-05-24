@@ -7,6 +7,7 @@ from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
 from ..domain.sync_operation import SyncOperation, SyncOperationStatus, SyncSide
+from ..domain.sync_values import SyncProjectionPolicy
 from ..locking import acquire_sync_lock
 from ..mapper import data_mapper
 from ..sync_ports import OpenProjectSyncOperation, OpenProjectSyncStore, SyncLockStore
@@ -27,6 +28,7 @@ class OpenProjectSyncEngine:
         decompose_filter: Callable[[int], bool] | None = None,
         member_table_app_token: str | None = None,
         member_table_id: str | None = None,
+        projection_policy: SyncProjectionPolicy | None = None,
     ):
         self._sync_store = sync_store
         self._lock_store = lock_store
@@ -36,6 +38,7 @@ class OpenProjectSyncEngine:
         self._decompose_filter = decompose_filter
         self._member_table_app_token = member_table_app_token
         self._member_table_id = member_table_id
+        self._projection_policy = projection_policy or SyncProjectionPolicy()
 
     async def _load_member_map(self) -> dict[str, str]:
         member_map: dict[str, str] = {}
@@ -64,16 +67,20 @@ class OpenProjectSyncEngine:
     ) -> None:
         mapping = await store.get_mapping_by_op_id(wp_data.op_id)
         fields = data_mapper.work_package_to_feishu_fields(wp_data, member_map)
+        decision = self._projection_policy.decide_work_package_projection(
+            wp_data=wp_data,
+            mapping=mapping,
+        )
 
-        if mapping and mapping.feishu_record_id:
-            await self._bitable.update_record(mapping.feishu_record_id, fields)
+        if decision.should_update_record:
+            await self._bitable.update_record(decision.feishu_record_id, fields)
         else:
             record_id = await self._bitable.create_record(fields)
             await store.upsert_mapping(
-                op_id=wp_data.op_id,
+                op_id=decision.op_work_package_id,
                 record_id=record_id,
-                project_id=wp_data.project_id,
-                title=wp_data.title,
+                project_id=decision.op_project_id,
+                title=decision.title,
             )
 
         await self._maybe_stage_decompose(

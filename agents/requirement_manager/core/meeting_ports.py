@@ -2,6 +2,8 @@
 
 from typing import Any, Protocol
 
+from shared.core.identifiers import MeetingId
+
 
 class RequirementMeetingStore(Protocol):
     """Persistence port for meeting records used by requirement ingestion."""
@@ -9,11 +11,11 @@ class RequirementMeetingStore(Protocol):
     async def create(self, meeting: Any) -> Any:
         """Create one meeting record."""
 
-    async def get_by_id(self, meeting_id: str) -> Any | None:
+    async def get_by_id(self, meeting_id: MeetingId) -> Any | None:
         """Return one meeting by id."""
 
     async def get_by_source_id(self, source: str, source_id: str) -> Any | None:
         """Return one meeting by source-system identity."""
 
-    async def mark_processed(self, meeting_id: str) -> None:
+    async def mark_processed(self, meeting_id: MeetingId) -> None:
         """Mark a meeting as processed."""

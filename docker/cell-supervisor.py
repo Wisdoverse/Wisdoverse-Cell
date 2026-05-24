@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import os
 import asyncio
+import os
 import re
 import shlex
 import signal
 import subprocess
 import sys
 import time
-
 
 SERVICE_DISCOVERY_ENV = {
     "PJM_AGENT_URL": "http://127.0.0.1:8012",
@@ -79,7 +78,7 @@ SERVICES = [
     {
         "name": "chat-agent",
         "port": "8013",
-        "app": "services.gateways.user_interaction.app.main:app",
+        "app": "agents.chat_agent.app.main:app",
         "db_user_env": "CHAT_AGENT_DB_USER",
         "db_password_env": "CHAT_AGENT_DB_PASSWORD",
         "db_user_default": "chat_agent",

@@ -209,9 +209,18 @@ async def test_run_acceptance_stages_events_before_notifier():
 
     request = QARunRequest(agent_name="dev_agent", trigger="api", requested_by="tester")
 
-    with patch(
-        "agents.qa_agent.db.unit_of_work.SqlAlchemyQAReportStore.save_execution_result",
-        new=AsyncMock(return_value=SimpleNamespace(id="run_1")),
+    def _save_result(*args, **kwargs):
+        return SimpleNamespace(id=kwargs["run_id"])
+
+    with (
+        patch(
+            "agents.qa_agent.core.acceptance_execution_use_cases.generate_ulid",
+            return_value="run_1",
+        ),
+        patch(
+            "agents.qa_agent.db.unit_of_work.SqlAlchemyQAReportStore.save_execution_result",
+            new=AsyncMock(side_effect=_save_result),
+        ),
     ):
         result = await agent.run_acceptance(request, trace_id="trace-qa")
 

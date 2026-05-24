@@ -1,10 +1,13 @@
 """Application use cases for QA HTTP operations."""
+
 from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from shared.core import qa_api_status_from_l0_gate
+from shared.core.identifiers import AcceptanceRunId
 from shared.observability.use_case_logger import log_use_case
 
 from ..models.schemas import AcceptanceExecutionResult, QARunRequest, QARunStats
@@ -33,7 +36,7 @@ class QAApiAgentPort(Protocol):
     ) -> list[dict[str, Any]]:
         """List acceptance run records."""
 
-    async def get_run(self, run_id: str) -> dict[str, Any] | None:
+    async def get_run(self, run_id: AcceptanceRunId) -> dict[str, Any] | None:
         """Return one acceptance run record."""
 
     async def get_stats(
@@ -134,7 +137,7 @@ class QAApiUseCase:
 
             return {
                 "run_id": result.run_id,
-                "status": _api_status_from_l0_gate(result.summary.l0_gate),
+                "status": qa_api_status_from_l0_gate(result.summary.l0_gate),
                 "agent_name": command.agent_name,
                 "level": command.level,
                 "summary": result.summary,
@@ -185,7 +188,7 @@ class QAApiUseCase:
             run_id=run_id,
         ):
             try:
-                run = await self._agent.get_run(run_id)
+                run = await self._agent.get_run(AcceptanceRunId(run_id))
             except Exception as exc:
                 raise QAApiRunDetailFailedError(str(exc)) from exc
             if not run:
@@ -235,12 +238,3 @@ class QAApiUseCase:
                 "top_l0_failures": stats.top_l0_failures,
                 "top_l1_warnings": stats.top_l1_warnings,
             }
-
-
-def _api_status_from_l0_gate(l0_gate: str) -> str:
-    return {
-        "PASS": "passed",
-        "FAIL": "failed",
-        "WARN": "warn",
-        "ERROR": "error",
-    }.get(l0_gate, "error")

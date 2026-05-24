@@ -1,13 +1,17 @@
 """Repository for the analysis module."""
 import inspect
 from datetime import UTC, datetime
-from typing import Optional
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.schemas.event import Event
 
+from ..core.domain.report import AnalysisReportKind
+from ..core.domain.report_log import (
+    AnalysisReportLogId,
+    AnalysisReportLogRecord,
+)
 from ..models.event_outbox import AnalysisEventOutbox
 from ..models.report import ReportLog
 
@@ -16,28 +20,43 @@ class ReportLogRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def create(self, report_type: str, report_date: datetime, content: str = "") -> ReportLog:
-        log = ReportLog(report_type=report_type, report_date=report_date, content=content)
+    async def create(
+        self,
+        report_type: str,
+        report_date: datetime,
+        content: str = "",
+    ) -> AnalysisReportLogRecord:
+        record = AnalysisReportLogRecord.create(
+            report_kind=AnalysisReportKind(str(report_type)),
+            report_date=report_date,
+            content=content,
+        )
+        log = ReportLog(**record.to_persistence_kwargs())
         self.session.add(log)
         await self.session.flush()
-        return log
+        return AnalysisReportLogRecord.from_record(log)
 
-    async def mark_pushed(self, log_id: int) -> None:
-        result = await self.session.execute(select(ReportLog).where(ReportLog.id == log_id))
+    async def mark_pushed(self, log_id: AnalysisReportLogId | int) -> None:
+        result = await self.session.execute(select(ReportLog).where(ReportLog.id == int(log_id)))
         log = result.scalar_one_or_none()
         if log:
-            log.status = "pushed"
-            log.pushed_at = datetime.now(UTC)
+            record = AnalysisReportLogRecord.from_record(log).mark_pushed(
+                pushed_at=datetime.now(UTC)
+            )
+            update_values = record.to_status_update_values()
+            log.status = update_values["status"]
+            log.pushed_at = update_values["pushed_at"]
             await self.session.flush()
 
-    async def get_latest(self, report_type: str) -> Optional[ReportLog]:
+    async def get_latest(self, report_type: str) -> AnalysisReportLogRecord | None:
         result = await self.session.execute(
             select(ReportLog)
-            .where(ReportLog.report_type == report_type)
+            .where(ReportLog.report_type == AnalysisReportKind(str(report_type)).value)
             .order_by(ReportLog.created_at.desc())
             .limit(1)
         )
-        return result.scalar_one_or_none()
+        log = result.scalar_one_or_none()
+        return AnalysisReportLogRecord.from_record(log) if log else None
 
 
 class AnalysisEventOutboxRepository:

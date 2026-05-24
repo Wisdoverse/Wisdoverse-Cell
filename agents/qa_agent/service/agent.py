@@ -12,12 +12,14 @@ from typing import Any, Optional
 from sqlalchemy.exc import IntegrityError
 
 from shared.core import EventPublisher
+from shared.core.identifiers import AcceptanceRunId
 from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
+from ..adapters.acceptance_request_acl import QAAcceptanceRequestACL
 from ..core.acceptance_execution_use_cases import (
     QAAcceptanceExecutionUseCase,
 )
@@ -77,13 +79,12 @@ class QAAgent(BaseAgent):
         self._db_manager = db or db_manager
         self._event_bus = bus or event_bus
         self._event_publisher = event_publisher or EventBusEventPublisher(self._event_bus)
-        self._outbox_store = outbox_store or SqlAlchemyQAEventOutboxStore(
-            self._db_manager
-        )
+        self._outbox_store = outbox_store or SqlAlchemyQAEventOutboxStore(self._db_manager)
         self._run_store = run_store or SqlAlchemyQAAcceptanceRunStore(self._db_manager)
         self._health_store = health_store or SqlAlchemyQAHealthStore(self._db_manager)
         core_config = build_qa_core_config() if runner is None or notifier is None else None
         self._runner = runner or AcceptanceRunnerService(config=core_config)
+        self._acceptance_request_acl = QAAcceptanceRequestACL()
         self._notifier = notifier or build_qa_notifier(
             bus=self._event_bus,
             config=core_config,
@@ -124,7 +125,10 @@ class QAAgent(BaseAgent):
         return await self._event_use_case().handle(event)
 
     def _event_use_case(self) -> QAEventUseCase:
-        return QAEventUseCase(runner=self._application)
+        return QAEventUseCase(
+            runner=self._application,
+            request_translator=self._acceptance_request_acl,
+        )
 
     async def handle_request(self, request: dict[str, Any]) -> dict[str, Any]:
         """Handle API/RPC requests."""
@@ -182,7 +186,7 @@ class QAAgent(BaseAgent):
             offset=offset,
         )
 
-    async def get_run(self, run_id: str) -> dict[str, Any] | None:
+    async def get_run(self, run_id: AcceptanceRunId) -> dict[str, Any] | None:
         return await self._application.get_run(run_id)
 
     async def get_stats(

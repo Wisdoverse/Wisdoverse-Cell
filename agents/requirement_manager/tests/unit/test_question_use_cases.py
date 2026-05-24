@@ -10,6 +10,7 @@ from agents.requirement_manager.core.extractor import (
 )
 from agents.requirement_manager.models import OpenQuestion
 from agents.requirement_manager.service.agent import RequirementManagerAgent
+from shared.core.identifiers import OpenQuestionId
 
 
 @pytest.mark.asyncio
@@ -37,7 +38,7 @@ async def test_answer_question_with_uow_uses_question_store():
 
     assert result.entity is question
     question_store.answer.assert_awaited_once_with(
-        "qst_123",
+        OpenQuestionId("qst_123"),
         answer="Use the web onboarding flow",
         answered_by="pm",
     )
@@ -61,6 +62,11 @@ async def test_answer_question_with_uow_returns_empty_result_for_missing_questio
     )
 
     assert result.entity is None
+    question_store.answer.assert_awaited_once_with(
+        OpenQuestionId("qst_missing"),
+        answer="No answer",
+        answered_by="pm",
+    )
 
 
 @pytest.mark.asyncio

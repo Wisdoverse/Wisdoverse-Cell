@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
+from shared.core.identifiers import WorkPackageId
+
 
 @runtime_checkable
 class PJMCardRendererPort(Protocol):
@@ -17,7 +19,7 @@ class PJMCardRendererPort(Protocol):
 
     def build_decomposition_approval_card(
         self,
-        wp_id: int,
+        wp_id: WorkPackageId,
         subject: str,
         wbs_result: dict[str, Any],
     ) -> dict[str, Any]:
@@ -25,7 +27,7 @@ class PJMCardRendererPort(Protocol):
 
     def build_task_refinement_approval_card(
         self,
-        wp_id: int,
+        wp_id: WorkPackageId,
         subject: str,
         reason: str,
         subtasks: list[dict[str, Any]],

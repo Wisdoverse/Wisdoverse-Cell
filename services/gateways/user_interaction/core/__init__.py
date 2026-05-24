@@ -1,6 +1,35 @@
-"""ChatAgent Core - Chat service and tool calling."""
-from .chat_service import ChatService
-from .config import UserInteractionCoreConfig
-from .tools import TOOLS, ToolExecutor
+"""User-interaction gateway core package."""
 
-__all__ = ["ChatService", "TOOLS", "ToolExecutor", "UserInteractionCoreConfig"]
+from .card_ports import (
+    ToolCardRendererPort,
+    configure_tool_card_renderer,
+    require_tool_card_renderer,
+)
+from .webhook_intake import (
+    FeishuUserDirectoryPort,
+    FeishuWebhookIntakeUseCase,
+    FeishuWebhookMessage,
+    WebhookCachePort,
+)
+from .webhook_processing import (
+    WebhookAgentPort,
+    WebhookMessageProcessingUseCase,
+    WebhookMessengerPort,
+    WebhookProcessCommand,
+    WebhookProcessResult,
+)
+
+__all__ = [
+    "FeishuUserDirectoryPort",
+    "FeishuWebhookIntakeUseCase",
+    "FeishuWebhookMessage",
+    "ToolCardRendererPort",
+    "WebhookAgentPort",
+    "WebhookCachePort",
+    "WebhookMessageProcessingUseCase",
+    "WebhookMessengerPort",
+    "WebhookProcessCommand",
+    "WebhookProcessResult",
+    "configure_tool_card_renderer",
+    "require_tool_card_renderer",
+]

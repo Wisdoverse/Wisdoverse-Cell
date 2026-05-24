@@ -2,14 +2,14 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from services.gateways.user_interaction.core.bitable_operations import (
+from agents.chat_agent.core.bitable_operations import (
     BitableConfirmCommand,
     BitableCreateCommand,
     BitableOperationUseCase,
     BitableRejectCommand,
     sanitize_fields,
 )
-from services.gateways.user_interaction.core.config import UserInteractionCoreConfig
+from agents.chat_agent.core.config import ChatAgentCoreConfig
 from shared.integrations.feishu.cards.tools import FeishuToolCardRenderer
 
 
@@ -33,7 +33,7 @@ async def test_resolve_duplex_links_maps_open_ids_to_member_records() -> None:
             ]
         }
     )
-    config = UserInteractionCoreConfig(
+    config = ChatAgentCoreConfig(
         feishu_bitable_app_token="app-token",
         feishu_bitable_table_id="task-table",
         feishu_bitable_member_table_id="member-table",
@@ -75,7 +75,7 @@ async def test_confirm_update_uses_pending_operation_and_returns_log_command() -
         bitable=bitable,
         pending_lookup=pending_lookup,
         renderer=FeishuToolCardRenderer(),
-        config=UserInteractionCoreConfig(),
+        config=ChatAgentCoreConfig(),
     )
 
     bitable.update_record.assert_awaited_once_with(
@@ -99,7 +99,7 @@ async def test_create_record_returns_failure_card_and_log_command() -> None:
         bitable=bitable,
         pending_lookup=AsyncMock(),
         renderer=FeishuToolCardRenderer(),
-        config=UserInteractionCoreConfig(),
+        config=ChatAgentCoreConfig(),
     )
 
     assert result.operation_log is not None

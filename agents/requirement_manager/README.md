@@ -14,6 +14,7 @@ See [`docs/architecture/module-boundaries.md`](../../docs/architecture/module-bo
 | Runtime owner | `agents/requirement_manager/` |
 | Owned tables | `meetings`, `requirements`, `open_questions`, `feedback_records`, `llm_usage`, `chat_messages`, `requirement_event_outbox` |
 | Aggregate root | `Requirement` (`core/domain/requirement.py:52-101`) |
+| Typed identities | `RequirementId`, `MeetingId`, `OpenQuestionId`, `FeedbackRecordId` from `shared/core/identifiers.py` |
 | State machine | `core/domain/lifecycle/requirement_states.py:31-36` `VALID_TRANSITIONS` table; `Requirement.transition_to()` enforces and raises `InvalidRequirementTransitionError` on illegal moves |
 | Domain events | `RequirementStatusChanged` raised by aggregate; drained by use case and persisted to outbox |
 | Unit of work | `core/unit_of_work_ports.py` `RequirementUnitOfWork` Protocol |
@@ -34,13 +35,32 @@ See [`docs/architecture/module-boundaries.md`](../../docs/architecture/module-bo
 Cross-link to the company-wide vocabulary:
 [`docs/overview/glossary.md`](../../docs/overview/glossary.md).
 
+## Domain Services
+
+| Service / policy | File | Owns |
+|------------------|------|------|
+| `RequirementExtractionMaterializer` | `core/domain/extraction_materialization.py` | Extractor-result traversal, source-meeting association, requirement drafts, and open-question assignment before persistence. |
+| `RequirementExtractionPublicationPolicy` | `core/domain/extraction_materialization.py` | Published-language extraction evidence after persistence: `requirement.extracted` payload and search-index document shape. |
+| `RequirementFeedbackLearningPolicy` | `core/domain/feedback_learning.py` | Correction/rejection classification, changed-field calculation, and rejection placeholder values for feedback learning. |
+| `RequirementAggregateConsistencyPolicy` | `core/domain/aggregate_consistency.py` | Declared immediate-consistency write scopes for meeting ingest, Requirement lifecycle mutations, feedback evidence, question answers, outbox staging, and post-commit side effects. |
+
+## Consistency Boundaries
+
+Requirement Manager uses explicit UoW-backed consistency scopes:
+
+- `meeting_ingest`: primary aggregate `Meeting`; same transaction may materialize derived `Requirement`, `OpenQuestion`, and `RequirementEventOutbox` rows because they come from one extraction source and must become visible atomically.
+- `requirement_lifecycle_mutation`: primary aggregate `Requirement`; same transaction may include `FeedbackRecord` learning evidence and `RequirementEventOutbox` rows for the same operator decision.
+- `question_answer`: primary aggregate `OpenQuestion`; no cross-aggregate writes.
+
+Vector indexing and notifications are post-commit side effects.
+
 ## Context-Map Relationships
 
 Per [`module-boundaries.md`](../../docs/architecture/module-boundaries.md) §2.2:
 
-- **Upstream**: Anti-Corruption Layer to Interaction Gateway and Feishu via `shared/integrations/feishu/`.
+- **Upstream**: Anti-Corruption Layer to Interaction Gateway and Feishu via `shared/integrations/feishu/`; Anti-Corruption Layer to LLM Gateway extraction responses via `core/llm_extraction_response.py`.
 - **Downstream**: Customer/Supplier to PJM Agent (emits `requirement.*` integration events; PJM is the primary consumer).
-- **Conformist** to Control Plane on `AgentRun`, `AuditEvent` Published Language.
+- **Conformist to Control Plane** on `AgentRun`, `AuditEvent` Published Language.
 
 ## Events
 

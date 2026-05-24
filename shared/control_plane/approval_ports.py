@@ -5,7 +5,7 @@ from typing import Protocol
 
 from shared.core.identifiers import ApprovalRequestId, CompanyId
 
-from .models import ApprovalRequest, ApprovalStatus, AuditEvent, EvolutionProposal
+from .models import ApprovalRequest, ApprovalStatus, AuditEvent
 
 
 class ControlPlaneApprovalStore(Protocol):
@@ -45,15 +45,6 @@ class ControlPlaneApprovalStore(Protocol):
         resolved_by: str,
     ) -> ApprovalRequest | None:
         """Resolve an approval request by typed identifier."""
-
-    async def update_evolution_proposal_approval_state_by_approval(
-        self,
-        approval_id: ApprovalRequestId,
-        *,
-        approval_state: str,
-        rollout_state: str | None = None,
-    ) -> EvolutionProposal | None:
-        """Synchronize an evolution proposal tied to an approval by typed identifier."""
 
     async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         """Append a control-plane audit event."""

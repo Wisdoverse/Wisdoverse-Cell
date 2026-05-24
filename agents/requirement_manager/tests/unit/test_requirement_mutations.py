@@ -7,6 +7,7 @@ import pytest
 from agents.requirement_manager.core.requirement_mutations import (
     RequirementMutationUseCase,
 )
+from shared.core.identifiers import RequirementId
 
 
 class FakeUnitOfWork:
@@ -47,14 +48,12 @@ async def test_update_requirement_commits_uow_and_publishes_side_effects():
 
     assert result is not None
     workflow.update_requirement.assert_awaited_once_with(
-        requirement_id="req_1",
+        requirement_id=RequirementId("req_1"),
         changes={"title": "New title"},
         uow=uow,
     )
     assert uow.committed is True
-    side_effects.publish_requirement_mutation_side_effects.assert_awaited_once_with(
-        mutation_result
-    )
+    side_effects.publish_requirement_mutation_side_effects.assert_awaited_once_with(mutation_result)
 
 
 @pytest.mark.asyncio
@@ -77,11 +76,9 @@ async def test_delete_requirement_commits_uow_and_publishes_side_effects():
 
     assert result is not None
     workflow.delete_requirement.assert_awaited_once_with(
-        requirement_id="req_1",
+        requirement_id=RequirementId("req_1"),
         deleted_by="pm",
         uow=uow,
     )
     assert uow.committed is True
-    side_effects.publish_requirement_mutation_side_effects.assert_awaited_once_with(
-        mutation_result
-    )
+    side_effects.publish_requirement_mutation_side_effects.assert_awaited_once_with(mutation_result)

@@ -1,4 +1,4 @@
-"""Chat Agent service shell (DDD-016 skeleton)."""
+"""Chat Agent service shell."""
 from .agent import ChatAgent, agent, get_agent
 
 __all__ = ["ChatAgent", "agent", "get_agent"]

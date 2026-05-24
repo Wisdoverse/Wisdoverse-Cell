@@ -171,6 +171,10 @@ catalog-managed runtime agents such as `requirement-manager`, `pjm-agent`, and
 participates in EventBus communication without importing another agent's
 internal implementation.
 
+`AgentRole.status` accepts `active`, `paused`, `disabled`, `inactive`,
+`retired`, and `terminated`. Only `active` roles are runnable by wakeup and
+heartbeat execution; `retired` and `terminated` are terminal lifecycle states.
+
 `agent_kind` accepts `organization_role`, `business_runtime_agent`,
 `capability_module`, `integration_gateway`, and `system_worker`. Business
 runtime agents are deployed root agents such as requirement manager, PJM, QA,
@@ -246,15 +250,17 @@ Decomposition status responses use these workflow states:
 `sync.task-needs-decompose` skips `pending`, `writing`, `approved`, and
 `write_failed` records to avoid duplicate OpenProject side effects.
 
-## User Interaction Gateway API
+## Chat Agent and User Interaction Gateway API
 
 | Method | Path | Purpose |
 |--------|------|---------|
+| `POST` | `/api/v1/chat-agent/requests` | Execute an internal normalized chat-agent request through the service boundary |
+| `GET` | `/api/v1/chat-agent/conversation/{user_id}` | Read conversation history through the chat-agent boundary |
+| `GET` | `/api/daily-progress` | List daily progress records through the chat-agent boundary |
+| `POST` | `/api/bitable/confirm` | Confirm a proposed Bitable update through the chat-agent boundary |
+| `POST` | `/api/bitable/reject` | Reject a proposed Bitable update through the chat-agent boundary |
+| `POST` | `/api/bitable/create` | Confirm a proposed Bitable create through the chat-agent boundary |
 | `POST` | `/webhook/feishu` | Receive Feishu webhook traffic |
-| `POST` | `/api/bitable/confirm` | Confirm a proposed Bitable update |
-| `POST` | `/api/bitable/reject` | Reject a proposed Bitable update |
-| `POST` | `/api/bitable/create` | Confirm a proposed Bitable create |
-| `GET` | `/api/daily-progress` | List daily progress records |
 
 ## Analysis, Sync, Quality, Development, and Evolution APIs
 

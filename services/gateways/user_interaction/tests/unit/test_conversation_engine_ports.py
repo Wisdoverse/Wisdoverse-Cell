@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from services.gateways.user_interaction.core.chat_ports import (
+from agents.chat_agent.core.chat_ports import (
     ConversationEngineFactory,
     ConversationEnginePort,
 )

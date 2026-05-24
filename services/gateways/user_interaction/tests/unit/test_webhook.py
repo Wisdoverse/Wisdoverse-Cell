@@ -195,7 +195,7 @@ async def test_process_message_logs_user_hash_for_direct_card(monkeypatch):
     logger = MagicMock()
 
     monkeypatch.setattr(webhook_mod, "get_feishu_client", lambda: feishu_client)
-    monkeypatch.setattr(webhook_mod, "get_agent", lambda: agent)
+    monkeypatch.setattr(webhook_mod, "get_chat_agent_client", lambda: agent)
     monkeypatch.setattr(webhook_mod, "logger", logger)
     monkeypatch.setattr(webhook_mod, "_metrics_available", False)
 
@@ -224,7 +224,7 @@ async def test_process_message_error_logs_user_hash(monkeypatch):
     logger = MagicMock()
 
     monkeypatch.setattr(webhook_mod, "get_feishu_client", lambda: feishu_client)
-    monkeypatch.setattr(webhook_mod, "get_agent", lambda: agent)
+    monkeypatch.setattr(webhook_mod, "get_chat_agent_client", lambda: agent)
     monkeypatch.setattr(webhook_mod, "logger", logger)
     monkeypatch.setattr(webhook_mod, "_metrics_available", False)
 

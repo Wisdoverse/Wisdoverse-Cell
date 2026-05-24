@@ -2,13 +2,16 @@
 
 from typing import Any, Callable
 
-from shared.core import BitableTablePort, EventPublisher, OpenProjectWorkPackagePort
+from shared.core import (
+    BitableTablePort,
+    EventPublisher,
+    OpenProjectWorkPackagePort,
+)
 
 from .domain.sync_operation import SyncOperationStatus, combine_side_statuses
 from .feishu_bitable import FeishuBitableSyncEngine
 from .openproject import OpenProjectSyncEngine
 from .sync_ports import FeishuBitableSyncStore, OpenProjectSyncStore, SyncLockStore
-
 
 # Mapping from the legacy result-dict status strings produced by the
 # split engines to the typed SyncOperationStatus enum. Drives the
@@ -81,6 +84,7 @@ class SyncEngine:
             lock_store=lock_store,
             op_client=op_client,
             bitable=bitable,
+            event_publisher=event_publisher,
         )
 
     async def sync_op_to_feishu(
@@ -101,8 +105,9 @@ class SyncEngine:
         trace_id: str | None = None,
     ) -> dict[str, Any]:
         """Backward-compatible Bitable-to-OpenProject sync entrypoint."""
-        _ = trace_id
-        return await self.feishu_bitable.sync_progress_to_openproject()
+        return await self.feishu_bitable.sync_progress_to_openproject(
+            trace_id=trace_id,
+        )
 
     async def full_sync(
         self,

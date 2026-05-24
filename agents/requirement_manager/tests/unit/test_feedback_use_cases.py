@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from agents.requirement_manager.core.feedback_use_cases import RequirementFeedbackUseCase
+from shared.core.identifiers import OpenQuestionId, RequirementId
 
 
 class FakeUnitOfWork:
@@ -45,7 +46,7 @@ async def test_confirm_requirement_commits_uow_and_publishes_side_effects():
     )
 
     workflow.confirm_requirement.assert_awaited_once_with(
-        requirement_id="req_1",
+        requirement_id=RequirementId("req_1"),
         confirmed_by="pm",
         uow=uow,
     )
@@ -74,7 +75,7 @@ async def test_answer_question_commits_uow_without_side_effect_publish():
     )
 
     workflow.answer_question.assert_awaited_once_with(
-        "q_1",
+        OpenQuestionId("q_1"),
         answer="US first",
         answered_by="pm",
         uow=uow,
@@ -114,6 +115,11 @@ async def test_batch_confirm_returns_summary():
     assert result.failed == 1
     assert result.results[1]["error"] == "missing"
     assert uow.committed is True
+    workflow.batch_confirm_requirements.assert_awaited_once_with(
+        requirement_ids=[RequirementId("req_1"), RequirementId("req_2")],
+        confirmed_by="pm",
+        uow=uow,
+    )
     side_effects.publish_requirement_mutation_side_effects.assert_awaited_once_with(
         mutation_result
     )

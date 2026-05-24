@@ -68,6 +68,9 @@ class ControlPlaneBudgetStore(Protocol):
     ) -> BudgetPolicy | None:
         """Return the active policy for a scope/period."""
 
+    async def record_budget_usage(self, usage: BudgetUsage) -> BudgetUsage:
+        """Record one normalized budget usage row."""
+
     async def list_budget_usage(
         self,
         *,

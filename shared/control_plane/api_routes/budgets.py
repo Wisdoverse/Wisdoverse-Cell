@@ -18,6 +18,13 @@ from ..budget_use_cases import (
 from ..budget_use_cases import get_budget_policy as get_budget_policy_from_store
 from ..budget_use_cases import list_budget_policies as list_budget_policies_from_store
 from ..budget_use_cases import list_budget_usage as list_budget_usage_from_store
+from ..domain.budget_policy import (
+    BUDGET_POLICY_STATUS_ACTIVE,
+    InvalidBudgetPolicyError,
+    InvalidBudgetPolicyTransitionError,
+    is_budget_policy_status,
+    normalize_budget_policy_status,
+)
 from ..models import BudgetPeriod, BudgetPolicy, BudgetScope
 from ..store_factory import ControlPlaneStores
 from ..unit_of_work import ControlPlaneUnitOfWork
@@ -28,8 +35,6 @@ from .dependencies import (
     clean_string_list,
 )
 
-BUDGET_POLICY_STATUSES = {"active", "paused", "archived"}
-
 
 class BudgetPolicyCreateRequest(BaseModel):
     company_id: str | None = Field(default=None, min_length=1, max_length=48)
@@ -38,7 +43,7 @@ class BudgetPolicyCreateRequest(BaseModel):
     limit_usd: float = Field(gt=0)
     scope_id: str | None = Field(default=None, max_length=64)
     warning_threshold: float = Field(default=0.8, gt=0, le=1)
-    status: str = Field(default="active", min_length=1, max_length=32)
+    status: str = Field(default=BUDGET_POLICY_STATUS_ACTIVE, min_length=1, max_length=32)
     model_allowlist: list[str] = Field(default_factory=list, max_length=100)
     created_by: str = Field(default="api", min_length=1, max_length=128)
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -54,7 +59,7 @@ class BudgetPolicyCreateRequest(BaseModel):
     @field_validator("status", mode="before")
     @classmethod
     def _clean_status(cls, value: Any) -> str:
-        return str(value or "").strip().lower()
+        return normalize_budget_policy_status(str(value or ""))
 
     @field_validator("created_by", mode="before")
     @classmethod
@@ -64,7 +69,7 @@ class BudgetPolicyCreateRequest(BaseModel):
     @field_validator("status")
     @classmethod
     def _validate_status(cls, value: str) -> str:
-        if value not in BUDGET_POLICY_STATUSES:
+        if not is_budget_policy_status(value):
             raise ValueError("budget policy status must be active, paused, or archived")
         return value
 
@@ -96,12 +101,12 @@ class BudgetPolicyUpdateRequest(BaseModel):
     def _clean_optional_status(cls, value: Any) -> str | None:
         if value is None:
             return None
-        return str(value or "").strip().lower()
+        return normalize_budget_policy_status(str(value or ""))
 
     @field_validator("status")
     @classmethod
     def _validate_status(cls, value: str | None) -> str | None:
-        if value is not None and value not in BUDGET_POLICY_STATUSES:
+        if value is not None and not is_budget_policy_status(value):
             raise ValueError("budget policy status must be active, paused, or archived")
         return value
 
@@ -148,8 +153,8 @@ def create_budget_router(
         limit: int = Query(default=100, ge=1, le=500),
         stores: ControlPlaneStores = Depends(get_stores),
     ):
-        status = status.strip().lower() if status is not None else None
-        if status is not None and status not in BUDGET_POLICY_STATUSES:
+        status = normalize_budget_policy_status(status) if status is not None else None
+        if status is not None and not is_budget_policy_status(status):
             raise_control_plane_api_error(status_code=400, detail="invalid_budget_policy_status")
         store = stores.budgets
         rows = await list_budget_policies_from_store(
@@ -198,6 +203,8 @@ def create_budget_router(
                 status_code=409,
                 detail="active_budget_policy_exists",
             )
+        except InvalidBudgetPolicyError:
+            raise_control_plane_api_error(status_code=400, detail="invalid_budget_policy")
         await uow.commit()
         return row_to_dict(row)
 
@@ -250,6 +257,13 @@ def create_budget_router(
                 status_code=409,
                 detail="active_budget_policy_exists",
             )
+        except InvalidBudgetPolicyTransitionError:
+            raise_control_plane_api_error(
+                status_code=400,
+                detail="invalid_budget_policy_transition",
+            )
+        except InvalidBudgetPolicyError:
+            raise_control_plane_api_error(status_code=400, detail="invalid_budget_policy")
         await uow.commit()
         return row_to_dict(row)
 

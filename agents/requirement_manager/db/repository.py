@@ -14,6 +14,12 @@ from sqlalchemy import Integer, and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from shared.core.identifiers import (
+    FeedbackRecordId,
+    MeetingId,
+    OpenQuestionId,
+    RequirementId,
+)
 from shared.observability.privacy import hash_identifier
 from shared.schemas.event import Event
 from shared.utils.logger import get_logger
@@ -37,7 +43,7 @@ class MeetingRepository:
         await self.session.flush()
         return meeting
 
-    async def get_by_id(self, meeting_id: str) -> Optional[Meeting]:
+    async def get_by_id(self, meeting_id: MeetingId) -> Optional[Meeting]:
         """Get a meeting by ID."""
         result = await self.session.execute(
             select(Meeting).where(Meeting.id == meeting_id)
@@ -88,7 +94,7 @@ class MeetingRepository:
         )
         return list(result.scalars().all()), total
 
-    async def mark_processed(self, meeting_id: str):
+    async def mark_processed(self, meeting_id: MeetingId):
         """Mark a meeting as processed."""
         await self.session.execute(
             update(Meeting)
@@ -115,7 +121,7 @@ class RequirementRepository:
         await self.session.flush()
         return requirements
 
-    async def get_by_id(self, requirement_id: str) -> Optional[Requirement]:
+    async def get_by_id(self, requirement_id: RequirementId) -> Optional[Requirement]:
         """Get a requirement by ID, including related questions."""
         result = await self.session.execute(
             select(Requirement)
@@ -156,7 +162,7 @@ class RequirementRepository:
 
     async def update(
         self,
-        requirement_id: str,
+        requirement_id: RequirementId,
         **kwargs
     ) -> Optional[Requirement]:
         """Update a requirement."""
@@ -169,7 +175,7 @@ class RequirementRepository:
 
     async def confirm(
         self,
-        requirement_id: str,
+        requirement_id: RequirementId,
         confirmed_by: str
     ) -> Optional[Requirement]:
         """Confirm a requirement."""
@@ -181,7 +187,7 @@ class RequirementRepository:
 
     async def reject(
         self,
-        requirement_id: str,
+        requirement_id: RequirementId,
         reason: str,
         rejected_by: str
     ) -> Optional[Requirement]:
@@ -265,7 +271,7 @@ class RequirementRepository:
         )
         return result.scalar() or 0
 
-    async def delete(self, requirement_id: str) -> Optional[Requirement]:
+    async def delete(self, requirement_id: RequirementId) -> Optional[Requirement]:
         """
         Delete a requirement and its related database records.
 
@@ -317,7 +323,7 @@ class QuestionRepository:
         await self.session.flush()
         return questions
 
-    async def get_by_id(self, question_id: str) -> Optional[OpenQuestion]:
+    async def get_by_id(self, question_id: OpenQuestionId) -> Optional[OpenQuestion]:
         """Get a question by ID."""
         result = await self.session.execute(
             select(OpenQuestion).where(OpenQuestion.id == question_id)
@@ -356,7 +362,7 @@ class QuestionRepository:
 
     async def answer(
         self,
-        question_id: str,
+        question_id: OpenQuestionId,
         answer: str,
         answered_by: str
     ) -> Optional[OpenQuestion]:
@@ -705,7 +711,10 @@ class FeedbackRepository:
         await self.session.flush()
         return feedback
 
-    async def get_by_id(self, feedback_id: str) -> Optional["FeedbackRecord"]:
+    async def get_by_id(
+        self,
+        feedback_id: FeedbackRecordId,
+    ) -> Optional["FeedbackRecord"]:
         """Get feedback by ID."""
         from ..models import FeedbackRecord as FeedbackModel
         result = await self.session.execute(
@@ -713,7 +722,10 @@ class FeedbackRepository:
         )
         return result.scalar_one_or_none()
 
-    async def list_by_requirement(self, requirement_id: str) -> list["FeedbackRecord"]:
+    async def list_by_requirement(
+        self,
+        requirement_id: RequirementId,
+    ) -> list["FeedbackRecord"]:
         """Get all feedback for a requirement."""
         from ..models import FeedbackRecord as FeedbackModel
         result = await self.session.execute(
@@ -764,7 +776,7 @@ class FeedbackRepository:
         records = await self.list_recent(limit=limit, feedback_type="correction")
         return [r.to_example() for r in records]
 
-    async def mark_used(self, feedback_ids: list[str]) -> int:
+    async def mark_used(self, feedback_ids: list[FeedbackRecordId]) -> int:
         """Mark feedback records as used in prompt."""
         from ..models import FeedbackRecord as FeedbackModel
         result = await self.session.execute(

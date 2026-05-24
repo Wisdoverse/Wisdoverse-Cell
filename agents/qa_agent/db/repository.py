@@ -7,6 +7,17 @@ from typing import Any, Optional
 from sqlalchemy import desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import AcceptanceRunId
+from shared.core.qa_acceptance import (
+    QA_FINDING_FAIL,
+    QA_FINDING_LEVEL_L0,
+    QA_FINDING_LEVEL_L1,
+    QA_FINDING_WARN,
+    QA_GATE_FAIL,
+    QA_GATE_PASS,
+    QA_L1_PASS,
+    QA_L1_WARN,
+)
 from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
@@ -26,7 +37,7 @@ class AcceptanceRunRepository:
         await self.session.flush()
         return run
 
-    async def get_by_id(self, run_id: str) -> Optional[QAAcceptanceRun]:
+    async def get_by_id(self, run_id: AcceptanceRunId) -> Optional[QAAcceptanceRun]:
         result = await self.session.execute(
             select(QAAcceptanceRun).where(QAAcceptanceRun.id == run_id)
         )
@@ -40,9 +51,7 @@ class AcceptanceRunRepository:
             return None
 
         result = await self.session.execute(
-            select(QAAcceptanceRun).where(
-                QAAcceptanceRun.trigger_event_id == trigger_event_id
-            )
+            select(QAAcceptanceRun).where(QAAcceptanceRun.trigger_event_id == trigger_event_id)
         )
         return result.scalar_one_or_none()
 
@@ -74,10 +83,10 @@ class AcceptanceRunRepository:
         #   warn   = L0 PASS + L1 WARN
         #   passed = L0 PASS + L1 PASS
         _count = func.count(QAAcceptanceRun.id)
-        _l0_pass = QAAcceptanceRun.l0_status == "PASS"
-        _l0_fail = QAAcceptanceRun.l0_status == "FAIL"
-        _l1_warn = QAAcceptanceRun.l1_status == "WARN"
-        _l1_pass = QAAcceptanceRun.l1_status == "PASS"
+        _l0_pass = QAAcceptanceRun.l0_status == QA_GATE_PASS
+        _l0_fail = QAAcceptanceRun.l0_status == QA_GATE_FAIL
+        _l1_warn = QAAcceptanceRun.l1_status == QA_L1_WARN
+        _l1_pass = QAAcceptanceRun.l1_status == QA_L1_PASS
         base_query = select(
             _count.label("total"),
             _count.filter(_l0_pass, _l1_pass).label("passed"),
@@ -104,8 +113,8 @@ class AcceptanceRunRepository:
             select(QAAcceptanceResult.check_name, func.count(QAAcceptanceResult.id).label("count"))
             .join(QAAcceptanceRun)
             .where(QAAcceptanceRun.created_at >= cutoff)
-            .where(QAAcceptanceResult.level == "L0")
-            .where(QAAcceptanceResult.status == "FAIL")
+            .where(QAAcceptanceResult.level == QA_FINDING_LEVEL_L0)
+            .where(QAAcceptanceResult.status == QA_FINDING_FAIL)
         )
         if agent_name:
             l0_query = l0_query.where(QAAcceptanceRun.agent_name == agent_name)
@@ -118,8 +127,8 @@ class AcceptanceRunRepository:
             select(QAAcceptanceResult.check_name, func.count(QAAcceptanceResult.id).label("count"))
             .join(QAAcceptanceRun)
             .where(QAAcceptanceRun.created_at >= cutoff)
-            .where(QAAcceptanceResult.level == "L1")
-            .where(QAAcceptanceResult.status == "WARN")
+            .where(QAAcceptanceResult.level == QA_FINDING_LEVEL_L1)
+            .where(QAAcceptanceResult.status == QA_FINDING_WARN)
         )
         if agent_name:
             l1_query = l1_query.where(QAAcceptanceRun.agent_name == agent_name)
@@ -151,7 +160,7 @@ class AcceptanceResultRepository:
         await self.session.flush()
         return db_results
 
-    async def list_by_run_id(self, run_id: str) -> list[QAAcceptanceResult]:
+    async def list_by_run_id(self, run_id: AcceptanceRunId) -> list[QAAcceptanceResult]:
         result = await self.session.execute(
             select(QAAcceptanceResult)
             .where(QAAcceptanceResult.run_id == run_id)

@@ -1,10 +1,19 @@
 """Application use cases for control-plane agent registry operations."""
+
 from __future__ import annotations
 
+from shared.core.identifiers import AgentRoleId, CompanyId
 from shared.schemas.event import EventTypes
 
 from .adapter_registry import DEFAULT_ADAPTER_REGISTRY, AdapterRegistry
 from .agent_registry_ports import ControlPlaneAgentRegistryStore
+from .domain.agent_role import (
+    AgentRole as AgentRoleAggregate,
+)
+from .domain_event_audit import (
+    DomainEventAuditContext,
+    append_control_plane_domain_event_audits,
+)
 from .models import AgentRole, AuditEvent, CompanyContext
 
 
@@ -55,7 +64,7 @@ async def list_agent_roles(
 ) -> list[AgentRole]:
     """List agent roles through the registry boundary."""
     return await store.list_agent_roles(
-        company_id=company_id,
+        company_id=CompanyId(company_id),
         status=status,
         agent_kind=agent_kind,
         interaction_mode=interaction_mode,
@@ -72,7 +81,10 @@ async def get_agent_role(
     agent_id: str,
 ) -> AgentRole:
     """Return one agent role or raise a registry-domain not-found error."""
-    role = await store.get_agent_role(company_id=company_id, agent_id=agent_id)
+    role = await store.get_agent_role(
+        company_id=CompanyId(company_id),
+        agent_id=AgentRoleId(agent_id),
+    )
     if role is None:
         raise AgentNotFoundError(agent_id)
     return role
@@ -87,8 +99,8 @@ async def create_agent_role_with_audit(
     """Create an agent role and record its audit event."""
     await _ensure_company(store, role.company_id)
     existing = await store.get_agent_role(
-        company_id=role.company_id,
-        agent_id=role.agent_id,
+        company_id=CompanyId(role.company_id),
+        agent_id=AgentRoleId(role.agent_id),
     )
     if existing is not None:
         raise AgentAlreadyExistsError(role.agent_id)
@@ -127,8 +139,8 @@ async def update_agent_role_with_audit(
     await _validate_adapter(adapter_registry, role.adapter_type)
 
     updated = await store.update_agent_role(
-        company_id=role.company_id,
-        agent_id=role.agent_id,
+        company_id=CompanyId(role.company_id),
+        agent_id=AgentRoleId(role.agent_id),
         values={field: getattr(role, field) for field in AGENT_UPDATE_FIELDS},
     )
     if updated is None:
@@ -161,24 +173,30 @@ async def update_agent_status_with_audit(
     actor_id: str,
 ) -> AgentRole:
     """Update an agent role status and record its audit event."""
+    existing = await store.get_agent_role(
+        company_id=CompanyId(company_id),
+        agent_id=AgentRoleId(agent_id),
+    )
+    if existing is None:
+        raise AgentNotFoundError(agent_id)
+
+    aggregate = AgentRoleAggregate.from_record(existing)
+    aggregate.transition_to(status)
     updated = await store.update_agent_role_status(
-        company_id=company_id,
-        agent_id=agent_id,
-        status=status.strip(),
+        company_id=CompanyId(company_id),
+        agent_id=AgentRoleId(agent_id),
+        status=aggregate.status.value,
     )
     if updated is None:
         raise AgentNotFoundError(agent_id)
 
-    await store.append_audit_event(
-        AuditEvent(
-            company_id=company_id,
-            action=EventTypes.AGENT_ROLE_STATUS_UPDATED,
-            target_type="agent_role",
-            target_id=updated.agent_id,
+    await append_control_plane_domain_event_audits(
+        store,
+        aggregate.pull_events(),
+        DomainEventAuditContext(
             actor_type="user",
             actor_id=actor_id,
-            detail={"status": updated.status},
-        )
+        ),
     )
     return updated
 
@@ -187,7 +205,7 @@ async def _ensure_company(
     store: ControlPlaneAgentRegistryStore,
     company_id: str,
 ) -> None:
-    if await store.get_company(company_id) is not None:
+    if await store.get_company(CompanyId(company_id)) is not None:
         return
     await store.create_company(
         CompanyContext(

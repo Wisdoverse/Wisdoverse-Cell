@@ -6,16 +6,16 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from services.gateways.user_interaction.core.application_facade import (
-    UserInteractionApplicationFacade,
+from agents.chat_agent.core.application_facade import (
+    ChatAgentApplicationFacade,
 )
-from services.gateways.user_interaction.core.event_ports import (
-    UserInteractionEventOutboxStore,
+from agents.chat_agent.core.event_ports import (
+    ChatAgentEventOutboxStore,
 )
 from shared.schemas.event import Event, EventTypes
 
 
-class _OutboxStore(UserInteractionEventOutboxStore):
+class _OutboxStore(ChatAgentEventOutboxStore):
     def __init__(self, rows=None) -> None:
         self.rows = rows or []
         self.added: list[Event] = []
@@ -65,12 +65,12 @@ def _facade(
     event_bus: MagicMock | None = None,
     event_publisher: MagicMock | None = None,
     standard_request_handler: AsyncMock | None = None,
-) -> UserInteractionApplicationFacade:
+) -> ChatAgentApplicationFacade:
     event_bus = event_bus or MagicMock()
     event_bus.connect = AsyncMock()
     event_publisher = event_publisher or MagicMock()
     event_publisher.publish = AsyncMock(return_value=True)
-    return UserInteractionApplicationFacade(
+    return ChatAgentApplicationFacade(
         agent_id="chat-agent",
         standard_request_handler=standard_request_handler or AsyncMock(return_value=None),
         chat_provider=lambda: chat,
@@ -137,7 +137,7 @@ async def test_user_interaction_facade_delegates_outbox_delivery() -> None:
     facade = _facade(outbox_store=outbox_store, event_publisher=publisher)
 
     ok = await facade.publish_sync_trigger(scope="openproject")
-    result = await facade.publish_pending_user_interaction_events(limit=1)
+    result = await facade.publish_pending_chat_agent_events(limit=1)
 
     assert ok is True
     assert outbox_store.added[0].event_type == EventTypes.SYNC_TRIGGER

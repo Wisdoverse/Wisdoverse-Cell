@@ -1,26 +1,60 @@
 """
 Unit Tests - WeeklyReportGenerator
 
-Tests weekly report generation with mocked Bitable + projection ports.
+Tests weekly report generation with mocked projection ports.
 """
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
 
 from shared.capabilities.analysis.core.config import AnalysisCoreConfig
+from shared.capabilities.analysis.core.domain.feishu_task import (
+    AnalysisFeishuTaskSnapshot,
+)
+from shared.capabilities.analysis.core.domain.projection import (
+    SubtaskProgressProjection,
+)
 
 
-@pytest.fixture
-def mock_bitable():
-    bitable = AsyncMock()
-    bitable.list_all_records = AsyncMock(return_value=[])
-    return bitable
+def _feishu_task(
+    *,
+    title: str,
+    status: str,
+    blocked_reason: str = "",
+) -> AnalysisFeishuTaskSnapshot:
+    return AnalysisFeishuTaskSnapshot.from_fields(
+        {
+            "任务(动宾短语)": title,
+            "状态": status,
+            "阻塞原因": blocked_reason,
+        }
+    )
+
+
+def _subtask_projection(
+    record_id: str,
+    *,
+    title: str,
+    status: str,
+    blocked_reason: str = "",
+) -> SubtaskProgressProjection:
+    return SubtaskProgressProjection(
+        parent_wp_id=1,
+        subtask_record_id=record_id,
+        subtask_status=status,
+        completed="完成" in status or "Done" in status,
+        updated_at=datetime.now(UTC),
+        title=title,
+        blocked_reason=blocked_reason,
+    )
 
 
 @pytest.fixture
 def mock_projection():
     projection = AsyncMock()
     projection.list_work_packages = AsyncMock(return_value=[])
+    projection.list_subtask_progress = AsyncMock(return_value=[])
     return projection
 
 
@@ -32,11 +66,10 @@ def mock_messenger():
 
 
 @pytest.fixture
-def generator(mock_bitable, mock_messenger, mock_projection):
+def generator(mock_messenger, mock_projection):
     from shared.capabilities.analysis.core.weekly_report import WeeklyReportGenerator
 
     return WeeklyReportGenerator(
-        bitable=mock_bitable,
         messenger=mock_messenger,
         projection_port=mock_projection,
         config=AnalysisCoreConfig.from_values(
@@ -48,9 +81,9 @@ def generator(mock_bitable, mock_messenger, mock_projection):
 
 
 @pytest.mark.asyncio
-async def test_generate_empty(generator, mock_bitable):
+async def test_generate_empty(generator, mock_projection):
     """No task data should return an empty report."""
-    mock_bitable.list_all_records.return_value = []
+    mock_projection.list_subtask_progress.return_value = []
 
     result = await generator.generate()
 
@@ -59,13 +92,18 @@ async def test_generate_empty(generator, mock_bitable):
 
 
 @pytest.mark.asyncio
-async def test_generate_with_tasks(generator, mock_bitable):
+async def test_generate_with_tasks(generator, mock_projection):
     """Task data should generate a weekly report with stats."""
-    mock_bitable.list_all_records.return_value = [
-        {"fields": {"任务(动宾短语)": "完成设计", "状态": "已完成(Done)"}},
-        {"fields": {"任务(动宾短语)": "开发功能A", "状态": "进行中(In Progress)"}},
-        {"fields": {"任务(动宾短语)": "修复BugX", "状态": "阻塞(Blocked)", "阻塞原因": "等待API"}},
-        {"fields": {"任务(动宾短语)": "编写文档", "状态": "未开始"}},
+    mock_projection.list_subtask_progress.return_value = [
+        _subtask_projection("rec_1", title="完成设计", status="已完成(Done)"),
+        _subtask_projection("rec_2", title="开发功能A", status="进行中(In Progress)"),
+        _subtask_projection(
+            "rec_3",
+            title="修复BugX",
+            status="阻塞(Blocked)",
+            blocked_reason="等待API",
+        ),
+        _subtask_projection("rec_4", title="编写文档", status="未开始"),
     ]
 
     result = await generator.generate()
@@ -78,9 +116,13 @@ async def test_generate_with_tasks(generator, mock_bitable):
 async def test_format_report_categorizes(generator):
     """_format_report should categorize completed, in-progress, and blocked tasks."""
     tasks = [
-        {"任务(动宾短语)": "已完成任务", "状态": "已完成(Done)"},
-        {"任务(动宾短语)": "进行中任务", "状态": "进行中(In Progress)"},
-        {"任务(动宾短语)": "阻塞任务", "状态": "阻塞(Blocked)", "阻塞原因": "依赖未就绪"},
+        _feishu_task(title="已完成任务", status="已完成(Done)"),
+        _feishu_task(title="进行中任务", status="进行中(In Progress)"),
+        _feishu_task(
+            title="阻塞任务",
+            status="阻塞(Blocked)",
+            blocked_reason="依赖未就绪",
+        ),
     ]
 
     content = generator._format_report(tasks, [])
@@ -98,8 +140,6 @@ async def test_format_report_categorizes(generator):
 @pytest.mark.asyncio
 async def test_format_report_includes_projected_op_completed(generator):
     """OP completion section should list projected work-package subjects."""
-    from datetime import UTC, datetime
-
     from shared.capabilities.analysis.core.domain.projection import (
         WorkPackageProjection,
     )
@@ -136,12 +176,11 @@ async def test_push_to_chat_success(generator, mock_messenger):
 
 
 @pytest.mark.asyncio
-async def test_push_to_chat_no_chat_id(mock_bitable, mock_messenger, mock_projection):
+async def test_push_to_chat_no_chat_id(mock_messenger, mock_projection):
     """Missing chat ID should make push return False."""
     from shared.capabilities.analysis.core.weekly_report import WeeklyReportGenerator
 
     generator = WeeklyReportGenerator(
-        bitable=mock_bitable,
         messenger=mock_messenger,
         projection_port=mock_projection,
     )

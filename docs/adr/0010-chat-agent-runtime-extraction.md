@@ -6,25 +6,26 @@
 
 ## Context
 
-`services/gateways/user_interaction/` is documented as a **gateway**
-(per `module-boundaries.md` §2.7) but currently owns three
-product-domain tables:
+At the time this ADR was accepted, `services/gateways/user_interaction/`
+was documented as a **gateway** (per `module-boundaries.md` §2.7) but owned
+three product-domain tables:
 
 - `chat_agent_conversation_histories`
 - `chat_agent_card_operations`
 - `chat_agent_daily_progress`
 
-Plus the gateway's own outbox `chat_agent_user_interaction_event_outbox`.
+Plus the chat integration outbox that is now canonical as
+`chat_agent_event_outbox`.
 
 The table prefix `chat_agent_*` signals the intended owner: a dedicated
 **chat-agent** runtime, not the gateway. `module-boundaries.md` §3
 rule 8 (added in PR #226) forbids gateways from owning product-domain
-records. Today's User Interaction Gateway carries the boundary
-violation flagged as DDD-016 (high severity).
+records. The User Interaction Gateway carries the DDD-016 boundary risk until
+ADR-0010 Steps 4-7 remove compatibility read/write paths.
 
-Additionally, `services/gateways/user_interaction/core/chat_service.py`
-imports `shared.infra.conversation_engine` directly — the DDD-017
-application-purity violation. The chat_service belongs in a runtime
+Additionally, the gateway `core/chat_service.py` imported
+`shared.infra.conversation_engine` directly at ADR acceptance time — the
+DDD-017 application-purity violation. The chat_service belongs in a runtime
 that owns the chat-agent domain, not in the gateway layer.
 
 `AGENTS.md` Part 3 rule 13 lists `chat-agent` as a canonical runtime
@@ -45,10 +46,9 @@ Interaction Gateway to its transport + webhook-intake concerns.
    - `chat_agent_conversation_histories`
    - `chat_agent_card_operations`
    - `chat_agent_daily_progress`
-2. The chat business logic from
-   `services/gateways/user_interaction/core/chat_service.py`,
-   `core/daily_tasks.py`, `core/bitable_operations.py`,
-   `core/ops_logger.py`, `core/tools.py`.
+2. The chat business logic now under `agents/chat_agent/core/`:
+   `chat_service.py`, `daily_tasks.py`, `bitable_operations.py`,
+   `ops_logger.py`, and `tools.py`.
 3. The ports under `core/chat_ports.py` (history store, daily
    progress, conversation-engine port from DDD-017), the
    `ApprovalGate` consumer port, and the card renderer ports.
@@ -102,10 +102,9 @@ Interaction Gateway to its transport + webhook-intake concerns.
 - **Agent ID already canonical**. `AGENTS.md` Part 3 rule 13 lists
   `chat-agent`; the extraction uses the reserved ID without
   introducing a new identifier.
-- **Unblocks DDD-017**. The conversation-engine port lives in core/
-  today (PR #246 seeds it); the port + concrete consumer move with
-  the business logic into the chat-agent runtime, eliminating the
-  remaining `shared.infra.conversation_engine` import.
+- **Unblocks DDD-017**. The conversation-engine port moves with
+  the business logic into the chat-agent runtime, eliminating direct
+  `shared.infra.conversation_engine` imports from the gateway core.
 - **Failure isolation**. The chat surface is the highest-traffic user
   touchpoint; keeping it inside a gateway means a chat-agent OOM
   could take down webhook intake. Extraction separates the failure
@@ -132,11 +131,9 @@ Interaction Gateway to its transport + webhook-intake concerns.
 - 3 product tables move owner runtime (not contents); per ADR-0002
   per-agent DB isolation, the chat-agent gets its own Postgres user.
 - `data-ownership.md` §2 storage inventory updated; the `chat_agent_*`
-  row moves from "User Interaction + Channel Gateways" to "chat-agent
-  runtime".
-- `module-boundaries.md` §2.7 splits: §2.7a User Interaction
-  Gateway (gateway concerns only), §2.7b Channel Gateway (unchanged),
-  new §2.13 Chat Agent.
+  row moves from "User Interaction + Channel Gateways" to "Chat Agent".
+- `module-boundaries.md` §2.7 records the gateway boundary plus the
+  `agents/chat_agent/` product runtime owner during the ADR-0010 cutover.
 - Architecture-boundary tests gain a rule preventing future
   product-domain ownership inside `services/gateways/*`.
 
@@ -156,12 +153,22 @@ window in Step 5 is the cutover safety net.
 
 ## Status Tracking
 
-This ADR records the **decision and sequence**. Implementation lands
-in 5–7 separate PRs once the pre-conditions hold. When the first
-chat-agent runtime PR lands, append a `chat-agent` row to
-`agent_catalog.py` and update `module-boundaries.md` accordingly.
+This ADR records the **decision and sequence**. Steps 1-7 are now
+represented in code for the gateway boundary: the chat-agent runtime
+package, table metadata, persistence adapters, core use cases, runtime
+service composition, scheduler, outbox dispatcher, default
+Docker/runtime entrypoints, conversation/daily-progress read endpoints,
+the internal `/api/v1/chat-agent/requests` boundary used by Feishu
+webhook traffic, and Bitable card-operation routes live under
+`agents/chat_agent/`. The user-interaction gateway app/service/webhook
+path and compatibility daily-progress/Bitable API routes no longer
+import the chat-agent runtime in-process; they call chat-agent APIs
+through an HTTP client adapter. Legacy gateway `core/`, `db/`, and
+`models/` aliases for chat-agent product state have been removed, and
+architecture tests forbid production gateway imports of
+`agents.chat_agent.*`.
 
-After the extraction completes, the DDD-016 boundary-violation
-callout in `ddd-compliance-audit.md` §5.12 and the §4.8 (UIG)
-scorecard are revised: dim 1 (Bounded Context) and dim 11 (ACL)
-flip to ✓.
+The DDD-016 boundary-violation callout in
+`ddd-compliance-audit.md` §5.12 and the §4.8 (UIG) scorecard are
+revised accordingly: dim 1 (Bounded Context) and dim 11 (ACL) are no
+longer blocked by gateway ownership of chat-agent product state.

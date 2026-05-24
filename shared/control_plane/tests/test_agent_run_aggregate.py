@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import pytest
-
 from dataclasses import FrozenInstanceError
 
+import pytest
+
 from shared.control_plane.domain.agent_run import (
+    TERMINAL_STATUSES,
+    VALID_TRANSITIONS,
     AgentRun,
     AgentRunStatusChanged,
     InvalidAgentRunTransitionError,
-    TERMINAL_STATUSES,
-    VALID_TRANSITIONS,
 )
 from shared.control_plane.models import AgentRun as AgentRunRecord
 from shared.control_plane.models import AgentRunStatus

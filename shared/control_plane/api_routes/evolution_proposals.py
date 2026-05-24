@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from shared.api import raise_control_plane_api_error
 
 from ..api_serialization import row_to_dict
+from ..domain.evolution_proposal import InvalidEvolutionRolloutTransitionError
 from ..evolution_proposal_use_cases import (
     EvolutionProposalApprovalNotFoundError,
     EvolutionProposalApprovalRequiredError,
@@ -80,11 +81,7 @@ class EvolutionProposalStatusUpdateRequest(BaseModel):
 
     @model_validator(mode="after")
     def _require_change(self) -> "EvolutionProposalStatusUpdateRequest":
-        if (
-            self.approval_state is None
-            and self.rollout_state is None
-            and self.approval_id is None
-        ):
+        if self.approval_state is None and self.rollout_state is None and self.approval_id is None:
             raise ValueError("at least one proposal status field must be provided")
         return self
 
@@ -203,6 +200,11 @@ def create_evolution_proposal_router(
             raise_control_plane_api_error(status_code=400, detail="approval_not_found")
         except EvolutionProposalApprovalRequiredError:
             raise_control_plane_api_error(status_code=400, detail="approval_required")
+        except InvalidEvolutionRolloutTransitionError:
+            raise_control_plane_api_error(
+                status_code=400,
+                detail="invalid_rollout_transition",
+            )
         await uow.commit()
         return row_to_dict(row)
 

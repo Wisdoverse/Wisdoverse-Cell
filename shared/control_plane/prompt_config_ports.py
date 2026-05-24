@@ -1,9 +1,10 @@
 """Ports for control-plane agent prompt configuration."""
+
 from __future__ import annotations
 
 from typing import Any, Protocol
 
-from shared.core.identifiers import CompanyId
+from shared.core.identifiers import AgentRoleId, CompanyId
 
 from .models import AgentPromptConfig, AgentRole, AuditEvent, CompanyContext
 
@@ -21,7 +22,7 @@ class ControlPlanePromptConfigStore(Protocol):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
     ) -> AgentRole | None:
         """Return an agent role if the target exists."""
 
@@ -29,7 +30,7 @@ class ControlPlanePromptConfigStore(Protocol):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
     ) -> AgentPromptConfig | None:
         """Return a stored prompt configuration if present."""
 
@@ -37,7 +38,7 @@ class ControlPlanePromptConfigStore(Protocol):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
         system_prompt: str,
         updated_by: str,
         metadata: dict[str, Any] | None = None,

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from services.gateways.user_interaction.core.daily_progress_queries import (
+from agents.chat_agent.core.daily_progress_queries import (
     DailyProgressQueryService,
 )
 

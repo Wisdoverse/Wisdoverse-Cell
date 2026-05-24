@@ -15,6 +15,7 @@ from shared.control_plane.models import (
     EvolutionRolloutState,
     EvolutionTier,
 )
+from shared.core.identifiers import ApprovalRequestId, CompanyId, EvolutionProposalId
 
 
 @pytest.mark.asyncio
@@ -49,17 +50,17 @@ async def test_evolution_proposal_store_owns_proposal_lifecycle(
     )
 
     listed = await store.list_evolution_proposals(
-        company_id=company.company_id,
+        company_id=CompanyId(company.company_id),
         tier=EvolutionTier.L2.value,
         approval_state=ApprovalStatus.PENDING.value,
         scope="routing",
     )
     shadowed = await store.update_evolution_proposal_status(
-        proposal.proposal_id,
+        EvolutionProposalId(proposal.proposal_id),
         rollout_state=EvolutionRolloutState.SHADOW.value,
     )
     approved = await store.update_evolution_proposal_approval_state_by_approval(
-        approval.approval_id,
+        ApprovalRequestId(approval.approval_id),
         approval_state=ApprovalStatus.APPROVED.value,
     )
 

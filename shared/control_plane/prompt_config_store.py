@@ -1,4 +1,5 @@
 """SQLAlchemy adapter for control-plane agent prompt configuration."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -6,7 +7,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.core.identifiers import CompanyId
+from shared.core.identifiers import AgentRoleId, CompanyId
 
 from .agent_registry_store import SqlAlchemyControlPlaneAgentRegistryStore
 from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
@@ -37,7 +38,7 @@ class SqlAlchemyControlPlanePromptConfigStore(ControlPlanePromptConfigStore):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
     ) -> AgentRole | None:
         return await self._agents.get_agent_role(
             company_id=company_id,
@@ -48,7 +49,7 @@ class SqlAlchemyControlPlanePromptConfigStore(ControlPlanePromptConfigStore):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
     ) -> AgentPromptConfig | None:
         row = await self._get_agent_prompt_config_row(
             company_id=company_id,
@@ -60,7 +61,7 @@ class SqlAlchemyControlPlanePromptConfigStore(ControlPlanePromptConfigStore):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
     ) -> AgentPromptConfigTable | None:
         result = await self._session.execute(
             select(AgentPromptConfigTable).where(
@@ -74,7 +75,7 @@ class SqlAlchemyControlPlanePromptConfigStore(ControlPlanePromptConfigStore):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
         system_prompt: str,
         updated_by: str,
         metadata: dict[str, Any] | None = None,

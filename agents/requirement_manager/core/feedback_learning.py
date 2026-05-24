@@ -1,14 +1,18 @@
 """Feedback-learning application service for Requirement Manager."""
 
-from typing import Optional
+from collections.abc import Mapping
+from typing import Any, Optional
 
-from ulid import ULID
-
+from shared.core.identifiers import RequirementId, new_feedback_record_id
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
 from ..models import FeedbackRecord
+from .domain.feedback_learning import (
+    RequirementFeedbackDraft,
+    RequirementFeedbackLearningPolicy,
+)
 from .feedback_ports import RequirementFeedbackStore
 
 logger = get_logger("feedback_learning")
@@ -17,78 +21,71 @@ logger = get_logger("feedback_learning")
 class FeedbackLearningService:
     """Service for feedback-based learning."""
 
-    def __init__(self, *, feedback_store: RequirementFeedbackStore):
+    def __init__(
+        self,
+        *,
+        feedback_store: RequirementFeedbackStore,
+        feedback_policy: RequirementFeedbackLearningPolicy | None = None,
+    ):
         self.feedback_store = feedback_store
+        self._feedback_policy = feedback_policy or RequirementFeedbackLearningPolicy()
 
     async def record_correction(
         self,
-        requirement_id: str,
-        original: dict,
-        corrected: dict,
+        requirement_id: RequirementId | str,
+        original: Mapping[str, Any],
+        corrected: Mapping[str, Any],
         corrected_by: str,
         source_text: Optional[str] = None,
         note: Optional[str] = None,
     ) -> FeedbackRecord:
         """Record a user correction for prompt-learning examples."""
-        feedback = FeedbackRecord(
-            id=f"fb_{ULID()}",
-            requirement_id=requirement_id,
-            original_title=original.get("title", ""),
-            original_description=original.get("description"),
-            original_priority=original.get("priority"),
-            original_category=original.get("category"),
-            corrected_title=corrected.get("title", ""),
-            corrected_description=corrected.get("description"),
-            corrected_priority=corrected.get("priority"),
-            corrected_category=corrected.get("category"),
-            source_text=source_text,
-            feedback_type="correction",
+        draft = self._feedback_policy.correction(
+            requirement_id=RequirementId(str(requirement_id)),
+            original=original,
+            corrected=corrected,
             corrected_by=corrected_by,
-            correction_note=note,
+            source_text=source_text,
+            note=note,
         )
+        feedback = self._to_feedback_record(draft)
 
         await self.feedback_store.create(feedback)
 
         logger.info(
             "feedback_recorded",
             feedback_id=feedback.id,
-            requirement_id=requirement_id,
+            requirement_id=str(draft.requirement_id),
             corrected_by=corrected_by,
-            fields_changed=self._get_changed_fields(original, corrected),
+            fields_changed=draft.changed_fields(),
         )
 
         return feedback
 
     async def record_rejection(
         self,
-        requirement_id: str,
-        original: dict,
+        requirement_id: RequirementId | str,
+        original: Mapping[str, Any],
         rejected_by: str,
         reason: str,
         source_text: Optional[str] = None,
     ) -> FeedbackRecord:
         """Record a requirement rejection as feedback."""
-        feedback = FeedbackRecord(
-            id=f"fb_{ULID()}",
-            requirement_id=requirement_id,
-            original_title=original.get("title", ""),
-            original_description=original.get("description"),
-            original_priority=original.get("priority"),
-            original_category=original.get("category"),
-            corrected_title="[REJECTED]",
-            corrected_description=reason,
+        draft = self._feedback_policy.rejection(
+            requirement_id=RequirementId(str(requirement_id)),
+            original=original,
+            rejected_by=rejected_by,
+            reason=reason,
             source_text=source_text,
-            feedback_type="rejection",
-            corrected_by=rejected_by,
-            correction_note=reason,
         )
+        feedback = self._to_feedback_record(draft)
 
         await self.feedback_store.create(feedback)
 
         logger.info(
             "rejection_feedback_recorded",
             feedback_id=feedback.id,
-            requirement_id=requirement_id,
+            requirement_id=str(draft.requirement_id),
             rejected_by_hash=hash_identifier(rejected_by),
         )
 
@@ -150,10 +147,29 @@ class FeedbackLearningService:
             "pending_use": sum(1 for e in examples if not e.used_in_prompt),
         }
 
-    def _get_changed_fields(self, original: dict, corrected: dict) -> list[str]:
+    def _get_changed_fields(
+        self,
+        original: Mapping[str, Any],
+        corrected: Mapping[str, Any],
+    ) -> list[str]:
         """Identify fields changed by a correction."""
-        changed = []
-        for field in ["title", "description", "priority", "category"]:
-            if original.get(field) != corrected.get(field):
-                changed.append(field)
-        return changed
+        return self._feedback_policy.changed_fields(original, corrected)
+
+    def _to_feedback_record(self, draft: RequirementFeedbackDraft) -> FeedbackRecord:
+        """Convert a domain feedback draft to the ORM persistence model."""
+        return FeedbackRecord(
+            id=str(new_feedback_record_id()),
+            requirement_id=str(draft.requirement_id),
+            original_title=draft.original.title,
+            original_description=draft.original.description,
+            original_priority=draft.original.priority,
+            original_category=draft.original.category,
+            corrected_title=draft.corrected.title,
+            corrected_description=draft.corrected.description,
+            corrected_priority=draft.corrected.priority,
+            corrected_category=draft.corrected.category,
+            source_text=draft.source_text,
+            feedback_type=draft.feedback_type,
+            corrected_by=draft.corrected_by,
+            correction_note=draft.correction_note,
+        )

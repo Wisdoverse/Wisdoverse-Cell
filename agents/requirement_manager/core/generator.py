@@ -12,6 +12,8 @@ from pydantic import BaseModel
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.utils.logger import get_logger
 
+from .domain.prd_document import PRDDocumentDraft
+
 logger = get_logger("generator")
 
 _DEFAULT_SYSTEM_PROMPT = (
@@ -65,19 +67,20 @@ def build_prd_generation_prompt(
     generated_date: str,
 ) -> str:
     """Build the PRD prompt with metadata and requirements isolated."""
+    draft = PRDDocumentDraft.from_requirements(
+        requirements=requirements,
+        project_name=project_name,
+        version=version,
+        generated_date=generated_date,
+    )
     return prompt_template.format(
         project_metadata_block=wrap_untrusted_json(
             "untrusted_prd_metadata_json",
-            {
-                "project_name": project_name,
-                "version": version,
-                "generated_date": generated_date,
-                "total_requirements": len(requirements),
-            },
+            draft.metadata_payload(),
         ),
         requirements_block=wrap_untrusted_json(
             "untrusted_requirements_json",
-            {"requirements": requirements},
+            {"requirements": draft.requirements_payload()},
         ),
     )
 
@@ -135,18 +138,24 @@ class DocumentGenerator:
             )
 
         generated_date = datetime.now(UTC).strftime("%Y-%m-%d")
-        prompt = build_prd_generation_prompt(
-            self.prd_prompt_template,
+        draft = PRDDocumentDraft.from_requirements(
             requirements=requirements,
             project_name=project_name,
             version=version,
             generated_date=generated_date,
         )
+        prompt = build_prd_generation_prompt(
+            self.prd_prompt_template,
+            requirements=requirements,
+            project_name=draft.project_name,
+            version=draft.version,
+            generated_date=draft.generated_date,
+        )
 
         logger.info(
             "prd_generation_started",
-            project_name=project_name,
-            requirements_count=len(requirements)
+            project_name=draft.project_name,
+            requirements_count=draft.requirements_count
         )
 
         try:
@@ -174,18 +183,18 @@ class DocumentGenerator:
             return PRDGenerationResult(
                 content=content,
                 generated_at=datetime.now(UTC),
-                requirements_count=len(requirements),
-                version=version
+                requirements_count=draft.requirements_count,
+                version=draft.version
             )
 
         except Exception as e:
             logger.error("prd_generation_failed", error=str(e))
             # Fallback: return a simple PRD.
             return PRDGenerationResult(
-                content=self._fallback_prd(requirements, project_name, version),
+                content=self._fallback_prd(draft),
                 generated_at=datetime.now(UTC),
-                requirements_count=len(requirements),
-                version=version
+                requirements_count=draft.requirements_count,
+                version=draft.version
             )
 
     def generate_questions_export(
@@ -323,18 +332,14 @@ class DocumentGenerator:
 
     def _fallback_prd(
         self,
-        requirements: list[dict],
-        project_name: str,
-        version: str
+        draft: PRDDocumentDraft,
     ) -> str:
         """Generate a fallback PRD when the LLM call fails."""
-        date_str = datetime.now(UTC).strftime("%Y-%m-%d")
-
         lines = [
-            f"# {project_name} - 产品需求文档",
+            f"# {draft.project_name} - 产品需求文档",
             "",
-            f"> 版本: {version}",
-            f"> 生成日期: {date_str}",
+            f"> 版本: {draft.version}",
+            f"> 生成日期: {draft.generated_date}",
             "> 状态: 自动生成 (简化版)",
             "",
             "---",
@@ -345,20 +350,13 @@ class DocumentGenerator:
             "|------|------|------|--------|------|",
         ]
 
-        # Sort by category.
-        sorted_reqs = sorted(
-            requirements,
-            key=lambda x: (
-                x.get("category", ""),
-                x.get("priority", ""),
-            ),
-        )
+        sorted_reqs = draft.sorted_requirements()
 
         for i, req in enumerate(sorted_reqs, 1):
             lines.append(
-                f"| REQ-{i:03d} | {req.get('title', '未知')} | "
-                f"{req.get('category', '其他')} | {req.get('priority', '中')} | "
-                f"{req.get('status', '待确认')} |"
+                f"| REQ-{i:03d} | {req.title or '未知'} | "
+                f"{req.category or '其他'} | {req.priority or '中'} | "
+                f"{req.status or '待确认'} |"
             )
 
         lines.extend([
@@ -371,23 +369,23 @@ class DocumentGenerator:
 
         for i, req in enumerate(sorted_reqs, 1):
             lines.extend([
-                f"### REQ-{i:03d}: {req.get('title', '未知')}",
+                f"### REQ-{i:03d}: {req.title or '未知'}",
                 "",
-                f"- **分类**: {req.get('category', '其他')}",
-                f"- **优先级**: {req.get('priority', '中')}",
-                f"- **状态**: {req.get('status', '待确认')}",
+                f"- **分类**: {req.category or '其他'}",
+                f"- **优先级**: {req.priority or '中'}",
+                f"- **状态**: {req.status or '待确认'}",
                 "",
-                f"**描述**: {req.get('description', '无描述')}",
+                f"**描述**: {req.description or '无描述'}",
                 "",
             ])
-            if req.get("source_quote"):
-                lines.append(f"> 原文: {req['source_quote']}")
+            if req.source_quote:
+                lines.append(f"> 原文: {req.source_quote}")
                 lines.append("")
             lines.append("---")
             lines.append("")
 
         lines.extend([
-            f"*本文档由 {project_name} 需求管理系统自动生成*",
+            f"*本文档由 {draft.project_name} 需求管理系统自动生成*",
         ])
 
         return "\n".join(lines)

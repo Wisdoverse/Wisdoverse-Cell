@@ -65,6 +65,7 @@ def test_runtime_modules_keep_canonical_package_boundaries() -> None:
         "capability": "shared.capabilities.",
     }
     root_business_packages = {
+        "agents.chat_agent",
         "agents.requirement_manager",
         "agents.pjm_agent",
         "agents.qa_agent",
@@ -205,6 +206,7 @@ def test_business_runtime_agents_are_real_implemented_agents() -> None:
     business_agent_ids = {module.agent_id for module in get_business_runtime_agents()}
 
     assert business_agent_ids == {
+        "chat-agent",
         "requirement-manager",
         "pjm-agent",
         "qa-agent",

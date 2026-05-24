@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from services.gateways.user_interaction.core.ops_logger import (
+from agents.chat_agent.core.ops_logger import (
     configure_operation_log_store,
     record_op,
 )
@@ -19,10 +19,10 @@ def reset_operation_log_store():
 
 class FakeOperationLogStore:
     def __init__(self):
-        self.records: list[dict] = []
+        self.records: list[object] = []
 
-    async def record(self, **kwargs) -> None:
-        self.records.append(kwargs)
+    async def record(self, *, entry) -> None:
+        self.records.append(entry)
 
 
 @pytest.mark.asyncio
@@ -42,6 +42,7 @@ async def test_record_op_uses_injected_store() -> None:
 
     assert len(store.records) == 1
     record = store.records[0]
-    assert record["user_id"] == "ou_user_1"
-    assert record["assignee_name"] == "Bob"
-    assert json.loads(record["fields_snapshot"])["任务(动宾短语)"] == "Build report"
+    assert record.user_id == "ou_user_1"
+    assert record.assignee_name == "Bob"
+    assert record.result.value == "success"
+    assert json.loads(record.fields_snapshot)["任务(动宾短语)"] == "Build report"

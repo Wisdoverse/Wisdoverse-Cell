@@ -1,4 +1,5 @@
 """SQLAlchemy adapter for control-plane budget persistence."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -10,6 +11,8 @@ from shared.core.identifiers import BudgetPolicyId, CompanyId
 
 from .budget_ports import ControlPlaneBudgetStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
+from .domain.budget_policy import BUDGET_POLICY_STATUS_ACTIVE
+from .domain.budget_usage import BudgetUsage as BudgetUsageAggregate
 from .domain_records import budget_policy_record, budget_usage_record
 from .models import (
     AuditEvent,
@@ -46,9 +49,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         row = await self._get_budget_policy_row(budget_id)
         return budget_policy_record(row) if row is not None else None
 
-    async def _get_budget_policy_row(
-        self, budget_id: BudgetPolicyId
-    ) -> BudgetPolicyTable | None:
+    async def _get_budget_policy_row(self, budget_id: BudgetPolicyId) -> BudgetPolicyTable | None:
         result = await self._session.execute(
             select(BudgetPolicyTable).where(BudgetPolicyTable.budget_id == budget_id)
         )
@@ -64,9 +65,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         status: str | None = None,
         limit: int = 100,
     ) -> list[BudgetPolicy]:
-        query = select(BudgetPolicyTable).where(
-            BudgetPolicyTable.company_id == company_id
-        )
+        query = select(BudgetPolicyTable).where(BudgetPolicyTable.company_id == company_id)
         if scope:
             query = query.where(BudgetPolicyTable.scope == to_db_value(scope))
         if scope_id:
@@ -119,7 +118,7 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
             BudgetPolicyTable.company_id == company_id,
             BudgetPolicyTable.scope == to_db_value(scope),
             BudgetPolicyTable.period == to_db_value(period),
-            BudgetPolicyTable.status == "active",
+            BudgetPolicyTable.status == BUDGET_POLICY_STATUS_ACTIVE,
         )
         if scope_id is None:
             query = query.where(BudgetPolicyTable.scope_id.is_(None))
@@ -133,7 +132,8 @@ class SqlAlchemyControlPlaneBudgetStore(ControlPlaneBudgetStore):
         return budget_policy_record(row) if row is not None else None
 
     async def record_budget_usage(self, usage: BudgetUsage) -> BudgetUsage:
-        row = BudgetUsageTable(**model_values(usage))
+        aggregate = BudgetUsageAggregate.for_recording(usage)
+        row = BudgetUsageTable(**model_values(aggregate.record))
         self._session.add(row)
         await self._session.flush()
         return budget_usage_record(row)
