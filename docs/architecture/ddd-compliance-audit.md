@@ -742,11 +742,14 @@ this audit PR. Architecture-boundary test pending in DDD-011.
 ### 5.5 Unit-of-Work Coverage Uneven
 
 Explicit `unit_of_work_ports.py` is present in `agents/qa_agent/core/`,
-`agents/dev_agent/core/`, and `shared/control_plane/`. PJM has an
+`agents/dev_agent/core/`, and `shared/control_plane/`. Requirement
+Manager has a runtime UoW adapter for core command paths. PJM has an
 explicit decomposition transaction port (`decomposition_ports.py`) but
-not a generalized UoW. Requirement Manager, Sync, Analysis, Evolution,
-Coordinator, and the gateways still rely on implicit session context
-boundaries (P2-6 partial).
+not a generalized UoW. Dev Agent event/request handling and scheduler
+maintenance now share the Dev UoW boundary, including task/log/outbox
+stores and the reconcile advisory lock. Sync, Analysis, Evolution,
+Coordinator, and the gateways still have write paths that rely on
+implicit session context boundaries (P2-6 partial).
 
 Recommendation: extend explicit UoW to every runtime that can perform a
 multi-aggregate write (Requirement, Sync, Evolution, Coordinator). Use

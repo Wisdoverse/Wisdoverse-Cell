@@ -59,7 +59,7 @@ shared/                  # Reusable runtime, contracts, adapters, infra
   services/              # Deprecated compatibility re-exports
   utils/                 # Pure helpers (3 files)
   evolution/             # Three-level self-evolution data + collaboration
-migrations/              # Single Alembic directory (19 versions)
+migrations/              # Single Alembic directory (24 versions)
 rust/gateway/            # Rust + Axum edge gateway (out of scope)
 frontend/                # Next.js operator console (out of scope)
 docker/, infra/, docs/, tests/, plugins/, scripts/, conftest.py, ...
@@ -94,22 +94,23 @@ docker/, infra/, docs/, tests/, plugins/, scripts/, conftest.py, ...
 - Milvus for vectors.
 - LiteLLM via `shared.infra.llm_gateway` (only allowed LLM boundary).
 - gRPC for selected internal RPCs (`requirement_manager/grpc/`).
-- structlog for structured logs; OpenTelemetry optional; no Prometheus
-  exporter present today.
-- Alembic for migrations (single directory, 19 versions).
+- structlog for structured logs; OpenTelemetry tracing with a no-export
+  fallback outside production; Prometheus metrics exposed at the FastAPI
+  boundary.
+- Alembic for migrations (single directory, 24 versions).
 - Traefik v3 for routing; Rust + Axum gateway at the edge.
 - Tests: pytest, async pytest, `tests/unit/test_architecture_boundaries.py`
-  (4583 LOC) enforcing ~10 boundary rule categories.
+  (7240 LOC) enforcing architecture-boundary rules.
 
 ### 1.4 Current Layering
 
-Post-PR #121, each agent ships the same internal shape:
+Each product-owning runtime ships the same internal shape:
 
 ```text
 agents/<agent>/
   api/         # FastAPI routers (thin handlers)
   app/         # create_agent_app() wiring, runtime plugins (incl. outbox)
-  core/        # *_use_cases.py, *_ports.py, *_lifecycle.py, helpers
+  core/        # *_use_cases.py, *_ports.py, domain/, helpers
   db/          # *_store.py, repository.py, database.py, outbox tables
   adapters/    # Agent-local external SDK / HTTP clients
   service/     # BaseAgent subclass (the "shell")
@@ -117,15 +118,19 @@ agents/<agent>/
   tests/       # service-local tests
 ```
 
-Observed layer behavior (verified in the Phase 1 audit):
+Observed layer behavior:
 
 - Routes are thin (validate → use-case → response map).
 - Service shells delegate to `*_use_cases.py`; not god-services.
-- Use cases own orchestration and the transaction boundary (implicitly,
-  via async session context manager).
+- Use cases own orchestration. Control Plane command routes, Requirement
+  Manager core commands, Dev Agent event/request use cases plus scheduler
+  maintenance paths, QA acceptance execution, and PJM decomposition
+  transactions use explicit unit-of-work ports. Some adapter maintenance paths
+  still rely on session context managers and are tracked under P2-6.
 - Stores are pure persistence; do not encode business rules.
-- Domain rules are scattered between `*_lifecycle.py`, ports, and use
-  cases. No explicit `core/domain/` layer yet.
+- Product-owning runtimes materialize explicit `core/domain/` packages for
+  aggregates, value objects, lifecycle state machines, and in-memory domain
+  events.
 - ORM tables and Pydantic domain models are separated (`tables.py` vs
   `models.py`). Control Plane store ports now return Pydantic domain records
   across the operator-facing aggregates; ORM rows stay inside SQLAlchemy
@@ -145,11 +150,12 @@ Observed layer behavior (verified in the Phase 1 audit):
 - Per-runtime outbox tables (`*_event_outbox`) for durable event publication;
   outbox drained by per-agent `OutboxDispatcherPlugin` every 30 s in batches
   of 100.
-- Cross-runtime data reads / writes go through HTTP REST (`AgentClient`) or
-  events. No cross-database joins. Analysis capability has direct read access
-  to source tables today (medium-risk issue M5).
+- Cross-runtime data reads / writes go through HTTP REST (`AgentClient`),
+  events, or explicit projection ports. No cross-database joins. Analysis
+  report and milestone read paths consume the Analysis-owned projection;
+  source-system reads are confined to the projection updater / ACL boundary.
 - All Alembic migrations are tracked in a single `migrations/versions/`
-  directory (19 files), shared across all runtimes.
+  directory (24 files), shared across all runtimes.
 
 ---
 
@@ -163,7 +169,7 @@ impact, risk level, and recommended handling.
 | ID | Problem | Location | Impact | Risk | Recommended action |
 |----|---------|----------|--------|------|--------------------|
 | P0-1 | The `shared/control_plane/repository.py` backward-compatible facade has been retired; per-aggregate stores own the SQL and tests use store factory / ports. | `shared/control_plane/*_store.py`, `shared/control_plane/store_factory.py` | Legacy callers can no longer bypass aggregate stores through the facade. | Low | Keep architecture tests blocking facade resurrection and route new access through ports/factory adapters. |
-| P0-2 | Single Alembic directory holds 19 migrations for every runtime; per-runtime ownership impossible. | `migrations/versions/` | Blocks Phase 4 service-boundary evolution; any agent extraction requires global migration coordination. | High | Plan and adopt per-runtime migration ownership (separate Alembic dirs or a per-runtime migration tool) before service extraction starts. |
+| P0-2 | Single Alembic directory holds 24 migrations for every runtime; per-runtime ownership impossible. | `migrations/versions/` | Blocks Phase 4 service-boundary evolution; any agent extraction requires global migration coordination. | High | Plan and adopt per-runtime migration ownership (separate Alembic dirs or a per-runtime migration tool) before service extraction starts. |
 | P0-3 | Shared Prometheus metrics now live at the `shared.observability.metrics` boundary and cover LLM cost/tokens, event loop errors, loop breaker state, event queue length by stream, Redis DLQ length/rate, outbox dispatcher totals/duration/errors, and oldest pending outbox age per runtime. Alert rules now cover outbox backlog age and DLQ growth/retention. Remaining gap: dashboard panels and threshold tuning need production evidence. | `shared/observability/metrics.py`, `shared/observability/outbox.py`, `shared/infra/event_bus.py`, `docker/prometheus/rules/application.yml`, runtime outbox dispatch use cases, `shared/infra/metrics.py` compatibility shim | Operators have a canonical metrics and alerting boundary for sustained DLQ growth, stream backlog, and outbox backlog age before service extraction. | Low | Keep new metric definitions under `shared.observability.metrics`; add dashboard panels and tune thresholds from production evidence. |
 | P0-4 | OpenTelemetry tracing now installs a runtime `TracerProvider` even when non-production lacks an exporter, and production settings fail closed without `OTEL_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT`. Remaining gap: sampling policy and trace dashboard evidence need production tuning. | `shared/observability/tracing.py`, `shared/config.py`, `docker/compose/docker-compose.app.yml` | Cross-runtime traces have a mandatory bootstrap contract before service extraction; non-prod keeps trace context without requiring a collector. | Low | Keep tracing initialized through `create_agent_app()`; add sampling policy and dashboard evidence during production hardening. |
 | P0-5 | Runtime error responses use the shared structured envelope at the `create_agent_app()` boundary and base consumer contract tests cover auth, HTTPException, validation, and unexpected failures. Route-specific consumer coverage is still uneven. | `shared/api/errors.py`, `shared/middleware/error_handler.py`, `shared/app/factory.py`, `tests/integration/test_runtime_error_contract.py` | Operators have a consistent runtime body/header shape; remaining risk is direct-router test harness drift for specific routes. | Low | Keep the legacy `detail` field until clients have migrated and expand route-specific provider/consumer tests when routes change. |
@@ -172,22 +178,22 @@ impact, risk level, and recommended handling.
 
 | ID | Problem | Location | Impact | Risk | Recommended action |
 |----|---------|----------|--------|------|--------------------|
-| P1-1 | No explicit domain layer per agent. Invariants and state transitions live in `*_lifecycle.py`, ports, and use cases mixed together. | `agents/*/core/`, `shared/control_plane/agent_run_lifecycle.py` | Use cases drift into domain ownership; rules duplicate; cross-aggregate invariants weak. | High | Introduce `core/domain/` per agent with entities, value objects, aggregates, and explicit state machines. |
-| P1-2 | State transitions modeled as string comparisons; no explicit FSM. | `shared/capabilities/sync/core/engine.py:74-87`, sync `progress.py`, evolution tables `status` defaults | Adding states is unsafe; bugs that skip a state are silent; transitions are not auditable. | High | Adopt explicit state machines per aggregate (Python enum + transition table or a small library). Make every transition emit a domain event. |
+| P1-1 | Closed: product-owning runtimes now materialize explicit `core/domain/` packages with aggregates, value objects, lifecycle state machines, and domain events. | `agents/*/core/domain/`, `shared/capabilities/*/core/domain/`, `services/orchestration/coordinator/core/domain/`, `shared/control_plane/domain/` | Use-case drift into domain ownership is now blocked by architecture-boundary tests and aggregate unit-test coverage. | Low | Keep new product-owning runtimes under the mandatory `core/domain/` rule. |
+| P1-2 | Closed for landed aggregates: lifecycle state transitions are represented by aggregate FSMs and typed transition errors; Sync operation state is normalized through `SyncOperationStatus`. | `agents/*/core/domain/lifecycle/`, `shared/capabilities/sync/core/domain/sync_operation.py`, `shared/control_plane/domain/agent_run.py` | Existing lifecycle transitions are auditable through aggregate methods and domain events; new non-trivial records must follow the same rule. | Low | Keep FSM tests with each aggregate and block new string-only lifecycle logic. |
 | P1-3 | Closed for Control Plane: store ports and application/use-case returns now expose domain records across company, goal, work item, agent role, agent prompt config, agent run, approval, decision, artifact, budget, audit timeline, and evolution proposal surfaces. | `shared/control_plane/*_store.py`, `shared/control_plane/*_ports.py`, `shared/control_plane/domain_records.py` | ORM rows are infrastructure-private inside store adapters and private row helpers; callers no longer handle `metadata_json` or SQLAlchemy row types. | Low | Keep architecture tests blocking ORM table/`Any` returns in ports and domain-record conversion in use cases. |
 | P1-4 | No HTTP contract tests per agent; no producer/consumer event contract tests. | `tests/` (no contract test directory found) | Payload-shape regressions are caught only by handwritten unit tests. | Medium | Add per-agent OpenAPI snapshot tests and producer/consumer event tests keyed off `docs/guides/event-catalog.md`. |
-| P1-5 | `users` table has no dedicated public API boundary; identity reads/writes go through several paths. | `shared/db/user_store.py`, `shared/messaging/inbound/user_service.py` | Identity becomes shared mutable state if unrelated modules write directly. | Medium | Define an Identity / User service boundary with a single write owner; route all writes through it. |
+| P1-5 | Partially closed: the Identity / User boundary now has a documented single write owner, identity domain events, and `identity_event_outbox`; the public user/profile API remains a future extraction prerequisite. | `docs/architecture/identity-boundary.md`, `shared/messaging/inbound/user_service.py`, `shared/core/identity_resolution.py`, `shared/db/user_store.py` | Internal writes are constrained, but external consumers would still couple to internal messaging paths until a public API exists. | Medium | Keep the single write-owner rule enforced; add `/api/v1/identity/users/*` before Identity runtime extraction. |
 
 ### 2.3 P2 — Mid-Term Optimization
 
 | ID | Problem | Location | Impact | Risk | Recommended action |
 |----|---------|----------|--------|------|--------------------|
 | P2-1 | Closed: Control Plane HTTP handlers now live under `shared/control_plane/api_routes/`; `shared/control_plane/api.py` only owns session/UOW dependencies and router composition. | `shared/control_plane/api.py`, `shared/control_plane/api_routes/*.py` | Route ownership is explicit by ledger surface, reducing unrelated diffs in the main API entrypoint. | Low | Keep architecture tests blocking DTO and handler drift back into the composition module. |
-| P2-2 | Analysis capability can read source-domain tables directly. | `shared/capabilities/analysis/` (no projection module) | Reporting becomes implicit owner of other domains; refactors require analysis-side updates. | Medium | Introduce an explicit projection layer; let Analysis depend only on projection ports. |
+| P2-2 | Closed for reporting paths: Analysis daily/weekly report and milestone use cases read task data through `WorkPackageProjectionPort`; source-system reads are confined to `ProjectionUpdater` as the ingestion ACL for the projection. | `shared/capabilities/analysis/core/domain/projection.py`, `shared/capabilities/analysis/core/projection_updater.py`, `shared/capabilities/analysis/db/projection_store.py` | Reporting no longer owns source-domain tables implicitly. Remaining risk is operational freshness/backfill of the projection. | Low | Keep report/milestone use cases projection-only; test projection freshness and backfill idempotency. |
 | P2-3 | Sync capability hosts OpenProject and Feishu Bitable inside one runtime; sub-boundaries exist only in `core/`. | `shared/capabilities/sync/core/engine.py`, `progress.py` | Independent scaling / failure isolation impossible. | Medium | Split into two sub-capability runtimes, each with its own outbox and repository; keep a compatibility orchestrator endpoint. |
 | P2-4 | Closed: retired `shared/services/*` and root `skills/*` compatibility surfaces have been removed. Tests and docs now use canonical paths, and architecture checks block reintroduction. | `shared/infra/tests/test_nats_event_bus.py`, `shared/db/tests/test_base_database_manager.py`, `tests/unit/test_architecture_boundaries.py` | New code has no compatibility import surface to couple to. | Low | Keep architecture tests blocking `shared/services` and root `skills` resurrection. |
 | P2-5 | Closed: the deprecated `shared/grpc/server.py` runtime entry point has been removed; shared gRPC now keeps protocol artifacts only. | `shared/grpc/`, `agents/requirement_manager/grpc/`, `tests/integration/test_grpc_server.py` | New code has one requirements gRPC runtime entry point. | Low | Keep architecture and deprecated-import checks blocking `shared.grpc.server` imports. |
-| P2-6 | Partially closed: Control Plane command routes, Dev Agent event/request use cases, QA acceptance execution, and PJM decomposition transactions use explicit unit-of-work ports with `commit()` and rollback cleanup; other runtime use cases still use implicit session context boundaries. | `shared/control_plane/unit_of_work.py`, `shared/control_plane/api.py`, `agents/dev_agent/core/unit_of_work_ports.py`, `agents/qa_agent/core/unit_of_work_ports.py`, `agents/pjm_agent/core/decomposition_ports.py`, `agents/*/core/*_use_cases.py` patterns | The central governance API plus Dev, QA, and PJM decomposition runtime write boundaries have explicit transaction seams; remaining multi-aggregate agent/capability writes still need per-runtime adoption. | Medium | Keep command-route, Dev UOW, QA UOW, and PJM transaction architecture tests in place; continue introducing per-runtime `UnitOfWork` ports where a use case touches more than one aggregate or outbox. |
+| P2-6 | Partially closed: Control Plane command routes, Requirement Manager core commands, Dev Agent event/request use cases and scheduler maintenance paths, QA acceptance execution, and PJM decomposition transactions use explicit unit-of-work ports with `commit()` and rollback cleanup; other runtime/capability use cases still use implicit session context boundaries. | `shared/control_plane/unit_of_work.py`, `shared/control_plane/api.py`, `agents/requirement_manager/db/unit_of_work.py`, `agents/dev_agent/core/unit_of_work_ports.py`, `agents/dev_agent/db/unit_of_work.py`, `agents/qa_agent/core/unit_of_work_ports.py`, `agents/pjm_agent/core/decomposition_ports.py`, `agents/*/core/*_use_cases.py` patterns | The central governance API plus Requirement, Dev, QA, and PJM decomposition runtime write boundaries have explicit transaction seams; remaining multi-aggregate agent/capability writes still need per-runtime adoption. | Medium | Keep command-route, Requirement/Dev UOW, QA UOW, and PJM transaction architecture tests in place; continue introducing per-runtime `UnitOfWork` ports where a use case touches more than one aggregate or outbox. |
 | P2-7 | Closed: production settings fail closed when required secrets, internal transport protection, telemetry endpoint, control-plane approval enforcement, A2A JWT, and enabled platform callback secrets are missing or defaulted. | `shared/config.py`, `tests/unit/test_config_secrets.py` | Misconfigured production fails during settings validation instead of starting silently. | Low | Keep production-secret tests aligned with new required integrations and deployment markers. |
 | P2-8 | AgentClient infrastructure exists but is barely used. Inter-agent comms is dominantly event-driven. | `shared/infra/agent_client.py:21-60`, single live caller in `agents/requirement_manager/app/plugins/feishu_gateway.py` | Not a bug, but the documented HTTP boundary is mostly aspirational for cross-agent flow. | Low | Either commit to event-first cross-agent communication explicitly, or strengthen HTTP usage for synchronous contracts (e.g., approvals). |
 
@@ -336,12 +342,13 @@ fitness. The capability/runtime mapping matches
 - **Business objects**: AnalysisReportLog.
 - **Owned data**: `analysis_agent_*`.
 - **Capabilities exposed**: analysis REST, analysis events.
-- **External dependencies**: requirement, PJM, dev, QA tables (currently
-  direct read).
-- **Boundary clarity**: low. Reads cross domain tables; no projection
-  layer.
-- **Split fit**: projection / read-model service candidate. Must stop
-  direct source-table reads before any split.
+- **External dependencies**: Analysis-owned projection tables populated from
+  OpenProject and Feishu Bitable source ports by the projection updater.
+- **Boundary clarity**: medium. Report and milestone reads depend on
+  `WorkPackageProjectionPort`; projection freshness/backfill remains the
+  main operational seam.
+- **Split fit**: projection / read-model service candidate after freshness,
+  backfill, and replay evidence are production-proven.
 
 ### 3.10 Evolution
 
@@ -493,11 +500,11 @@ Decision matrix per candidate (from §3 + Phase 1 H1):
 | Sync — OpenProject | Yes | Yes (within sync schema) | Medium | Medium | Yes (Feishu outage must not stop OpenProject) | Yes | Possible | Low | Medium | Sub-runtime split before full extraction |
 | Sync — Feishu Bitable | Yes | Yes | Medium | Medium | Yes | Yes | Possible | Low | Medium | Sub-runtime split before full extraction |
 | Coordinator | Medium | Partial | Low | Low | Yes (cross-boundary blast radius) | Medium | No | Medium | Medium | Keep modular; stabilize durable state first |
-| Analysis | Medium | Partial (no projection today) | Low | Low | Yes | Low | No | Low | High | Keep modular; build projection first |
+| Analysis | Medium | Yes (projection + own tables) | Low | Low | Yes | Low | No | Low | Medium | Keep modular; harden projection freshness/backfill |
 | Evolution | Medium | Yes (own tables) | Low | Low | Yes (proposal flow needs guardrails) | Low | No | Low | Medium | Keep modular; harden approval/rollback first |
 | Requirement Manager | Yes | Yes | Medium | Medium | Yes | Yes | No | Medium | Medium | Keep modular; extract after Dev/QA pattern proves |
 | PJM | Yes | Yes | Low | Low | Yes | Medium | No | Medium | Medium | Keep modular; pair with sync sub-split |
-| Identity / User | No (no public API) | Yes (users + outbox) | Low | Low | Yes | Low | No | Low | High | Define API first; do not split runtime |
+| Identity / User | Medium (internal boundary, no public API) | Yes (users + outbox) | Low | Low | Yes | Low | No | Low | High | Define API first; do not split runtime |
 
 Rule of thumb: extract only when **all four** of these are true: (a) outbox
 + projection + idempotency + replay are in place; (b) per-runtime
@@ -513,7 +520,8 @@ Target ownership matches the bounded contexts in §3 and the table matrix in
 1. Each runtime owns its tables. Cross-runtime reads are illegal except via
    API, RPC, EventBus, or an explicit read-only projection table.
 2. Outbox per runtime. Same DB today; one DB per runtime after Stage 4.
-3. Analysis must consume only projections, never source tables (P2-2 target).
+3. Analysis report and milestone read paths must consume only projections;
+   only the projection updater may read source-system ports.
 4. `users` and `identity_event_outbox` form the Identity boundary with a
    single write path (P1-5 target).
 5. Sync's OpenProject and Feishu Bitable sub-aggregates own separate
@@ -718,9 +726,11 @@ stages depend on the seams the earlier stages established.
 - **Scope**:
   1. Confirm one write owner per table; update
      `docs/guides/backend-boundaries.md` §3 if any row is wrong.
-  2. Introduce an explicit projection table for Analysis (P2-2). One
-     projection per source domain it currently reads.
-  3. Introduce an Identity / User write-owner path (P1-5).
+  2. Closed: Analysis now has explicit projection tables and report/milestone
+     read paths consume `WorkPackageProjectionPort` (P2-2).
+  3. Closed for internal writes: Identity / User now has a documented
+     write-owner path and `identity_event_outbox`; public API remains a Stage 4
+     extraction prerequisite (P1-5).
   4. Move ORM types out of business-logic returns (P1-3): Control Plane store
      ports and application use cases return domain models. ORM rows are
      infrastructure-private inside SQLAlchemy adapters and private row helpers.
@@ -736,9 +746,10 @@ stages depend on the seams the earlier stages established.
   - Provider/consumer event tests for the events that drive projection
     inserts.
   - Backfill script idempotency test.
-- **Done criteria**: Analysis depends only on projection ports; Identity
-  has a single public API; architecture-boundary test forbids the
-  remaining cross-runtime ORM access.
+- **Done criteria**: Analysis report/milestone paths depend only on projection
+  ports; Identity has a single documented write owner; architecture-boundary
+  tests forbid remaining cross-runtime ORM access. The public Identity API is
+  a Stage 4 extraction prerequisite.
 
 ### 5.5 Stage 4 — Service Boundary Evolution
 

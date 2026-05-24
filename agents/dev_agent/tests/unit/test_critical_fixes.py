@@ -173,8 +173,14 @@ class TestReconcileResultCollection:
             with (
                 patch.object(main_module, "_get_agent"),
                 patch.object(main_module, "db_manager") as mock_db,
-                patch.object(main_module, "SqlAlchemyDevTaskStore", return_value=mock_repo),
-                patch.object(main_module, "SqlAlchemyDevWorkflowLogStore", return_value=AsyncMock()),
+                patch(
+                    "agents.dev_agent.db.unit_of_work.SqlAlchemyDevTaskStore",
+                    return_value=mock_repo,
+                ),
+                patch(
+                    "agents.dev_agent.db.unit_of_work.SqlAlchemyDevWorkflowLogStore",
+                    return_value=AsyncMock(),
+                ),
             ):
                 @asynccontextmanager
                 async def mock_session_cm():
@@ -244,8 +250,14 @@ class TestPendingTaskProcessing:
             with (
                 patch.object(main_module, "_get_agent"),
                 patch.object(main_module, "db_manager") as mock_db,
-                patch.object(main_module, "SqlAlchemyDevTaskStore", return_value=mock_repo),
-                patch.object(main_module, "SqlAlchemyDevWorkflowLogStore", return_value=mock_log_repo),
+                patch(
+                    "agents.dev_agent.db.unit_of_work.SqlAlchemyDevTaskStore",
+                    return_value=mock_repo,
+                ),
+                patch(
+                    "agents.dev_agent.db.unit_of_work.SqlAlchemyDevWorkflowLogStore",
+                    return_value=mock_log_repo,
+                ),
                 patch.object(main_module, "_start_pending_task") as mock_start,
             ):
                 @asynccontextmanager
@@ -296,8 +308,14 @@ class TestRetryReentry:
             with (
                 patch.object(main_module, "_get_agent"),
                 patch.object(main_module, "db_manager") as mock_db,
-                patch.object(main_module, "SqlAlchemyDevTaskStore", return_value=mock_repo),
-                patch.object(main_module, "SqlAlchemyDevWorkflowLogStore", return_value=mock_log_repo),
+                patch(
+                    "agents.dev_agent.db.unit_of_work.SqlAlchemyDevTaskStore",
+                    return_value=mock_repo,
+                ),
+                patch(
+                    "agents.dev_agent.db.unit_of_work.SqlAlchemyDevWorkflowLogStore",
+                    return_value=mock_log_repo,
+                ),
                 patch.object(main_module, "_start_pending_task") as mock_start,
             ):
                 @asynccontextmanager

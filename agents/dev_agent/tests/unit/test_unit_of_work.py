@@ -45,6 +45,8 @@ async def test_dev_unit_of_work_commits_explicitly() -> None:
     async with SqlAlchemyDevUnitOfWorkFactory(_DbManager(session))() as uow:
         assert uow.tasks is not None
         assert uow.workflow_logs is not None
+        assert uow.outbox is not None
+        assert uow.reconcile_lock is not None
         await uow.commit()
 
     session.commit.assert_awaited_once()
@@ -73,6 +75,8 @@ async def test_dev_session_unit_of_work_factory_adapts_legacy_session() -> None:
     async with SqlAlchemyDevSessionUnitOfWorkFactory(_LegacyDbManager(session))() as uow:
         assert uow.tasks is not None
         assert uow.workflow_logs is not None
+        assert uow.outbox is not None
+        assert uow.reconcile_lock is not None
         await uow.commit()
 
     session.commit.assert_awaited_once()
@@ -90,6 +94,7 @@ async def test_injected_dev_unit_of_work_factory_uses_repository_ports() -> None
     )() as uow:
         assert uow.tasks is tasks
         assert uow.workflow_logs is workflow_logs
+        assert await uow.reconcile_lock.try_acquire() is True
         await uow.commit()
 
     assert uow.completed

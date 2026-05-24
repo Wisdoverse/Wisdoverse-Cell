@@ -3,7 +3,18 @@
 from contextlib import AbstractAsyncContextManager
 from typing import Protocol
 
+from .outbox_ports import DevEventOutboxStore
 from .repositories import DevTaskRepositoryPort, DevWorkflowLogRepositoryPort
+
+
+class DevReconcileLockPort(Protocol):
+    """Lock used by scheduled reconciliation to keep one active runner."""
+
+    async def try_acquire(self) -> bool:
+        """Return whether this scheduler instance acquired the reconcile lock."""
+
+    async def release(self) -> None:
+        """Release the reconcile lock if it was acquired."""
 
 
 class DevUnitOfWork(Protocol):
@@ -11,6 +22,8 @@ class DevUnitOfWork(Protocol):
 
     tasks: DevTaskRepositoryPort
     workflow_logs: DevWorkflowLogRepositoryPort
+    outbox: DevEventOutboxStore
+    reconcile_lock: DevReconcileLockPort
     completed: bool
 
     async def commit(self) -> None:
