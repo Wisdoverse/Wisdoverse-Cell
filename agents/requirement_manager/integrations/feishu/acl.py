@@ -20,7 +20,6 @@ REQUIREMENT_CALENDAR_KEYWORDS = (
 )
 REQUIREMENT_CALENDAR_CHANGE_TYPES = frozenset({"created", "updated"})
 UNKNOWN_TIME_LABEL = "未知时间"
-BOT_COMMAND_PATTERN = re.compile(r"^/(\w+)(?:\s+(.*))?$")
 DEFAULT_REQUIREMENT_REJECTION_REASON = "未提供原因"
 DEFAULT_BATCH_REJECTION_REASON = "批量拒绝"
 
@@ -349,10 +348,20 @@ def _message_text(value: Any) -> str:
 
 
 def _bot_command(text: str) -> FeishuBotCommand | None:
-    match = BOT_COMMAND_PATTERN.match(text.strip())
-    if not match:
+    stripped = text.strip()
+    if not stripped.startswith("/") or stripped == "/":
         return None
-    command, args = match.groups()
+
+    payload = stripped[1:]
+    if payload[0].isspace():
+        return None
+
+    parts = payload.split(maxsplit=1)
+    command = parts[0]
+    if not all(char == "_" or char.isalnum() for char in command):
+        return None
+
+    args = parts[1] if len(parts) == 2 else None
     return FeishuBotCommand(name=command.lower(), args=args)
 
 
@@ -381,7 +390,6 @@ def _attendee_names(value: Any) -> tuple[str, ...]:
 
 
 __all__ = [
-    "BOT_COMMAND_PATTERN",
     "DEFAULT_BATCH_REJECTION_REASON",
     "DEFAULT_REQUIREMENT_REJECTION_REASON",
     "FeishuBotCommand",

@@ -61,6 +61,25 @@ def test_bot_message_acl_translates_json_text_and_command() -> None:
     assert message.command.args == "pending"
 
 
+def test_bot_message_acl_parses_commands_without_regex_backtracking() -> None:
+    message = FeishuBotMessage.from_payload(
+        {
+            "message": {
+                "message_type": "text",
+                "content": '{"text": "/0                                                     "}',
+            }
+        }
+    )
+    invalid = FeishuBotMessage.from_payload(
+        {"message": {"message_type": "text", "content": '{"text": "/ list"}'}}
+    )
+
+    assert message.command is not None
+    assert message.command.name == "0"
+    assert message.command.args is None
+    assert invalid.command is None
+
+
 def test_bot_message_acl_translates_raw_text_to_ingest_fields() -> None:
     message = FeishuBotMessage.from_payload(
         {
