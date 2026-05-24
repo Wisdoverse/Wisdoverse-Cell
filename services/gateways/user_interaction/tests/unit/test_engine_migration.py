@@ -11,7 +11,7 @@ import pytest
 
 @pytest.fixture
 def chat_svc():
-    from services.gateways.user_interaction.core.chat_service import ChatService
+    from agents.chat_agent.core.chat_service import ChatService
 
     return ChatService(llm=AsyncMock())
 
@@ -69,7 +69,7 @@ class TestMigrationUsesEngine:
         )
 
         with patch(
-            "services.gateways.user_interaction.core.chat_service.ToolExecutor.execute",
+            "agents.chat_agent.core.chat_service.ToolExecutor.execute",
             new_callable=AsyncMock,
             return_value='{"ok": true}',
         ):
@@ -129,5 +129,5 @@ class TestMigrationUsesEngine:
         await chat_svc.chat("hello", user_id="u1")
 
         # History should be capped at MAX_HISTORY
-        from services.gateways.user_interaction.core.chat_service import MAX_HISTORY
+        from agents.chat_agent.core.chat_service import MAX_HISTORY
         assert len(saved["messages"]) <= MAX_HISTORY + 2  # +2 for user msg + assistant reply

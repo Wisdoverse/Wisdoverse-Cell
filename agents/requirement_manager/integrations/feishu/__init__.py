@@ -8,13 +8,13 @@ from shared.integrations.feishu.client import (
     feishu_client,
     get_feishu_client,
 )
-from shared.integrations.feishu.router import init_handlers, router
 from shared.utils.logger import get_logger
 
 from .bot import BotHandler
 from .card import CardHandler
 from .event import EventHandler
 from .message_recorder import MessageRecorder
+from .router import register_requirement_feishu_handlers, router
 from .session_manager import SessionManager
 
 logger = get_logger("requirements.integrations.feishu")
@@ -73,7 +73,12 @@ async def init_feishu_gateway(agent, db=None, redis=None, pm_client=None) -> boo
         )
         logger.info("message_recording_initialized")
 
-    init_handlers(event_handler, bot_handler, card_handler, message_recorder)
+    register_requirement_feishu_handlers(
+        event_handler=event_handler,
+        bot_handler=bot_handler,
+        card_handler=card_handler,
+        message_recorder=message_recorder,
+    )
 
     logger.info("feishu_gateway_initialized")
     return True
@@ -90,6 +95,6 @@ __all__ = [
     "get_feishu_client",
     "get_session_manager",
     "init_feishu_gateway",
-    "init_handlers",
+    "register_requirement_feishu_handlers",
     "router",
 ]

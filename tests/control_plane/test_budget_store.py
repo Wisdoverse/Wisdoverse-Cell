@@ -51,7 +51,7 @@ async def test_budget_store_owns_policy_and_usage_queries(
             company_id=company.company_id,
             budget_id=policy.budget_id,
             cost_usd=1.25,
-            model="claude-sonnet-4-20250514",
+            model="  claude-sonnet-4-20250514  ",
             input_tokens=100,
             output_tokens=50,
             trace_id="trace_budget_store",
@@ -103,6 +103,7 @@ async def test_budget_store_owns_policy_and_usage_queries(
     assert updated.model_allowlist == ["claude-opus-4-20250514"]
     assert updated.metadata == {"source": "budget-store-updated"}
     assert not hasattr(updated, "metadata_json")
+    assert first_usage.model == "claude-sonnet-4-20250514"
     assert [row.usage_id for row in usage_rows] == [first_usage.usage_id]
     assert total == pytest.approx(2.0)
 

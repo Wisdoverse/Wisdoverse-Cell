@@ -3,10 +3,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from shared.schemas.event import EventTypes
-
 from .company_ports import ControlPlaneCompanyStore
-from .models import AuditEvent, CompanyContext
+from .domain.company_context import CompanyContext as CompanyContextAggregate
+from .domain_event_audit import (
+    DomainEventAuditContext,
+    append_control_plane_domain_event_audits,
+)
+from .models import CompanyContext
 
 
 class CompanyAlreadyExistsError(Exception):
@@ -59,20 +62,14 @@ async def create_company_with_audit(
     }
     if company_id:
         company_values["company_id"] = company_id
-    company = await store.create_company(CompanyContext(**company_values))
-    await store.append_audit_event(
-        AuditEvent(
-            company_id=company.company_id,
-            action=EventTypes.COMPANY_CREATED,
-            target_type="company",
-            target_id=company.company_id,
-            actor_type="user",
-            actor_id=created_by,
-            detail={
-                "company_id": company.company_id,
-                "name": company.name,
-            },
-        )
+    aggregate = CompanyContextAggregate.for_creation(CompanyContext(**company_values))
+    company = await store.create_company(aggregate.record)
+    aggregate.record = company
+    aggregate.mark_created()
+    await append_control_plane_domain_event_audits(
+        store,
+        aggregate.pull_events(),
+        DomainEventAuditContext(actor_type="user", actor_id=created_by),
     )
     return company
 
@@ -87,27 +84,25 @@ async def update_company_with_audit(
     actor_id: str,
 ) -> CompanyContext:
     """Update a company context and record its audit event."""
+    existing = await store.get_company(company_id)
+    if existing is None:
+        raise CompanyNotFoundError(company_id)
+
+    aggregate = CompanyContextAggregate.from_record(existing)
+    aggregate.apply_update(name=name, mission=mission, metadata=metadata)
     company = await store.update_company_context(
         company_id,
-        name=name,
-        mission=mission,
-        metadata=metadata,
+        name=aggregate.record.name if name is not None else None,
+        mission=aggregate.record.mission if mission is not None else None,
+        metadata=aggregate.record.metadata if metadata is not None else None,
     )
     if company is None:
         raise CompanyNotFoundError(company_id)
 
-    await store.append_audit_event(
-        AuditEvent(
-            company_id=company.company_id,
-            action=EventTypes.COMPANY_UPDATED,
-            target_type="company",
-            target_id=company.company_id,
-            actor_type="user",
-            actor_id=actor_id,
-            detail={
-                "company_id": company.company_id,
-                "name": company.name,
-            },
-        )
+    aggregate.record = company
+    await append_control_plane_domain_event_audits(
+        store,
+        aggregate.pull_events(),
+        DomainEventAuditContext(actor_type="user", actor_id=actor_id),
     )
     return company

@@ -1,10 +1,19 @@
 """Application use cases for control-plane artifacts."""
+
 from __future__ import annotations
 
-from shared.schemas.event import EventTypes
-
 from .artifact_ports import ControlPlaneArtifactStore
-from .models import Artifact, ArtifactType, AuditEvent, CompanyContext
+from .domain.artifact import Artifact as ArtifactAggregate
+from .domain.artifact import artifact_type_value
+from .domain.execution_links import ExecutionLinkConsistencyPolicy
+from .domain.execution_links import (
+    ExecutionLinkMismatchError as DomainExecutionLinkMismatchError,
+)
+from .domain_event_audit import (
+    DomainEventAuditContext,
+    append_control_plane_domain_event_audits,
+)
+from .models import Artifact, ArtifactType, CompanyContext
 
 
 class ArtifactGoalNotFoundError(Exception):
@@ -70,6 +79,7 @@ async def create_artifact_with_audit(
     created_by: str,
 ) -> Artifact:
     """Create an artifact, validate execution links, and record its audit event."""
+    aggregate = ArtifactAggregate.for_creation(artifact)
     await _ensure_company(store, artifact.company_id)
     goal_id, work_item_id = await _validate_execution_links(
         store,
@@ -78,45 +88,27 @@ async def create_artifact_with_audit(
         work_item_id=artifact.work_item_id,
         goal_id=artifact.goal_id,
     )
+    aggregate.with_execution_links(goal_id=goal_id, work_item_id=work_item_id)
 
-    created = await store.create_artifact(
-        artifact.model_copy(
-            update={
-                "goal_id": goal_id,
-                "work_item_id": work_item_id,
-            }
-        )
-    )
-    await store.append_audit_event(
-        AuditEvent(
-            company_id=artifact.company_id,
-            action=EventTypes.ARTIFACT_CREATED,
-            target_type="artifact",
-            target_id=created.artifact_id,
+    created = await store.create_artifact(aggregate.record)
+    aggregate.record = created
+    aggregate.mark_created()
+    await append_control_plane_domain_event_audits(
+        store,
+        aggregate.pull_events(),
+        DomainEventAuditContext(
             actor_type="user",
             actor_id=created_by,
             run_id=created.run_id,
             work_item_id=created.work_item_id,
-            detail={
-                "artifact_id": created.artifact_id,
-                "artifact_type": created.artifact_type,
-                "goal_id": created.goal_id,
-                "work_item_id": created.work_item_id,
-                "run_id": created.run_id,
-                "created_by_agent_id": created.created_by_agent_id,
-            },
-        )
+        ),
     )
     return created
 
 
 def enum_value(value: ArtifactType | str | None) -> str | None:
     """Return a persistence-ready enum value."""
-    if value is None:
-        return None
-    if isinstance(value, ArtifactType):
-        return value.value
-    return value
+    return artifact_type_value(value)
 
 
 async def _ensure_company(
@@ -142,30 +134,30 @@ async def _validate_execution_links(
     work_item_id: str | None = None,
     goal_id: str | None = None,
 ) -> tuple[str | None, str | None]:
-    resolved_goal_id = goal_id
-    resolved_work_item_id = work_item_id
+    link_policy = ExecutionLinkConsistencyPolicy()
+    links = link_policy.requested_links(
+        run_id=run_id,
+        work_item_id=work_item_id,
+        goal_id=goal_id,
+    )
     if run_id:
         run = await store.get_agent_run(run_id)
         if run is None or run.company_id != company_id:
             raise ArtifactRunNotFoundError(run_id)
-        if run.work_item_id:
-            if resolved_work_item_id and resolved_work_item_id != run.work_item_id:
-                raise ArtifactLinkMismatchError("work_item")
-            resolved_work_item_id = run.work_item_id
-        if run.goal_id:
-            if resolved_goal_id and resolved_goal_id != run.goal_id:
-                raise ArtifactLinkMismatchError("goal")
-            resolved_goal_id = run.goal_id
-    if resolved_work_item_id:
-        work_item = await store.get_work_item(resolved_work_item_id)
+        try:
+            links = link_policy.resolve_agent_run(links, run)
+        except DomainExecutionLinkMismatchError as exc:
+            raise ArtifactLinkMismatchError(exc.target) from exc
+    if links.work_item_id:
+        work_item = await store.get_work_item(links.work_item_id)
         if work_item is None or work_item.company_id != company_id:
-            raise ArtifactWorkItemNotFoundError(resolved_work_item_id)
-        if work_item.goal_id:
-            if resolved_goal_id and resolved_goal_id != work_item.goal_id:
-                raise ArtifactLinkMismatchError("goal")
-            resolved_goal_id = work_item.goal_id
-    if resolved_goal_id:
-        goal = await store.get_goal(resolved_goal_id)
+            raise ArtifactWorkItemNotFoundError(links.work_item_id)
+        try:
+            links = link_policy.resolve_work_item(links, work_item)
+        except DomainExecutionLinkMismatchError as exc:
+            raise ArtifactLinkMismatchError(exc.target) from exc
+    if links.goal_id:
+        goal = await store.get_goal(links.goal_id)
         if goal is None or goal.company_id != company_id:
-            raise ArtifactGoalNotFoundError(resolved_goal_id)
-    return resolved_goal_id, resolved_work_item_id
+            raise ArtifactGoalNotFoundError(links.goal_id)
+    return link_policy.persistence_refs(links)

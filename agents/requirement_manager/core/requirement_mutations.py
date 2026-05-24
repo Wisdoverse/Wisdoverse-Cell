@@ -1,5 +1,7 @@
 """Application use cases for requirement mutation workflows."""
 
+from shared.core.identifiers import RequirementId
+
 from .requirement_mutation_workflow import (
     RequirementMutationSideEffectPublisher,
     RequirementMutationWorkflow,
@@ -29,7 +31,7 @@ class RequirementMutationUseCase:
     ) -> object | None:
         async with self._uow_factory() as uow:
             result = await self._mutation_workflow.update_requirement(
-                requirement_id=requirement_id,
+                requirement_id=RequirementId(requirement_id),
                 changes=changes,
                 uow=uow,
             )
@@ -48,7 +50,7 @@ class RequirementMutationUseCase:
     ) -> object | None:
         async with self._uow_factory() as uow:
             result = await self._mutation_workflow.delete_requirement(
-                requirement_id=requirement_id,
+                requirement_id=RequirementId(requirement_id),
                 deleted_by=deleted_by,
                 uow=uow,
             )

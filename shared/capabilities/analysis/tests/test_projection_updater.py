@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -138,12 +137,20 @@ def test_project_subtask_returns_none_when_parent_missing() -> None:
 def test_project_subtask_normalises_completed_flag() -> None:
     record = {
         "record_id": "rec_2",
-        "fields": {"parent_op_id": "42", "subtask_status": "已完成"},
+        "fields": {
+            "parent_op_id": "42",
+            "subtask_status": "已完成",
+            "任务(动宾短语)": "完成接口联调",
+            "阻塞原因": "",
+            "关联 Feature ID (关键字段)": "#2266",
+        },
     }
     projection = _project_subtask(record)
     assert projection is not None
     assert projection.parent_wp_id == 42
     assert projection.completed is True
+    assert projection.title == "完成接口联调"
+    assert projection.feature_id == "2266"
 
 
 @pytest.mark.asyncio
@@ -169,7 +176,11 @@ async def test_refresh_subtasks_upserts_when_parent_id_present() -> None:
         [
             {
                 "record_id": "rec_1",
-                "fields": {"parent_op_id": "10", "subtask_status": "进行中"},
+                "fields": {
+                    "parent_op_id": "10",
+                    "subtask_status": "进行中",
+                    "任务(动宾短语)": "拆分任务",
+                },
             },
             {
                 "record_id": "rec_2",
@@ -188,6 +199,7 @@ async def test_refresh_subtasks_upserts_when_parent_id_present() -> None:
     rows = await store.list_subtask_progress(parent_wp_id=10)
     assert len(rows) == 1
     assert rows[0].subtask_record_id == "rec_1"
+    assert rows[0].title == "拆分任务"
 
 
 @pytest.mark.asyncio

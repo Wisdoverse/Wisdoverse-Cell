@@ -7,6 +7,7 @@ import pytest
 
 from agents.qa_agent.core.run_query_use_cases import QARunQueryUseCase
 from agents.qa_agent.models.schemas import QARunStats
+from shared.core.identifiers import AcceptanceRunId
 
 
 class FakeRunStore:
@@ -25,7 +26,7 @@ class FakeRunStore:
         }
         return [self.run] if self.run else []
 
-    async def get_by_id(self, run_id: str):
+    async def get_by_id(self, run_id: AcceptanceRunId):
         self.get_id = run_id
         return self.run
 
@@ -97,9 +98,9 @@ async def test_list_runs_maps_store_records_to_api_projection() -> None:
 @pytest.mark.asyncio
 async def test_get_run_maps_detail_projection() -> None:
     store = FakeRunStore(run=_run())
-    result = await QARunQueryUseCase(run_store=store).get_run("qa_run_1")
+    result = await QARunQueryUseCase(run_store=store).get_run(AcceptanceRunId("qa_run_1"))
 
-    assert store.get_id == "qa_run_1"
+    assert store.get_id == AcceptanceRunId("qa_run_1")
     assert result is not None
     assert result["run_id"] == "qa_run_1"
     assert result["summary"]["l1_warnings"] == 1

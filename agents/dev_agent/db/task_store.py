@@ -2,6 +2,10 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import DevTaskId, WorkPackageId
+
+from ..core.domain.lifecycle.task_lifecycle import TaskStatus
+from ..core.domain.task_values import RiskLevel, risk_level_value
 from ..core.repositories import DevTaskRepositoryPort
 from .repository import DevTaskRepository
 
@@ -14,30 +18,42 @@ class SqlAlchemyDevTaskStore(DevTaskRepositoryPort):
 
     async def create_task(
         self,
-        wp_id: int,
+        wp_id: WorkPackageId,
         task_title: str,
-        risk_level: str = "MEDIUM",
+        risk_level: RiskLevel | str = RiskLevel.MEDIUM,
     ):
         return await self._tasks.create_task(
-            wp_id=wp_id,
+            wp_id=WorkPackageId(int(wp_id)),
             task_title=task_title,
-            risk_level=risk_level,
+            risk_level=risk_level_value(risk_level),
         )
 
-    async def get_by_wp_id(self, wp_id: int):
-        return await self._tasks.get_by_wp_id(wp_id)
+    async def get_by_wp_id(self, wp_id: WorkPackageId):
+        return await self._tasks.get_by_wp_id(WorkPackageId(int(wp_id)))
 
-    async def get_by_id(self, task_id: str):
-        return await self._tasks.get_by_id(task_id)
+    async def get_by_id(self, task_id: DevTaskId):
+        return await self._tasks.get_by_id(DevTaskId(str(task_id)))
 
     async def get_by_mr_iid(self, mr_iid: int):
         return await self._tasks.get_by_mr_iid(mr_iid)
 
-    async def update_status(self, task_id: str, new_status: str, **kwargs) -> bool:
-        return await self._tasks.update_status(task_id, new_status, **kwargs)
+    async def update_status(
+        self,
+        task_id: DevTaskId,
+        new_status: TaskStatus,
+        **kwargs,
+    ) -> bool:
+        return await self._tasks.update_status(
+            DevTaskId(str(task_id)),
+            TaskStatus(str(new_status)),
+            **kwargs,
+        )
 
-    async def mark_polled(self, task_id: str, *, polled_at) -> bool:
-        return await self._tasks.mark_polled(task_id, polled_at=polled_at)
+    async def mark_polled(self, task_id: DevTaskId, *, polled_at) -> bool:
+        return await self._tasks.mark_polled(
+            DevTaskId(str(task_id)),
+            polled_at=polled_at,
+        )
 
     async def list_active_tasks(self):
         return await self._tasks.list_active_tasks()

@@ -1,8 +1,11 @@
 """Application use cases for control-plane agent operations."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+
+from shared.core.identifiers import AgentRoleId, CompanyId
 
 from .agent_operation_ports import ControlPlaneAgentOperationStore
 from .agent_runner import AgentWakeupResult, ControlPlaneAgentRunner
@@ -38,7 +41,10 @@ async def wake_agent_definition(
     work_item_id: str | None = None,
 ) -> AgentWakeupUseCaseResult:
     """Wake a persisted agent definition through its configured adapter."""
-    agent = await store.get_agent_role(company_id=company_id, agent_id=agent_id)
+    agent = await store.get_agent_role(
+        company_id=CompanyId(company_id),
+        agent_id=AgentRoleId(agent_id),
+    )
     if agent is None:
         raise AgentDefinitionNotFoundError(agent_id)
 
@@ -64,7 +70,7 @@ async def run_heartbeat_scheduler_once(
     limit: int = 500,
 ) -> list[AgentHeartbeatResult]:
     """Run due heartbeat wakeups for one company."""
-    if await store.get_company(company_id) is None:
+    if await store.get_company(CompanyId(company_id)) is None:
         raise AgentOperationCompanyNotFoundError(company_id)
     return await ControlPlaneHeartbeatScheduler(store).run_due_once(
         company_id=company_id,

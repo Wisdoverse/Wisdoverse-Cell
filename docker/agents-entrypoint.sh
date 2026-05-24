@@ -49,7 +49,11 @@ case "${agent}" in
     : "${WISDOVERSE_BIND_PORT:=8015}"
     : "${WISDOVERSE_APP_PATH:=agents.dev_agent.app.main:app}"
     ;;
-  chat-agent|user-interaction-gateway)
+  chat-agent)
+    : "${WISDOVERSE_BIND_PORT:=8013}"
+    : "${WISDOVERSE_APP_PATH:=agents.chat_agent.app.main:app}"
+    ;;
+  user-interaction-gateway)
     : "${WISDOVERSE_BIND_PORT:=8013}"
     : "${WISDOVERSE_APP_PATH:=services.gateways.user_interaction.app.main:app}"
     ;;
@@ -69,7 +73,8 @@ Services (also accepted via WISDOVERSE_AGENT env):
   pjm-agent                       port 8012
   qa-agent                        port 8014
   dev-agent                       port 8015
-  chat-agent | user-interaction-gateway  port 8013
+  chat-agent                      port 8013
+  user-interaction-gateway        port 8013 (ADR-0010 compatibility entry)
 
 Environment overrides:
   WISDOVERSE_BIND_PORT    bind port (default per service above)

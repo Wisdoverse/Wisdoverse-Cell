@@ -47,6 +47,7 @@ from shared.schemas.event_payloads import (
     EvolutionProposalEventPayload,
     EvolutionSkillProposedPayload,
     GoalEventPayload,
+    IdentityEventPayload,
     MeetingUploadedPayload,
     PMApprovalTimeoutPayload,
     PMDecomposeCompletedPayload,
@@ -60,6 +61,7 @@ from shared.schemas.event_payloads import (
     SprintStartedPayload,
     SyncCompletedPayload,
     SyncFailedPayload,
+    SyncProgressUpdatedPayload,
     SyncStartedPayload,
     SyncTriggerPayload,
     TaskNotification,
@@ -129,6 +131,11 @@ class TestEventTypes:
         assert EventTypes.BUDGET_POLICY_UPDATED == "budget_policy.updated"
         assert EventTypes.BUDGET_USAGE_RECORDED == "budget.usage-recorded"
         assert EventTypes.AUDIT_EVENT_RECORDED == "audit.event-recorded"
+
+    def test_identity_events(self):
+        assert EventTypes.IDENTITY_USER_CREATED == "identity.user-created"
+        assert EventTypes.IDENTITY_PLATFORM_LINKED == "identity.platform-linked"
+        assert EventTypes.IDENTITY_USER_ACTIVATED == "identity.user-activated"
 
     def test_external_work_context_events(self):
         assert EventTypes.PROJECT_CREATED == "project.created"
@@ -389,6 +396,9 @@ class TestEventPayloadModelsRegistration:
             ("audit.event-recorded", AuditEventRecordedPayload),
             ("evolution_proposal.created", EvolutionProposalEventPayload),
             ("evolution_proposal.updated", EvolutionProposalEventPayload),
+            ("identity.user-created", IdentityEventPayload),
+            ("identity.platform-linked", IdentityEventPayload),
+            ("identity.user-activated", IdentityEventPayload),
             ("evolution.cycle-triggered", EvolutionCycleTriggeredPayload),
             ("evolution.skill-proposed", EvolutionSkillProposedPayload),
             ("evolution.human-feedback", EvolutionHumanFeedbackPayload),
@@ -400,6 +410,7 @@ class TestEventPayloadModelsRegistration:
             ("sprint.started", SprintStartedPayload),
             ("sprint.completed", SprintCompletedPayload),
             ("meeting.uploaded", MeetingUploadedPayload),
+            ("sync.progress-updated", SyncProgressUpdatedPayload),
             ("analysis.risk-detected", RiskDetectedPayload),
             ("analysis.quality-evaluated", QualityEvaluatedPayload),
             ("pm.decompose-completed", PMDecomposeCompletedPayload),
@@ -739,6 +750,19 @@ class TestEventPayloadModelsRegistration:
         )
         assert isinstance(result, A2ATaskErrorPayload)
 
+    def test_validate_sync_progress_updated_payload(self):
+        result = validate_event_payload(
+            "sync.progress-updated",
+            {
+                "parent_op_id": 123,
+                "progress_percent": 50,
+                "subtask_count": 2,
+                "completed_subtask_count": 1,
+                "scope": "feishu_bitable",
+            },
+        )
+        assert isinstance(result, SyncProgressUpdatedPayload)
+
     def test_validate_a2a_task_status_rejected(self):
         with pytest.raises(ValidationError):
             validate_event_payload(
@@ -875,6 +899,36 @@ class TestEvolutionPayloadContracts:
             },
         )
         assert isinstance(result, EvolutionPatternApprovedPayload)
+
+
+class TestIdentityPayloadContracts:
+    def test_identity_payload_contract_is_pii_safe(self):
+        result = validate_event_payload(
+            "identity.user-created",
+            {
+                "user_id": "usr_01identity",
+                "domain_event": "UserCreated",
+                "occurred_at": "2026-05-23T00:00:00+00:00",
+                "email_present": True,
+                "phone_present": False,
+            },
+        )
+
+        assert isinstance(result, IdentityEventPayload)
+        assert result.user_id == "usr_01identity"
+        assert result.email_present is True
+
+    def test_identity_payload_rejects_raw_email(self):
+        with pytest.raises(ValidationError):
+            validate_event_payload(
+                "identity.user-created",
+                {
+                    "user_id": "usr_01identity",
+                    "domain_event": "UserCreated",
+                    "occurred_at": "2026-05-23T00:00:00+00:00",
+                    "email": "operator@example.com",
+                },
+            )
 
 
 class TestCoordinatorPayloadContracts:

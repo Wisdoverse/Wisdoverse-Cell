@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from shared.core.identifiers import MeetingId, RequirementId
+
 from .agent_read_use_cases import RequirementAgentReadUseCase
 from .unit_of_work_ports import RequirementUnitOfWork, RequirementUnitOfWorkFactory
 
@@ -61,7 +63,7 @@ class RequirementReadQueryUseCase:
         uow: RequirementUnitOfWork,
         requirement_id: str,
     ) -> Any | None:
-        return await self._read_model_for_uow(uow).get_requirement(requirement_id)
+        return await self._read_model_for_uow(uow).get_requirement(RequirementId(requirement_id))
 
     async def get_meeting(self, meeting_id: str) -> Any | None:
         async with self._uow_factory() as uow:
@@ -72,7 +74,7 @@ class RequirementReadQueryUseCase:
         uow: RequirementUnitOfWork,
         meeting_id: str,
     ) -> Any | None:
-        return await self._read_model_for_uow(uow).get_meeting(meeting_id)
+        return await self._read_model_for_uow(uow).get_meeting(MeetingId(meeting_id))
 
     async def list_open_questions(self, *, limit: int = 50) -> list[Any]:
         async with self._uow_factory() as uow:

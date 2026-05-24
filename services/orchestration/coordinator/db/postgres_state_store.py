@@ -19,8 +19,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.core.ids import IDPrefix, generate_id
 
+from ..core.domain.state_records import (
+    CoordinatorAgentStateRecord,
+    CoordinatorDecisionRecord,
+)
+from ..core.domain.workflow_state import CoordinatorWorkflowState as WorkflowStateAggregate
 from ..core.models import Decision
-from .models import AgentStateRecord, DecisionRecord, WorkflowState
+from .models import WorkflowState
 from .state_tables import (
     CoordinatorAgentState,
     CoordinatorPendingDecision,
@@ -40,10 +45,10 @@ class PostgresCoordinatorStateStore:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def get_agent_states(self) -> dict[str, AgentStateRecord]:
+    async def get_agent_states(self) -> dict[str, CoordinatorAgentStateRecord]:
         result = await self._session.execute(select(CoordinatorAgentState))
         rows = result.scalars().all()
-        return {row.agent_id: _row_to_agent_state(row) for row in rows}
+        return {str(row.agent_id): _row_to_agent_state(row) for row in rows}
 
     async def update_agent_state(
         self,
@@ -78,7 +83,7 @@ class PostgresCoordinatorStateStore:
         await self._session.execute(stmt)
         await self._session.flush()
 
-    async def get_pending_decisions(self) -> list[DecisionRecord]:
+    async def get_pending_decisions(self) -> list[CoordinatorDecisionRecord]:
         result = await self._session.execute(
             select(CoordinatorPendingDecision)
             .where(CoordinatorPendingDecision.resolved_at.is_(None))
@@ -140,27 +145,29 @@ class PostgresCoordinatorStateStore:
         return {row.workflow_id: _row_to_workflow_state(row) for row in result.scalars().all()}
 
     async def upsert_workflow_state(self, state: WorkflowState) -> None:
+        workflow = WorkflowStateAggregate.from_record(state)
+        record = workflow.to_record_kwargs()
         now = datetime.now(UTC)
         stmt = (
             pg_insert(CoordinatorWorkflowState)
             .values(
-                workflow_id=state.workflow_id,
-                type=state.type,
-                status=state.status,
-                current_phase=state.current_phase,
-                agents_involved=state.agents_involved,
-                context=state.context,
-                created_at=state.created_at or now,
+                workflow_id=record["workflow_id"],
+                type=record["type"],
+                status=record["status"],
+                current_phase=record["current_phase"],
+                agents_involved=record["agents_involved"],
+                context=record["context"],
+                created_at=record["created_at"] or now,
                 updated_at=now,
             )
             .on_conflict_do_update(
                 index_elements=[CoordinatorWorkflowState.workflow_id],
                 set_={
-                    "type": state.type,
-                    "status": state.status,
-                    "current_phase": state.current_phase,
-                    "agents_involved": state.agents_involved,
-                    "context": state.context,
+                    "type": record["type"],
+                    "status": record["status"],
+                    "current_phase": record["current_phase"],
+                    "agents_involved": record["agents_involved"],
+                    "context": record["context"],
                     "updated_at": now,
                 },
             )
@@ -169,18 +176,18 @@ class PostgresCoordinatorStateStore:
         await self._session.flush()
 
 
-def _row_to_agent_state(row: CoordinatorAgentState) -> AgentStateRecord:
-    return AgentStateRecord(
+def _row_to_agent_state(row: CoordinatorAgentState) -> CoordinatorAgentStateRecord:
+    return CoordinatorAgentStateRecord.create(
         agent_id=row.agent_id,
-        status=row.status,  # type: ignore[arg-type]
+        status=row.status,
         current_task=row.current_task,
         last_output_at=row.last_output_at,
         error=row.error,
     )
 
 
-def _row_to_decision_record(row: CoordinatorPendingDecision) -> DecisionRecord:
-    return DecisionRecord(
+def _row_to_decision_record(row: CoordinatorPendingDecision) -> CoordinatorDecisionRecord:
+    return CoordinatorDecisionRecord.create(
         decision_id=row.decision_id,
         workflow_id=row.workflow_id,
         reasoning=row.reasoning,
@@ -188,6 +195,7 @@ def _row_to_decision_record(row: CoordinatorPendingDecision) -> DecisionRecord:
         target_agent=row.target_agent,
         created_at=row.created_at,
         outcome=row.outcome,
+        task_id=row.task_id,
     )
 
 

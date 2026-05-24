@@ -7,6 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared.control_plane.agent_run_store import SqlAlchemyControlPlaneAgentRunStore
 from shared.control_plane.approval_store import SqlAlchemyControlPlaneApprovalStore
 from shared.control_plane.company_store import SqlAlchemyControlPlaneCompanyStore
+from shared.control_plane.evolution_proposal_store import (
+    SqlAlchemyControlPlaneEvolutionProposalStore,
+)
 from shared.control_plane.models import (
     AgentRun,
     AgentRunStatus,
@@ -19,6 +22,7 @@ from shared.control_plane.models import (
     EvolutionTier,
 )
 from shared.control_plane.tables import AuditEventTable, EvolutionProposalTable
+from shared.core.identifiers import ApprovalRequestId, CompanyId
 
 
 @pytest.mark.asyncio
@@ -73,12 +77,12 @@ async def test_approval_store_owns_approval_queries(
     )
 
     rows = await approval_store.list_approvals(
-        company_id=company.company_id,
+        company_id=CompanyId(company.company_id),
         status=ApprovalStatus.PENDING.value,
         run_id=run.run_id,
         trace_id="trace_approval_store",
     )
-    fetched = await approval_store.get_approval(approval.approval_id)
+    fetched = await approval_store.get_approval(ApprovalRequestId(approval.approval_id))
 
     assert [row.approval_id for row in rows] == [approval.approval_id]
     assert fetched is not None
@@ -112,12 +116,12 @@ async def test_approval_store_resolves_approval_status(
     previous_updated_at = approval.updated_at
 
     resolved = await store.resolve_approval(
-        approval.approval_id,
+        ApprovalRequestId(approval.approval_id),
         status=ApprovalStatus.APPROVED,
         resolved_by="human:cto",
     )
     missing = await store.resolve_approval(
-        "appr_missing",
+        ApprovalRequestId("appr_missing"),
         status=ApprovalStatus.REJECTED,
         resolved_by="human:cto",
     )
@@ -131,15 +135,16 @@ async def test_approval_store_resolves_approval_status(
 
 
 @pytest.mark.asyncio
-async def test_approval_store_syncs_evolution_proposal_by_approval(
+async def test_evolution_proposal_store_syncs_proposal_by_approval(
     db_session: AsyncSession,
 ) -> None:
     company_store = SqlAlchemyControlPlaneCompanyStore(db_session)
-    store = SqlAlchemyControlPlaneApprovalStore(db_session)
+    approval_store = SqlAlchemyControlPlaneApprovalStore(db_session)
+    proposal_store = SqlAlchemyControlPlaneEvolutionProposalStore(db_session)
     company = await company_store.create_company(
         CompanyContext(company_id="cmp_approval_evolution", name="Wisdoverse Cell")
     )
-    approval = await store.request_approval(
+    approval = await approval_store.request_approval(
         ApprovalRequest(
             company_id=company.company_id,
             category=ApprovalCategory.TECHNICAL,
@@ -165,13 +170,13 @@ async def test_approval_store_syncs_evolution_proposal_by_approval(
     db_session.add(proposal)
     await db_session.flush()
 
-    synced = await store.update_evolution_proposal_approval_state_by_approval(
-        approval.approval_id,
+    synced = await proposal_store.update_evolution_proposal_approval_state_by_approval(
+        ApprovalRequestId(approval.approval_id),
         approval_state=ApprovalStatus.REJECTED.value,
         rollout_state=EvolutionRolloutState.REJECTED.value,
     )
-    missing = await store.update_evolution_proposal_approval_state_by_approval(
-        "appr_missing",
+    missing = await proposal_store.update_evolution_proposal_approval_state_by_approval(
+        ApprovalRequestId("appr_missing"),
         approval_state=ApprovalStatus.APPROVED.value,
     )
 

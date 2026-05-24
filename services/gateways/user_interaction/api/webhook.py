@@ -10,13 +10,13 @@ from shared.config import settings
 from shared.integrations.feishu.client import get_feishu_client
 from shared.utils.logger import get_logger
 
+from ..adapters.chat_agent_client import get_chat_agent_client
 from ..core.card_ports import require_tool_card_renderer
 from ..core.webhook_intake import FeishuWebhookIntakeUseCase, hash_user_id
 from ..core.webhook_processing import (
     WebhookMessageProcessingUseCase,
     WebhookProcessCommand,
 )
-from ..service.agent import get_agent
 from .schemas import ChallengeResponse, WebhookResponse
 
 try:
@@ -156,7 +156,7 @@ async def _process_message(
             user_name=user_name,
             chat_id=chat_id,
         ),
-        agent=get_agent(),
+        agent=get_chat_agent_client(),
         messenger=get_feishu_client(),
         build_reply_card=_build_reply_card,
     )

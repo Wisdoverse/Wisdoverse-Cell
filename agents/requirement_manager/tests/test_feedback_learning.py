@@ -51,6 +51,7 @@ class TestFeedbackLearningService:
 
             mock_create.assert_called_once()
             call_args = mock_create.call_args[0][0]
+            assert call_args.id.startswith("fb_")
             assert call_args.requirement_id == "req_001"
             assert call_args.original_title == "原始标题"
             assert call_args.corrected_title == "修正后标题"
@@ -78,6 +79,7 @@ class TestFeedbackLearningService:
 
             mock_create.assert_called_once()
             call_args = mock_create.call_args[0][0]
+            assert call_args.id.startswith("fb_")
             assert call_args.feedback_type == "rejection"
             assert call_args.corrected_title == "[REJECTED]"
 

@@ -8,6 +8,7 @@ the same trace always receives the same skill version across retries.
 
 import hashlib
 
+from shared.evolution.domain import EvolutionExperiment
 from shared.utils.logger import get_logger
 
 logger = get_logger("evolution.canary")
@@ -81,25 +82,21 @@ class CanaryRouter:
             )
             return version
 
-        bucket = self._bucket(trace_id)
-        if bucket < experiment.traffic_pct:
-            chosen = experiment.candidate_version
-            arm = "candidate"
-        else:
-            chosen = experiment.control_version
-            arm = "control"
+        aggregate = EvolutionExperiment.from_record(experiment)
+        decision = aggregate.route(bucket=self._bucket(trace_id))
+        arm = "candidate" if decision.is_candidate else "control"
 
         logger.debug(
             "experiment=%s skill=%s trace=%s bucket=%d traffic_pct=%d arm=%s version=%d",
-            experiment.experiment_id,
+            aggregate.experiment_id,
             skill_id,
             trace_id,
-            bucket,
-            experiment.traffic_pct,
+            decision.bucket,
+            aggregate.traffic_pct,
             arm,
-            chosen,
+            decision.skill_version,
         )
-        return chosen
+        return decision.skill_version
 
     async def record_result(
         self, agent_id: str, skill_id: str, trace_id: str, score: float
@@ -129,19 +126,19 @@ class CanaryRouter:
         if experiment is None:
             return
 
-        bucket = self._bucket(trace_id)
-        is_candidate = bucket < experiment.traffic_pct
+        aggregate = EvolutionExperiment.from_record(experiment)
+        decision = aggregate.route(bucket=self._bucket(trace_id))
 
         logger.debug(
             "record_result experiment=%s trace=%s is_candidate=%s score=%.4f",
-            experiment.experiment_id,
+            aggregate.experiment_id,
             trace_id,
-            is_candidate,
+            decision.is_candidate,
             score,
         )
 
         await repo.add_experiment_result(
-            experiment.experiment_id, is_candidate=is_candidate, score=score,
+            aggregate.experiment_id, is_candidate=decision.is_candidate, score=score,
         )
 
     async def check_experiment(
@@ -170,40 +167,38 @@ class CanaryRouter:
         if experiment is None:
             return "no_experiment"
 
-        control = experiment.control_results or []
-        candidate = experiment.candidate_results or []
-
-        # Honor the experiment's own min_samples config; caller override takes precedence
-        effective_min = min_samples if min_samples is not None else getattr(experiment, "min_samples", 10)
-
-        if len(control) < effective_min or len(candidate) < effective_min:
+        aggregate = EvolutionExperiment.from_record(experiment)
+        decision = aggregate.canary_rollout_decision(
+            min_samples_override=min_samples,
+        )
+        if decision == "continue":
             return "continue"
 
-        control_mean = sum(control) / len(control)
-        candidate_mean = sum(candidate) / len(candidate)
+        summary = aggregate.score_summary(min_samples_override=min_samples)
 
-        if candidate_mean >= control_mean:
+        if decision == "promote":
             await repo.conclude_experiment(
-                experiment.experiment_id, status="promoted",
+                aggregate.experiment_id,
+                status=aggregate.status_for_decision(decision),
             )
             logger.info(
                 "experiment_promoted",
-                experiment_id=experiment.experiment_id,
-                control_mean=round(control_mean, 4),
-                candidate_mean=round(candidate_mean, 4),
+                experiment_id=aggregate.experiment_id,
+                control_mean=round(summary.control_mean, 4),
+                candidate_mean=round(summary.candidate_mean, 4),
             )
             return "promote"
 
-        degradation = (control_mean - candidate_mean) / max(control_mean, 0.01)
-        if degradation > 0.10:
+        if decision == "rollback":
             await repo.conclude_experiment(
-                experiment.experiment_id, status="rolled_back",
+                aggregate.experiment_id,
+                status=aggregate.status_for_decision(decision),
             )
             logger.info(
                 "experiment_rolled_back",
-                experiment_id=experiment.experiment_id,
-                control_mean=round(control_mean, 4),
-                candidate_mean=round(candidate_mean, 4),
+                experiment_id=aggregate.experiment_id,
+                control_mean=round(summary.control_mean, 4),
+                candidate_mean=round(summary.candidate_mean, 4),
             )
             return "rollback"
 

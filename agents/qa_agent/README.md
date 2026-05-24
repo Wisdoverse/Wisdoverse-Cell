@@ -11,11 +11,12 @@ See [`docs/architecture/module-boundaries.md`](../../docs/architecture/module-bo
 |-------|-------|
 | Runtime owner | `agents/qa_agent/` |
 | Owned tables | `qa_acceptance_*`, `qa_agent_event_outbox` |
-| Aggregate root | **None — intentional design decision (DDD-021)**. The acceptance run is a one-shot computation; outputs are immutable. See [§ Domain Model](#domain-model) below. |
-| Value object | `AcceptanceVerdict` (`core/domain/acceptance_verdict.py:36-90`) — frozen dataclass with `__post_init__` validation and `is_blocking` / `is_clean` properties |
-| Vocabulary | `core/domain/acceptance_vocabulary.py` — `GATE_VALUES`, `L1_STATUS_VALUES`, `FINDING_STATUS_VALUES`, `FINDING_LEVELS` constants plus `is_blocking_finding` / `is_warning_finding` helpers |
-| State machine | Not modeled. An acceptance run executes once, produces one verdict, persists, and is closed. There are no in-place state transitions on a run. |
-| Domain events | Published as integration events (`qa.acceptance-completed`, `qa.gate-failed`) from the use case, not raised by an aggregate. |
+| Aggregate root | `AcceptanceRun` (`core/domain/acceptance_run.py`) — requested/running/completed lifecycle aggregate with completion invariants and `AcceptanceRunCompleted` domain event |
+| Value object | `AcceptanceVerdict` (`core/domain/acceptance_verdict.py`) — frozen dataclass with `__post_init__` validation, `from_summary()`, and `is_blocking` / `is_clean` properties |
+| Vocabulary | `core/domain/acceptance_vocabulary.py` wraps the shared Published Language in `shared/core/qa_acceptance.py` with QA-domain names: `GATE_VALUES`, `L1_STATUS_VALUES`, `L2_STATUS_VALUES`, `FINDING_STATUS_VALUES`, `FINDING_LEVELS` plus gate/finding classification helpers |
+| State machine | `AcceptanceRunStatus` models requested → running → completed transitions. The runtime still persists the completed projection only until QA needs durable in-flight runs. |
+| Domain events | `AcceptanceRunCompleted` raised by the aggregate and translated to `qa.acceptance-completed` / `qa.gate-failed` integration events by the application use case. |
+| ACL | `adapters/acceptance_request_acl.py` translates `code.committed` and `qa.run-requested` payloads into QA-local `QAAcceptanceRequestEnvelope`, `QARunRequest`, `GitLabMergeRequestContext`, and optional `OpenProjectWorkPackageContext` |
 | Unit of work | `core/unit_of_work_ports.py` `QAUnitOfWorkFactory` |
 
 ## Ubiquitous Language
@@ -35,36 +36,31 @@ Cross-link to the company-wide vocabulary:
 
 ## Domain Model
 
-QA does not promote `AcceptanceRun` to an aggregate root with a state
-machine. The decision is intentional and is recorded here per
-[`ddd-compliance-audit.md`](../../docs/architecture/ddd-compliance-audit.md)
-row DDD-021.
-
-**Why not an aggregate**:
-
-- An acceptance run is a one-shot computation. The runner produces a
-  verdict in a single subprocess call; there are no in-place
-  transitions on the run itself.
-- Idempotency is enforced by `trigger_event_id` deduplication at the
-  persistence boundary, not by aggregate invariants.
-- Modeling a state machine (e.g.
-  `REQUESTED → RUNNING → VERDICT_RENDERED → CLOSED`) would add
-  ceremony without protecting any invariant the code does not already
-  enforce — the run only progresses forward, and "in-flight" runs do
-  not survive process restart (the subprocess exits or fails).
+QA models `AcceptanceRun` as the aggregate root for the run lifecycle.
+The aggregate owns requested → running → completed transitions,
+completion invariants, `AcceptanceRunCompleted`, and the event buffer
+drained before the application layer stages `qa.acceptance-completed` /
+`qa.gate-failed` integration events. The synchronous runner still
+persists only the completed projection, but the application must create
+the aggregate and its events before writing the database row.
 
 **What is modeled**:
 
+- `AcceptanceRun` (aggregate) — owns `run_id` identity, target shape,
+  lifecycle transitions, non-negative counts/duration, blocking-finding
+  selection, and the completion event buffer.
 - `AcceptanceVerdict` (value object) — owns the rules for what
   constitutes a clean, warning, or blocking outcome.
-- `acceptance_vocabulary` (constants + helpers) — owns the
-  classification rules (`is_blocking_finding`, `is_warning_finding`).
+- `acceptance_vocabulary` (constants + helpers) — wraps the shared
+  QA acceptance Published Language and owns the QA-domain names for
+  classification rules (`is_failing_gate`, `is_blocking_finding`,
+  `is_warning_finding`, `is_informational_finding`).
+- `QAAcceptanceRequestACL` (adapter ACL) — translates inbound
+  source-system event payloads into QA-local request/context objects
+  before core event use cases run acceptance.
 
-If QA's run flow ever grows in-place transitions (for example, a
-"reviewed after the fact" status set by an operator), the decision is
-to revisit and promote `AcceptanceRun` to an aggregate at that point.
-Until then, the run record is a persistence DTO and the verdict is
-the domain element.
+If QA's run flow grows in-place transitions, the aggregate should be
+extended with an explicit requested/running/completed state machine.
 
 ## Context-Map Relationships
 
@@ -72,7 +68,7 @@ Per [`module-boundaries.md`](../../docs/architecture/module-boundaries.md) §2.5
 
 - **Upstream / downstream**: Customer/Supplier to Dev Agent (consumes `code.committed`; emits `qa.acceptance-completed` and `qa.gate-failed`).
 - **Conformist** to Control Plane on AgentRun / Approval / AuditEvent Published Language.
-- **Anti-Corruption Layer** pending for GitLab / OpenProject context resolution (DDD-013).
+- **Anti-Corruption Layer** to GitLab / OpenProject context via `adapters/acceptance_request_acl.py`.
 
 
 ## Events
@@ -80,7 +76,7 @@ Per [`module-boundaries.md`](../../docs/architecture/module-boundaries.md) §2.5
 | Event | Direction | Description |
 |-------|-----------|-------------|
 | `code.committed` | Subscribe | Triggers acceptance on new code |
-| `qa.run-requested` | Subscribe | Manual/PJM Agent triggered run |
+| `qa.run-requested` | Subscribe | Manual/Dev Agent triggered run |
 | `qa.acceptance-completed` | Publish | Always — full report |
 | `qa.gate-failed` | Publish | Only on L0 FAIL |
 

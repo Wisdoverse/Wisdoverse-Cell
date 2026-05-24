@@ -1,4 +1,4 @@
-"""Card-rendering ports for user-interaction tools."""
+"""Card-rendering ports for user-interaction gateway responses."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any, Protocol, runtime_checkable
 
 @runtime_checkable
 class ToolCardRendererPort(Protocol):
-    """Build platform-specific confirmation cards behind an adapter boundary."""
+    """Build platform-specific cards behind a gateway adapter boundary."""
 
     def build_bitable_update_confirmation(
         self,

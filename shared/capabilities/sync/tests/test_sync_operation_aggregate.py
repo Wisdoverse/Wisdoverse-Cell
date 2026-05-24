@@ -5,12 +5,12 @@ from __future__ import annotations
 import pytest
 
 from shared.capabilities.sync.core.domain.sync_operation import (
+    VALID_TRANSITIONS,
     InvalidSyncOperationTransitionError,
     SyncOperation,
     SyncOperationStatus,
     SyncOperationStatusChanged,
     SyncSide,
-    VALID_TRANSITIONS,
     combine_side_statuses,
 )
 

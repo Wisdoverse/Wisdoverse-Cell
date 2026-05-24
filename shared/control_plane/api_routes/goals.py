@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, field_validator
 from shared.api import raise_control_plane_api_error
 
 from ..api_serialization import row_to_dict
+from ..domain.goal import InvalidGoalTransitionError
 from ..goal_use_cases import (
     GoalNotFoundError,
     ParentGoalNotFoundError,
@@ -169,6 +170,11 @@ def create_goal_router(
             )
         except GoalNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="goal_not_found")
+        except InvalidGoalTransitionError:
+            raise_control_plane_api_error(
+                status_code=400,
+                detail="invalid_goal_transition",
+            )
         await uow.commit()
         return row_to_dict(row)
 

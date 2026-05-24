@@ -6,16 +6,15 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from shared.core import request_error
+from shared.core.identifiers import OpenProjectProjectId, WorkPackageId
 from shared.schemas.event import Event, EventTypes
 
 from .decomposition_ports import PJMDecompositionStore
-from .domain.lifecycle.decomposition_lifecycle import FAILED, REJECTED, WRITE_FAILED
-
-_RECOVERABLE_STATUSES: tuple[str, ...] = (FAILED, REJECTED, WRITE_FAILED)
+from .domain.decomposition_policy import DecompositionRetryDecision, DecompositionWorkflowPolicy
 
 
 class PJMOpenProjectReadPort(Protocol):
-    async def get_work_package(self, wp_id: int) -> dict:
+    async def get_work_package(self, wp_id: WorkPackageId) -> dict:
         """Fetch one OpenProject work package."""
 
 
@@ -24,7 +23,7 @@ class StagedRecoveryEvent:
     """Event staged in the local PJM transaction and ready to publish."""
 
     event: Event
-    wp_id: int | None = None
+    wp_id: WorkPackageId | None = None
 
 
 @dataclass(frozen=True)
@@ -46,36 +45,23 @@ class DecompositionRecoveryWorkflow:
     ) -> None:
         self._decomposition_store = decomposition_store
         self._op = op_client
+        self._workflow_policy = DecompositionWorkflowPolicy()
 
     def _require_decomposition_store(self) -> PJMDecompositionStore:
         if self._decomposition_store is None:
             raise RuntimeError("pjm_decomposition_store_not_configured")
         return self._decomposition_store
 
-    async def retry_decompose(self, wp_id: int | None) -> DecompositionRecoveryResult:
+    async def retry_decompose(self, wp_id: WorkPackageId | None) -> DecompositionRecoveryResult:
         """Retry a failed/rejected decomposition by re-fetching WP data from OP."""
         if not wp_id:
-            return DecompositionRecoveryResult(
-                request_error("wp_id is required", "wp_id_required")
-            )
+            return DecompositionRecoveryResult(request_error("wp_id is required", "wp_id_required"))
         async with self._require_decomposition_store().transaction() as decomposition:
             record = await decomposition.get_by_wp_id(wp_id)
-            if not record:
-                return DecompositionRecoveryResult(
-                    request_error("record not found", "pm.decomposition_not_found")
-                )
-            if record.status not in _RECOVERABLE_STATUSES:
-                return DecompositionRecoveryResult(
-                    request_error(
-                        (
-                            f"cannot retry status '{record.status}', "
-                            "only failed/rejected/write_failed"
-                        ),
-                        "pm.decomposition_retry_not_allowed",
-                        status=record.status,
-                    )
-                )
-            project_id = record.project_id
+            retry_decision = self._workflow_policy.retry_decision(record.status if record else None)
+            if not retry_decision.allowed:
+                return self._retry_blocked_result(retry_decision)
+            project_id: OpenProjectProjectId = record.project_id
             assignee_id = record.assignee_id
 
         try:
@@ -120,21 +106,9 @@ class DecompositionRecoveryWorkflow:
         )
         async with self._require_decomposition_store().transaction() as decomposition:
             record = await decomposition.get_by_wp_id(wp_id)
-            if not record:
-                return DecompositionRecoveryResult(
-                    request_error("record not found", "pm.decomposition_not_found")
-                )
-            if record.status not in _RECOVERABLE_STATUSES:
-                return DecompositionRecoveryResult(
-                    request_error(
-                        (
-                            f"cannot retry status '{record.status}', "
-                            "only failed/rejected/write_failed"
-                        ),
-                        "pm.decomposition_retry_not_allowed",
-                        status=record.status,
-                    )
-                )
+            retry_decision = self._workflow_policy.retry_decision(record.status if record else None)
+            if not retry_decision.allowed:
+                return self._retry_blocked_result(retry_decision)
             await decomposition.delete_by_wp_id(wp_id)
             await decomposition.stage_event(event)
             await decomposition.commit()
@@ -144,7 +118,7 @@ class DecompositionRecoveryWorkflow:
             (StagedRecoveryEvent(event, wp_id=wp_id),),
         )
 
-    async def get_decompose(self, wp_id: int | None) -> dict:
+    async def get_decompose(self, wp_id: WorkPackageId | None) -> dict:
         """Retrieve decomposition record for a given work package."""
         if not wp_id:
             return {}
@@ -162,3 +136,15 @@ class DecompositionRecoveryWorkflow:
                 "updated_at": record.updated_at.isoformat() if record.updated_at else None,
                 "approved_by": record.approved_by,
             }
+
+    def _retry_blocked_result(
+        self, retry_decision: DecompositionRetryDecision
+    ) -> DecompositionRecoveryResult:
+        extra = {"status": retry_decision.status} if retry_decision.status else {}
+        return DecompositionRecoveryResult(
+            request_error(
+                retry_decision.error_message or "retry not allowed",
+                retry_decision.error_code or "pm.decomposition_retry_not_allowed",
+                **extra,
+            )
+        )

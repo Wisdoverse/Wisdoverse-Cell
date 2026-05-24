@@ -16,10 +16,10 @@ from ..core.health_ports import CoordinatorHealthStore
 from ..core.models import Decision
 from ..core.outbox_ports import CoordinatorEventOutboxStore
 from ..core.state_ports import CoordinatorStateStorePort
-from ..db.in_memory_unit_of_work import in_memory_coordinator_uow
 from ..core.think import think as think_fn
 from ..db.database import DatabaseManager
 from ..db.health_store import SqlAlchemyCoordinatorHealthStore
+from ..db.in_memory_unit_of_work import in_memory_coordinator_uow
 from ..db.outbox_store import SqlAlchemyCoordinatorEventOutboxStore
 from ..db.state_store import CoordinatorStateStore
 

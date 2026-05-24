@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from services.gateways.user_interaction.core import daily_tasks
-from services.gateways.user_interaction.core.config import UserInteractionCoreConfig
-from services.gateways.user_interaction.core.daily_tasks import (
+from agents.chat_agent.core import daily_tasks
+from agents.chat_agent.core.config import ChatAgentCoreConfig
+from agents.chat_agent.core.daily_tasks import (
     DailyTaskDependencies,
     _get_members,
     _get_user_tasks,
@@ -35,7 +35,7 @@ def configure_with_bitable(
             messenger=messenger or AsyncMock(),
             dispatch_llm=dispatch_llm or AsyncMock(),
             progress_store=progress_store or AsyncMock(),
-            config=UserInteractionCoreConfig.from_values(
+            config=ChatAgentCoreConfig.from_values(
                 feishu_bitable_app_token="app-token",
                 feishu_bitable_member_table_id="member-table",
                 feishu_bitable_table_id="task-table",
@@ -160,6 +160,7 @@ async def test_collect_evening_progress_uses_injected_progress_store() -> None:
     progress_store.get_pending = AsyncMock(
         return_value=[
             SimpleNamespace(status="in_progress", task_title="Build report"),
+            SimpleNamespace(status="completed", task_title="Ship docs"),
         ]
     )
     configure_with_bitable(
@@ -173,3 +174,6 @@ async def test_collect_evening_progress_uses_injected_progress_store() -> None:
     progress_store.list_users_for_date.assert_awaited_once()
     progress_store.get_pending.assert_awaited_once()
     messenger.send_message.assert_awaited_once()
+    content = messenger.send_message.await_args.kwargs["content"]
+    assert "⬜ Build report" in content
+    assert "✅ Ship docs" in content

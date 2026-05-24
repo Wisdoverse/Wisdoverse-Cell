@@ -137,9 +137,7 @@ async def test_control_plane_commands_commit_success_and_rollback_failure(
     tracking_session = _TrackingSession(db_session)
     app = FastAPI()
     app.include_router(
-        create_control_plane_router(
-            session_provider=_tracking_session_provider(tracking_session)
-        )
+        create_control_plane_router(session_provider=_tracking_session_provider(tracking_session))
     )
 
     transport = ASGITransport(app=app)
@@ -162,9 +160,7 @@ async def test_control_plane_commands_commit_success_and_rollback_failure(
 @pytest.mark.asyncio
 async def test_control_plane_api_manages_company_contexts(db_session: AsyncSession):
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -232,9 +228,7 @@ async def test_control_plane_api_manages_evolution_proposals(
         CompanyContext(company_id="cmp_evolution", name="Evolution")
     )
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -268,6 +262,11 @@ async def test_control_plane_api_manages_evolution_proposals(
             f"/api/v1/control-plane/evolution-proposals/{proposal['proposal_id']}",
             params={"company_id": "cmp_evolution"},
         )
+        canary = await client.patch(
+            f"/api/v1/control-plane/evolution-proposals/{proposal['proposal_id']}/status",
+            params={"company_id": "cmp_evolution"},
+            json={"rollout_state": "canary", "actor_id": "human:architect"},
+        )
         activated = await client.patch(
             f"/api/v1/control-plane/evolution-proposals/{proposal['proposal_id']}/status",
             params={"company_id": "cmp_evolution"},
@@ -285,6 +284,8 @@ async def test_control_plane_api_manages_evolution_proposals(
     assert approved.status_code == 200
     assert fetched_after_approval.status_code == 200
     assert fetched_after_approval.json()["approval_state"] == "approved"
+    assert canary.status_code == 200
+    assert canary.json()["rollout_state"] == "canary"
     assert activated.status_code == 200
     assert activated.json()["rollout_state"] == "active"
 
@@ -294,9 +295,7 @@ async def test_control_plane_api_rejects_evolution_proposal_with_missing_approva
     db_session: AsyncSession,
 ):
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -325,9 +324,7 @@ async def test_control_plane_api_lists_approves_and_builds_timeline(
 ):
     run, approval = await _seed(db_session)
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -365,13 +362,36 @@ async def test_control_plane_api_lists_approves_and_builds_timeline(
 
 
 @pytest.mark.asyncio
+async def test_control_plane_api_rejects_invalid_approval_transition(
+    db_session: AsyncSession,
+):
+    _run, approval = await _seed(db_session)
+    app = FastAPI()
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        approved = await client.post(
+            f"/api/v1/control-plane/approvals/{approval.approval_id}/approve",
+            json={"resolved_by": "human:lead"},
+        )
+        rejected = await client.post(
+            f"/api/v1/control-plane/approvals/{approval.approval_id}/reject",
+            json={"resolved_by": "human:cfo"},
+        )
+
+    assert approved.status_code == 200
+    assert rejected.status_code == 400
+    assert rejected.json()["detail"] == "invalid_approval_transition"
+    assert rejected.headers[ERROR_CODE_HEADER] == "control_plane.invalid_approval_transition"
+
+
+@pytest.mark.asyncio
 async def test_control_plane_api_manages_goals_and_work_items(
     db_session: AsyncSession,
 ):
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -478,9 +498,7 @@ async def test_control_plane_api_rejects_goal_with_missing_parent(
     db_session: AsyncSession,
 ):
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -495,9 +513,37 @@ async def test_control_plane_api_rejects_goal_with_missing_parent(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "parent_goal_not_found"
-    assert response.headers[ERROR_CODE_HEADER] == (
-        "control_plane.parent_goal_not_found"
-    )
+    assert response.headers[ERROR_CODE_HEADER] == ("control_plane.parent_goal_not_found")
+
+
+@pytest.mark.asyncio
+async def test_control_plane_api_rejects_invalid_goal_transition(
+    db_session: AsyncSession,
+):
+    app = FastAPI()
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        created_goal = await client.post(
+            "/api/v1/control-plane/goals",
+            json={
+                "company_id": "cmp_goal_transition_api",
+                "title": "Cancelled goal",
+                "status": "cancelled",
+                "created_by": "human:board",
+            },
+        )
+        response = await client.patch(
+            f"/api/v1/control-plane/goals/{created_goal.json()['goal_id']}/status",
+            params={"company_id": "cmp_goal_transition_api"},
+            json={"status": "active", "actor_id": "human:board"},
+        )
+
+    assert created_goal.status_code == 201
+    assert response.status_code == 400
+    assert response.json()["detail"] == "invalid_goal_transition"
+    assert response.headers[ERROR_CODE_HEADER] == ("control_plane.invalid_goal_transition")
 
 
 @pytest.mark.asyncio
@@ -505,9 +551,7 @@ async def test_control_plane_api_rejects_work_item_with_missing_goal(
     db_session: AsyncSession,
 ):
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -530,9 +574,7 @@ async def test_control_plane_api_rejects_work_item_with_missing_dependency(
     db_session: AsyncSession,
 ):
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -547,9 +589,7 @@ async def test_control_plane_api_rejects_work_item_with_missing_dependency(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "dependency_not_found"
-    assert response.headers[ERROR_CODE_HEADER] == (
-        "control_plane.dependency_not_found"
-    )
+    assert response.headers[ERROR_CODE_HEADER] == ("control_plane.dependency_not_found")
 
 
 @pytest.mark.asyncio
@@ -557,9 +597,7 @@ async def test_control_plane_api_manages_budget_policies(
     db_session: AsyncSession,
 ):
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -639,8 +677,7 @@ async def test_control_plane_api_manages_budget_policies(
     assert duplicate_active.status_code == 409
     assert duplicate_active.json()["detail"] == "active_budget_policy_exists"
     assert (
-        duplicate_active.headers[ERROR_CODE_HEADER]
-        == "control_plane.active_budget_policy_exists"
+        duplicate_active.headers[ERROR_CODE_HEADER] == "control_plane.active_budget_policy_exists"
     )
     assert listed.status_code == 200
     assert listed.json()["total"] == 1
@@ -668,9 +705,7 @@ async def test_control_plane_api_manages_decisions_artifacts_and_timeline(
 ):
     run, _approval = await _seed(db_session)
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -781,9 +816,7 @@ async def test_control_plane_api_rejects_artifact_with_missing_run(
     db_session: AsyncSession,
 ):
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -808,9 +841,7 @@ async def test_control_plane_api_rejects_decision_with_missing_run(
     db_session: AsyncSession,
 ):
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -838,9 +869,7 @@ async def test_control_plane_api_creates_frontend_agent_definition(
         CompanyContext(company_id="cmp_agents", name="Agent API Test")
     )
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -968,9 +997,7 @@ async def test_control_plane_api_manages_agent_prompt_config(
     db_session: AsyncSession,
 ):
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1029,9 +1056,7 @@ async def test_control_plane_api_separates_agent_kinds(
         CompanyContext(company_id="cmp_agent_kinds", name="Kinds")
     )
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1112,10 +1137,7 @@ async def test_control_plane_api_separates_agent_kinds(
     assert listed_modules.json()["total"] == 1
     assert listed_modules.json()["agents"][0]["agent_kind"] == "capability_module"
     assert listed_business_agents.json()["total"] == 1
-    assert (
-        listed_business_agents.json()["agents"][0]["agent_kind"]
-        == "business_runtime_agent"
-    )
+    assert listed_business_agents.json()["agents"][0]["agent_kind"] == "business_runtime_agent"
 
 
 @pytest.mark.asyncio
@@ -1132,13 +1154,9 @@ async def test_control_plane_api_wakes_process_agent_definition(
         "process:ops-runner",
     )
     stores = ControlPlaneStores(db_session)
-    await stores.companies.create_company(
-        CompanyContext(company_id="cmp_wake", name="Wake Test")
-    )
+    await stores.companies.create_company(CompanyContext(company_id="cmp_wake", name="Wake Test"))
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1190,19 +1208,14 @@ async def test_control_plane_api_wakes_process_agent_definition(
     assert runs.json()["runs"][0]["output_events"][0]["event_type"] == (
         EventTypes.AGENT_WAKEUP_COMPLETED
     )
-    assert runs.json()["runs"][0]["output_events"][0]["payload"]["trace_id"] == (
-        "trace-wake"
-    )
-    assert runs.json()["runs"][0]["output_events"][0]["metadata"]["trace_id"] == (
-        "trace-wake"
-    )
-    assert runs.json()["runs"][0]["output_events"][0]["payload"]["run_id"] == (
-        wake.json()["run"]["run_id"]
+    assert runs.json()["runs"][0]["output_events"][0]["payload"]["trace_id"] == ("trace-wake")
+    assert runs.json()["runs"][0]["output_events"][0]["metadata"]["trace_id"] == ("trace-wake")
+    assert (
+        runs.json()["runs"][0]["output_events"][0]["payload"]["run_id"]
+        == (wake.json()["run"]["run_id"])
     )
     assert timeline.status_code == 200
-    assert {"audit_event"}.issubset(
-        {item["type"] for item in timeline.json()["timeline"]}
-    )
+    assert {"audit_event"}.issubset({item["type"] for item in timeline.json()["timeline"]})
 
 
 @pytest.mark.asyncio
@@ -1219,9 +1232,7 @@ async def test_control_plane_api_runs_work_item_with_owner_agent(
         "process:work-runner",
     )
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1288,9 +1299,7 @@ async def test_control_plane_api_runs_work_item_with_owner_agent(
     assert executed.json()["run"]["work_item_id"] == work_item_id
     assert executed.json()["output"]["stdout"].strip() == f"{work_item_id}|Execute API"
     assert runs.status_code == 200
-    assert runs.json()["runs"][0]["input_event"]["payload"]["work_item_id"] == (
-        work_item_id
-    )
+    assert runs.json()["runs"][0]["input_event"]["payload"]["work_item_id"] == (work_item_id)
     assert audits.status_code == 200
     status_updates = [
         item["detail"]["status"]
@@ -1305,9 +1314,7 @@ async def test_control_plane_api_rejects_work_item_run_without_agent(
     db_session: AsyncSession,
 ):
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1346,9 +1353,7 @@ async def test_control_plane_api_marks_work_item_failed_when_execution_fails(
         False,
     )
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1410,9 +1415,7 @@ async def test_control_plane_api_manages_work_item_operations_and_activity(
         "process:ops-runner",
     )
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1542,9 +1545,7 @@ async def test_control_plane_api_manages_work_item_operations_and_activity(
     assert activity.status_code == 200
     assert activity.json()["work_item"]["work_item_id"] == work_item_id
     activity_types = {item["type"] for item in activity.json()["activity"]}
-    assert {"agent_run", "approval", "artifact", "audit_event", "decision"}.issubset(
-        activity_types
-    )
+    assert {"agent_run", "approval", "artifact", "audit_event", "decision"}.issubset(activity_types)
     assert audits.status_code == 200
     audit_details = [
         item["detail"]
@@ -1552,18 +1553,15 @@ async def test_control_plane_api_manages_work_item_operations_and_activity(
         if item["action"] == EventTypes.WORK_ITEM_UPDATED
     ]
     assert any(
-        detail.get("command") == "reassign"
-        and detail.get("reason") == "QA owns final review"
+        detail.get("command") == "reassign" and detail.get("reason") == "QA owns final review"
         for detail in audit_details
     )
     assert any(
-        detail.get("command") == "block"
-        and detail.get("reason") == "Waiting for customer approval"
+        detail.get("command") == "block" and detail.get("reason") == "Waiting for customer approval"
         for detail in audit_details
     )
     assert any(
-        detail.get("command") == "close"
-        and detail.get("reason") == "Customer approved"
+        detail.get("command") == "close" and detail.get("reason") == "Customer approved"
         for detail in audit_details
     )
 
@@ -1582,9 +1580,7 @@ async def test_control_plane_api_retries_work_item_execution(
         "process:retry-runner",
     )
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1643,9 +1639,7 @@ async def test_control_plane_api_rejects_invalid_work_item_operations(
     db_session: AsyncSession,
 ):
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1686,9 +1680,7 @@ async def test_control_plane_service_actions_require_internal_key(
         )
     )
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     with patch.object(_internal_auth_mod, "settings") as mock_settings:
@@ -1721,6 +1713,46 @@ async def test_control_plane_service_actions_require_internal_key(
 
 
 @pytest.mark.asyncio
+async def test_control_plane_api_blocks_wakeup_for_non_runnable_agent_role(
+    db_session: AsyncSession,
+):
+    stores = ControlPlaneStores(db_session)
+    await stores.companies.create_company(
+        CompanyContext(company_id="cmp_non_runnable", name="Non Runnable")
+    )
+    await stores.agent_registry.create_agent_role(
+        AgentRole(
+            company_id="cmp_non_runnable",
+            agent_id="disabled-runner",
+            display_name="Disabled Runner",
+            adapter_type="builtin",
+            status="disabled",
+        )
+    )
+    app = FastAPI()
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
+
+    transport = ASGITransport(app=app)
+    with patch.object(_internal_auth_mod, "settings") as mock_settings:
+        mock_settings.internal_service_key = "secret-key"
+        mock_settings.app_env = "development"
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            wake = await client.post(
+                "/api/v1/control-plane/agents/disabled-runner/wake",
+                json={"company_id": "cmp_non_runnable"},
+                headers={"X-Internal-Key": "secret-key"},
+            )
+            runs = await client.get(
+                "/api/v1/control-plane/runs",
+                params={"company_id": "cmp_non_runnable", "agent_id": "disabled-runner"},
+            )
+
+    assert wake.status_code == 409
+    assert wake.json()["detail"] == "agent_not_runnable"
+    assert runs.json()["runs"] == []
+
+
+@pytest.mark.asyncio
 async def test_control_plane_api_runs_due_heartbeat_scheduler(
     db_session: AsyncSession,
 ):
@@ -1729,9 +1761,7 @@ async def test_control_plane_api_runs_due_heartbeat_scheduler(
         CompanyContext(company_id="cmp_heartbeat", name="Heartbeat Test")
     )
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1785,12 +1815,8 @@ async def test_control_plane_api_runs_due_heartbeat_scheduler(
     assert run["input_event"]["payload"]["actor_id"] == "control-plane:scheduler"
     assert audits.status_code == 200
     audit_details = {item["action"]: item["detail"] for item in audits.json()["audit_events"]}
-    assert audit_details[EventTypes.AGENT_RUN_STARTED]["trigger"] == (
-        "scheduled_heartbeat"
-    )
-    assert audit_details[EventTypes.AGENT_RUN_SUCCEEDED]["trigger"] == (
-        "scheduled_heartbeat"
-    )
+    assert audit_details[EventTypes.AGENT_RUN_STARTED]["trigger"] == ("scheduled_heartbeat")
+    assert audit_details[EventTypes.AGENT_RUN_SUCCEEDED]["trigger"] == ("scheduled_heartbeat")
 
 
 @pytest.mark.asyncio
@@ -1802,9 +1828,7 @@ async def test_control_plane_heartbeat_scheduler_skips_agents_without_opt_in(
         CompanyContext(company_id="cmp_no_heartbeat", name="No Heartbeat Test")
     )
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1841,9 +1865,7 @@ async def test_control_plane_api_blocks_local_adapter_by_default(
         CompanyContext(company_id="cmp_wake_blocked", name="Wake Blocked Test")
     )
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1890,9 +1912,7 @@ async def test_control_plane_api_blocks_enabled_local_adapter_without_allowlist(
         CompanyContext(company_id="cmp_wake_not_allowed", name="Wake Not Allowed Test")
     )
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1917,10 +1937,7 @@ async def test_control_plane_api_blocks_enabled_local_adapter_without_allowlist(
 
     assert wake.status_code == 403
     assert wake.json()["detail"] == "local_adapter_not_allowlisted"
-    assert (
-        wake.headers[ERROR_CODE_HEADER]
-        == "control_plane.local_adapter_not_allowlisted"
-    )
+    assert wake.headers[ERROR_CODE_HEADER] == "control_plane.local_adapter_not_allowlisted"
     assert runs.json()["runs"][0]["status"] == "failed"
     assert runs.json()["runs"][0]["error_category"] == "adapter_not_allowlisted"
 
@@ -1934,9 +1951,7 @@ async def test_control_plane_api_rejects_unknown_adapter_definition(
         CompanyContext(company_id="cmp_unknown_adapter", name="Unknown Adapter Test")
     )
     app = FastAPI()
-    app.include_router(
-        create_control_plane_router(session_provider=_session_provider(db_session))
-    )
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -1952,7 +1967,4 @@ async def test_control_plane_api_rejects_unknown_adapter_definition(
 
     assert created.status_code == 400
     assert created.json()["detail"] == "unsupported_adapter_type"
-    assert (
-        created.headers[ERROR_CODE_HEADER]
-        == "control_plane.unsupported_adapter_type"
-    )
+    assert created.headers[ERROR_CODE_HEADER] == "control_plane.unsupported_adapter_type"

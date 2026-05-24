@@ -13,11 +13,11 @@ See [`docs/architecture/module-boundaries.md`](../../../docs/architecture/module
 |-------|-------|
 | Runtime owner | `services/orchestration/coordinator/` |
 | Owned tables | `coordinator_event_outbox` (durable); `coordinator_agent_state` / `coordinator_workflow_state` / `coordinator_pending_decision` (durable when `COORDINATOR_DURABLE_STATE=true`). |
-| Aggregate root | Not yet promoted (`Decision`, `WorkflowState`, `DecisionRecord` are Pydantic records). |
+| Aggregate root / policies | `core/domain/workflow_state.py` `CoordinatorWorkflowState` owns workflow lifecycle rules; `core/domain/dispatch.py` `CoordinatorDispatchPolicy` owns dispatch-target contracts; `core/domain/scratchpad.py` `CoordinatorScratchpadConsistencyPolicy` owns the decision-store-before-scratchpad projection rule. |
 | ACL ports | `core/event_use_cases.py` `CoordinatorThinkerPort` (LLM thinker — DDD-019 landed) |
-| State store | `core/state_ports.py` `CoordinatorStateStorePort` Protocol; in-memory adapter (`db/state_store.py`) for tests + dev; production uses `db/postgres_state_store.py` `PostgresCoordinatorStateStore` when `COORDINATOR_DURABLE_STATE=true` (ADR-0008). |
-| Scratchpad | `core/event_use_cases.py` `CoordinatorScratchpadPort` Protocol; durable backing TBD per DDD-018. |
-| Domain events | Inbound classified via `core/classifier.py`; outbound decisions mapped to events via `core/dispatcher.py` `decision_to_event()`. |
+| State store | `core/state_ports.py` `CoordinatorStateStorePort` Protocol; in-memory adapter (`db/state_store.py`) for tests + dev; production uses `db/postgres_state_store.py` `PostgresCoordinatorStateStore` when `COORDINATOR_DURABLE_STATE=true` (ADR-0008). Workflow-state writes are validated through `CoordinatorWorkflowState`; agent-state and decision rows are normalized through `CoordinatorAgentStateRecord` and `CoordinatorDecisionRecord` before leaving adapters. |
+| Scratchpad | `core/event_use_cases.py` `CoordinatorScratchpadPort` Protocol. The scratchpad is a derived reasoning projection: decisions persist through the state-store/UoW boundary first, then `CoordinatorScratchpadProjectionPlan` is applied and compaction is scheduled only after the projection is safe. |
+| Domain events | Inbound classified via `core/classifier.py`; outbound decisions are converted to `CoordinatorDispatchEnvelope` by `core/domain/dispatch.py` and then to EventBus events by `core/dispatcher.py`. |
 
 ## Ubiquitous Language
 
@@ -25,10 +25,13 @@ See [`docs/architecture/module-boundaries.md`](../../../docs/architecture/module
 |------|---------|
 | **Classified event** | An inbound EventBus event tagged with a `kind` (e.g. `progress`, `chat`, `coordinator-dispatch`) by `classifier.py`. |
 | **Decision** | A typed instruction the coordinator emits for downstream agents (e.g. "Dev should start task X"). Drained from the LLM thinker. |
-| **Scratchpad** | The short-term reasoning context the coordinator presents to the thinker (incremental view that can be compacted on growth). |
-| **Agent state** | Per-agent runtime status (working / idle / current-task) cached by the coordinator for use in the next thinker context. |
+| **Decision record** | The persisted pending-decision snapshot. `CoordinatorDecisionRecord` owns typed decision, workflow, target-agent, and task identifiers before replay or thinker context consumes it. |
+| **Workflow state** | The aggregate for one orchestration workflow, including status, current phase, involved agents, context, and status-change events. |
+| **Dispatch route** | The target-agent relationship and event contract selected for a decision. Owned by `CoordinatorDispatchPolicy`. |
+| **Scratchpad** | The short-term reasoning context the coordinator presents to the thinker. It is a derived projection of persisted decisions and workflow/agent state, not the consistency source. |
+| **Agent state** | Per-agent runtime status (working / idle / current-task) cached by the coordinator for use in the next thinker context. `CoordinatorAgentStateRecord` owns the typed agent id and status vocabulary. |
 | **Thinker** | The LLM-backed planner. Behind `CoordinatorThinkerPort` (DDD-019). |
-| **Dispatch envelope** | The wrapper event the coordinator emits to deliver a Decision to a target agent. |
+| **Dispatch envelope** | The primitive event contract selected by the dispatch policy before EventBus publication. |
 
 ## Context-Map Relationships
 
@@ -45,8 +48,12 @@ Per [`module-boundaries.md`](../../../docs/architecture/module-boundaries.md) §
 core/
   application_facade.py     composes use cases for the service shell
   event_use_cases.py        CoordinatorEventUseCase + ThinkerPort + ScratchpadPort
+  domain/dispatch.py        dispatch target value objects + dispatch policy
+  domain/scratchpad.py      scratchpad projection consistency policy
+  domain/state_records.py   typed agent-state + pending-decision records
+  domain/workflow_state.py  workflow lifecycle aggregate + status events
   classifier.py             inbound event → ClassifiedEvent
-  dispatcher.py             Decision → dispatch event
+  dispatcher.py             DispatchEnvelope → EventBus event
   state_ports.py            CoordinatorStateStorePort Protocol
   outbox_ports.py
   outbox_delivery_use_cases.py

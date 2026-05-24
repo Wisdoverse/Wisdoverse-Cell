@@ -15,7 +15,7 @@ import pytest
 
 @pytest.fixture
 def chat_svc():
-    from services.gateways.user_interaction.core.chat_service import ChatService
+    from agents.chat_agent.core.chat_service import ChatService
 
     return ChatService(llm=AsyncMock())
 
@@ -77,11 +77,11 @@ async def test_chat_tool_loop_terminates_at_max(chat_svc):
     )
 
     with patch(
-        "services.gateways.user_interaction.core.chat_service.ToolExecutor.execute",
+        "agents.chat_agent.core.chat_service.ToolExecutor.execute",
         new_callable=AsyncMock,
         return_value='{"result": "ok"}',
     ):
-        from services.gateways.user_interaction.core.chat_service import MAX_TOOL_CALLS
+        from agents.chat_agent.core.chat_service import MAX_TOOL_CALLS
         await chat_svc.chat("hello", user_id="u1")
 
     # +2: initial call + loop calls + final text call after limit
@@ -109,7 +109,7 @@ async def test_tool_limit_returns_text_not_empty(chat_svc):
     )
 
     with patch(
-        "services.gateways.user_interaction.core.chat_service.ToolExecutor.execute",
+        "agents.chat_agent.core.chat_service.ToolExecutor.execute",
         new_callable=AsyncMock,
         return_value='{"result": "ok"}',
     ):
@@ -190,9 +190,9 @@ async def test_model_uses_chat_model_not_default(chat_svc):
 
     text_response = _make_text_response("ok")
     chat_svc._llm.create_messages = AsyncMock(return_value=text_response)
-    from services.gateways.user_interaction.core.config import UserInteractionCoreConfig
+    from agents.chat_agent.core.config import ChatAgentCoreConfig
 
-    chat_svc._config = UserInteractionCoreConfig.from_values(
+    chat_svc._config = ChatAgentCoreConfig.from_values(
         chat_model="claude-sonnet-4-20250514",
     )
     await chat_svc.chat("hi", user_id="u1")
@@ -317,3 +317,47 @@ async def test_chat_with_user_assistant_no_open_id_in_prompt(chat_svc):
     assert "Alice" not in captured_kwargs["system_prompt"]
     assert captured_kwargs["untrusted_context"]["conversation_user_display_name"] == "Alice"
     assert captured_kwargs["context"]["user_id"] == "ou_abc123secret"
+
+
+@pytest.mark.asyncio
+async def test_chat_with_user_assistant_daily_progress_uses_domain_labels(chat_svc):
+    captured_kwargs = {}
+
+    async def fake_chat(
+        *,
+        message,
+        user_id,
+        system_prompt=None,
+        context=None,
+        untrusted_context=None,
+    ):
+        captured_kwargs["untrusted_context"] = untrusted_context
+        return "ok"
+
+    chat_svc.chat = fake_chat
+    chat_svc._daily_progress_store.get_pending = AsyncMock(
+        return_value=[
+            SimpleNamespace(id=1, task_title="Build report", status="pending"),
+            SimpleNamespace(id=2, task_title="Fix API", status="in_progress"),
+        ]
+    )
+
+    await chat_svc.chat_with_user_assistant(
+        message="hi",
+        user_id="ou_user_1",
+        user_name="Alice",
+    )
+
+    records = captured_kwargs["untrusted_context"]["daily_progress"]["records"]
+    assert records == [
+        {
+            "progress_id": 1,
+            "task_title": "Build report",
+            "current_status": "not updated",
+        },
+        {
+            "progress_id": 2,
+            "task_title": "Fix API",
+            "current_status": "in progress",
+        },
+    ]

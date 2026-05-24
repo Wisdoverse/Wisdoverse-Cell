@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from shared.evolution.domain import EvolutionExperiment
 from shared.evolution.models import SkillConfig, SkillStatus
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.utils.logger import get_logger
@@ -219,51 +220,58 @@ class SkillOptimizer:
 
     async def _check_experiment_with_repo(self, repo, experiment_id: str) -> str:
         experiment = await repo.get_experiment_by_id(experiment_id)
-        if experiment is None or experiment.status != "running":
+        if experiment is None:
             return "no_experiment"
 
-        control_results = experiment.control_results or []
-        candidate_results = experiment.candidate_results or []
-        min_samples = int(getattr(experiment, "min_samples", 50) or 50)
+        aggregate = EvolutionExperiment.from_record(experiment)
+        if not aggregate.is_running:
+            return "no_experiment"
 
-        if len(control_results) < min_samples or len(candidate_results) < min_samples:
+        decision = aggregate.optimizer_rollout_decision(
+            rollback_degradation_threshold=_ROLLBACK_DEGRADATION_THRESHOLD,
+        )
+        if decision == "continue":
             return "continue"
 
-        control_mean = sum(control_results) / len(control_results)
-        candidate_mean = sum(candidate_results) / len(candidate_results)
-        min_improvement = float(getattr(experiment, "min_improvement", 0.05) or 0.0)
+        summary = aggregate.score_summary()
 
-        if candidate_mean >= control_mean + min_improvement:
+        if decision == "promote":
             await repo.promote_skill(
-                experiment.skill_id, str(experiment.candidate_version)
+                aggregate.skill_id,
+                str(aggregate.candidate_version),
             )
-            await repo.conclude_experiment(experiment_id, status="promoted")
+            await repo.conclude_experiment(
+                experiment_id,
+                status=aggregate.status_for_decision(decision),
+            )
             await self._memory.record_optimization(
-                experiment.skill_id,
-                int(experiment.candidate_version),
+                aggregate.skill_id,
+                aggregate.candidate_version,
                 True,
                 {
                     "reason": "experiment_promoted",
                     "experiment_id": experiment_id,
-                    "control_mean": round(control_mean, 4),
-                    "candidate_mean": round(candidate_mean, 4),
+                    "control_mean": round(summary.control_mean, 4),
+                    "candidate_mean": round(summary.candidate_mean, 4),
                 },
             )
             return "promote"
 
-        degradation = (control_mean - candidate_mean) / max(control_mean, 0.01)
-        if degradation > _ROLLBACK_DEGRADATION_THRESHOLD:
-            await repo.conclude_experiment(experiment_id, status="rolled_back")
+        if decision == "rollback":
+            await repo.conclude_experiment(
+                experiment_id,
+                status=aggregate.status_for_decision(decision),
+            )
             await self._memory.record_optimization(
-                experiment.skill_id,
-                int(experiment.candidate_version),
+                aggregate.skill_id,
+                aggregate.candidate_version,
                 False,
                 {
                     "reason": "experiment_rolled_back",
                     "experiment_id": experiment_id,
-                    "control_mean": round(control_mean, 4),
-                    "candidate_mean": round(candidate_mean, 4),
-                    "degradation": round(degradation, 4),
+                    "control_mean": round(summary.control_mean, 4),
+                    "candidate_mean": round(summary.candidate_mean, 4),
+                    "degradation": round(summary.degradation, 4),
                 },
             )
             return "rollback"

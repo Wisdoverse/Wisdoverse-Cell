@@ -12,7 +12,7 @@ from httpx import ASGITransport, AsyncClient
 
 @pytest.fixture
 def mock_agent():
-    """Mock ChatAgent for app-level tests"""
+    """Mock chat-agent client for webhook tests."""
     agent = MagicMock()
     agent.agent_id = "chat-agent"
     agent.startup = AsyncMock()
@@ -31,9 +31,12 @@ def mock_agent():
 
 @pytest.fixture
 def test_app(mock_agent):
-    """Create test FastAPI app with mocked webhook agent lookup."""
+    """Create test FastAPI app with mocked webhook chat-agent client lookup."""
     with (
-        patch("services.gateways.user_interaction.api.webhook.get_agent", return_value=mock_agent),
+        patch(
+            "services.gateways.user_interaction.api.webhook.get_chat_agent_client",
+            return_value=mock_agent,
+        ),
         patch("services.gateways.user_interaction.api.webhook.settings") as mock_settings,
     ):
         mock_settings.feishu_verify_signature = False
@@ -51,7 +54,7 @@ async def test_health_endpoint(test_app, mock_agent):
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "alive"
-    assert data["agent"] == "chat-agent"
+    assert data["agent"] == "user-interaction-gateway"
 
 
 @pytest.mark.asyncio
@@ -64,7 +67,7 @@ async def test_readiness_endpoint(test_app, mock_agent):
     assert resp.status_code in (200, 503)
     data = resp.json()
     assert "status" in data
-    assert data["agent"] == "chat-agent"
+    assert data["agent"] == "user-interaction-gateway"
 
 
 @pytest.mark.asyncio
@@ -83,17 +86,14 @@ async def test_webhook_challenge(test_app, mock_agent):
 
 
 @pytest.mark.asyncio
-async def test_daily_progress_route_delegates_to_query_service():
-    """GET /api/daily-progress should delegate read logic to the query use case."""
+async def test_daily_progress_route_delegates_to_chat_agent_client(monkeypatch):
+    """GET /api/daily-progress should proxy to the chat-agent HTTP client."""
+    from types import SimpleNamespace
+
     from fastapi import FastAPI
 
-    from services.gateways.user_interaction.api.daily_progress import (
-        router as daily_progress_router,
-    )
-    from services.gateways.user_interaction.api.dependencies import (
-        get_daily_progress_query_service,
-    )
-    query_service = MagicMock()
+    from services.gateways.user_interaction.api import daily_progress
+
     expected = {
         "entries": [
             {
@@ -110,12 +110,16 @@ async def test_daily_progress_route_delegates_to_query_service():
         ],
         "total": 1,
     }
-    query_service.list_progress_response = AsyncMock(
-        return_value=expected,
+    chat_agent_client = SimpleNamespace(
+        list_daily_progress=AsyncMock(return_value=expected)
+    )
+    monkeypatch.setattr(
+        daily_progress,
+        "get_chat_agent_client",
+        lambda: chat_agent_client,
     )
     app = FastAPI()
-    app.include_router(daily_progress_router)
-    app.dependency_overrides[get_daily_progress_query_service] = lambda: query_service
+    app.include_router(daily_progress.router)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -126,7 +130,7 @@ async def test_daily_progress_route_delegates_to_query_service():
 
     assert resp.status_code == 200
     assert resp.json() == expected
-    query_service.list_progress_response.assert_awaited_once_with(
+    chat_agent_client.list_daily_progress.assert_awaited_once_with(
         target_date=date(2026, 5, 17),
         user_id="u_1",
         days=2,

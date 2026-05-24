@@ -41,3 +41,18 @@ async def test_control_plane_unit_of_work_rolls_back() -> None:
     assert session.commits == 0
     assert session.rollbacks == 1
     assert uow.completed is True
+
+
+async def test_control_plane_unit_of_work_supports_sequential_local_transactions() -> None:
+    session = _SessionStub()
+    uow = ControlPlaneUnitOfWork(session)  # type: ignore[arg-type]
+
+    await uow.commit()
+    uow.begin_next_transaction()
+
+    assert uow.completed is False
+
+    await uow.commit()
+
+    assert session.commits == 2
+    assert uow.completed is True

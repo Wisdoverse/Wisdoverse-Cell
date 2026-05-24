@@ -1,9 +1,5 @@
-"""
-Requirement extraction core logic.
+"""Requirement extraction core logic."""
 
-Extracts structured requirements from meeting records through the LLM Gateway.
-"""
-import json
 from pathlib import Path
 from typing import Optional, Protocol
 
@@ -11,6 +7,8 @@ from pydantic import BaseModel
 
 from shared.infra.prompt_boundaries import wrap_untrusted_json
 from shared.utils.logger import get_logger
+
+from .llm_extraction_response import LLMExtractionResponse
 
 logger = get_logger("extractor")
 
@@ -188,89 +186,40 @@ class RequirementExtractor:
 
     def _parse_response(self, response: str) -> ExtractionResult:
         """Parse the LLM response."""
-        # Try to extract JSON from the response.
         try:
-            # Clean responses that may contain Markdown code fences.
-            cleaned = response.strip()
-            if cleaned.startswith("```json"):
-                cleaned = cleaned[7:]
-            if cleaned.startswith("```"):
-                cleaned = cleaned[3:]
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
-            cleaned = cleaned.strip()
-
-            data = json.loads(cleaned)
-
-            # Parse requirements.
-            requirements = []
-            for req in data.get("requirements", []):
-                requirements.append(ExtractedRequirement(
-                    title=req.get("title", ""),
-                    description=req.get("description", ""),
-                    category=self._normalize_category(req.get("category", "功能")),
-                    priority=self._normalize_priority(req.get("priority", "medium")),
-                    source_quote=req.get("source_quote")
-                ))
-
-            # Parse decisions.
-            decisions = []
-            for dec in data.get("decisions", []):
-                decisions.append(ExtractedDecision(
-                    content=dec.get("content", ""),
-                    decided_by=dec.get("decided_by")
-                ))
-
-            # Parse questions.
-            questions = []
-            for q in data.get("open_questions", []):
-                questions.append(ExtractedQuestion(
-                    question=q.get("question", ""),
-                    context=q.get("context")
-                ))
+            parsed = LLMExtractionResponse.from_text(response)
 
             return ExtractionResult(
-                requirements=requirements,
-                decisions=decisions,
-                open_questions=questions
+                requirements=[
+                    ExtractedRequirement(
+                        title=requirement.title,
+                        description=requirement.description,
+                        category=requirement.category,
+                        priority=requirement.priority,
+                        source_quote=requirement.source_quote,
+                    )
+                    for requirement in parsed.requirements
+                ],
+                decisions=[
+                    ExtractedDecision(
+                        content=decision.content,
+                        decided_by=decision.decided_by,
+                    )
+                    for decision in parsed.decisions
+                ],
+                open_questions=[
+                    ExtractedQuestion(
+                        question=question.question,
+                        context=question.context,
+                    )
+                    for question in parsed.open_questions
+                ],
             )
 
-        except json.JSONDecodeError as e:
+        except ValueError as e:
             logger.error(
                 "json_parse_failed",
                 error=str(e),
                 response_length=len(response or ""),
             )
             return ExtractionResult()
-
-    def _normalize_category(self, category: str) -> str:
-        """Normalize category names."""
-        normalized = category.lower()
-        category_map = {
-            "功能": "功能",
-            "feature": "功能",
-            "性能": "性能",
-            "performance": "性能",
-            "硬件": "硬件",
-            "hardware": "硬件",
-            "集成": "集成",
-            "integration": "集成",
-            "ui": "UI",
-            "UI": "UI",
-            "用户界面": "UI",
-            "安全": "安全",
-            "security": "安全",
-        }
-        return category_map.get(category, category_map.get(normalized, "其他"))
-
-    def _normalize_priority(self, priority: str) -> str:
-        """Normalize priority values."""
-        priority_map = {
-            "high": "high",
-            "高": "high",
-            "medium": "medium",
-            "中": "medium",
-            "low": "low",
-            "低": "low",
-        }
-        return priority_map.get(priority.lower(), "medium")

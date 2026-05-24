@@ -8,6 +8,7 @@ from shared.schemas.event import Event
 
 from .classifier import ClassifiedEvent, classify_event
 from .dispatcher import decision_to_event
+from .domain.scratchpad import CoordinatorScratchpadConsistencyPolicy
 from .models import Decision
 from .state_ports import CoordinatorStateStorePort
 from .unit_of_work_ports import CoordinatorUnitOfWorkFactory
@@ -63,6 +64,7 @@ class CoordinatorEventUseCase:
         self._state_store = state_store
         self._thinker = thinker
         self._uow_factory = uow_factory
+        self._scratchpad_policy = CoordinatorScratchpadConsistencyPolicy()
 
     async def handle(self, event: Event) -> list[Event]:
         classified = classify_event(event)
@@ -97,11 +99,24 @@ class CoordinatorEventUseCase:
             ]
 
         outgoing = [decision_to_event(decision) for decision in decisions]
+        scratchpad_plan = self._scratchpad_policy.plan_after_decision_synthesis(
+            decisions
+        )
 
-        await self._scratchpad.update(decisions)
         await self._persist_decisions_in_uow(decisions)
+        projection_updated = False
+        if scratchpad_plan.requires_projection_update:
+            await self._scratchpad.update(
+                scratchpad_plan.decisions_for_projection()
+            )
+            projection_updated = True
 
-        if self._scratchpad.should_compact():
+        if self._scratchpad_policy.can_compact(
+            scratchpad_plan,
+            compaction_requested=self._scratchpad.should_compact(),
+            decisions_persisted=True,
+            projection_updated=projection_updated,
+        ):
             asyncio.create_task(self._scratchpad.compact())
 
         return outgoing

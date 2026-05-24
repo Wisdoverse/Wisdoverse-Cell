@@ -55,8 +55,11 @@ async def test_fetch_tasks_with_deliverables_skips_scored_tasks(bitable, config)
 
     tasks = await evaluator._fetch_tasks_with_deliverables()
 
-    assert [task["record_id"] for task in tasks] == ["rec_1"]
-    assert tasks[0]["name"] == "Prepare PRD"
+    assert [task.record_id for task in tasks] == ["rec_1"]
+    assert tasks[0].name == "Prepare PRD"
+    assert tasks[0].to_prompt_metadata()["deliverable_link_domain"] == (
+        "example.feishu.cn"
+    )
 
 
 @pytest.mark.asyncio
@@ -108,6 +111,27 @@ async def test_evaluate_all_calls_llm_and_writes_back(bitable, llm, config):
 @pytest.mark.asyncio
 async def test_evaluate_all_without_llm_degrades_visibly(bitable, config):
     evaluator = QualityEvaluator(bitable, config=config)
+    bitable.list_all_records.return_value = [
+        {
+            "record_id": "rec_1",
+            "fields": {
+                "任务(动宾短语)": "Prepare PRD",
+                "交付物/产出链接": "https://example.feishu.cn/docx/abc",
+            },
+        }
+    ]
+
+    result = await evaluator.evaluate_all()
+
+    assert result == []
+    bitable.update_record.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_evaluate_all_continues_when_evaluation_is_invalid(bitable, config):
+    llm = AsyncMock()
+    llm.complete = AsyncMock(return_value='{"quality":"pass","comment":"ok"}')
+    evaluator = QualityEvaluator(bitable, llm_gateway=llm, config=config)
     bitable.list_all_records.return_value = [
         {
             "record_id": "rec_1",

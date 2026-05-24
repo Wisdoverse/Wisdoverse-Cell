@@ -4,20 +4,26 @@ This module owns the domain-level state machine for delivery tasks. Persistence
 adapters call these functions instead of carrying transition rules themselves.
 """
 
-PENDING = "pending"
-PLANNING = "planning"
-AWAITING_APPROVAL = "awaiting_approval"
-EXECUTING = "executing"
-SECURITY_SCANNING = "security_scanning"
-MR_CREATING = "mr_creating"
-MR_CREATED = "mr_created"
-QA_TRIGGERED = "qa_triggered"
-REVIEWING = "reviewing"
-COMPLETED = "completed"
-FAILED = "failed"
-EXPIRED = "expired"
+from __future__ import annotations
 
-VALID_TRANSITIONS: dict[str, set[str]] = {
+from typing import NewType
+
+TaskStatus = NewType("TaskStatus", str)
+
+PENDING = TaskStatus("pending")
+PLANNING = TaskStatus("planning")
+AWAITING_APPROVAL = TaskStatus("awaiting_approval")
+EXECUTING = TaskStatus("executing")
+SECURITY_SCANNING = TaskStatus("security_scanning")
+MR_CREATING = TaskStatus("mr_creating")
+MR_CREATED = TaskStatus("mr_created")
+QA_TRIGGERED = TaskStatus("qa_triggered")
+REVIEWING = TaskStatus("reviewing")
+COMPLETED = TaskStatus("completed")
+FAILED = TaskStatus("failed")
+EXPIRED = TaskStatus("expired")
+
+VALID_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     PENDING: {PLANNING, EXPIRED, FAILED},
     PLANNING: {AWAITING_APPROVAL, EXECUTING, FAILED},
     AWAITING_APPROVAL: {EXECUTING, FAILED},
@@ -32,7 +38,7 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
     EXPIRED: set(),
 }
 
-ACTIVE_STATUSES: tuple[str, ...] = (
+ACTIVE_STATUSES: tuple[TaskStatus, ...] = (
     EXECUTING,
     SECURITY_SCANNING,
     MR_CREATING,
@@ -41,16 +47,19 @@ ACTIVE_STATUSES: tuple[str, ...] = (
     REVIEWING,
 )
 
-IN_PROGRESS_STATUSES: tuple[str, ...] = (
+IN_PROGRESS_STATUSES: tuple[TaskStatus, ...] = (
     PLANNING,
     AWAITING_APPROVAL,
     *ACTIVE_STATUSES,
 )
 
 
-def can_transition(from_status: str, to_status: str) -> bool:
+def can_transition(from_status: TaskStatus | str, to_status: TaskStatus | str) -> bool:
     """Return whether a delivery task can move between two lifecycle states."""
-    return to_status in VALID_TRANSITIONS.get(from_status, set())
+    return TaskStatus(str(to_status)) in VALID_TRANSITIONS.get(
+        TaskStatus(str(from_status)),
+        set(),
+    )
 
 
 __all__ = [
@@ -68,6 +77,7 @@ __all__ = [
     "QA_TRIGGERED",
     "REVIEWING",
     "SECURITY_SCANNING",
+    "TaskStatus",
     "VALID_TRANSITIONS",
     "can_transition",
 ]

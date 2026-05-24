@@ -47,20 +47,24 @@ When you add a new context, you must add a row to this document **and** to
 ### 2.1 Control Plane / Governance
 
 - Runtime owner: `shared/control_plane/`
-- Core responsibility: durable operating ledger of the company.
+- Core responsibility: durable operating ledger of the company. The local
+  glossary lives in [`shared/control_plane/README.md`](../../shared/control_plane/README.md).
 - Business objects: `Company`, `Goal`, `AgentRole`, `WorkItem`, `AgentRun`,
   `Decision`, `ApprovalRequest`, `BudgetPolicy`, `BudgetUsage`, `Artifact`,
-  `AuditEvent`, `EvolutionProposal`, `AgentPromptConfig`.
-- Owned data: `control_plane_*` tables.
+  `AuditEvent`, `EvolutionProposal`, `AgentPromptConfig`, and stateless
+  `ControlPlaneDomainService` policies for cross-aggregate rules.
+- Owned data: `control_plane_*` tables, including
+  `control_plane_event_outbox` for aggregate-raised domain events.
 - Exposed capabilities: `/api/v1/control-plane/*`, `/agent/request` wakeups,
-  run-evidence APIs, budget enforcement, approval gates.
+  run-evidence APIs, budget enforcement, approval gates, and durable
+  domain-event outbox staging.
 - Outbound dependencies: runtime agents (writes runs, artifacts, audit);
   LLM Gateway (budget usage); gateways (approvals consumption).
 - Boundary clarity: high (single owner); internal SQL ownership is now behind
   per-aggregate stores. The retired `repository.py` facade no longer exists;
   callers use store ports/factory adapters.
 - Split fitness: must remain central. Do not extract.
-- Context-map relationships: Open-Host Service to every runtime agent via `/api/v1/control-plane/*` and `/agent/request`. Published Language on `AgentRun`, `ApprovalRequest`, `BudgetPolicy`, `Artifact`, `AuditEvent` Pydantic records. No upstream context (root authority).
+- Context-map relationships: Open-Host Service to every runtime agent via `/api/v1/control-plane/*` and `/agent/request`. Published Language on `AgentRun`, `ApprovalRequest`, `BudgetPolicy`, `Artifact`, `AuditEvent` Pydantic records, `control_plane_event_outbox` integration-event rows, `ControlPlaneMetadata` JSON payload vocabulary, the `ControlPlaneStateMachine` lifecycle contract, and `ControlPlaneDomainService` policy naming for cross-aggregate rules. No upstream context (root authority).
 
 ### 2.2 Requirement Management
 
@@ -78,7 +82,7 @@ When you add a new context, you must add a row to this document **and** to
 - Boundary clarity: high.
 - Split fitness: future service candidate. Gating: per-runtime migrations,
   analytics projection, contract tests, OpenAPI snapshot.
-- Context-map relationships: Anti-Corruption Layer to Interaction Gateway (meetings, chat) and Feishu via `shared/integrations/feishu/`. Customer/Supplier to PJM Agent (emits `requirement.*` integration events; PJM is the primary consumer). Conformist to Control Plane (uses run / audit Published Language as-is).
+- Context-map relationships: Anti-Corruption Layer to Interaction Gateway (meetings, chat), Feishu via `shared/integrations/feishu/`, and LLM Gateway extraction responses via `core/llm_extraction_response.py`. Customer/Supplier to PJM Agent (emits `requirement.*` integration events; PJM is the primary consumer). Conformist to Control Plane on `AgentRun`, `AuditEvent` Published Language.
 
 ### 2.3 Planning / PJM
 
@@ -129,7 +133,8 @@ When you add a new context, you must add a row to this document **and** to
 - Runtime owner: `shared/capabilities/sync/`
 - Core responsibility: project OpenProject ↔ Feishu Bitable; manage sync
   locks; propagate progress backflow.
-- Business objects: `SyncMapping`, `SubtaskMapping`, `SyncLock`, `SyncLog`.
+- Business objects: `SyncMappingRecord`, `SubtaskMappingRecord`, `SyncLock`,
+  `SyncLog`.
 - Owned data: `sync_agent_*` tables.
 - Exposed capabilities: sync trigger commands, sync status, sync events.
 - Outbound dependencies: OpenProject, Feishu Bitable, PJM.
@@ -141,18 +146,37 @@ When you add a new context, you must add a row to this document **and** to
 ### 2.7 Interaction / Channel Gateway
 
 - Runtime owner: `services/gateways/user_interaction/`,
-  `services/gateways/channel/`
+  `services/gateways/channel/`; chat product runtime:
+  `agents/chat_agent/`
 - Core responsibility: receive inbound chat and webhook traffic; deliver
   outbound messages across channels.
-- Business objects: `ConversationHistory`, `CardOperation`, `DailyProgress`.
-- Owned data: `chat_agent_*`, `channel_gateway_event_outbox`.
+- Business objects: gateway owns none; `ConversationHistory`,
+  `CardOperation`, `DailyProgress` now belong to `agents/chat_agent/`.
+- Owned data: user-interaction gateway owns transport/webhook state only;
+  `chat_agent_*` belongs to `agents/chat_agent/`;
+  `channel_gateway_event_outbox` belongs to Channel Gateway as gateway
+  infrastructure and its retry/publish state is guarded by
+  `ChannelGatewayOutboxLifecycle`.
 - Exposed capabilities: chat REST and webhooks; outbound card operations;
   channel messages.
 - Outbound dependencies: Feishu, WeCom, runtime agents (downstream of
   intent), Control Plane.
-- Boundary clarity: medium. Gateway must not own product-domain records.
+- Boundary clarity: high. ADR-0010 Steps 1-7 moved chat product runtime
+  composition, persistence, scheduler, outbox dispatching, and HTTP API
+  ownership to `agents/chat_agent/`; the gateway calls it through HTTP
+  adapters and keeps only transport/webhook/card concerns.
 - Split fitness: gateway boundary, not a business context. Keep as-is.
-- Context-map relationships: Interaction Gateway is Anti-Corruption Layer to external users via Feishu / WeCom adapters (translates inbound platform messages into typed inbound events). Conformist to downstream Coordinator and chat-agent target on event payloads. Channel Gateway is Open-Host Service for `channel.message.outbound` emitted by any runtime, and Anti-Corruption Layer to external channels via adapters. **Currently violates the gateway-not-product rule via Interaction Gateway ownership of `chat_agent_*` tables — see DDD-016.**
+- Context-map relationships: Interaction Gateway is Anti-Corruption Layer
+  to external users via Feishu / WeCom adapters (translates inbound
+  platform messages into typed inbound events). Conformist to downstream
+  Coordinator and chat-agent target on event payloads. Channel Gateway is
+  Open-Host Service for `channel.message.outbound` emitted by any runtime,
+  and Anti-Corruption Layer to external channels via `ChannelProviderACL` plus
+  concrete adapters. DDD-016 is
+  closed for the gateway code boundary; tactical chat aggregate modeling
+  remains a separate chat-agent concern. Channel Gateway is Open-Host Service
+  for outbound delivery events and must keep that relationship documented in
+  its runtime README.
 
 ### 2.8 Coordination / Orchestration
 
@@ -160,30 +184,57 @@ When you add a new context, you must add a row to this document **and** to
 - Core responsibility: classify and dispatch cross-boundary events; keep
   scratchpad and short-term state for coordination decisions.
 - Business objects: `CoordinatorEventOutbox`, scratchpad, agent-state store
-  (port-backed).
-- Owned data: `coordinator_event_outbox`; durable backing of scratchpad and
-  state store needs confirmation (open question in Phase 1 analysis §11).
+  (port-backed), `CoordinatorWorkflowState`, `CoordinatorDispatchRoute`,
+  `CoordinatorDispatchEnvelope`, `CoordinatorAgentStateRecord`,
+  `CoordinatorDecisionRecord`, `CoordinatorScratchpadProjectionPlan`.
+- Owned data: `coordinator_event_outbox`; durable `coordinator_agent_state`,
+  `coordinator_workflow_state`, and `coordinator_pending_decision` are explicit
+  when `COORDINATOR_DURABLE_STATE=true`. Scratchpad files are a derived
+  reasoning projection after decision persistence, not the consistency source.
 - Exposed capabilities: cross-boundary dispatch events.
 - Outbound dependencies: all runtime agents, LLM (thinker), Control Plane.
-- Boundary clarity: medium. Durable-state backing is implicit.
+- Boundary clarity: medium. Durable-state backing is explicit when
+  `COORDINATOR_DURABLE_STATE=true`; workflow-state writes are validated by
+  `core/domain/workflow_state.py`, dispatch target contracts are owned by
+  `core/domain/dispatch.py`, scratchpad projection ordering is owned by
+  `core/domain/scratchpad.py`, and persisted agent/decision identities are
+  normalized by `core/domain/state_records.py`.
 - Split fitness: not a candidate until durable-state and replay contracts
   are explicit.
-- Context-map relationships: Open-Host Service to all runtime agents (consumes their events from the EventBus). Customer/Supplier to all runtime agents (emits dispatch decisions targeted to specific agents). Anti-Corruption Layer to LLM via `shared.infra.llm_gateway` is pending — current `CoordinatorThinker` callable does not translate raw LLM responses into typed domain decisions (DDD-019). Conformist to Control Plane.
+- Context-map relationships: Open-Host Service to all runtime agents (consumes
+  their events from the EventBus). Customer/Supplier to all runtime agents
+  (emits dispatch decisions targeted to specific agents through
+  `CoordinatorDispatchPolicy`). Anti-Corruption Layer to LLM via
+  `CoordinatorThinkerPort` and `shared.infra.llm_gateway`; raw LLM responses
+  are translated into typed `Decision` records before dispatch. Conformist to
+  Control Plane.
 
 ### 2.9 Analytics / Reporting
 
 - Runtime owner: `shared/capabilities/analysis/`
 - Core responsibility: generate risk and operating reports from
-  operational evidence.
-- Business objects: `AnalysisReportLog`.
+  operational evidence and Analysis-owned projections.
+- Business objects: `GeneratedAnalysisReport`, `AnalysisReportStats`,
+  `WorkPackageProjection`, `SubtaskProgressProjection`,
+  `AnalysisReportLogRecord`, `AnalysisFeishuTaskSnapshot`.
 - Owned data: `analysis_agent_*`.
 - Exposed capabilities: analysis REST API, analysis events.
-- Outbound dependencies: requirement, PJM, Dev, QA tables (currently
-  direct read). Must move to projections.
-- Boundary clarity: low. Reads cross domain tables; no projection layer.
-- Split fitness: projection / read-model service candidate. Pre-condition:
-  stop direct source-table reads.
-- Context-map relationships: Customer/Supplier to all reporting consumers (emits `analysis.report-*` and `analysis.risk-*` events). **Broken Customer/Supplier to source-domain runtimes today** — Analysis reads directly from `OpenProjectWorkPackagePort` and Bitable port rather than consuming a Published Language projection (DDD-004 introduces the projection layer). Conformist to Control Plane.
+- Outbound dependencies: Sync / PJM projections, Feishu Bitable task port for
+  projection refresh and quality write-back, downstream report/risk/quality
+  event consumers.
+- Boundary clarity: high. OpenProject work-package and Feishu task reads for
+  reports/risks now go through the Analysis-owned projection; Feishu Bitable
+  task records are translated by `AnalysisFeishuTaskACL` into Analysis-owned
+  snapshots at the projection boundary before report stats or formatting
+  consume them.
+- Split fitness: projection / read-model service candidate. Pre-condition is
+  now met for report/risk reads; quality write-back remains an explicit
+  platform port interaction.
+- Context-map relationships: Customer/Supplier to Sync / PJM through the
+  Analysis-owned work-package/subtask projection; Customer/Supplier to all
+  reporting consumers (emits `analysis.report-*` and `analysis.risk-*`
+  events); Anti-Corruption Layer to Feishu Bitable task records through the
+  projection updater and `AnalysisFeishuTaskACL`; Conformist to Control Plane.
 
 ### 2.10 Evolution
 
@@ -213,16 +264,23 @@ When you add a new context, you must add a row to this document **and** to
 
 - Runtime owner: `shared/db/user_store.py`,
   `shared/messaging/inbound/user_service.py`
-- Core responsibility: platform user identity, lookup, runtime context.
-- Business objects: `User`, `Platform`.
-- Owned data: `users`.
+- Core responsibility: platform user identity, contact value normalization,
+  lookup, runtime context, and PII-safe identity event staging.
+- Business objects: `User`, `PlatformUserRef`, `EmailAddress`, `PhoneNumber`,
+  `IdentityState`, `Platform`, `IdentityEventOutbox`.
+- Owned data: `users`, `identity_event_outbox`.
 - Exposed capabilities: identity lookup through messaging inbound and
-  shared user store. No dedicated public API today.
+  shared user store; `identity.*` events through `identity_event_outbox`.
+  No dedicated public API today.
 - Outbound dependencies: every runtime that needs user context.
-- Boundary clarity: low. Multiple read paths; no public API.
+- Boundary clarity: high. Writes route through the `UserService` shell,
+  core `IdentityResolutionUseCase`, `UserIdentityStore`, and aggregate
+  methods; aggregate-raised events are mapped through
+  `identity_event_from_domain_event()` and staged in the identity outbox.
+  No public API yet.
 - Split fitness: define the public boundary first. Splitting can wait
   until the API contract is durable.
-- Context-map relationships: Anti-Corruption Layer to inbound platform identifiers (Feishu OpenID, WeCom UserID, Web User ID) via the inbound message path. Published Language for the `User` Pydantic model; downstream runtimes resolve through `UserIdentityStore.get_by_id` and never join the `users` table. See [`identity-boundary.md`](./identity-boundary.md) for the full contract.
+- Context-map relationships: Anti-Corruption Layer to inbound platform identifiers (Feishu OpenID, WeCom UserID, Web User ID, OpenClaw user ID) via the inbound message path. Published Language for the `User` model, `UserIdentityStore`, and PII-safe `identity.*` events; downstream runtimes resolve through `UserIdentityStore.get_by_id` and never join the `users` table. See [`identity-boundary.md`](./identity-boundary.md) for the full contract.
 
 ### 2.12 Integration Plane (Feishu, WeCom, OpenProject, GitLab, AgentForge)
 
@@ -237,7 +295,7 @@ When you add a new context, you must add a row to this document **and** to
 - Boundary clarity: high. Centralized; no duplication.
 - Split fitness: never a separately deployed business service. Treat as
   adapter library.
-- Context-map relationships: Anti-Corruption Layer for every external system (Feishu, WeCom, OpenProject, GitLab, AgentForge, OpenClaw). Translates external SDK types into domain-friendly types per integration ports in `shared/core/integration_ports.py`. Coverage is incomplete — OpenProject port still returns `dict[str, Any]`, OpenClaw takes raw dicts, WeCom lacks a dedicated port (DDD-013, DDD-022).
+- Context-map relationships: Anti-Corruption Layer for every external system (Feishu, WeCom, OpenProject, GitLab, AgentForge, OpenClaw). Translates external SDK types into domain-friendly types per integration ports in `shared/core/integration_ports.py`: `OpenProjectWorkPackagePort` returns `OpenProjectWorkPackage` TypedDict records, `WecomMessengerPort` is the named WeCom messaging port, and `OpenClawIntegrationPort` is the named OpenClaw messaging port (DDD-013, DDD-022).
 
 ---
 

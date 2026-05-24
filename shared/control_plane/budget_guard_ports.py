@@ -5,7 +5,7 @@ from typing import Protocol
 
 from shared.core.identifiers import CompanyId
 
-from .models import AgentRun, BudgetPeriod, BudgetPolicy, BudgetScope, BudgetUsage
+from .models import AgentRun, AuditEvent, BudgetPeriod, BudgetPolicy, BudgetScope, BudgetUsage
 
 
 class ControlPlaneBudgetGuardStore(Protocol):
@@ -26,6 +26,9 @@ class ControlPlaneBudgetGuardStore(Protocol):
 
     async def record_budget_usage(self, usage: BudgetUsage) -> BudgetUsage:
         """Record one budget usage row."""
+
+    async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
+        """Append a control-plane audit event."""
 
     async def add_agent_run_usage(
         self,

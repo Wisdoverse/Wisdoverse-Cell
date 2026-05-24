@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from shared.control_plane.agent_runner import ControlPlaneAgentRunner
+from shared.control_plane.domain.agent_wakeup_adapter import AgentWakeupAdapterConfig
 
 
 @pytest.mark.asyncio
@@ -29,7 +30,11 @@ async def test_http_adapter_propagates_internal_key_and_trace_id() -> None:
         mock_settings.internal_service_key = "secret-key"
 
         result = await runner._execute_http(
-            {"base_url": "http://agent.test"},
+            AgentWakeupAdapterConfig(
+                agent_id="http-runner",
+                adapter_type="http",
+                config={"base_url": "http://agent.test"},
+            ),
             {"action": "wakeup", "trace_id": "trace-runner-http"},
         )
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 from typing import Protocol
 
 from shared.schemas.event import Event, EventTypes
-from shared.schemas.event_payloads import CodeCommittedPayload, QARunRequestedPayload
 from shared.utils.logger import get_logger
 
 from ..models.schemas import AcceptanceExecutionResult, QARunRequest
@@ -25,11 +24,33 @@ class QAEventRunnerPort(Protocol):
         """Run one acceptance check."""
 
 
+class QAAcceptanceRequestEnvelopePort(Protocol):
+    """Translated QA-local request plus source-system context."""
+
+    request: QARunRequest
+
+
+class QAAcceptanceRequestTranslatorPort(Protocol):
+    """Translates external QA-trigger events into QA-local run requests."""
+
+    def from_code_committed(self, event: Event) -> QAAcceptanceRequestEnvelopePort:
+        """Translate one code.committed event."""
+
+    def from_run_requested(self, event: Event) -> QAAcceptanceRequestEnvelopePort:
+        """Translate one qa.run-requested event."""
+
+
 class QAEventUseCase:
     """Dispatch QA events without leaking event parsing into the service shell."""
 
-    def __init__(self, *, runner: QAEventRunnerPort) -> None:
+    def __init__(
+        self,
+        *,
+        runner: QAEventRunnerPort,
+        request_translator: QAAcceptanceRequestTranslatorPort,
+    ) -> None:
         self._runner = runner
+        self._request_translator = request_translator
 
     async def handle(self, event: Event) -> list[Event]:
         if event.event_type == EventTypes.CODE_COMMITTED:
@@ -45,40 +66,17 @@ class QAEventUseCase:
         return []
 
     async def _handle_code_committed(self, event: Event) -> None:
-        payload = CodeCommittedPayload.model_validate(event.payload)
-        request = QARunRequest(
-            agent_name=payload.agent_name,
-            level="all",
-            commit_sha=payload.commit_sha,
-            diff_ref=payload.diff_ref,
-            files_changed=payload.files_changed,
-            branch=payload.branch,
-            mr_iid=payload.mr_iid,
-            gitlab_project_id=payload.gitlab_project_id,
-            trigger="event",
-            requested_by="code.committed",
-        )
+        translated = self._request_translator.from_code_committed(event)
         await self._runner.run_acceptance(
-            request,
+            translated.request,
             trace_id=_trace_id(event),
             trigger_event_id=event.event_id,
         )
 
     async def _handle_run_requested(self, event: Event) -> None:
-        payload = QARunRequestedPayload.model_validate(event.payload)
-        request = QARunRequest(
-            agent_name=payload.agent_name,
-            level=payload.level,
-            commit_sha=payload.commit_sha,
-            files_changed=payload.files_changed,
-            mr_iid=payload.mr_iid,
-            gitlab_project_id=payload.gitlab_project_id,
-            trigger="event",
-            requested_by=payload.requested_by,
-            reason=payload.reason,
-        )
+        translated = self._request_translator.from_run_requested(event)
         await self._runner.run_acceptance(
-            request,
+            translated.request,
             trace_id=_trace_id(event),
             trigger_event_id=event.event_id,
         )

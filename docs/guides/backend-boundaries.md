@@ -1,6 +1,6 @@
 # Backend Boundaries and Data Ownership
 
-Last updated: 2026-05-17
+Last updated: 2026-05-23
 
 This guide is the backend boundary contract for the current modular-monolith
 stage. Wisdoverse Cell is not a traditional DDD monolith and is not yet a fully
@@ -47,27 +47,29 @@ stable before any additional service extraction.
 | Delivery / Dev | `agents/dev_agent` | Delivery tasks, workflow execution, MR handoff, QA request | Strong candidate for independent scaling because it owns long-running workflows |
 | Quality / QA | `agents/qa_agent` | Acceptance runs and quality results | Strong candidate for independent execution once trigger contracts are stable |
 | Sync / Integration Projection | `shared/capabilities/sync` | OpenProject to Feishu Bitable projection, Feishu progress backflow, sync locks | Keep as one capability for now; keep OpenProject and Feishu Bitable sub-boundaries separate inside core |
-| Interaction / Channel | `services/gateways/user_interaction`, `services/gateways/channel` | Chat, webhooks, card operations, outbound delivery | Gateway boundary; do not let it own product-domain records |
+| Chat Agent | `agents/chat_agent` | Conversation history, card operations, daily progress, chat-triggered integration commands | Runtime extraction remains in ADR-0010 cutover until gateway compatibility paths are removed |
+| Interaction / Channel Gateways | `services/gateways/user_interaction`, `services/gateways/channel` | Chat/webhook ingress, platform ACLs, outbound delivery | Gateway boundary; do not let it own product-domain records |
 | Coordination / Orchestration | `services/orchestration/coordinator` | Cross-boundary routing decisions, dispatch commands, workflow coordination state | Keep modular until durable state and operator replay contracts are explicit |
 | Analytics / Reporting | `shared/capabilities/analysis` | Risk and report generation from read models or explicit source data | Projection/read-model service candidate; should not own source-domain writes |
 | Evolution | `shared/capabilities/evolution`, `shared/evolution` | Skill, prompt, architecture, and collaboration optimization records | Keep guarded; split only after approval/rollback contracts are hardened |
-| Identity / User | `shared/models/user.py`, `shared/db/repository.py`, `shared/messaging/inbound/user_service.py` | Platform user identity and user lookup | Keep as a shared boundary for now; route writes through the identity/user service path |
+| Identity / User | `shared/models/user.py`, `shared/core/identity_domain.py`, `shared/core/identity_event_outbox.py`, `shared/db/repository.py`, `shared/db/identity_event_outbox_store.py`, `shared/messaging/inbound/user_service.py` | Platform user identity, contact value normalization, user lookup, and PII-safe identity event staging | Keep as a shared boundary for now; route writes through the identity/user service path |
 
 ## 3. Table Ownership
 
 | Tables | Owner boundary | Write contract | Read contract |
 |--------|----------------|----------------|---------------|
-| `control_plane_companies`, `control_plane_goals`, `control_plane_agent_roles`, `control_plane_agent_prompt_configs`, `control_plane_work_items`, `control_plane_agent_runs`, `control_plane_decisions`, `control_plane_approval_requests`, `control_plane_artifacts`, `control_plane_budget_policies`, `control_plane_budget_usage`, `control_plane_audit_events`, `control_plane_evolution_proposals` | Control Plane / Governance | `shared/control_plane` repository/API only | Control-plane API or explicit read-only reporting path |
+| `control_plane_companies`, `control_plane_goals`, `control_plane_agent_roles`, `control_plane_agent_prompt_configs`, `control_plane_work_items`, `control_plane_agent_runs`, `control_plane_decisions`, `control_plane_approval_requests`, `control_plane_artifacts`, `control_plane_budget_policies`, `control_plane_budget_usage`, `control_plane_audit_events`, `control_plane_event_outbox`, `control_plane_evolution_proposals` | Control Plane / Governance | `shared/control_plane` repository/API only | Control-plane API, Control Plane event outbox dispatcher, or explicit read-only reporting path |
 | `meetings`, `requirements`, `open_questions`, `feedback_records`, `llm_usage`, `chat_messages`, `requirement_event_outbox` | Requirement | Requirement Manager application services and repositories | Requirement API, gRPC requirement service, EventBus events, or requirement read models |
 | `pjm_agent_alert_logs`, `pjm_agent_config_cache`, `pjm_agent_decomposition_records`, `pjm_agent_event_outbox` | Planning / PJM | PJM agent application services and repositories | PJM API/events or reporting projections |
 | `dev_agent_tasks`, `dev_agent_workflow_logs`, `dev_agent_event_outbox` | Delivery / Dev | Dev agent application services and repositories | Dev API/events or reporting projections |
 | `qa_acceptance_runs`, `qa_acceptance_results`, `qa_agent_event_outbox` | Quality / QA | QA agent application services and repositories | QA API/events or reporting projections |
 | `sync_agent_mappings`, `sync_agent_subtask_mappings`, `sync_agent_logs`, `sync_agent_locks`, `sync_agent_event_outbox` | Sync / Integration Projection | Sync capability only | Sync API/status endpoints or explicit projection reads |
-| `chat_agent_conversation_histories`, `chat_agent_card_operations`, `chat_agent_daily_progress`, `chat_agent_event_outbox`, `channel_gateway_event_outbox` | Interaction / Channel | User interaction and channel gateways only | Gateway API/events or analytics projection |
+| `chat_agent_conversation_histories`, `chat_agent_card_operations`, `chat_agent_daily_progress`, `chat_agent_event_outbox` | Chat Agent | Chat-agent application services and repositories | Chat-agent API/events or analytics projection |
+| `channel_gateway_event_outbox` | Channel Gateway | Channel gateway only | Gateway API/events or analytics projection |
 | `coordinator_event_outbox` | Coordination / Orchestration | Coordinator runtime only | Coordinator events and operator replay tooling |
 | `analysis_agent_report_logs`, `analysis_agent_event_outbox` | Analytics / Reporting | Analysis capability only | Analysis API/report endpoints and analysis events |
 | `evolution_event_outbox`, `evolution_traces`, `evolution_skill_configs`, `evolution_reflections`, `evolution_experiments`, `evolution_memory`, `evolution_collaboration_patterns` | Evolution | Evolution capability and evolution stores only | Evolution API/control-plane proposal views and evolution events |
-| `users` | Identity / User | Identity/user service path only; do not add new writes from unrelated modules | User lookup APIs or inbound messaging user service only |
+| `users`, `identity_event_outbox` | Identity / User | Identity/user service path only; stage aggregate-raised identity events in the local transaction | User lookup APIs, inbound messaging user service, or identity event outbox dispatcher only |
 
 ## 4. API and Event Contracts
 
@@ -110,8 +112,8 @@ stable before any additional service extraction.
 
 | Gap | Risk | Next step |
 |-----|------|-----------|
-| `users` still lacks a dedicated public user/profile API boundary | Identity data can become shared mutable state if unrelated modules write directly | Keep writes behind the identity/user service path and make an explicit API ownership decision before expanding auth or profile writes |
-| Requirement events, PJM decomposition API events, QA acceptance events, Sync lifecycle/decomposition handoff events, user-interaction sync trigger commands, PJM service notifications, Dev result-collection callback events, channel gateway events, analysis report/risk/quality events, coordinator dispatch/handoff events, and evolution proposal events now use durable outboxes and runtime dispatchers | Event delivery is retryable, but the outbox tables still share one database in the modular-monolith stage | Keep service extraction blocked until each runtime has deployment evidence and read-model/projection strategy |
+| `users` still lacks a dedicated public user/profile API boundary | Identity data can become shared mutable state if unrelated modules write directly | Keep writes behind the identity/user service path, aggregate methods, and identity outbox; make an explicit API ownership decision before expanding auth or profile writes |
+| Requirement events, PJM decomposition API events, QA acceptance events, Sync lifecycle/decomposition handoff events, chat-agent sync trigger commands, PJM service notifications, Dev result-collection callback events, channel gateway events, analysis report/risk/quality events, coordinator dispatch/handoff events, evolution proposal events, and identity events now use durable outboxes and runtime dispatchers or dispatcher-ready tables | Event delivery is retryable, but the outbox tables still share one database in the modular-monolith stage | Keep service extraction blocked until each runtime has deployment evidence and read-model/projection strategy |
 | Retired compatibility layers under `shared/services`, root `skills/`, and `shared.grpc.server` | New imports can reintroduce old coupling if the packages return | Keep architecture tests blocking package resurrection and retired-path imports |
 | Analysis can drift into source-table reads | Reporting code can become implicit owner of other domains | Define read-only projections before expanding analytics |
 | Error response shape is standardized at the `create_agent_app()` boundary and covered by runtime contract tests for auth, HTTPException, validation, and unexpected failures; route-specific consumer tests are still uneven | Operators and clients can rely on the base runtime envelope, but route-level drift can still slip through direct router tests | Expand route-specific consumer tests and remove direct-router expectations that only assert FastAPI's legacy `detail` body |

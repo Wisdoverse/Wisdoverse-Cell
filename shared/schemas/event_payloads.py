@@ -491,6 +491,19 @@ class EvolutionProposalEventPayload(ControlPlaneReferencePayload):
     approval_id: str | None = None
 
 
+class IdentityEventPayload(BaseModel):
+    """identity.* event payload."""
+
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    user_id: str
+    domain_event: Literal["UserCreated", "PlatformLinked", "UserActivated"]
+    occurred_at: str
+    platform: str | None = None
+    email_present: bool | None = None
+    phone_present: bool | None = None
+
+
 class EvolutionCycleTriggeredPayload(BaseModel):
     """evolution.cycle-triggered event payload."""
 
@@ -620,6 +633,18 @@ class SyncCompletedPayload(BaseModel):
     synced_count: int = Field(default=0, ge=0)
     scope: SyncScope = "full"
     errors: list[str] = Field(default_factory=list)
+
+
+class SyncProgressUpdatedPayload(BaseModel):
+    """sync.progress-updated event payload."""
+
+    model_config = ConfigDict(strict=True)
+
+    parent_op_id: int = Field(gt=0)
+    progress_percent: int = Field(ge=0, le=100)
+    subtask_count: int = Field(ge=0)
+    completed_subtask_count: int = Field(ge=0)
+    scope: Literal["feishu_bitable"] = "feishu_bitable"
 
 
 class SyncFailedPayload(BaseModel):
@@ -1004,6 +1029,9 @@ EVENT_PAYLOAD_MODELS = {
     "audit.event-recorded": AuditEventRecordedPayload,
     "evolution_proposal.created": EvolutionProposalEventPayload,
     "evolution_proposal.updated": EvolutionProposalEventPayload,
+    "identity.user-created": IdentityEventPayload,
+    "identity.platform-linked": IdentityEventPayload,
+    "identity.user-activated": IdentityEventPayload,
     "evolution.cycle-triggered": EvolutionCycleTriggeredPayload,
     "evolution.skill-proposed": EvolutionSkillProposedPayload,
     "evolution.human-feedback": EvolutionHumanFeedbackPayload,
@@ -1015,6 +1043,7 @@ EVENT_PAYLOAD_MODELS = {
     "sync.trigger": SyncTriggerPayload,
     "sync.started": SyncStartedPayload,
     "sync.completed": SyncCompletedPayload,
+    "sync.progress-updated": SyncProgressUpdatedPayload,
     "sync.failed": SyncFailedPayload,
     "report.daily-generated": ReportGeneratedPayload,
     "report.weekly-generated": ReportGeneratedPayload,

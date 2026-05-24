@@ -7,8 +7,10 @@ from typing import Any, Protocol
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
-from ..models.schemas import RiskLevel, SanitizedTask, TaskInput
+from ..models.schemas import SanitizedTask, TaskInput
+from .domain.delivery_policy import DevDeliveryWorkflowPolicy
 from .domain.lifecycle.task_lifecycle import REVIEWING
+from .domain.task_values import RiskLevel
 from .input_sanitizer import InputRejectedError
 from .repositories import DevTaskRepositoryPort, DevWorkflowLogRepositoryPort
 from .unit_of_work_ports import DevUnitOfWorkFactory
@@ -77,6 +79,7 @@ class DevEventUseCase:
         result_collector_factory: DevResultCollectorFactory,
         task_processor: DevTaskProcessor,
         event_factory: DevEventFactoryPort,
+        workflow_policy: DevDeliveryWorkflowPolicy | None = None,
     ) -> None:
         self._sanitizer = sanitizer
         self._risk_assessor = risk_assessor
@@ -85,6 +88,7 @@ class DevEventUseCase:
         self._result_collector_factory = result_collector_factory
         self._task_processor = task_processor
         self._event_factory = event_factory
+        self._workflow_policy = workflow_policy or DevDeliveryWorkflowPolicy()
 
     async def handle(self, event: Event) -> list[Event]:
         if event.event_type == EventTypes.PM_TASKS_READY_FOR_DEV:
@@ -119,10 +123,10 @@ class DevEventUseCase:
                     related_files=task_data.get("related_files", []),
                 )
                 sanitized = self._sanitizer.sanitize(task_input)
-                risk = self._risk_assessor.assess(sanitized)
+                risk = RiskLevel(self._risk_assessor.assess(sanitized))
                 sanitized.risk_level = risk
 
-                if risk == RiskLevel.CRITICAL:
+                if self._workflow_policy.rejects_automatic_delivery(risk):
                     logger.warning("task_rejected_critical", wp_id=sanitized.wp_id)
                     events.append(
                         self._event_factory.create_event(

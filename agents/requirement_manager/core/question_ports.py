@@ -2,6 +2,8 @@
 
 from typing import Any, Protocol
 
+from shared.core.identifiers import OpenQuestionId
+
 
 class RequirementQuestionStore(Protocol):
     """Persistence port for clarification-question use cases."""
@@ -11,7 +13,7 @@ class RequirementQuestionStore(Protocol):
 
     async def answer(
         self,
-        question_id: str,
+        question_id: OpenQuestionId,
         *,
         answer: str,
         answered_by: str,

@@ -9,7 +9,7 @@ from shared.control_plane.agent_registry_use_cases import (
     list_agent_roles,
 )
 from shared.control_plane.agent_run_use_cases import get_agent_run, list_agent_runs
-from shared.control_plane.api import _row_to_dict
+from shared.control_plane.api_serialization import row_to_dict
 from shared.control_plane.approval_gate import ApprovalGate
 from shared.control_plane.approval_use_cases import list_approvals
 from shared.control_plane.artifact_use_cases import (
@@ -156,7 +156,7 @@ async def test_operator_use_cases_return_domain_records(
     assert decision.metadata == {"record": "decision"}
     assert artifact.metadata == {"record": "artifact"}
 
-    payload = _row_to_dict(goal)
+    payload = row_to_dict(goal)
 
     assert payload["goal_id"] == goal.goal_id
     assert payload["status"] == GoalStatus.ACTIVE.value
@@ -325,7 +325,7 @@ async def test_remaining_operator_use_cases_return_domain_records(
     }
     assert all(not hasattr(item.data, "metadata_json") for item in timeline)
 
-    payload = _row_to_dict(fetched_agent)
+    payload = row_to_dict(fetched_agent)
 
     assert payload["agent_id"] == agent.agent_id
     assert payload["metadata"] == {"record": "agent_role"}

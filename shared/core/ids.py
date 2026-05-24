@@ -33,6 +33,7 @@ class IDPrefix:
     REQUIREMENT = "req"
     MEETING = "mtg"
     QUESTION = "qst"
+    FEEDBACK = "fb"
     USER = "usr"
     CUSTOMER = "cus"
     DEVICE = "dev"

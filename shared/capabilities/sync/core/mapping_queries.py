@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
+from .domain.sync_values import SyncMappingRecord
+
 
 @dataclass(frozen=True, slots=True)
 class SyncMappingView:
@@ -28,7 +30,7 @@ class SyncMappingView:
 
 
 class SyncMappingQueryRepository(Protocol):
-    async def list_all(self) -> Sequence[object]:
+    async def list_all(self) -> Sequence[SyncMappingRecord]:
         """Return persisted sync mapping rows."""
 
 

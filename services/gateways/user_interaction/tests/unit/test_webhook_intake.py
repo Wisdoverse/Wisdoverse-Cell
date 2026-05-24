@@ -4,6 +4,7 @@ import pytest
 
 from services.gateways.user_interaction.core.webhook_intake import (
     FeishuWebhookIntakeUseCase,
+    FeishuWebhookMessage,
     user_info_cache_key,
 )
 
@@ -30,6 +31,8 @@ def test_extract_message_event_and_mentions_text() -> None:
     assert message.msg_id == "msg_1"
     assert message.chat_id == "oc_1"
     assert message.user_id == "ou_1"
+    assert message.content == '{"text": "@bot hello"}'
+    assert message.text_content() == "hello"
     assert intake.extract_text(message) == "hello"
 
 
@@ -44,6 +47,20 @@ def test_extract_message_event_ignores_non_message_event() -> None:
     )
 
     assert result is None
+
+
+def test_feishu_webhook_message_is_immutable_value_object() -> None:
+    message = FeishuWebhookMessage(
+        msg_id="msg_1",
+        msg_type="text",
+        chat_type="group",
+        chat_id="oc_1",
+        user_id="ou_1",
+        content='{"text": "hello"}',
+    )
+
+    with pytest.raises(AttributeError):
+        message.content = "changed"  # type: ignore[misc]
 
 
 @pytest.mark.asyncio

@@ -1,9 +1,11 @@
 """Application use cases for QA agent requests."""
+
 from __future__ import annotations
 
 from typing import Any, Protocol
 
 from shared.core import request_error, unknown_action_error
+from shared.core.identifiers import AcceptanceRunId
 
 from ..models.schemas import AcceptanceExecutionResult, QARunRequest, QARunStats
 
@@ -29,7 +31,7 @@ class QARequestAgentPort(Protocol):
     ) -> list[dict[str, Any]]:
         """List acceptance run records."""
 
-    async def get_run(self, run_id: str) -> dict[str, Any] | None:
+    async def get_run(self, run_id: AcceptanceRunId) -> dict[str, Any] | None:
         """Return one acceptance run record."""
 
     async def get_stats(
@@ -69,7 +71,7 @@ class QARequestUseCase:
             )
             return {"items": runs}
         if action == "get_run":
-            run = await self._agent.get_run(request["run_id"])
+            run = await self._agent.get_run(AcceptanceRunId(request["run_id"]))
             return run or request_error("not found", "qa_run_not_found")
         if action == "stats":
             stats = await self._agent.get_stats(

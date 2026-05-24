@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from shared.config import settings
 from shared.control_plane import ApprovalGateService
 from shared.core import EventPublisher
+from shared.core.identifiers import DevTaskId
 from shared.infra.event_bus import EventBus, event_bus
 from shared.infra.event_publisher import EventBusEventPublisher
 from shared.infra.llm_gateway import LLMGateway
@@ -242,7 +243,7 @@ class DevAgent(BaseAgent):
     ) -> str | None:
         return await self._application.request_workflow_approval(
             sanitized=sanitized,
-            task_id=task_id,
+            task_id=DevTaskId(str(task_id)),
             plan_json=plan_json,
         )
 

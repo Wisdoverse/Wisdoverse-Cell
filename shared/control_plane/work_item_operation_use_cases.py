@@ -1,6 +1,8 @@
 """Application use cases for control-plane work-item operations."""
+
 from __future__ import annotations
 
+from .domain.work_item import is_work_item_close_status
 from .models import WorkItem, WorkItemStatus
 from .work_item_ports import ControlPlaneWorkItemStore
 from .work_item_use_cases import WorkItemNotFoundError, update_work_item_status_with_audit
@@ -74,11 +76,7 @@ async def close_work_item(
     reason: str | None = None,
 ) -> WorkItem:
     """Close a work item with a terminal status."""
-    if status not in {
-        WorkItemStatus.COMPLETED,
-        WorkItemStatus.CANCELLED,
-        WorkItemStatus.FAILED,
-    }:
+    if not is_work_item_close_status(status):
         raise WorkItemCloseStatusError(status)
     existing = await _get_company_work_item(store, company_id, work_item_id)
     return await update_work_item_status_with_audit(

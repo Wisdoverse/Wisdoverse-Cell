@@ -84,7 +84,8 @@ Alembic for migrations.
 | Project Manager (PJM) | `agents/pjm_agent/` | Work decomposition, approval preparation, project reports, alerts |
 | QA Agent | `agents/qa_agent/` | Acceptance runs, quality verdicts, idempotent triggers |
 | Dev Agent | `agents/dev_agent/` | Delivery tasks, workflow execution, MR handoff, QA request |
-| User Interaction Gateway | `services/gateways/user_interaction/` | Chat surface, Feishu webhook intake, card operations |
+| Chat Agent | `agents/chat_agent/` | Conversation history, card operations, daily progress, chat-triggered integration commands |
+| User Interaction Gateway | `services/gateways/user_interaction/` | Chat/webhook ingress and Feishu ACL; HTTP boundary to chat-agent |
 | Channel Gateway | `services/gateways/channel/` | Multi-channel outbound delivery |
 | Coordinator | `services/orchestration/coordinator/` | Classification + dispatch of cross-boundary events |
 | Sync Capability | `shared/capabilities/sync/` | OpenProject ↔ Feishu Bitable projection (two sub-boundaries inside one runtime) |
@@ -112,7 +113,8 @@ row in `docs/guides/backend-boundaries.md`.
 | Delivery / Dev | `DevTask`, `WorkflowLog` | `dev_agent_*` |
 | Quality / QA | `AcceptanceRun`, `AcceptanceResult` | `qa_acceptance_*`, `qa_agent_event_outbox` |
 | Sync / Projection | `SyncMapping`, `SubtaskMapping`, `SyncLock`, `SyncLog` | `sync_agent_*` |
-| Interaction / Channel | `ConversationHistory`, `CardOperation`, `DailyProgress` | `chat_agent_*`, `channel_gateway_event_outbox` |
+| Chat Agent | `ConversationHistory`, `CardOperation`, `DailyProgress` | `chat_agent_*` |
+| Interaction / Channel Gateways | None (gateway boundary) | `channel_gateway_event_outbox` |
 | Coordination | `CoordinatorEventOutbox` (state captured in scratchpad + state-store ports) | `coordinator_event_outbox` |
 | Analytics / Reporting | `AnalysisReportLog` | `analysis_agent_*` |
 | Evolution | `EvolutionTrace`, `Reflection`, `Experiment`, `SkillConfig`, `CollaborationPattern`, `Memory` | `evolution_*` |
@@ -441,14 +443,14 @@ the status rows current when an audit item changes. Concrete verification:
 ## 13. Next Step
 
 Phase 2 (target architecture design) is the next deliverable. The prompt
-that drives Phase 2 was truncated mid-section 六 (observability). Before
+that drives Phase 2 was truncated mid-section 6 (observability). Before
 producing the Phase 2 design document, the truncated sections need to be
 confirmed so the design covers the user's full intent.
 
 Open items for the Phase 2 prompt confirmation:
 
-- §六 (observability) had only item 1 (`requestId / correlationId`) visible.
-- §七 onward (likely testing strategy, evolution roadmap, rollback /
+- Section 6 (observability) had only item 1 (`requestId / correlationId`) visible.
+- Section 7 onward (likely testing strategy, evolution roadmap, rollback /
   reversibility) is absent from what was received.
 
 This Phase 1 document is the contract Phase 2 must reconcile against.

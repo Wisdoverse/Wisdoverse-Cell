@@ -1,9 +1,10 @@
 """Ports for control-plane agent execution operations."""
+
 from __future__ import annotations
 
 from typing import Any, Protocol
 
-from shared.core.identifiers import CompanyId
+from shared.core.identifiers import AgentRoleId, CompanyId
 
 from .models import (
     AgentRole,
@@ -23,7 +24,7 @@ class ControlPlaneAgentOperationStore(Protocol):
         """Return one company context."""
 
     async def get_agent_role(
-        self, *, company_id: CompanyId, agent_id: str
+        self, *, company_id: CompanyId, agent_id: AgentRoleId
     ) -> AgentRole | None:
         """Return one agent role."""
 

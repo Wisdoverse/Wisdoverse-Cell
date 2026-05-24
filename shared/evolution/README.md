@@ -32,6 +32,7 @@ The self-evolution system enables Wisdoverse Cell agents to autonomously improve
 | File | Description |
 |------|-------------|
 | `models.py` | Data models: `ExecutionTrace`, `SkillConfig`, `LLMCallRecord`, `Reflection`, `Experiment`, `MemoryEntry` |
+| `domain/experiment.py` | `EvolutionExperiment` aggregate for mini-canary routing, score thresholds, and promote/rollback decisions |
 | `trace_collector.py` | Captures execution traces around `handle_event` calls (timing, inputs, outputs, LLM calls) |
 | `evaluator.py` | Scores execution traces using rule-based and semantic (LLM) evaluation |
 | `skill_optimizer.py` | Generates improved `SkillConfig` versions based on reflections and traces |
@@ -174,6 +175,10 @@ Circuit breaker that prevents runaway optimization:
 ### Canary Routing (`canary_router.py`)
 
 New skill versions are never deployed to 100% of traffic. The canary router:
+- Delegates bucket-to-arm routing, score summaries, and promote/rollback
+  decisions to the `EvolutionExperiment` aggregate in `domain/experiment.py`
+- Normalizes newly created experiment traffic through the aggregate so
+  candidate versions are capped at 30%
 - Caps traffic to candidate versions at 30% (`Experiment.traffic_pct`)
 - Records candidate and control scores for each active experiment
 - Keeps routing deterministic by trace ID, so retries use the same skill version
@@ -181,7 +186,8 @@ New skill versions are never deployed to 100% of traffic. The canary router:
 `SkillOptimizer.check_experiment()` concludes the experiment after both arms
 reach `Experiment.min_samples`. A candidate is promoted only when it meets
 `Experiment.min_improvement`; it is rolled back when degradation exceeds the
-rollback threshold.
+rollback threshold. The optimizer uses the same `EvolutionExperiment`
+aggregate for that decision before the repository persists the final status.
 
 ### Human-in-the-Loop
 

@@ -41,9 +41,14 @@ def test_subtask_progress_projection_is_frozen_value_object() -> None:
         subtask_status="Done",
         completed=True,
         updated_at=datetime(2026, 5, 22, tzinfo=UTC),
+        title="Close Feature task",
+        blocked_reason="",
+        feature_id="2266",
     )
     other = SubtaskProgressProjection(**dataclasses.asdict(proj))
     assert proj == other
+    assert proj.title == "Close Feature task"
+    assert proj.feature_id == "2266"
     with pytest.raises(dataclasses.FrozenInstanceError):
         proj.completed = False  # type: ignore[misc]
 

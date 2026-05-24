@@ -19,13 +19,20 @@ use cases that need a one-call answer ("did this run block the merge?").
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 from .acceptance_vocabulary import (
-    GATE_FAIL,
+    GATE_ERROR,
     GATE_PASS,
     GATE_VALUES,
+    L1_ERROR,
+    L1_PASS,
     L1_STATUS_VALUES,
+    L2_INFO,
+    L2_STATUS_VALUES,
+    is_failing_gate,
 )
 
 
@@ -41,8 +48,8 @@ class AcceptanceVerdict:
 
     - ``l0_gate`` — gate outcome. One of ``GATE_VALUES``.
     - ``l1_status`` — L1 verdict. One of ``L1_STATUS_VALUES``.
-    - ``l2_status`` — L2 verdict; reuses ``L1_STATUS_VALUES`` for now
-      because L2 shares the PASS/WARN/FAIL alphabet today.
+    - ``l2_status`` — L2 report status. The acceptance framework currently
+      emits ``INFO`` for the L2 report bucket.
     - ``l0_failure_count`` and ``l1_warning_count`` — counters used by
       operators to prioritise notification fan-out.
     """
@@ -62,9 +69,9 @@ class AcceptanceVerdict:
             raise InvalidAcceptanceVerdictError(
                 f"unknown l1_status {self.l1_status!r}; expected one of {L1_STATUS_VALUES}"
             )
-        if self.l2_status not in L1_STATUS_VALUES:
+        if self.l2_status not in L2_STATUS_VALUES:
             raise InvalidAcceptanceVerdictError(
-                f"unknown l2_status {self.l2_status!r}; expected one of {L1_STATUS_VALUES}"
+                f"unknown l2_status {self.l2_status!r}; expected one of {L2_STATUS_VALUES}"
             )
         if self.l0_failure_count < 0:
             raise InvalidAcceptanceVerdictError(
@@ -78,15 +85,28 @@ class AcceptanceVerdict:
     @property
     def is_blocking(self) -> bool:
         """Return whether the verdict blocks the merge gate."""
-        return self.l0_gate == GATE_FAIL
+        return is_failing_gate(self.l0_gate)
 
     @property
     def is_clean(self) -> bool:
-        """Return whether the verdict has no L0 failures and no L1 warnings."""
+        """Return whether the verdict passed L0 and L1 without warnings."""
         return (
             self.l0_gate == GATE_PASS
+            and self.l1_status == L1_PASS
+            and self.l2_status == L2_INFO
             and self.l0_failure_count == 0
             and self.l1_warning_count == 0
+        )
+
+    @classmethod
+    def from_summary(cls, summary: Mapping[str, Any]) -> AcceptanceVerdict:
+        """Build a verdict from the acceptance runner summary shape."""
+        return cls(
+            l0_gate=str(summary.get("l0_gate", GATE_ERROR)),
+            l1_status=str(summary.get("l1_check", L1_ERROR)),
+            l2_status=str(summary.get("l2_report", L2_INFO)),
+            l0_failure_count=int(summary.get("l0_failures", 0) or 0),
+            l1_warning_count=int(summary.get("l1_warnings", 0) or 0),
         )
 
 

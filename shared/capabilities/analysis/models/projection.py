@@ -51,6 +51,9 @@ class AnalysisSubtaskProgressProjection(Base):
     parent_wp_id = Column(Integer, nullable=False, index=True)
     subtask_status = Column(String(64), nullable=False)
     completed = Column(Boolean, nullable=False, default=False)
+    title = Column(String(512), nullable=False, default="")
+    blocked_reason = Column(String(512), nullable=False, default="")
+    feature_id = Column(String(64), nullable=True, index=True)
     updated_at = Column(
         DateTime(timezone=True),
         nullable=False,

@@ -152,7 +152,7 @@ anchor when a new provider is promoted to production use.
 | Sync support capability | `8010` | OpenProject and Feishu sync |
 | Analysis support capability | `8011` | Reports and risk checks |
 | PJM agent | `8012` | Decomposition, alerts, reports |
-| User interaction gateway | `8013` | Chat/webhook gateway |
+| Chat agent | `8013` | Chat runtime; user-interaction gateway compatibility entry during ADR-0010 cutover |
 | QA agent | `8014` | Acceptance checks |
 | Dev agent | `8015` | AgentForge-backed delivery |
 | Evolution support capability | `8016` | Self-evolution analysis and recommendations |
@@ -184,7 +184,8 @@ accepts individual role commands for specialized operations.
 | `analysis-module` | `shared.capabilities.analysis` | 8011 |
 | `evolution-module` | `shared.capabilities.evolution` | 8016 |
 | `pjm-agent` | `agents.pjm_agent` | 8012 |
-| `chat-agent` (alias `user-interaction-gateway`) | `services.gateways.user_interaction` | 8013 |
+| `chat-agent` | `agents.chat_agent` | 8013 |
+| `user-interaction-gateway` (compatibility entry during ADR-0010 cutover) | `services.gateways.user_interaction` | 8013 |
 | `qa-agent` | `agents.qa_agent` | 8014 |
 | `dev-agent` | `agents.dev_agent` | 8015 |
 

@@ -1,8 +1,14 @@
 """Application use cases for control-plane work items."""
+
 from __future__ import annotations
 
 from shared.schemas.event import EventTypes
 
+from .domain.work_item import WorkItem as WorkItemAggregate
+from .domain_event_audit import (
+    DomainEventAuditContext,
+    append_control_plane_domain_event_audits,
+)
 from .models import (
     AuditEvent,
     CompanyContext,
@@ -121,7 +127,10 @@ async def update_work_item_status_with_audit(
     if existing is None or existing.company_id != company_id:
         raise WorkItemNotFoundError(work_item_id)
 
-    status_value = status.value if isinstance(status, WorkItemStatus) else status
+    aggregate = WorkItemAggregate.from_record(existing)
+    aggregate.transition_to(status)
+    domain_events = aggregate.pull_events()
+    status_value = aggregate.status.value
     updated = await store.update_work_item_status(
         work_item_id,
         status=status_value,
@@ -140,6 +149,19 @@ async def update_work_item_status_with_audit(
         detail["command"] = command
     if reason:
         detail["reason"] = reason
+
+    if domain_events:
+        await append_control_plane_domain_event_audits(
+            store,
+            domain_events,
+            DomainEventAuditContext(
+                actor_type="user",
+                actor_id=actor_id,
+                work_item_id=updated.work_item_id,
+                detail=detail,
+            ),
+        )
+        return updated
 
     await store.append_audit_event(
         AuditEvent(

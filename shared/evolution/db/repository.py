@@ -6,6 +6,7 @@ from typing import Any, Optional
 from sqlalchemy import delete, desc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.evolution.domain import EvolutionExperiment as EvolutionExperimentAggregate
 from shared.schemas.event import Event
 
 from .tables import (
@@ -248,11 +249,13 @@ class EvolutionRepository:
             skill_id=skill_id,
             control_version=control_version,
             candidate_version=candidate_version,
-            traffic_pct=traffic_pct,
-            min_samples=min_samples,
+            traffic_pct=EvolutionExperimentAggregate.normalize_traffic_pct(traffic_pct),
+            min_samples=EvolutionExperimentAggregate.normalize_min_samples(min_samples),
             max_duration_hours=max_duration_hours,
             success_metric=success_metric,
-            min_improvement=min_improvement,
+            min_improvement=EvolutionExperimentAggregate.normalize_min_improvement(
+                min_improvement
+            ),
             control_results=[],
             candidate_results=[],
         )

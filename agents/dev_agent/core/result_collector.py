@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from shared.core import GitLabMergeRequestPort
+from shared.core import GitLabMergeRequestPort, is_qa_acceptance_passed
+from shared.core.identifiers import DevTaskId, WorkPackageId
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
 from ..app.metrics import RETRY_COUNT, TASK_DURATION, TASKS_COMPLETED, TASKS_FAILED
 from .config import DevCoreConfig
+from .domain.delivery_policy import DevDeliveryWorkflowPolicy
 from .domain.lifecycle.task_lifecycle import (
     COMPLETED,
     FAILED,
@@ -44,6 +46,7 @@ class ResultCollector:
         notifier: DevNotifier,
         security_scanner: SecurityScanner | None = None,
         config: DevCoreConfig | None = None,
+        workflow_policy: DevDeliveryWorkflowPolicy | None = None,
     ):
         self._repo = repo
         self._log_repo = log_repo
@@ -51,6 +54,7 @@ class ResultCollector:
         self._notifier = notifier
         self._scanner = security_scanner or SecurityScanner()
         self._config = config or DevCoreConfig()
+        self._workflow_policy = workflow_policy or DevDeliveryWorkflowPolicy()
 
     async def handle_completion(
         self,
@@ -59,8 +63,8 @@ class ResultCollector:
     ) -> list[Event]:
         """Process workflow completion through the state machine pipeline."""
         events: list[Event] = []
-        task_id = task.id
-        wp_id = task.wp_id
+        task_id = DevTaskId(str(task.id))
+        wp_id = WorkPackageId(int(task.wp_id))
 
         await self._repo.update_status(task_id, SECURITY_SCANNING)
         workspace_path = self._resolve_workspace_path(workflow_status)
@@ -157,15 +161,17 @@ class ResultCollector:
         """Process QA acceptance result."""
         events: list[Event] = []
         summary = qa_payload.get("summary", {})
-        l0_pass = summary.get("l0_gate") == "PASS"
+        task_id = DevTaskId(str(task.id))
+        passed = is_qa_acceptance_passed(summary)
 
-        if l0_pass:
-            await self._repo.update_status(task.id, COMPLETED)
+        if passed:
+            await self._repo.update_status(task_id, COMPLETED)
             TASKS_COMPLETED.inc()
             # Record task duration metric
             duration_s = 0
             if task.created_at:
                 from datetime import UTC, datetime
+
                 duration_s = (datetime.now(UTC) - task.created_at).total_seconds()
                 TASK_DURATION.observe(duration_s)
             await self._notifier.notify_task_completed(task.wp_id, task.mr_url or "")
@@ -180,24 +186,33 @@ class ResultCollector:
                     },
                 )
             )
-        elif task.retry_count < 1:
+            return events
+
+        retry_decision = self._workflow_policy.qa_retry_decision(
+            retry_count=task.retry_count,
+        )
+        if retry_decision.should_retry:
             RETRY_COUNT.inc()
             await self._repo.update_status(
-                task.id,
+                task_id,
                 FAILED,
                 error_message="QA L0 failed",
                 failed_step="qa",
             )
             # Retry: failed -> planning (allowed by VALID_TRANSITIONS)
             await self._repo.update_status(
-                task.id, PLANNING, retry_count=task.retry_count + 1
+                task_id,
+                PLANNING,
+                retry_count=retry_decision.next_retry_count,
             )
             logger.info(
-                "qa_retry_triggered", wp_id=task.wp_id, retry=task.retry_count + 1
+                "qa_retry_triggered",
+                wp_id=task.wp_id,
+                retry=retry_decision.next_retry_count,
             )
         else:
             await self._repo.update_status(
-                task.id,
+                task_id,
                 FAILED,
                 error_message="QA failed after retry",
                 failed_step="qa",

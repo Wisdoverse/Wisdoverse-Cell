@@ -34,6 +34,11 @@ from .domain.projection import (
 
 logger = get_logger("analysis_module.projection_updater")
 
+_FEATURE_FIELD = "关联 Feature ID (关键字段)"
+_TITLE_FIELD = "任务(动宾短语)"
+_STATUS_FIELD = "状态"
+_BLOCKED_REASON_FIELD = "阻塞原因"
+
 
 class WorkPackageProjectionWriter(Protocol):
     """Write-side port for projection upserts.
@@ -60,6 +65,30 @@ def _parse_optional_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _field_text(fields: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        text = _coerce_text(fields.get(key)).strip()
+        if text:
+            return text
+    return ""
+
+
+def _coerce_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        for key in ("text", "name", "value", "zh_cn", "en_us"):
+            text = _coerce_text(value.get(key))
+            if text:
+                return text
+        return ""
+    if isinstance(value, list | tuple):
+        return ", ".join(text for item in value if (text := _coerce_text(item)))
+    return str(value)
 
 
 def _parse_optional_datetime(value: Any) -> datetime | None:
@@ -122,7 +151,7 @@ def _project_subtask(record: dict[str, Any]) -> SubtaskProgressProjection | None
     if parent_wp_id is None:
         return None
 
-    status = str(fields.get("subtask_status") or "unknown")
+    status = _field_text(fields, "subtask_status", _STATUS_FIELD) or "unknown"
     completed = "完成" in status or status.lower() in {"done", "completed", "closed"}
 
     return SubtaskProgressProjection(
@@ -131,6 +160,15 @@ def _project_subtask(record: dict[str, Any]) -> SubtaskProgressProjection | None
         subtask_status=status,
         completed=completed,
         updated_at=datetime.now(UTC),
+        title=_field_text(fields, "subtask_title", "title", _TITLE_FIELD)
+        or "未命名",
+        blocked_reason=_field_text(
+            fields,
+            "blocked_reason",
+            _BLOCKED_REASON_FIELD,
+        ),
+        feature_id=_field_text(fields, "feature_id", _FEATURE_FIELD).lstrip("#")
+        or None,
     )
 
 

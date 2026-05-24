@@ -3,6 +3,12 @@
 from dataclasses import dataclass
 
 from .budget_guard_ports import ControlPlaneBudgetGuardStore
+from .domain.budget_amount import BudgetAmount
+from .domain.budget_usage import BudgetUsage as BudgetUsageAggregate
+from .domain_event_audit import (
+    DomainEventAuditContext,
+    append_control_plane_domain_event_audits,
+)
 from .models import BudgetPeriod, BudgetScope, BudgetUsage
 
 
@@ -37,6 +43,7 @@ class BudgetGuard:
         scope_id: str | None = None,
         model: str | None = None,
     ) -> BudgetDecision:
+        estimated_cost = BudgetAmount.non_negative_usd(estimated_cost_usd)
         policy = await self._repo.get_active_budget_policy(
             company_id=company_id,
             scope=scope,
@@ -48,33 +55,39 @@ class BudgetGuard:
                 allowed=True,
                 budget_id=None,
                 current_cost_usd=0.0,
-                estimated_cost_usd=estimated_cost_usd,
-                estimated_total_usd=estimated_cost_usd,
+                estimated_cost_usd=estimated_cost.as_float(),
+                estimated_total_usd=estimated_cost.as_float(),
                 limit_usd=None,
                 reason="no_active_policy",
             )
 
+        limit = BudgetAmount.positive_usd(policy.limit_usd)
         if model and policy.model_allowlist and model not in policy.model_allowlist:
+            current_cost = BudgetAmount.non_negative_usd(
+                await self._repo.get_budget_usage_total(policy.budget_id)
+            )
             return BudgetDecision(
                 allowed=False,
                 budget_id=policy.budget_id,
-                current_cost_usd=await self._repo.get_budget_usage_total(policy.budget_id),
-                estimated_cost_usd=estimated_cost_usd,
-                estimated_total_usd=estimated_cost_usd,
-                limit_usd=policy.limit_usd,
+                current_cost_usd=current_cost.as_float(),
+                estimated_cost_usd=estimated_cost.as_float(),
+                estimated_total_usd=estimated_cost.as_float(),
+                limit_usd=limit.as_float(),
                 reason="model_not_allowed",
             )
 
-        current = await self._repo.get_budget_usage_total(policy.budget_id)
-        estimated_total = current + estimated_cost_usd
-        allowed = estimated_total <= policy.limit_usd
+        current = BudgetAmount.non_negative_usd(
+            await self._repo.get_budget_usage_total(policy.budget_id)
+        )
+        estimated_total = current.plus(estimated_cost)
+        allowed = not estimated_total.exceeds(limit)
         return BudgetDecision(
             allowed=allowed,
             budget_id=policy.budget_id,
-            current_cost_usd=current,
-            estimated_cost_usd=estimated_cost_usd,
-            estimated_total_usd=estimated_total,
-            limit_usd=policy.limit_usd,
+            current_cost_usd=current.as_float(),
+            estimated_cost_usd=estimated_cost.as_float(),
+            estimated_total_usd=estimated_total.as_float(),
+            limit_usd=limit.as_float(),
             reason="" if allowed else "budget_exceeded",
         )
 
@@ -96,11 +109,11 @@ class BudgetGuard:
         run_id: str | None = None,
         trace_id: str | None = None,
     ):
-        return await self._repo.record_budget_usage(
+        usage = BudgetUsageAggregate.for_recording(
             BudgetUsage(
                 company_id=company_id,
                 budget_id=budget_id,
-                cost_usd=cost_usd,
+                cost_usd=BudgetAmount.non_negative_usd(cost_usd).as_float(),
                 model=model,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
@@ -108,3 +121,17 @@ class BudgetGuard:
                 trace_id=trace_id,
             )
         )
+        recorded = await self._repo.record_budget_usage(usage.record)
+        usage.record = recorded
+        usage.mark_recorded()
+        await append_control_plane_domain_event_audits(
+            self._repo,
+            usage.pull_events(),
+            DomainEventAuditContext(
+                actor_type="system",
+                actor_id="budget_guard",
+                trace_id=trace_id,
+                run_id=run_id,
+            ),
+        )
+        return recorded

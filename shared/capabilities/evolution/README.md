@@ -19,6 +19,41 @@ The Evolution Module is the L2 (Architecture) component of the self-evolution sy
 
 ---
 
+## Bounded Context
+
+The Evolution capability owns cross-agent analysis cycles, suggestion-mode
+proposal enrichment, and approval orchestration. It does **not** own the
+durable `EvolutionProposal` aggregate; that record and its rollout FSM belong
+to the Control Plane ledger. This module contributes the proposal vocabulary
+and immutable value objects needed to translate analysis output into the
+Control Plane's published language.
+
+## Ubiquitous Language
+
+| Term | Meaning | Owner |
+|------|---------|-------|
+| Evolution proposal | A suggested L1/L2/L3 optimization emitted for human review | Control Plane aggregate; Evolution capability creates/enriches payloads |
+| Evolution experiment | L1 mini-canary aggregate that routes traffic, records score evidence, and decides promote/rollback outcomes | `shared/evolution/domain/experiment.py` |
+| Proposal scope | Stable target string such as `agent:pjm-agent/skill:decompose` or `pattern:handoff` | `EvolutionProposalScope` |
+| Approval context | Immutable approval request, evidence, benefit, risk, metadata, and trace context derived from one proposal payload | `EvolutionProposalApprovalContext` |
+| Evolution tier | L1 skill/prompt, L2 architecture, or L3 collaboration level | Control Plane `EvolutionTier`, consumed as published language |
+| Proposal operation | Whitelisted operation (`add_skill`, `modify_event_subscription`, etc.) that the LLM may suggest | `EvolutionProposalOperation` |
+| Rollout state | Control Plane lifecycle for a recorded proposal after approval | Control Plane `EvolutionProposal` aggregate |
+| Trace evidence | Summarized execution evidence used to justify a proposal | Evolution runtime, consumed through `EvolutionTraceAnalysisStore` |
+| Collaboration pattern | L3 multi-agent coordination pattern proposed in shadow/suggestion mode | `shared/evolution/collaboration` runtime, surfaced here for approval |
+
+## Context-Map Relationships
+
+| Neighbor | Relationship | Contract |
+|----------|--------------|----------|
+| Control Plane | Conformist + Customer/Supplier | Evolution conforms to `EvolutionTier`, approval status, and `EvolutionProposal` ledger semantics; Control Plane owns approvals, rollout state, and audit |
+| `shared/evolution` runtime | Partnership | Runtime primitives own trace/reflection/experiment collection; this capability consumes summarized performance snapshots through ports |
+| Runtime agents | Open-Host Service / Published Language | Agents expose execution traces through the evolution runtime; this capability analyzes summaries without importing agent internals |
+| LLM Gateway | Anti-Corruption Layer | `GlobalAnalyzer` wraps trace data as untrusted JSON and filters responses through the domain operation whitelist |
+| Human review / operator UI | Open-Host Service | `evolution.skill-proposed`, `evolution.pattern-proposed`, and Control Plane proposal records form the review contract |
+
+---
+
 ## Events
 
 ### Subscribed
@@ -116,5 +151,7 @@ When `EVOLUTION_COLLABORATION_ENABLED=true`, the module also:
 | File | Purpose |
 |------|---------|
 | `app/main.py` | FastAPI entry point, `/analyze` endpoint, `create_agent_app()` with `evolution_excluded=True` |
+| `core/domain/proposal.py` | Immutable proposal scope, approval context, and operation whitelist value objects |
+| `../../evolution/domain/experiment.py` | Runtime `EvolutionExperiment` aggregate for mini-canary promotion and rollback decisions |
 | `service/agent.py` | `EvolutionModule` class -- event handling, analysis orchestration |
 | `service/global_analyzer.py` | `GlobalAnalyzer` -- cross-agent trace analysis engine |

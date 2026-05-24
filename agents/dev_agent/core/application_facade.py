@@ -5,9 +5,11 @@ from collections.abc import Callable
 from typing import Any
 
 from shared.core import EventPublisher
+from shared.core.identifiers import DevTaskId
 from shared.schemas.event import Event
 
-from ..models.schemas import RiskLevel, SanitizedTask, WorkflowPlan
+from ..models.schemas import SanitizedTask, WorkflowPlan
+from .domain.task_values import RiskLevel
 from .event_use_cases import DevEventUseCase
 from .outbox_delivery_use_cases import DevOutboxDeliveryUseCase
 from .outbox_ports import DevEventOutboxStore
@@ -165,7 +167,7 @@ class DevApplicationFacade:
         self,
         *,
         sanitized: SanitizedTask,
-        task_id: str,
+        task_id: DevTaskId,
         plan_json: dict[str, Any],
     ) -> str | None:
         return await self._workflow_execution_use_case().request_workflow_approval(

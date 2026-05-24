@@ -8,10 +8,10 @@ from shared.core.identifiers import ApprovalRequestId, CompanyId
 
 from .approval_ports import ControlPlaneApprovalStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
-from .domain_records import approval_request_record, evolution_proposal_record
-from .models import ApprovalRequest, ApprovalStatus, AuditEvent, EvolutionProposal
+from .domain_records import approval_request_record
+from .models import ApprovalRequest, ApprovalStatus, AuditEvent
 from .store_utils import model_values, now_utc
-from .tables import ApprovalRequestTable, EvolutionProposalTable
+from .tables import ApprovalRequestTable
 
 
 class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
@@ -86,28 +86,6 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
         row.updated_at = now
         await self._session.flush()
         return approval_request_record(row)
-
-    async def update_evolution_proposal_approval_state_by_approval(
-        self,
-        approval_id: ApprovalRequestId,
-        *,
-        approval_state: str,
-        rollout_state: str | None = None,
-    ) -> EvolutionProposal | None:
-        result = await self._session.execute(
-            select(EvolutionProposalTable).where(
-                EvolutionProposalTable.approval_id == approval_id
-            )
-        )
-        row = result.scalar_one_or_none()
-        if row is None:
-            return None
-        row.approval_state = approval_state
-        if rollout_state is not None:
-            row.rollout_state = rollout_state
-        row.updated_at = now_utc()
-        await self._session.flush()
-        return evolution_proposal_record(row)
 
     async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
         return await self._companies.append_audit_event(event)

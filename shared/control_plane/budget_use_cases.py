@@ -1,13 +1,23 @@
 """Application use cases for control-plane budgets."""
+
 from __future__ import annotations
 
 from typing import Any
 
-from shared.schemas.event import EventTypes
-
 from .budget_ports import ControlPlaneBudgetStore
+from .domain.budget_policy import (
+    BudgetPolicy as BudgetPolicyAggregate,
+)
+from .domain.budget_policy import (
+    BudgetPolicyConflictError,
+    BudgetPolicyConflictPolicy,
+    budget_policy_status,
+)
+from .domain_event_audit import (
+    DomainEventAuditContext,
+    append_control_plane_domain_event_audits,
+)
 from .models import (
-    AuditEvent,
     BudgetPeriod,
     BudgetPolicy,
     BudgetScope,
@@ -65,36 +75,26 @@ async def create_budget_policy_with_audit(
     created_by: str,
 ) -> BudgetPolicy:
     """Create a budget policy and record its audit event."""
-    await _ensure_company(store, budget.company_id)
-    if budget.status == "active":
+    aggregate = BudgetPolicyAggregate.for_creation(budget)
+    conflict_policy = BudgetPolicyConflictPolicy()
+    await _ensure_company(store, aggregate.record.company_id)
+    if conflict_policy.requires_unique_active_policy(aggregate.status):
         await _ensure_no_active_policy_conflict(
             store,
-            company_id=budget.company_id,
-            scope=budget.scope,
-            scope_id=budget.scope_id,
-            period=budget.period,
+            conflict_policy,
+            company_id=aggregate.record.company_id,
+            scope=aggregate.record.scope,
+            scope_id=aggregate.record.scope_id,
+            period=aggregate.record.period,
         )
 
-    created = await store.create_budget_policy(budget)
-    await store.append_audit_event(
-        AuditEvent(
-            company_id=budget.company_id,
-            action=EventTypes.BUDGET_POLICY_CREATED,
-            target_type="budget_policy",
-            target_id=created.budget_id,
-            actor_type="user",
-            actor_id=created_by,
-            detail={
-                "budget_id": created.budget_id,
-                "scope": created.scope,
-                "scope_id": created.scope_id,
-                "period": created.period,
-                "limit_usd": created.limit_usd,
-                "warning_threshold": created.warning_threshold,
-                "status": created.status,
-                "model_allowlist": created.model_allowlist,
-            },
-        )
+    created = await store.create_budget_policy(aggregate.record)
+    aggregate.record = created
+    aggregate.mark_created()
+    await append_control_plane_domain_event_audits(
+        store,
+        aggregate.pull_events(),
+        DomainEventAuditContext(actor_type="user", actor_id=created_by),
     )
     return created
 
@@ -117,44 +117,45 @@ async def update_budget_policy_with_audit(
     if existing is None or existing.company_id != company_id:
         raise BudgetPolicyNotFoundError(budget_id)
 
-    if status == "active":
+    aggregate = BudgetPolicyAggregate.from_record(existing)
+    conflict_policy = BudgetPolicyConflictPolicy()
+    if conflict_policy.requires_unique_active_policy(budget_policy_status(status)):
         await _ensure_no_active_policy_conflict(
             store,
+            conflict_policy,
             company_id=company_id,
             scope=existing.scope,
             scope_id=existing.scope_id,
             period=existing.period,
             current_budget_id=budget_id,
         )
-
-    updated = await store.update_budget_policy(
-        budget_id,
+    aggregate.apply_update(
         limit_usd=limit_usd,
         warning_threshold=warning_threshold,
         status=status,
         model_allowlist=model_allowlist,
         metadata=metadata,
+        changed_fields=changed_fields,
+    )
+
+    updated = await store.update_budget_policy(
+        budget_id,
+        limit_usd=aggregate.record.limit_usd if limit_usd is not None else None,
+        warning_threshold=(
+            aggregate.record.warning_threshold if warning_threshold is not None else None
+        ),
+        status=aggregate.record.status if status is not None else None,
+        model_allowlist=aggregate.record.model_allowlist if model_allowlist is not None else None,
+        metadata=aggregate.record.metadata if metadata is not None else None,
     )
     if updated is None:
         raise BudgetPolicyNotFoundError(budget_id)
 
-    await store.append_audit_event(
-        AuditEvent(
-            company_id=company_id,
-            action=EventTypes.BUDGET_POLICY_UPDATED,
-            target_type="budget_policy",
-            target_id=updated.budget_id,
-            actor_type="user",
-            actor_id=actor_id,
-            detail={
-                "budget_id": updated.budget_id,
-                "scope": updated.scope,
-                "scope_id": updated.scope_id,
-                "period": updated.period,
-                "status": updated.status,
-                "changed_fields": sorted(changed_fields),
-            },
-        )
+    aggregate.record = updated
+    await append_control_plane_domain_event_audits(
+        store,
+        aggregate.pull_events(),
+        DomainEventAuditContext(actor_type="user", actor_id=actor_id),
     )
     return updated
 
@@ -192,6 +193,7 @@ async def _ensure_company(store: ControlPlaneBudgetStore, company_id: str) -> No
 
 async def _ensure_no_active_policy_conflict(
     store: ControlPlaneBudgetStore,
+    conflict_policy: BudgetPolicyConflictPolicy,
     *,
     company_id: str,
     scope: BudgetScope | str,
@@ -205,5 +207,10 @@ async def _ensure_no_active_policy_conflict(
         scope_id=scope_id,
         period=period,
     )
-    if existing is not None and existing.budget_id != current_budget_id:
-        raise ActiveBudgetPolicyConflictError(existing.budget_id)
+    try:
+        conflict_policy.ensure_no_active_conflict(
+            existing=existing,
+            current_budget_id=current_budget_id,
+        )
+    except BudgetPolicyConflictError as exc:
+        raise ActiveBudgetPolicyConflictError(exc.budget_id) from exc

@@ -2,6 +2,8 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import OpenQuestionId
+
 from ..core.question_ports import RequirementQuestionStore
 from .repository import QuestionRepository
 
@@ -17,7 +19,7 @@ class SqlAlchemyRequirementQuestionStore(RequirementQuestionStore):
 
     async def answer(
         self,
-        question_id: str,
+        question_id: OpenQuestionId,
         *,
         answer: str,
         answered_by: str,

@@ -5,11 +5,19 @@ from datetime import UTC, datetime
 from typing import Any, Callable, Protocol
 
 from shared.control_plane import ApprovalCategory
+from shared.core.identifiers import DevTaskId, WorkPackageId
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
 
-from ..models.schemas import RiskLevel, SanitizedTask, WorkflowNode, WorkflowPlan
-from .domain.lifecycle.task_lifecycle import AWAITING_APPROVAL, FAILED, PLANNING
+from ..models.schemas import SanitizedTask, WorkflowNode, WorkflowPlan
+from .domain.delivery_policy import DevDeliveryWorkflowPolicy
+from .domain.lifecycle.task_lifecycle import (
+    AWAITING_APPROVAL,
+    EXECUTING,
+    FAILED,
+    PLANNING,
+)
+from .domain.task_values import RiskLevel
 from .repositories import DevTaskRecord, DevTaskRepositoryPort, DevWorkflowLogRepositoryPort
 from .workflow_planner import inject_project_id
 
@@ -127,6 +135,7 @@ class DevWorkflowExecutionUseCase:
         forge_failure_types: tuple[type[BaseException], ...] = (Exception,),
         record_task_failure: RecordTaskFailure = _noop_task_failure,
         record_workflow_created: RecordWorkflowCreated = _noop_workflow_created,
+        workflow_policy: DevDeliveryWorkflowPolicy | None = None,
     ) -> None:
         self._planner = planner
         self._validator = validator
@@ -140,6 +149,7 @@ class DevWorkflowExecutionUseCase:
         self._forge_failure_types = forge_failure_types
         self._record_task_failure = record_task_failure
         self._record_workflow_created = record_workflow_created
+        self._workflow_policy = workflow_policy or DevDeliveryWorkflowPolicy()
 
     async def process_single_task(
         self,
@@ -151,28 +161,35 @@ class DevWorkflowExecutionUseCase:
     ) -> list[Event]:
         """Process a sanitized task through create -> plan -> execute."""
         events: list[Event] = []
+        wp_id = WorkPackageId(sanitized.wp_id)
+        risk = RiskLevel(risk)
         logger.info("task_accepted", wp_id=sanitized.wp_id, risk=risk.value)
 
         task_record = await repo.create_task(
-            wp_id=sanitized.wp_id,
+            wp_id=wp_id,
             task_title=sanitized.title,
-            risk_level=risk.value,
+            risk_level=risk,
         )
         if task_record is None:
             logger.info("task_already_exists", wp_id=sanitized.wp_id)
             return events
 
+        task_id = DevTaskId(str(task_record.id))
         await log_repo.create_log(
-            task_id=task_record.id,
+            task_id=task_id,
             workflow_json={"task_input": sanitized.model_dump()},
         )
 
         active_count = await repo.count_active_workflows()
-        if active_count >= self._max_concurrent_workflows:
+        capacity = self._workflow_policy.capacity_decision(
+            active_count=active_count,
+            max_concurrent_workflows=self._max_concurrent_workflows,
+        )
+        if not capacity.can_start:
             logger.info(
                 "task_queued",
                 wp_id=sanitized.wp_id,
-                active=active_count,
+                active=capacity.active_count,
             )
             return events
 
@@ -196,12 +213,14 @@ class DevWorkflowExecutionUseCase:
     ) -> list[Event]:
         """Plan a workflow and execute it, or queue it for approval."""
         events: list[Event] = []
+        task_id = DevTaskId(str(task_record.id))
+        risk = RiskLevel(risk)
 
-        await repo.update_status(task_record.id, PLANNING)
+        await repo.update_status(task_id, PLANNING)
         plan = await self._planner.plan(sanitized)
         if plan is None:
             await repo.update_status(
-                task_record.id,
+                task_id,
                 FAILED,
                 error_message="Workflow planning failed",
             )
@@ -212,7 +231,7 @@ class DevWorkflowExecutionUseCase:
         validation = self._validator.validate(plan)
         if not validation.is_valid:
             await repo.update_status(
-                task_record.id,
+                task_id,
                 FAILED,
                 error_message=f"Validation: {'; '.join(validation.violations)}",
             )
@@ -224,22 +243,23 @@ class DevWorkflowExecutionUseCase:
             node.config["cliTool"] = tool
 
         plan_json = plan.model_dump()
-        if risk == RiskLevel.HIGH:
+        requires_approval = self._workflow_policy.requires_workflow_approval(risk)
+        if requires_approval:
             approval_id = await self.request_workflow_approval(
                 sanitized=sanitized,
-                task_id=task_record.id,
+                task_id=task_id,
                 plan_json=plan_json,
             )
             if approval_id:
                 plan_json["control_plane_approval_id"] = approval_id
 
         await log_repo.create_log(
-            task_id=task_record.id,
+            task_id=task_id,
             workflow_json=plan_json,
         )
 
-        if risk == RiskLevel.HIGH:
-            await repo.update_status(task_record.id, AWAITING_APPROVAL)
+        if requires_approval:
+            await repo.update_status(task_id, AWAITING_APPROVAL)
             logger.info("task_awaiting_approval", wp_id=sanitized.wp_id)
             return events
 
@@ -254,7 +274,7 @@ class DevWorkflowExecutionUseCase:
         self,
         *,
         sanitized: SanitizedTask,
-        task_id: str,
+        task_id: DevTaskId,
         plan_json: dict[str, Any],
     ) -> str | None:
         """Request control-plane approval for a high-risk workflow."""
@@ -312,9 +332,10 @@ class DevWorkflowExecutionUseCase:
             plan = inject_project_id(plan, self._agentforge_project_id)
             workflow_id = await self._forge.create_workflow(plan)
             await self._forge.run_workflow(workflow_id)
+            task_id = DevTaskId(str(task_record.id))
             await repo.update_status(
-                task_record.id,
-                "executing",
+                task_id,
+                EXECUTING,
                 workflow_id=workflow_id,
                 workflow_started_at=datetime.now(UTC),
             )
@@ -323,7 +344,7 @@ class DevWorkflowExecutionUseCase:
                 self._event_factory.create_event(
                     EventTypes.DEV_WORKFLOW_CREATED,
                     {
-                        "task_id": task_record.id,
+                        "task_id": str(task_id),
                         "workflow_id": workflow_id,
                         "node_count": len(plan.nodes),
                     },
@@ -340,7 +361,7 @@ class DevWorkflowExecutionUseCase:
                 exc_info=True,
             )
             await repo.update_status(
-                task_record.id,
+                DevTaskId(str(task_record.id)),
                 FAILED,
                 error_message=str(exc),
             )

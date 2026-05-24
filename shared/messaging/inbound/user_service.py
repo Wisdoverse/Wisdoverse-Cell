@@ -5,11 +5,19 @@ UserService - user identity management service.
 Handles cross-platform user identity mapping and links platform accounts by
 email.
 """
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from shared.core.identity_ports import UserIdentityStore
+from shared.core.identifiers import UserId
+from shared.core.identity_domain import IdentityDomainEvent, PlatformUserRef
+from shared.core.identity_event_outbox import identity_event_from_domain_event
+from shared.core.identity_ports import IdentityEventOutboxStore, UserIdentityStore
+from shared.core.identity_resolution import (
+    IdentityResolutionResult,
+    IdentityResolutionUseCase,
+)
 from shared.core.ids import IDPrefix, generate_id
+from shared.db.identity_event_outbox_store import SqlAlchemyIdentityEventOutboxStore
 from shared.db.user_store import SqlAlchemyUserIdentityStore
 from shared.models.user import User
 from shared.observability.privacy import hash_identifier
@@ -44,6 +52,7 @@ class UserService:
         redis: Optional["Redis"] = None,
         adapters: Optional[dict[Platform, "BasePlatformAdapter"]] = None,
         user_store_factory=None,
+        identity_outbox_factory=None,
     ):
         """
         Args:
@@ -51,11 +60,13 @@ class UserService:
             redis: Redis client used for caching.
             adapters: Platform adapter dictionary.
             user_store_factory: Optional session-scoped user identity store factory.
+            identity_outbox_factory: Optional session-scoped identity event outbox factory.
         """
         self.db = db
         self.redis = redis
         self.adapters = adapters or {}
         self._user_store_factory = user_store_factory
+        self._identity_outbox_factory = identity_outbox_factory
 
     def set_adapters(self, adapters: dict[Platform, "BasePlatformAdapter"]) -> None:
         """Set platform adapters and avoid circular imports."""
@@ -81,15 +92,17 @@ class UserService:
         Returns:
             Unified user object.
         """
+        platform_ref = PlatformUserRef(platform, platform_user_id)
+
         # 1. Check cache.
-        cache_key = self._cache_key(platform, platform_user_id)
+        cache_key = self._cache_key(platform_ref.platform, platform_ref.platform_user_id)
         if self.redis:
             cached = await self.redis.get(cache_key)
             if cached:
                 logger.debug(
                     "user_cache_hit",
-                    platform=platform.value,
-                    user_hash=hash_identifier(platform_user_id),
+                    platform=platform_ref.platform.value,
+                    user_hash=hash_identifier(platform_ref.platform_user_id),
                 )
                 return self._deserialize_user(cached)
 
@@ -97,18 +110,13 @@ class UserService:
         async with self.db.session() as session:
             store = self._new_user_store(session)
 
-            user = await store.get_by_platform_id(platform, platform_user_id)
-
-            if not user:
-                # 3. Create or link user.
-                user = await self._create_or_link_user(
-                    store, platform, platform_user_id
-                )
-
-            # Update active timestamp.
-            user.last_active_at = datetime.now(UTC)
-            user.last_active_platform = platform.value
-            await store.update(user)
+            result = await self._identity_resolution_use_case().resolve(
+                store=store,
+                platform_ref=platform_ref,
+            )
+            user = result.user
+            await self._stage_identity_events(session, user, result)
+            self._log_identity_events(user, result)
             await session.commit()
 
             # Refresh to load the full model.
@@ -142,90 +150,69 @@ class UserService:
 
     # === Private Methods ===
 
-    async def _create_or_link_user(
-        self,
-        store: UserIdentityStore,
-        platform: Platform,
-        platform_user_id: str,
-    ) -> User:
-        """
-        Create a new user or link to an existing user.
-
-        Uses email to find and link an existing user; otherwise creates a new
-        user.
-        """
-        adapter = self.adapters.get(platform)
-        if not adapter:
-            logger.warning("adapter_not_found", platform=platform.value)
-            return await self._create_new_user(store, platform, platform_user_id, None, "Unknown")
-
-        # Fetch user info.
-        email = await adapter.get_user_email(platform_user_id)
-        name = await adapter.get_user_name(platform_user_id) or "Unknown"
-
-        if email:
-            # Try to find an existing user by email.
-            existing_user = await store.get_by_email(email)
-            if existing_user:
-                # Link the platform account.
-                self._set_platform_id(existing_user, platform, platform_user_id)
-                logger.info(
-                    "user_linked",
-                    user_hash=hash_identifier(existing_user.id),
-                    platform=platform.value,
-                    platform_user_hash=hash_identifier(platform_user_id),
-                )
-                return existing_user
-
-        # Create a new user.
-        return await self._create_new_user(store, platform, platform_user_id, email, name)
-
-    async def _create_new_user(
-        self,
-        store: UserIdentityStore,
-        platform: Platform,
-        platform_user_id: str,
-        email: Optional[str],
-        name: str,
-    ) -> User:
-        """Create a new user."""
-        user = User(
-            id=generate_id(IDPrefix.USER),
-            email=email,
-            name=name,
-        )
-        self._set_platform_id(user, platform, platform_user_id)
-
-        user = await store.create(user)
-
-        logger.info(
-            "user_created",
-            user_hash=hash_identifier(user.id),
-            platform=platform.value,
-            platform_user_hash=hash_identifier(platform_user_id),
-            email_hash=hash_identifier(email),
-        )
-
-        return user
-
     def _new_user_store(self, session) -> UserIdentityStore:
         """Create a session-scoped identity store."""
         factory = self._user_store_factory or SqlAlchemyUserIdentityStore
         return factory(session)
 
-    def _set_platform_id(
+    def _new_identity_outbox(self, session) -> IdentityEventOutboxStore:
+        """Create a session-scoped identity event outbox."""
+        factory = self._identity_outbox_factory or SqlAlchemyIdentityEventOutboxStore
+        return factory(session)
+
+    def _identity_resolution_use_case(self) -> IdentityResolutionUseCase:
+        """Create the session-independent identity resolution use case."""
+        return IdentityResolutionUseCase(
+            adapters=self.adapters,
+            user_id_factory=self._new_user_id,
+            invalid_email_handler=self._log_invalid_identity_email,
+        )
+
+    def _new_user_id(self) -> UserId:
+        """Create a stable unified-user identity."""
+        return UserId(generate_id(IDPrefix.USER))
+
+    async def _stage_identity_events(
+        self,
+        session,
+        user: User,
+        result: IdentityResolutionResult,
+    ) -> None:
+        """Stage aggregate-raised identity events in the durable outbox."""
+        outbox = self._new_identity_outbox(session)
+        for event in result.domain_events:
+            if not isinstance(event, IdentityDomainEvent):
+                logger.debug(
+                    "identity_domain_event_not_stageable",
+                    domain_event=getattr(event, "event_name", type(event).__name__),
+                    user_hash=hash_identifier(user.id),
+                )
+                continue
+            await outbox.add(identity_event_from_domain_event(event))
+
+    def _log_identity_events(
         self,
         user: User,
-        platform: Platform,
-        platform_user_id: str,
+        result: IdentityResolutionResult,
     ) -> None:
-        """Set the user's platform ID."""
-        if platform == Platform.FEISHU:
-            user.feishu_open_id = platform_user_id
-        elif platform == Platform.WECOM:
-            user.wecom_user_id = platform_user_id
-        elif platform == Platform.WEB:
-            user.web_user_id = platform_user_id
+        """Log aggregate-raised events with PII-safe identifiers."""
+        for event in result.domain_events:
+            logger.debug(
+                "identity_domain_event_raised",
+                domain_event=event.event_name,
+                user_hash=hash_identifier(user.id),
+            )
+
+    def _log_invalid_identity_email(
+        self,
+        platform_ref: PlatformUserRef,
+    ) -> None:
+        """Log invalid optional adapter emails without blocking resolution."""
+        logger.warning(
+            "invalid_identity_email_ignored",
+            platform=platform_ref.platform.value,
+            platform_user_hash=hash_identifier(platform_ref.platform_user_id),
+        )
 
     def _cache_key(self, platform: Platform, platform_user_id: str) -> str:
         """Generate a cache key."""

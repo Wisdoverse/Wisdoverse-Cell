@@ -37,6 +37,10 @@ class ControlPlaneUnitOfWork:
         await self._session.commit()
         self._completed = True
 
+    def begin_next_transaction(self) -> None:
+        """Mark the unit of work active for a follow-up local transaction."""
+        self._completed = False
+
     async def rollback(self) -> None:
         await self._session.rollback()
         self._completed = True

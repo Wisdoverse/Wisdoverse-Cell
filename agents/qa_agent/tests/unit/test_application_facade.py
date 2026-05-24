@@ -1,10 +1,12 @@
 """QA application facade tests."""
+
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from agents.qa_agent.core.application_facade import QAApplicationFacade
 from agents.qa_agent.models.schemas import QARunRequest, QARunStats
+from shared.core.identifiers import AcceptanceRunId
 from shared.schemas.event import Event, EventTypes
 
 
@@ -60,10 +62,8 @@ async def test_qa_application_facade_delegates_run_queries():
     run_queries.get_stats = AsyncMock(return_value=stats)
     facade = _facade(run_queries=run_queries)
 
-    assert await facade.list_runs(agent_name="dev_agent", limit=5, offset=1) == [
-        {"id": "run_1"}
-    ]
-    assert await facade.get_run("run_1") == {"id": "run_1"}
+    assert await facade.list_runs(agent_name="dev_agent", limit=5, offset=1) == [{"id": "run_1"}]
+    assert await facade.get_run(AcceptanceRunId("run_1")) == {"id": "run_1"}
     assert await facade.get_stats(agent_name="dev_agent", days=7) is stats
 
     run_queries.list_runs.assert_awaited_once_with(
@@ -71,7 +71,7 @@ async def test_qa_application_facade_delegates_run_queries():
         limit=5,
         offset=1,
     )
-    run_queries.get_run.assert_awaited_once_with("run_1")
+    run_queries.get_run.assert_awaited_once_with(AcceptanceRunId("run_1"))
     run_queries.get_stats.assert_awaited_once_with(agent_name="dev_agent", days=7)
 
 

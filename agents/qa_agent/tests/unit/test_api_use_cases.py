@@ -20,6 +20,7 @@ from agents.qa_agent.models.schemas import (
     QACheckAggregate,
     QARunStats,
 )
+from shared.core.identifiers import AcceptanceRunId
 
 
 @pytest.mark.asyncio
@@ -114,9 +115,7 @@ async def test_list_runs_wraps_failures() -> None:
     agent.list_runs.side_effect = RuntimeError("db down")
 
     with pytest.raises(QAApiListRunsFailedError, match="db down"):
-        await QAApiUseCase(agent).list_runs(
-            QAListRunsQuery(agent_name=None, limit=20, offset=0)
-        )
+        await QAApiUseCase(agent).list_runs(QAListRunsQuery(agent_name=None, limit=20, offset=0))
 
 
 @pytest.mark.asyncio
@@ -126,6 +125,7 @@ async def test_get_run_detail_raises_not_found() -> None:
 
     with pytest.raises(QAApiRunNotFoundError):
         await QAApiUseCase(agent).get_run_detail("missing")
+    agent.get_run.assert_awaited_once_with(AcceptanceRunId("missing"))
 
 
 @pytest.mark.asyncio
@@ -144,9 +144,7 @@ async def test_get_stats_maps_stats_model() -> None:
         top_l1_warnings=[],
     )
 
-    result = await QAApiUseCase(agent).get_stats(
-        QAStatsQuery(agent_name="pjm_agent", days=7)
-    )
+    result = await QAApiUseCase(agent).get_stats(QAStatsQuery(agent_name="pjm_agent", days=7))
 
     assert result["total_runs"] == 10
     assert result["top_l0_failures"][0].check == "security"

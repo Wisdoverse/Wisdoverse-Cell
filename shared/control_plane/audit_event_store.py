@@ -4,7 +4,13 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .domain.audit_event import AuditEvent as AuditEventAggregate
+from .domain_event_outbox import (
+    audit_event_carries_domain_event,
+    outbox_event_from_audit_event,
+)
 from .domain_records import audit_event_record
+from .event_outbox_store import SqlAlchemyControlPlaneEventOutboxStore
 from .models import AuditEvent
 from .store_utils import model_values
 from .tables import AuditEventTable
@@ -17,6 +23,9 @@ class SqlAlchemyControlPlaneAuditEventStore:
         self._session = session
 
     async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
+        aggregate = AuditEventAggregate.for_append(event)
+        event = aggregate.record
+
         if event.idempotency_key:
             existing = await self._get_audit_by_idempotency(
                 event.company_id, event.idempotency_key
@@ -27,6 +36,10 @@ class SqlAlchemyControlPlaneAuditEventStore:
         row = AuditEventTable(**model_values(event))
         self._session.add(row)
         await self._session.flush()
+        if audit_event_carries_domain_event(event):
+            await SqlAlchemyControlPlaneEventOutboxStore(self._session).add(
+                outbox_event_from_audit_event(event),
+            )
         return audit_event_record(row)
 
     async def list_audit_events(

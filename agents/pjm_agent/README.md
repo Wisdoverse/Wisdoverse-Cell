@@ -32,6 +32,22 @@ See [`docs/architecture/module-boundaries.md`](../../docs/architecture/module-bo
 Cross-link to the company-wide vocabulary:
 [`docs/overview/glossary.md`](../../docs/overview/glossary.md).
 
+## Consistency Rules
+
+- PJM keeps one meaningful `Decomposition` per `WorkPackageId`.
+- New decomposition intake skips records in `pending`, `writing`, `approved`,
+  or `write_failed` because those states already have an active approval/write
+  outcome.
+- New decomposition intake replaces failed, rejected, or otherwise stale
+  records before creating a fresh pending decomposition.
+- Retry is allowed only from `failed`, `rejected`, or `write_failed`; other
+  states must not be retried because they may duplicate an active approval or
+  OpenProject write.
+
+These cross-record rules live in
+`core/domain/decomposition_policy.py::DecompositionWorkflowPolicy`; request and
+recovery workflows only apply the policy inside their transaction boundaries.
+
 ## Context-Map Relationships
 
 Per [`module-boundaries.md`](../../docs/architecture/module-boundaries.md) §2.3:

@@ -20,6 +20,7 @@ from ..decision_use_cases import (
 )
 from ..decision_use_cases import get_decision as get_decision_from_store
 from ..decision_use_cases import list_decisions as list_decisions_from_store
+from ..domain.decision import InvalidDecisionTransitionError
 from ..models import Decision, DecisionStatus
 from ..store_factory import ControlPlaneStores
 from ..unit_of_work import ControlPlaneUnitOfWork
@@ -177,6 +178,11 @@ def create_decision_router(
             )
         except DecisionNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="decision_not_found")
+        except InvalidDecisionTransitionError:
+            raise_control_plane_api_error(
+                status_code=400,
+                detail="invalid_decision_transition",
+            )
         await uow.commit()
         return row_to_dict(row)
 

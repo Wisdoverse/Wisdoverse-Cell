@@ -2,6 +2,8 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import MeetingId
+
 from ..core.meeting_ports import RequirementMeetingStore
 from .repository import MeetingRepository
 
@@ -15,11 +17,11 @@ class SqlAlchemyRequirementMeetingStore(RequirementMeetingStore):
     async def create(self, meeting):
         return await self._meetings.create(meeting)
 
-    async def get_by_id(self, meeting_id: str):
+    async def get_by_id(self, meeting_id: MeetingId):
         return await self._meetings.get_by_id(meeting_id)
 
     async def get_by_source_id(self, source: str, source_id: str):
         return await self._meetings.get_by_source_id(source, source_id)
 
-    async def mark_processed(self, meeting_id: str) -> None:
+    async def mark_processed(self, meeting_id: MeetingId) -> None:
         await self._meetings.mark_processed(meeting_id)

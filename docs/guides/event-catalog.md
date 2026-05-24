@@ -1,6 +1,6 @@
 # Wisdoverse Cell Event Catalog
 
-Last updated: 2026-05-17
+Last updated: 2026-05-23
 
 This catalog documents event names, producers, consumers, and payload
 expectations. English is the primary documentation language. Event names remain
@@ -48,7 +48,8 @@ actions only when the event intentionally requests work, such as `sync.trigger`.
 | `sync.started` | sync capability | Event observers | Synchronization started |
 | `sync.completed` | sync capability | project management, analysis | Synchronization completed |
 | `sync.failed` | sync capability | Event observers | Synchronization failed |
-| `sync.trigger` | user interaction gateway or scheduler/API | sync capability | User or scheduler requested sync |
+| `sync.trigger` | chat agent or scheduler/API | sync capability | User or scheduler requested sync |
+| `sync.progress-updated` | sync capability | Event observers, analysis | Feishu Bitable progress was pushed back to OpenProject |
 | `sync.task-needs-decompose` | sync capability or PJM retry path | project management | Synced work item needs decomposition |
 | `report.daily-generated` | analysis capability | Event observers | Daily report generated |
 | `report.weekly-generated` | analysis capability | Event observers | Weekly report generated |
@@ -60,10 +61,10 @@ actions only when the event intentionally requests work, such as `sync.trigger`.
 | `pm.approval-timeout` | project management | Event observers | Decomposition approval timed out |
 | `pm.prd-ready` | requirement manager or external PRD workflow | coordinator | PRD is ready for downstream decomposition planning |
 | `pm.tasks-ready-for-dev` | project management or coordinator | dev agent | Decomposed tasks are ready for development |
-| `chat.pm-query` | user interaction gateway | project management | User asked a PM-related question |
-| `chat.pm-response` | project management | user interaction gateway | PM query answer produced |
-| `coordinator.command` | user interaction gateway or control-plane API | coordinator | User or operator intent requires orchestration |
-| `coordinator.response` | coordinator | user interaction gateway | Coordinator response for the requesting surface |
+| `chat.pm-query` | chat agent | project management | User asked a PM-related question |
+| `chat.pm-response` | project management | chat agent | PM query answer produced |
+| `coordinator.command` | chat agent or control-plane API | coordinator | User or operator intent requires orchestration |
+| `coordinator.response` | coordinator | chat agent | Coordinator response for the requesting surface |
 | `coordinator.dispatch` | coordinator | runtime agents or capability modules | Coordinator dispatched work to a target boundary |
 | `task.notification` | runtime agents | coordinator | Agent task completion or failure notification |
 | `task.progress` | runtime agents | coordinator | Agent progress heartbeat for long-running work |
@@ -91,6 +92,9 @@ actions only when the event intentionally requests work, such as `sync.trigger`.
 | `channel.read.receipt` | channel gateway | Event observers | Read receipt received |
 | `channel.typing.started` | channel gateway | Event observers | Typing indicator started |
 | `channel.adapter.status` | channel gateway | Event observers | Adapter status changed |
+| `identity.user-created` | identity/user service | Event observers | Unified user identity created |
+| `identity.platform-linked` | identity/user service | Event observers | Platform account linked to unified user |
+| `identity.user-activated` | identity/user service | Event observers | Unified user resolved through a platform |
 
 ## 3.0 Control Plane Domain
 
@@ -100,6 +104,9 @@ available IDs among `goal_id`, `work_item_id`, and `run_id`.
 Each persisted `AgentRole` should declare `subscribed_events` and
 `published_events` so the control plane can review cross-agent communication
 without coupling runtime packages.
+Aggregate-raised Control Plane events are first recorded in the audit ledger
+and staged in `control_plane_event_outbox`; dispatcher delivery must preserve
+the `audit_event_id` as correlation evidence.
 
 | Event type | Producer | Consumer | Purpose |
 |------------|----------|----------|---------|
@@ -177,7 +184,22 @@ Example `agent_run.failed` payload:
 }
 ```
 
-## 3.1 Channel Gateway Domain
+## 3.1 Identity / User Events
+
+Identity events are produced by the inbound user-service path after the
+`User` aggregate raises a domain event. They are staged in
+`identity_event_outbox` before the user transaction commits. Payloads
+must stay PII-safe: pass `user_id`, platform names, occurrence time, and
+contact-presence booleans; do not include raw name, email, phone, or
+platform-user identifiers.
+
+| Event type | Producer | Consumer | Purpose |
+|------------|----------|----------|---------|
+| `identity.user-created` | identity/user service | Event observers | Unified user identity created |
+| `identity.platform-linked` | identity/user service | Event observers | Platform account linked to a unified user |
+| `identity.user-activated` | identity/user service | Event observers | User identity resolved through a platform |
+
+## 3.2 Channel Gateway Domain
 
 `channel.message.outbound` is a delivery command event. Producers publish a
 `MessageOutboundPayload` with an `OutboundMessage`; `channel-gateway` resolves
@@ -210,7 +232,7 @@ Example `channel.message.outbound` payload:
 }
 ```
 
-## 3.2 Requirement Context Events
+## 3.3 Requirement Context Events
 
 `project.*`, `sprint.*`, and `meeting.uploaded` are external work-context
 events consumed by the requirement manager agent. Producers may be the Rust
@@ -252,31 +274,34 @@ Example `channel.message.delivered` payload:
 }
 ```
 
-## 3.3 Sync Capability Events
+## 3.4 Sync Capability Events
 
 `sync.trigger` is a command event consumed by the sync runtime. Its payload may
 include `scope=full`, `scope=openproject`, or `scope=feishu_bitable`; the
 hyphenated alias `feishu-bitable` is accepted only for inbound compatibility.
 If no scope is provided, the sync runtime runs the compatibility full sync.
-The user interaction gateway exposes separate deferred tools for these
+The chat agent exposes separate deferred tools for these
 boundaries: `sync_now` emits `scope=full`, `sync_openproject` emits
 `scope=openproject`, and `sync_feishu_bitable` emits `scope=feishu_bitable`.
 These tool commands are staged in `chat_agent_event_outbox` before the
-post-commit EventBus publish attempt. The user-interaction gateway outbox
-dispatcher retries pending `sync.trigger` commands when immediate publish
-fails.
+post-commit EventBus publish attempt. The chat-agent outbox dispatcher retries
+pending `sync.trigger` commands when immediate publish fails; the
+user-interaction gateway keeps only a compatibility dispatch path during the
+ADR-0010 cutover.
 
 `sync.started`, `sync.completed`, and `sync.failed` always include the resolved
 `scope` so project-management and analysis consumers can tell whether the event
 came from the full sync, the OpenProject projection, or the Feishu Bitable
 progress sync.
 
-Sync lifecycle events and OpenProject-to-PJM decomposition handoff events are
-staged in `sync_agent_event_outbox` before publishing. `sync.started`,
-`sync.completed`, and `sync.failed` are staged through the Sync application
-service; `sync.task-needs-decompose` is staged in the OpenProject projection
-transaction before the post-commit publish attempt. The Sync runtime outbox
-dispatcher retries pending rows when immediate EventBus publish fails.
+Sync lifecycle events, Feishu progress-update events, and OpenProject-to-PJM
+decomposition handoff events are staged in `sync_agent_event_outbox` before
+publishing. `sync.started`, `sync.completed`, and `sync.failed` are staged
+through the Sync application service; `sync.progress-updated` is staged in the
+Feishu Bitable projection transaction after the OpenProject parent progress
+write succeeds; `sync.task-needs-decompose` is staged in the OpenProject
+projection transaction before the post-commit publish attempt. The Sync runtime
+outbox dispatcher retries pending rows when immediate EventBus publish fails.
 
 Example `sync.trigger` payload:
 
@@ -287,12 +312,28 @@ Example `sync.trigger` payload:
 }
 ```
 
-## 3.4 Analysis and Project Management Events
+Example `sync.progress-updated` payload:
 
-`analysis.quality-evaluated` carries a compact list of quality evaluation
-records in `evaluations`. Analysis report/risk/quality events are staged in
-`analysis_agent_event_outbox` before EventBus delivery; the runtime dispatcher
-retries pending rows if the immediate post-commit publish attempt fails.
+```json
+{
+  "parent_op_id": 123,
+  "progress_percent": 50,
+  "subtask_count": 2,
+  "completed_subtask_count": 1,
+  "scope": "feishu_bitable"
+}
+```
+
+## 3.5 Analysis and Project Management Events
+
+`analysis.risk-detected` and `analysis.quality-evaluated` payloads are
+serialized from Analysis-owned risk and quality value objects before leaving the
+runtime. `analysis.quality-evaluated` carries a compact list of quality
+evaluation records in `evaluations`. Analysis report/risk/quality events are
+staged in `analysis_agent_event_outbox` before EventBus delivery; the runtime
+dispatcher retries pending rows if the immediate post-commit publish attempt
+fails. Daily and weekly report events are constructed by the Analysis
+report-delivery command boundary after report generation and chat push complete.
 `pm.decomposition-failed` and `pm.approval-timeout` are failure-evidence events;
 both should keep the workflow trace when one is available so the Coordinator and
 operator surfaces can connect the failure to the original work.
@@ -340,7 +381,7 @@ Example `pm.decomposition-failed` payload:
 }
 ```
 
-## 3.5 Coordinator, Development, and QA Events
+## 3.6 Coordinator, Development, and QA Events
 
 Coordinator events are orchestration contracts, not direct package imports.
 `coordinator.command` enters the coordinator boundary, `coordinator.dispatch`
@@ -357,9 +398,12 @@ fails, and `task.progress` during long-running work.
 QA acceptance completion events are staged in `qa_agent_event_outbox` in the
 same local transaction that writes `qa_acceptance_runs` and
 `qa_acceptance_results`. `qa.acceptance-completed` is always staged for a
-persisted run; `qa.gate-failed` is also staged when the L0 gate fails. The QA
-runtime outbox dispatcher retries pending rows if immediate post-commit publish
-fails.
+persisted run; `qa.gate-failed` is also staged when the L0 gate fails. The
+gate, L1/L2, finding, and public API status vocabulary exposed by these events
+is the shared Published Language in `shared/core/qa_acceptance.py`, so
+downstream contexts such as Dev classify QA results without importing QA Agent
+internals. The QA runtime outbox dispatcher retries pending rows if immediate
+post-commit publish fails.
 
 The dev agent publishes workflow-created, merge-request-created, task-completed,
 and task-failed evidence, and may request QA with `qa.run-requested` after
@@ -407,7 +451,7 @@ Example `task.progress` payload:
 }
 ```
 
-## 3.6 A2A Bridge Events
+## 3.7 A2A Bridge Events
 
 The A2A bridge is a protocol adapter boundary between internal EventBus events
 and external A2A agents. Internal agents must not import A2A agent
@@ -497,6 +541,9 @@ Per-event domain idempotency keys (target contract):
 | `qa.gate-failed` | `run_id` | Same |
 | `agent_run.started` / `.succeeded` / `.failed` | `run_id` | `AgentRunLifecycle.transition_to(...)` rejects illegal moves |
 | `approval.requested` / `.approved` / `.rejected` | `approval_id` | Resolve once; subsequent resolves are no-ops |
+| `identity.user-created` | `user_id` | Consumer upserts by unified user id |
+| `identity.platform-linked` | `user_id` + `platform` | Consumer ignores already-seen link projection |
+| `identity.user-activated` | `user_id` + `platform` + `occurred_at` | Consumer keeps the newest activity timestamp |
 | `evolution.proposal-emitted` | `proposal_id` | Proposal store deduplicates |
 | `chat.pm-query` | `message_id` | Gateway dedupes by inbound message id |
 | `coordinator.dispatch` | `event_id` (no domain key) | Coordinator state-store records processed event_ids |
@@ -525,7 +572,8 @@ See [`docs/architecture/event-guidelines.md`](../architecture/event-guidelines.m
 | sync runtime | `sync.*` with `scope=full`, `openproject`, or `feishu_bitable` | `sync.trigger`, scheduler/API trigger paths |
 | analysis capability | `report.*`, `analysis.*` via `analysis_agent_event_outbox` | `sync.completed` |
 | PJM agent | `pm.*`, `chat.pm-response`, retry `sync.task-needs-decompose` | `sync.completed`, `sync.task-needs-decompose`, `analysis.risk-detected`, `chat.pm-query`, `coordinator.dispatch` |
-| user interaction gateway | `chat.pm-query`, `coordinator.command`, `sync.trigger` via `chat_agent_event_outbox` | `chat.pm-response`, `coordinator.response` |
+| chat agent | `chat.pm-query`, `coordinator.command`, `sync.trigger` via `chat_agent_event_outbox` | `chat.pm-response`, `coordinator.response` |
+| user interaction gateway | inbound webhook/chat transport events during ADR-0010 compatibility cutover | chat-agent rendered-message events after the read/write cutover |
 | coordinator | `coordinator.response`, `coordinator.dispatch`, `pm.tasks-ready-for-dev`, `qa.run-requested` via `coordinator_event_outbox` | `coordinator.command`, `task.notification`, `task.progress`, `pm.prd-ready`, `pm.decompose-completed`, `pm.decomposition-failed`, `analysis.risk-detected` |
 | channel gateway | `channel.message.inbound`, `channel.message.delivered`, `channel.message.edited`, `channel.message.deleted`, `channel.reaction.added`, `channel.reaction.removed`, `channel.read.receipt`, `channel.typing.started`, `channel.adapter.status` via `channel_gateway_event_outbox` | `channel.message.outbound`, adapter-specific platform callbacks |
 | QA agent | `qa.acceptance-completed`, `qa.gate-failed` | `code.committed`, `qa.run-requested` |
@@ -533,6 +581,7 @@ See [`docs/architecture/event-guidelines.md`](../architecture/event-guidelines.m
 | A2A bridge | `a2a.task.*` | mapped EventBus events |
 | evolution capability | `evolution.*` via `evolution_event_outbox` | `evolution.cycle-triggered`, `evolution.human-feedback`, `evolution.pattern-approved`; reads persisted execution traces |
 | control plane | `goal.*`, `work_item.*`, `agent_run.*`, `audit.*` | runtime evidence and operator actions |
+| identity/user service | `identity.*` via `identity_event_outbox` | platform directory adapters and inbound identity resolution requests |
 
 ## 6. Evolution Events
 

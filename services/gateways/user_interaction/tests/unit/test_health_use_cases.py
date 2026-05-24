@@ -1,7 +1,7 @@
 import pytest
 
-from services.gateways.user_interaction.core.health_use_cases import (
-    UserInteractionHealthUseCase,
+from agents.chat_agent.core.health_use_cases import (
+    ChatAgentHealthUseCase,
 )
 
 
@@ -15,7 +15,7 @@ class FakeHealthStore:
 
 @pytest.mark.asyncio
 async def test_health_check_reports_database_and_chat_service() -> None:
-    use_case = UserInteractionHealthUseCase(
+    use_case = ChatAgentHealthUseCase(
         health_store=FakeHealthStore(True),
         chat_service=object(),
     )
@@ -27,7 +27,7 @@ async def test_health_check_reports_database_and_chat_service() -> None:
 
 @pytest.mark.asyncio
 async def test_health_check_reports_missing_chat_service() -> None:
-    use_case = UserInteractionHealthUseCase(
+    use_case = ChatAgentHealthUseCase(
         health_store=FakeHealthStore(False),
         chat_service=None,
     )

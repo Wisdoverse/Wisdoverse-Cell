@@ -1,9 +1,10 @@
 """Ports for control-plane agent registry persistence."""
+
 from __future__ import annotations
 
 from typing import Any, Protocol
 
-from shared.core.identifiers import CompanyId
+from shared.core.identifiers import AgentRoleId, CompanyId
 
 from .models import AgentRole, AuditEvent, CompanyContext
 
@@ -24,7 +25,7 @@ class ControlPlaneAgentRegistryStore(Protocol):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
     ) -> AgentRole | None:
         """Return one agent role definition."""
 
@@ -45,7 +46,7 @@ class ControlPlaneAgentRegistryStore(Protocol):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
         values: dict[str, Any],
     ) -> AgentRole | None:
         """Update one agent role definition."""
@@ -54,7 +55,7 @@ class ControlPlaneAgentRegistryStore(Protocol):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
         status: str,
     ) -> AgentRole | None:
         """Update one agent role status."""

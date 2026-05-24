@@ -139,8 +139,8 @@ uvicorn shared.capabilities.analysis.app.main:app --reload --port 8011
 # PJM Agent
 uvicorn agents.pjm_agent.app.main:app --reload --port 8012
 
-# User interaction gateway
-uvicorn services.gateways.user_interaction.app.main:app --reload --port 8013
+# Chat Agent
+uvicorn agents.chat_agent.app.main:app --reload --port 8013
 
 # QA Agent
 uvicorn agents.qa_agent.app.main:app --reload --port 8014
@@ -188,18 +188,18 @@ Watch the pjm-agent or analysis-module logs to see the event processed.
 
 ## 3. First Week
 
-Goal: make your first contribution — add a tool to the user interaction gateway
+Goal: make your first contribution — add a tool to the Chat Agent
 or create a minimal new agent service.
 
-### 3.1 Tutorial: Add a New Tool to the User Interaction Gateway
+### 3.1 Tutorial: Add a New Tool to the Chat Agent
 
-The user interaction gateway uses LiteLLM-mediated tool calling. To add a new
+The Chat Agent uses LiteLLM-mediated tool calling. To add a new
 tool:
 
 **Step 1**: Define the tool schema.
 
 ```python
-# services/gateways/user_interaction/core/tools/my_tool.py
+# agents/chat_agent/core/tools/my_tool.py
 from shared.utils.logger import get_logger
 
 logger = get_logger("chat_agent.tools.my_tool")
@@ -229,9 +229,9 @@ async def handle_my_tool(params: dict) -> str:
 **Step 3**: Write tests.
 
 ```python
-# services/gateways/user_interaction/tests/test_my_tool.py
+# agents/chat_agent/tests/test_my_tool.py
 import pytest
-from services.gateways.user_interaction.core.tools.my_tool import handle_my_tool
+from agents.chat_agent.core.tools.my_tool import handle_my_tool
 
 @pytest.mark.asyncio
 async def test_my_tool_returns_result():
@@ -708,7 +708,7 @@ Create `.vscode/launch.json` (gitignored):
             "request": "launch",
             "module": "uvicorn",
             "args": [
-                "services.gateways.user_interaction.app.main:app",
+                "agents.chat_agent.app.main:app",
                 "--reload",
                 "--port", "8013"
             ],

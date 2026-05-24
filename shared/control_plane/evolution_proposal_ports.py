@@ -1,9 +1,10 @@
 """Ports for control-plane evolution proposal persistence."""
+
 from __future__ import annotations
 
 from typing import Protocol
 
-from shared.core.identifiers import CompanyId
+from shared.core.identifiers import ApprovalRequestId, CompanyId, EvolutionProposalId
 
 from .models import (
     ApprovalRequest,
@@ -26,25 +27,23 @@ class ControlPlaneEvolutionProposalStore(Protocol):
     async def request_approval(self, approval: ApprovalRequest) -> ApprovalRequest:
         """Persist a new approval request."""
 
-    async def get_approval(self, approval_id: str) -> ApprovalRequest | None:
+    async def get_approval(self, approval_id: ApprovalRequestId) -> ApprovalRequest | None:
         """Return one approval request."""
 
     async def resolve_approval(
         self,
-        approval_id: str,
+        approval_id: ApprovalRequestId,
         *,
         status: ApprovalStatus | str,
         resolved_by: str,
     ) -> ApprovalRequest | None:
         """Resolve an approval request."""
 
-    async def create_evolution_proposal(
-        self, proposal: EvolutionProposal
-    ) -> EvolutionProposal:
+    async def create_evolution_proposal(self, proposal: EvolutionProposal) -> EvolutionProposal:
         """Create an evolution proposal."""
 
     async def get_evolution_proposal(
-        self, proposal_id: str
+        self, proposal_id: EvolutionProposalId
     ) -> EvolutionProposal | None:
         """Return one evolution proposal."""
 
@@ -62,11 +61,11 @@ class ControlPlaneEvolutionProposalStore(Protocol):
 
     async def update_evolution_proposal_status(
         self,
-        proposal_id: str,
+        proposal_id: EvolutionProposalId,
         *,
         approval_state: str | None = None,
         rollout_state: str | None = None,
-        approval_id: str | None = None,
+        approval_id: ApprovalRequestId | None = None,
     ) -> EvolutionProposal | None:
         """Update one evolution proposal status."""
 

@@ -8,6 +8,7 @@ import pytest
 from agents.requirement_manager.core.agent_read_use_cases import (
     RequirementAgentReadUseCase,
 )
+from shared.core.identifiers import MeetingId, RequirementId
 
 
 def _requirement(**overrides):
@@ -116,10 +117,10 @@ async def test_get_requirement_and_meeting_delegate_to_ports():
     meetings.get_by_id = AsyncMock(return_value=meeting)
     service = _service(requirements=requirements, meetings=meetings)
 
-    assert await service.get_requirement("req_1") is requirement
-    assert await service.get_meeting("mtg_1") is meeting
-    requirements.get_by_id.assert_awaited_once_with("req_1")
-    meetings.get_by_id.assert_awaited_once_with("mtg_1")
+    assert await service.get_requirement(RequirementId("req_1")) is requirement
+    assert await service.get_meeting(MeetingId("mtg_1")) is meeting
+    requirements.get_by_id.assert_awaited_once_with(RequirementId("req_1"))
+    meetings.get_by_id.assert_awaited_once_with(MeetingId("mtg_1"))
 
 
 @pytest.mark.asyncio

@@ -1,8 +1,14 @@
 """Application use cases for control-plane goals."""
+
 from __future__ import annotations
 
 from shared.schemas.event import EventTypes
 
+from .domain.goal import Goal as GoalAggregate
+from .domain_event_audit import (
+    DomainEventAuditContext,
+    append_control_plane_domain_event_audits,
+)
 from .goal_ports import ControlPlaneGoalStore
 from .models import AuditEvent, CompanyContext, Goal, GoalStatus
 
@@ -97,14 +103,34 @@ async def update_goal_status_with_audit(
     if existing is None or existing.company_id != company_id:
         raise GoalNotFoundError(goal_id)
 
-    status_value = status.value if isinstance(status, GoalStatus) else status
+    aggregate = GoalAggregate.from_record(existing)
+    aggregate.transition_to(status)
+    domain_events = aggregate.pull_events()
+    status_value = aggregate.status.value
+    progress_value = aggregate.current_value_for_update(current_value)
     updated = await store.update_goal_status(
         goal_id,
         status=status_value,
-        current_value=current_value,
+        current_value=progress_value,
     )
     if updated is None:
         raise GoalNotFoundError(goal_id)
+
+    detail = {
+        "status": updated.status,
+        "current_value": updated.current_value,
+    }
+    if domain_events:
+        await append_control_plane_domain_event_audits(
+            store,
+            domain_events,
+            DomainEventAuditContext(
+                actor_type="user",
+                actor_id=actor_id,
+                detail=detail,
+            ),
+        )
+        return updated
 
     await store.append_audit_event(
         AuditEvent(
@@ -114,10 +140,7 @@ async def update_goal_status_with_audit(
             target_id=updated.goal_id,
             actor_type="user",
             actor_id=actor_id,
-            detail={
-                "status": updated.status,
-                "current_value": updated.current_value,
-            },
+            detail=detail,
         )
     )
     return updated

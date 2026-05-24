@@ -50,6 +50,7 @@ class SyncModule(BaseAgent):
                 EventTypes.SYNC_STARTED,
                 EventTypes.SYNC_COMPLETED,
                 EventTypes.SYNC_FAILED,
+                EventTypes.SYNC_PROGRESS_UPDATED,
                 EventTypes.SYNC_TASK_NEEDS_DECOMPOSE,
             ],
         )

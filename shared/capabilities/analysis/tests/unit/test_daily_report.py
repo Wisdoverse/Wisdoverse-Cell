@@ -1,26 +1,60 @@
 """
 Unit Tests - DailyReportGenerator
 
-Tests daily report generation with mocked Bitable + projection ports.
+Tests daily report generation with mocked projection ports.
 """
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
 
 from shared.capabilities.analysis.core.config import AnalysisCoreConfig
+from shared.capabilities.analysis.core.domain.feishu_task import (
+    AnalysisFeishuTaskSnapshot,
+)
+from shared.capabilities.analysis.core.domain.projection import (
+    SubtaskProgressProjection,
+)
 
 
-@pytest.fixture
-def mock_bitable():
-    bitable = AsyncMock()
-    bitable.list_all_records = AsyncMock(return_value=[])
-    return bitable
+def _feishu_task(
+    *,
+    title: str = "任务",
+    status: str,
+    blocked_reason: str = "",
+) -> AnalysisFeishuTaskSnapshot:
+    return AnalysisFeishuTaskSnapshot.from_fields(
+        {
+            "任务(动宾短语)": title,
+            "状态": status,
+            "阻塞原因": blocked_reason,
+        }
+    )
+
+
+def _subtask_projection(
+    record_id: str,
+    *,
+    title: str = "任务",
+    status: str,
+    blocked_reason: str = "",
+) -> SubtaskProgressProjection:
+    return SubtaskProgressProjection(
+        parent_wp_id=1,
+        subtask_record_id=record_id,
+        subtask_status=status,
+        completed="完成" in status or "Done" in status,
+        updated_at=datetime.now(UTC),
+        title=title,
+        blocked_reason=blocked_reason,
+    )
 
 
 @pytest.fixture
 def mock_projection():
     projection = AsyncMock()
     projection.list_work_packages = AsyncMock(return_value=[])
+    projection.list_subtask_progress = AsyncMock(return_value=[])
     return projection
 
 
@@ -32,11 +66,10 @@ def mock_messenger():
 
 
 @pytest.fixture
-def generator(mock_bitable, mock_messenger, mock_projection):
+def generator(mock_messenger, mock_projection):
     from shared.capabilities.analysis.core.daily_report import DailyReportGenerator
 
     return DailyReportGenerator(
-        bitable=mock_bitable,
         messenger=mock_messenger,
         projection_port=mock_projection,
         config=AnalysisCoreConfig.from_values(
@@ -48,9 +81,9 @@ def generator(mock_bitable, mock_messenger, mock_projection):
 
 
 @pytest.mark.asyncio
-async def test_generate_empty(generator, mock_bitable):
+async def test_generate_empty(generator, mock_projection):
     """No task data should return an empty report."""
-    mock_bitable.list_all_records.return_value = []
+    mock_projection.list_subtask_progress.return_value = []
 
     result = await generator.generate()
 
@@ -60,13 +93,18 @@ async def test_generate_empty(generator, mock_bitable):
 
 
 @pytest.mark.asyncio
-async def test_generate_with_tasks(generator, mock_bitable):
+async def test_generate_with_tasks(generator, mock_projection):
     """Task data should generate a stats report."""
-    mock_bitable.list_all_records.return_value = [
-        {"fields": {"任务(动宾短语)": "完成设计", "状态": "已完成(Done)"}},
-        {"fields": {"任务(动宾短语)": "开发功能A", "状态": "进行中(In Progress)"}},
-        {"fields": {"任务(动宾短语)": "修复BugX", "状态": "阻塞(Blocked)", "阻塞原因": "等待API"}},
-        {"fields": {"任务(动宾短语)": "编写文档", "状态": "未开始"}},
+    mock_projection.list_subtask_progress.return_value = [
+        _subtask_projection("rec_1", title="完成设计", status="已完成(Done)"),
+        _subtask_projection("rec_2", title="开发功能A", status="进行中(In Progress)"),
+        _subtask_projection(
+            "rec_3",
+            title="修复BugX",
+            status="阻塞(Blocked)",
+            blocked_reason="等待API",
+        ),
+        _subtask_projection("rec_4", title="编写文档", status="未开始"),
     ]
 
     result = await generator.generate()
@@ -80,14 +118,15 @@ async def test_generate_with_tasks(generator, mock_bitable):
 
 
 @pytest.mark.asyncio
-async def test_generate_report_contains_blocked_details(generator, mock_bitable):
+async def test_generate_report_contains_blocked_details(generator, mock_projection):
     """Report content should include blocked task details."""
-    mock_bitable.list_all_records.return_value = [
-        {"fields": {
-            "任务(动宾短语)": "部署服务",
-            "状态": "阻塞(Blocked)",
-            "阻塞原因": "服务器未就绪",
-        }},
+    mock_projection.list_subtask_progress.return_value = [
+        _subtask_projection(
+            "rec_blocked",
+            title="部署服务",
+            status="阻塞(Blocked)",
+            blocked_reason="服务器未就绪",
+        ),
     ]
 
     result = await generator.generate()
@@ -98,19 +137,33 @@ async def test_generate_report_contains_blocked_details(generator, mock_bitable)
 
 
 @pytest.mark.asyncio
-async def test_generate_no_config(mock_bitable, mock_messenger, mock_projection):
-    """Missing app token should return empty data."""
+async def test_fetch_feishu_tasks_returns_analysis_snapshots(generator, mock_projection):
+    """Feishu tasks should cross into reports through the Analysis projection."""
+    mock_projection.list_subtask_progress.return_value = [
+        _subtask_projection("rec_1", title="完成设计", status="已完成(Done)"),
+    ]
+
+    [task] = await generator._fetch_feishu_tasks()
+
+    assert isinstance(task, AnalysisFeishuTaskSnapshot)
+    assert task.record_id == "rec_1"
+    assert task.title == "完成设计"
+    assert task.is_completed is True
+
+
+@pytest.mark.asyncio
+async def test_generate_without_subtask_projection_data(mock_messenger, mock_projection):
+    """Empty projection data should return an empty report."""
     from shared.capabilities.analysis.core.daily_report import DailyReportGenerator
 
     generator = DailyReportGenerator(
-        bitable=mock_bitable,
         messenger=mock_messenger,
         projection_port=mock_projection,
     )
     result = await generator.generate()
 
     assert result["content"] == "暂无任务数据"
-    mock_bitable.list_all_records.assert_not_called()
+    mock_projection.list_subtask_progress.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -123,12 +176,11 @@ async def test_push_to_chat_success(generator, mock_messenger):
 
 
 @pytest.mark.asyncio
-async def test_push_to_chat_no_chat_id(mock_bitable, mock_messenger, mock_projection):
+async def test_push_to_chat_no_chat_id(mock_messenger, mock_projection):
     """Missing chat ID should make push return False."""
     from shared.capabilities.analysis.core.daily_report import DailyReportGenerator
 
     generator = DailyReportGenerator(
-        bitable=mock_bitable,
         messenger=mock_messenger,
         projection_port=mock_projection,
     )
@@ -149,19 +201,21 @@ async def test_push_to_chat_error(generator, mock_messenger):
 
 def test_compute_stats_with_typed_projection(generator):
     """_compute_stats should count Feishu + projected OP rows correctly."""
-    from datetime import UTC, datetime
-
     from shared.capabilities.analysis.core.domain.projection import (
         WorkPackageProjection,
     )
+    from shared.capabilities.analysis.core.domain.report import (
+        AnalysisReportStats,
+        TaskSourceStats,
+    )
 
     feishu_tasks = [
-        {"状态": "已完成(Done)"},
-        {"状态": "已完成(Done)"},
-        {"状态": "进行中(In Progress)"},
-        {"状态": "阻塞(Blocked)"},
-        {"状态": "未开始"},
-        {"状态": "未开始"},
+        _feishu_task(status="已完成(Done)"),
+        _feishu_task(status="已完成(Done)"),
+        _feishu_task(status="进行中(In Progress)"),
+        _feishu_task(status="阻塞(Blocked)"),
+        _feishu_task(status="未开始"),
+        _feishu_task(status="未开始"),
     ]
     op_tasks = [
         WorkPackageProjection(
@@ -193,8 +247,8 @@ def test_compute_stats_with_typed_projection(generator):
     ]
 
     stats = generator._compute_stats(feishu_tasks, op_tasks)
-    assert stats["total"] == 8
-    assert stats["feishu"]["completed"] == 2
-    assert stats["feishu"]["in_progress"] == 1
-    assert stats["feishu"]["blocked"] == 1
-    assert stats["op"] == {"total": 2, "completed": 1, "in_progress": 1}
+    assert stats == AnalysisReportStats(
+        feishu=TaskSourceStats(total=6, completed=2, in_progress=1, blocked=1),
+        op=TaskSourceStats(total=2, completed=1, in_progress=1),
+    )
+    assert stats.to_legacy_dict()["total"] == 8

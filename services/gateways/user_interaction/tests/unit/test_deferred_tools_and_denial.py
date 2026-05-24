@@ -63,7 +63,7 @@ def _patch_db():
 
 @pytest.fixture()
 def chat_service():
-    from services.gateways.user_interaction.core.chat_service import ChatService
+    from agents.chat_agent.core.chat_service import ChatService
     return ChatService()
 
 
@@ -89,7 +89,7 @@ class TestBuildToolRegistry:
 
     def test_all_tools_registered(self, chat_service):
         """Every tool from TOOLS should be in the registry."""
-        from services.gateways.user_interaction.core.tools import TOOLS
+        from agents.chat_agent.core.tools import TOOLS
         registry = chat_service._registry
         for tool_def in TOOLS:
             assert registry.get(tool_def["name"]) is not None, (
@@ -121,7 +121,7 @@ class TestToolSearchInToolLoop:
                 chat_service._llm, "create_messages",
                 new=AsyncMock(side_effect=[first_response, final_response]),
             ),
-            patch("services.gateways.user_interaction.core.chat_service.audit_log"),
+            patch("agents.chat_agent.core.chat_service.audit_log"),
         ):
             result = await chat_service.chat("search for sync tool", user_id="u1")
 
@@ -148,8 +148,8 @@ class TestToolSearchInToolLoop:
                 chat_service._llm, "create_messages",
                 new=AsyncMock(side_effect=[first_response, final_response]),
             ),
-            patch("services.gateways.user_interaction.core.chat_service.ToolExecutor") as mock_exec,
-            patch("services.gateways.user_interaction.core.chat_service.audit_log"),
+            patch("agents.chat_agent.core.chat_service.ToolExecutor") as mock_exec,
+            patch("agents.chat_agent.core.chat_service.audit_log"),
         ):
             mock_exec.execute = AsyncMock()
             await chat_service.chat("search", user_id="u1")
@@ -184,8 +184,8 @@ class TestToolSearchInToolLoop:
                 chat_service._llm, "create_messages",
                 new=AsyncMock(side_effect=[first_response, second_response, final_response]),
             ),
-            patch("services.gateways.user_interaction.core.chat_service.ToolExecutor") as mock_exec,
-            patch("services.gateways.user_interaction.core.chat_service.audit_log"),
+            patch("agents.chat_agent.core.chat_service.ToolExecutor") as mock_exec,
+            patch("agents.chat_agent.core.chat_service.audit_log"),
         ):
             mock_exec.execute = AsyncMock(return_value='{"success": true}')
             result = await chat_service.chat("sync please", user_id="u1")
@@ -219,7 +219,7 @@ class TestAnthropicSchemasUsed:
     @pytest.mark.usefixtures("_patch_db")
     async def test_tools_kwarg_is_not_raw_tools_list(self, chat_service):
         """The tools passed should come from registry, not TOOLS directly."""
-        from services.gateways.user_interaction.core.tools import TOOLS
+        from agents.chat_agent.core.tools import TOOLS
 
         final_response = _make_response(
             stop_reason="end_turn",
@@ -269,8 +269,8 @@ class TestDenialChecking:
                 chat_service._denial_tracker, "is_denied",
                 new=AsyncMock(return_value=denial_data),
             ),
-            patch("services.gateways.user_interaction.core.chat_service.ToolExecutor") as mock_exec,
-            patch("services.gateways.user_interaction.core.chat_service.audit_log"),
+            patch("agents.chat_agent.core.chat_service.ToolExecutor") as mock_exec,
+            patch("agents.chat_agent.core.chat_service.audit_log"),
         ):
             mock_exec.execute = AsyncMock()
             await chat_service.chat("update the task", user_id="u1")
@@ -316,8 +316,8 @@ class TestDenialChecking:
                 chat_service._denial_tracker, "is_denied",
                 new=AsyncMock(return_value=None),
             ),
-            patch("services.gateways.user_interaction.core.chat_service.ToolExecutor") as mock_exec,
-            patch("services.gateways.user_interaction.core.chat_service.audit_log"),
+            patch("agents.chat_agent.core.chat_service.ToolExecutor") as mock_exec,
+            patch("agents.chat_agent.core.chat_service.audit_log"),
         ):
             mock_exec.execute = AsyncMock(return_value='{"success": true, "card_sent": true}')
             await chat_service.chat("create task", user_id="u1")
@@ -350,8 +350,8 @@ class TestDenialChecking:
                 chat_service._denial_tracker, "is_denied",
                 new=AsyncMock(return_value=None),
             ) as mock_denied,
-            patch("services.gateways.user_interaction.core.chat_service.ToolExecutor") as mock_exec,
-            patch("services.gateways.user_interaction.core.chat_service.audit_log"),
+            patch("agents.chat_agent.core.chat_service.ToolExecutor") as mock_exec,
+            patch("agents.chat_agent.core.chat_service.audit_log"),
         ):
             mock_exec.execute = AsyncMock(return_value='{"records": []}')
             await chat_service.chat("show tasks", user_id="u1")
@@ -385,8 +385,8 @@ class TestDenialChecking:
                 chat_service._denial_tracker, "is_denied",
                 new=AsyncMock(return_value=None),
             ) as mock_denied,
-            patch("services.gateways.user_interaction.core.chat_service.ToolExecutor") as mock_exec,
-            patch("services.gateways.user_interaction.core.chat_service.audit_log"),
+            patch("agents.chat_agent.core.chat_service.ToolExecutor") as mock_exec,
+            patch("agents.chat_agent.core.chat_service.audit_log"),
         ):
             mock_exec.execute = AsyncMock(return_value='{"success": true}')
             await chat_service.chat("update task", user_id="u1")
@@ -408,11 +408,11 @@ class TestUserAssistantPromptToolSearch:
     """USER_ASSISTANT_PROMPT should include tool_search guidance."""
 
     def test_prompt_mentions_tool_search(self):
-        from services.gateways.user_interaction.core.chat_service import USER_ASSISTANT_PROMPT
+        from agents.chat_agent.core.chat_service import USER_ASSISTANT_PROMPT
         assert "tool_search" in USER_ASSISTANT_PROMPT
 
     def test_prompt_teaches_search_strategy_without_tool_inventory(self):
-        from services.gateways.user_interaction.core.chat_service import USER_ASSISTANT_PROMPT
+        from agents.chat_agent.core.chat_service import USER_ASSISTANT_PROMPT
         assert "call `tool_search` with a keyword" in USER_ASSISTANT_PROMPT
         assert "sync_now" not in USER_ASSISTANT_PROMPT
         assert "add_bitable_field" not in USER_ASSISTANT_PROMPT

@@ -9,6 +9,7 @@ from agents.qa_agent.models.schemas import (
     QARunStats,
 )
 from shared.core import UNKNOWN_ACTION_ERROR_CODE
+from shared.core.identifiers import AcceptanceRunId
 
 
 def _agent() -> AsyncMock:
@@ -92,15 +93,13 @@ async def test_get_run_action_returns_not_found_contract() -> None:
     agent = _agent()
     agent.get_run = AsyncMock(return_value=None)
 
-    result = await QARequestUseCase(agent).handle(
-        {"action": "get_run", "run_id": "missing"}
-    )
+    result = await QARequestUseCase(agent).handle({"action": "get_run", "run_id": "missing"})
 
     assert result == {
         "error": "not found",
         "error_code": "qa_run_not_found",
     }
-    agent.get_run.assert_awaited_once_with("missing")
+    agent.get_run.assert_awaited_once_with(AcceptanceRunId("missing"))
 
 
 @pytest.mark.asyncio

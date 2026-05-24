@@ -1,8 +1,10 @@
 """Application use cases for QA outbox delivery."""
+
 from __future__ import annotations
 
 from typing import Any, Protocol
 
+from shared.core.identifiers import AcceptanceRunId
 from shared.observability.outbox import record_outbox_pending_age
 from shared.schemas.event import Event, EventMetadata
 from shared.utils.logger import get_logger
@@ -61,7 +63,7 @@ class QAOutboxDeliveryUseCase:
         self,
         events: list[Event],
         *,
-        run_id: str | None,
+        run_id: AcceptanceRunId | None,
     ) -> dict[str, Any]:
         """Publish events already committed to the local QA outbox."""
         if not events:
@@ -101,7 +103,7 @@ class QAOutboxDeliveryUseCase:
         self,
         event: Event,
         *,
-        run_id: str | None,
+        run_id: AcceptanceRunId | None,
     ) -> bool:
         """Publish one event already persisted in the QA outbox."""
         try:

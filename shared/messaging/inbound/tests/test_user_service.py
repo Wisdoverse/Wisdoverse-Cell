@@ -8,8 +8,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from shared.core.identity_domain import PlatformUserRef
 from shared.messaging.inbound import Platform
 from shared.messaging.inbound.user_service import UserService
+from shared.schemas.event import Event, EventTypes
 
 
 class MockAdapter:
@@ -47,6 +49,29 @@ class MockUser:
         self.created_at = datetime.now(UTC)
         self.last_active_at = datetime.now(UTC)
         self.last_active_platform = None
+        self.domain_events = []
+
+    def link_platform_account(self, platform_ref: PlatformUserRef) -> None:
+        if platform_ref.platform == Platform.FEISHU:
+            self.feishu_open_id = platform_ref.platform_user_id
+        elif platform_ref.platform == Platform.WECOM:
+            self.wecom_user_id = platform_ref.platform_user_id
+        elif platform_ref.platform == Platform.WEB:
+            self.web_user_id = platform_ref.platform_user_id
+        self.domain_events.append(("PlatformLinked", platform_ref.platform.value))
+
+    def record_activity(self, platform: Platform) -> None:
+        self.last_active_at = datetime.now(UTC)
+        self.last_active_platform = platform.value
+        self.domain_events.append(("UserActivated", platform.value))
+
+    def pull_domain_events(self):
+        events = list(self.domain_events)
+        self.domain_events.clear()
+        return [
+            type("MockDomainEvent", (), {"event_name": event_name})()
+            for event_name, _platform in events
+        ]
 
 
 class MockRepository:
@@ -83,11 +108,18 @@ class MockSession:
 
     def __init__(self, repo: MockRepository):
         self._repo = repo
+        self.added_rows = []
 
     async def commit(self):
         pass
 
     async def refresh(self, obj):
+        pass
+
+    def add(self, row):
+        self.added_rows.append(row)
+
+    async def flush(self):
         pass
 
 
@@ -112,6 +144,25 @@ class MockSessionContext:
         return self._session
 
     async def __aexit__(self, *args):
+        pass
+
+
+class FakeIdentityOutbox:
+    """Session-scoped fake identity outbox."""
+
+    def __init__(self):
+        self.added: list[Event] = []
+
+    async def add(self, event: Event) -> None:
+        self.added.append(event)
+
+    async def list_pending(self, limit: int = 100) -> list[object]:
+        return []
+
+    async def mark_published(self, event_id: str) -> None:
+        pass
+
+    async def mark_failed(self, event_id: str, error: str) -> None:
         pass
 
 
@@ -198,6 +249,38 @@ class TestUserServiceResolve:
         assert user.feishu_open_id == "ou_new"
 
     @pytest.mark.asyncio
+    async def test_resolve_stages_identity_events_in_durable_outbox(self):
+        """Aggregate-raised identity events are staged before commit."""
+        repo = MockRepository()
+        db = MockDb(repo)
+        outbox = FakeIdentityOutbox()
+        adapters = {Platform.FEISHU: MockAdapter(email="new@example.com", name="New User")}
+        service = UserService(
+            db=db,
+            adapters=adapters,
+            identity_outbox_factory=lambda _session: outbox,
+        )
+
+        with patch(
+            "shared.messaging.inbound.user_service.SqlAlchemyUserIdentityStore",
+            return_value=repo,
+        ):
+            with patch(
+                "shared.messaging.inbound.user_service.generate_id",
+                return_value="user_outbox_123",
+            ):
+                await service.resolve_user(Platform.FEISHU, "ou_new")
+
+        assert [event.event_type for event in outbox.added] == [
+            EventTypes.IDENTITY_USER_CREATED,
+            EventTypes.IDENTITY_PLATFORM_LINKED,
+            EventTypes.IDENTITY_USER_ACTIVATED,
+        ]
+        assert outbox.added[0].payload["email_present"] is True
+        assert "email" not in outbox.added[0].payload
+        assert outbox.added[1].payload["platform"] == "feishu"
+
+    @pytest.mark.asyncio
     async def test_resolve_links_existing_user_by_email(self):
         """Links to existing user when email matches"""
         repo = MockRepository()
@@ -238,6 +321,28 @@ class TestUserServiceResolve:
         assert user.id == "user_no_email"
         assert user.email is None
         assert user.name == "No Email User"
+
+    @pytest.mark.asyncio
+    async def test_resolve_ignores_invalid_adapter_email(self):
+        """Invalid optional adapter email does not block identity resolution."""
+        repo = MockRepository()
+        db = MockDb(repo)
+        adapters = {Platform.FEISHU: MockAdapter(email="not-an-email", name="Fallback User")}
+        service = UserService(db=db, adapters=adapters)
+
+        with patch(
+            "shared.messaging.inbound.user_service.SqlAlchemyUserIdentityStore",
+            return_value=repo,
+        ):
+            with patch(
+                "shared.messaging.inbound.user_service.generate_id",
+                return_value="user_invalid_email",
+            ):
+                user = await service.resolve_user(Platform.FEISHU, "ou_invalid_email")
+
+        assert user.id == "user_invalid_email"
+        assert user.email is None
+        assert user.feishu_open_id == "ou_invalid_email"
 
 
 class TestUserServiceCache:

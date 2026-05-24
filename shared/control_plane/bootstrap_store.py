@@ -1,10 +1,11 @@
 """SQLAlchemy adapter for control-plane role bootstrap persistence."""
+
 from __future__ import annotations
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.core.identifiers import CompanyId
+from shared.core.identifiers import AgentRoleId, CompanyId
 
 from .agent_registry_store import SqlAlchemyControlPlaneAgentRegistryStore
 from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
@@ -25,9 +26,7 @@ class SqlAlchemyControlPlaneRoleBootstrapStore(ControlPlaneRoleBootstrapStore):
     async def get_company(self, company_id: CompanyId) -> CompanyContext | None:
         return await self._companies.get_company(company_id)
 
-    async def create_company_if_absent(
-        self, company: CompanyContext
-    ) -> CompanyContext | None:
+    async def create_company_if_absent(self, company: CompanyContext) -> CompanyContext | None:
         try:
             async with self._session.begin_nested():
                 return await self._companies.create_company(company)
@@ -38,7 +37,7 @@ class SqlAlchemyControlPlaneRoleBootstrapStore(ControlPlaneRoleBootstrapStore):
         self,
         *,
         company_id: CompanyId,
-        agent_id: str,
+        agent_id: AgentRoleId,
     ) -> AgentRole | None:
         return await self._roles.get_agent_role(
             company_id=company_id,

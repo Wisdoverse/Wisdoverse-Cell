@@ -7,6 +7,7 @@ from typing import Protocol
 
 from shared.control_plane import ApprovalCategory, ApprovalGateService
 from shared.core import FeishuMessengerPort, request_error
+from shared.core.identifiers import OpenProjectProjectId, WorkPackageId
 from shared.observability.privacy import hash_identifier
 from shared.schemas.event import Event, EventTypes
 from shared.utils.logger import get_logger
@@ -16,24 +17,17 @@ from .card_ports import PJMCardRendererPort
 from .config import PJMCoreConfig
 from .decompose import DecomposeError
 from .decomposition_ports import PJMDecompositionStore
-from .domain.lifecycle.decomposition_lifecycle import (
-    APPROVED,
-    FAILED,
-    PENDING,
-    WRITE_FAILED,
-    WRITING,
-)
+from .domain.decomposition_policy import DecompositionWorkflowPolicy
+from .domain.lifecycle.decomposition_lifecycle import FAILED
 
 logger = get_logger("pjm_agent.decomposition_request_workflow")
-
-_EXISTING_BLOCKING_STATUSES: tuple[str, ...] = (PENDING, WRITING, APPROVED, WRITE_FAILED)
 
 
 class PJMDecompositionEnginePort(Protocol):
     async def decompose(
         self,
         *,
-        wp_id: int,
+        wp_id: WorkPackageId,
         subject: str,
         description: str,
         wp_type: str,
@@ -45,7 +39,7 @@ class PJMDecompositionEnginePort(Protocol):
     async def check_task_detail(
         self,
         *,
-        wp_id: int,
+        wp_id: WorkPackageId,
         subject: str,
         description: str,
         project_name: str = "",
@@ -57,7 +51,7 @@ class PJMDecompositionEnginePort(Protocol):
 class PJMDecompositionFailurePushPort(Protocol):
     async def send_decompose_failure(
         self,
-        wp_id: int,
+        wp_id: WorkPackageId,
         subject: str,
         error_message: str,
     ) -> bool:
@@ -87,12 +81,13 @@ class DecompositionRequestWorkflow:
         self._config = config
         self._messenger = messenger
         self._card_renderer = card_renderer
+        self._workflow_policy = DecompositionWorkflowPolicy()
 
     async def handle_decompose(self, event: Event) -> list[Event]:
         """Handle a SYNC_TASK_NEEDS_DECOMPOSE event."""
         payload = DecomposePayload.model_validate(event.payload)
-        wp_id = payload.wp_id
-        project_id = payload.project_id
+        wp_id = WorkPackageId(payload.wp_id)
+        project_id = OpenProjectProjectId(payload.project_id)
         subject = payload.subject
         description = payload.description
         wp_type = payload.wp_type
@@ -111,10 +106,17 @@ class DecompositionRequestWorkflow:
 
         async with self._decomposition_store.transaction() as decomposition:
             existing = await decomposition.get_by_wp_id(wp_id)
-            if existing and existing.status in _EXISTING_BLOCKING_STATUSES:
-                logger.info("decompose_skip_duplicate", wp_id=wp_id, status=existing.status)
+            intake_decision = self._workflow_policy.intake_decision(
+                existing.status if existing else None
+            )
+            if intake_decision.should_skip:
+                logger.info(
+                    "decompose_skip_duplicate",
+                    wp_id=wp_id,
+                    status=intake_decision.existing_status,
+                )
                 return []
-            if existing:
+            if existing and intake_decision.should_replace_existing:
                 await decomposition.delete_by_wp_id(wp_id)
                 await decomposition.commit()
 
@@ -201,8 +203,8 @@ class DecompositionRequestWorkflow:
     async def request_decomposition_approval(
         self,
         *,
-        wp_id: int,
-        project_id: int,
+        wp_id: WorkPackageId,
+        project_id: OpenProjectProjectId,
         subject: str,
         result_dict: dict,
         trace_id: str | None,
@@ -244,8 +246,8 @@ class DecompositionRequestWorkflow:
 
     async def _handle_task_check(
         self,
-        wp_id: int,
-        project_id: int,
+        wp_id: WorkPackageId,
+        project_id: OpenProjectProjectId,
         subject: str,
         description: str,
         project_name: str,
@@ -301,8 +303,8 @@ class DecompositionRequestWorkflow:
     async def _record_task_refinement(
         self,
         *,
-        wp_id: int,
-        project_id: int,
+        wp_id: WorkPackageId,
+        project_id: OpenProjectProjectId,
         subject: str,
         assignee_id: int | None,
         trace_id: str | None,
@@ -364,8 +366,8 @@ class DecompositionRequestWorkflow:
     async def _handle_decompose_failure(
         self,
         *,
-        wp_id: int,
-        project_id: int,
+        wp_id: WorkPackageId,
+        project_id: OpenProjectProjectId,
         subject: str,
         assignee_id: int | None,
         trace_id: str | None,
@@ -410,7 +412,7 @@ class DecompositionRequestWorkflow:
     async def _send_decomposition_approval_card(
         self,
         *,
-        wp_id: int,
+        wp_id: WorkPackageId,
         subject: str,
         result_dict: dict,
     ) -> None:
@@ -437,7 +439,7 @@ class DecompositionRequestWorkflow:
     async def _send_task_refinement_approval_card(
         self,
         *,
-        wp_id: int,
+        wp_id: WorkPackageId,
         subject: str,
         reason: str,
         subtasks: list[dict],

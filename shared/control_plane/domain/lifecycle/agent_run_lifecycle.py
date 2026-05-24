@@ -1,4 +1,5 @@
 """Application helpers for control-plane agent-run lifecycle records."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,6 +9,10 @@ from shared.core.ids import IDPrefix, generate_id
 from shared.schemas.event import EventTypes
 
 from ...agent_operation_ports import ControlPlaneAgentOperationStore
+from ...domain_event_audit import (
+    DomainEventAuditContext,
+    append_control_plane_domain_event_audits,
+)
 from ...models import AgentRun, AgentRunStatus, AuditEvent
 from ...run_evidence import create_run_evidence_artifact
 from ..agent_run import (
@@ -15,7 +20,6 @@ from ..agent_run import (
 )
 from ..agent_run import (
     AgentRunStatusChanged,
-    InvalidAgentRunTransitionError,
 )
 
 
@@ -147,7 +151,7 @@ async def complete_agent_wakeup_run(
     )
     # Route through the AgentRun aggregate to enforce the FSM before
     # the persistence write (DDD-001 implementation).
-    await _validate_run_transition_via_aggregate(
+    domain_events = await _validate_run_transition_via_aggregate(
         store, run_id, AgentRunStatus.SUCCEEDED
     )
     await store.update_agent_run_status(
@@ -155,21 +159,36 @@ async def complete_agent_wakeup_run(
         AgentRunStatus.SUCCEEDED,
         output_events=[completion_event],
     )
-    await append_agent_run_audit(
-        store,
-        action=EventTypes.AGENT_RUN_SUCCEEDED,
-        run_id=run_id,
-        company_id=agent.company_id,
-        agent_id=agent.agent_id,
-        actor_id=actor_id,
-        trace_id=trace_id,
-        work_item_id=work_item_id,
-        detail={
-            "trigger": trigger,
-            "adapter_type": agent.adapter_type,
-            "output_summary": output.get("summary") or output.get("status"),
-        },
-    )
+    detail = {
+        "trigger": trigger,
+        "adapter_type": agent.adapter_type,
+        "output_summary": output.get("summary") or output.get("status"),
+    }
+    if domain_events:
+        await append_control_plane_domain_event_audits(
+            store,
+            domain_events,
+            DomainEventAuditContext(
+                actor_type="user",
+                actor_id=actor_id,
+                trace_id=trace_id,
+                run_id=run_id,
+                work_item_id=work_item_id,
+                detail=detail,
+            ),
+        )
+    else:
+        await append_agent_run_audit(
+            store,
+            action=EventTypes.AGENT_RUN_SUCCEEDED,
+            run_id=run_id,
+            company_id=agent.company_id,
+            agent_id=agent.agent_id,
+            actor_id=actor_id,
+            trace_id=trace_id,
+            work_item_id=work_item_id,
+            detail=detail,
+        )
     artifact = await create_run_evidence_artifact(
         store,
         company_id=agent.company_id,
@@ -219,7 +238,7 @@ async def fail_agent_wakeup_run(
     )
     # Route through the AgentRun aggregate to enforce the FSM before
     # the persistence write (DDD-001 implementation).
-    await _validate_run_transition_via_aggregate(
+    domain_events = await _validate_run_transition_via_aggregate(
         store, run_id, AgentRunStatus.FAILED
     )
     await store.update_agent_run_status(
@@ -230,22 +249,37 @@ async def fail_agent_wakeup_run(
         last_successful_step="agent_definition_loaded",
         output_events=[completion_event],
     )
-    await append_agent_run_audit(
-        store,
-        action=EventTypes.AGENT_RUN_FAILED,
-        run_id=run_id,
-        company_id=agent.company_id,
-        agent_id=agent.agent_id,
-        actor_id=actor_id,
-        trace_id=trace_id,
-        work_item_id=work_item_id,
-        detail={
-            "trigger": trigger,
-            "adapter_type": agent.adapter_type,
-            "error_category": error_category,
-            "error": error_message,
-        },
-    )
+    detail = {
+        "trigger": trigger,
+        "adapter_type": agent.adapter_type,
+        "error_category": error_category,
+        "error": error_message,
+    }
+    if domain_events:
+        await append_control_plane_domain_event_audits(
+            store,
+            domain_events,
+            DomainEventAuditContext(
+                actor_type="user",
+                actor_id=actor_id,
+                trace_id=trace_id,
+                run_id=run_id,
+                work_item_id=work_item_id,
+                detail=detail,
+            ),
+        )
+    else:
+        await append_agent_run_audit(
+            store,
+            action=EventTypes.AGENT_RUN_FAILED,
+            run_id=run_id,
+            company_id=agent.company_id,
+            agent_id=agent.agent_id,
+            actor_id=actor_id,
+            trace_id=trace_id,
+            work_item_id=work_item_id,
+            detail=detail,
+        )
     await create_run_evidence_artifact(
         store,
         company_id=agent.company_id,

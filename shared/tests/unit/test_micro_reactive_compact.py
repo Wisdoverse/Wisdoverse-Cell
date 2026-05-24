@@ -16,6 +16,8 @@ from shared.infra.context_compressor import (
 )
 from shared.infra.llm_errors import ContentSizeError
 
+CLEARED_TOOL_RESULT_PLACEHOLDER = "[old tool result cleared]"
+
 
 def _make_tool_round(tool_id: str, tool_name: str, result_content: str) -> list[dict]:
     return [
@@ -61,10 +63,10 @@ class TestMicroCompactBasic:
         assert len(tool_results) == 10
         # First 5 cleared
         for tr in tool_results[:5]:
-            assert tr["content"] == "[旧工具结果已清理]"
+            assert tr["content"] == CLEARED_TOOL_RESULT_PLACEHOLDER
         # Last 5 intact
         for tr in tool_results[5:]:
-            assert tr["content"] != "[旧工具结果已清理]"
+            assert tr["content"] != CLEARED_TOOL_RESULT_PLACEHOLDER
 
     def test_reduces_token_count(self):
         messages = [{"role": "user", "content": "start"}]
@@ -135,12 +137,12 @@ class TestMicroCompactEdgeCases:
                 for block in msg["content"]:
                     if isinstance(block, dict) and block.get("type") == "tool_result":
                         tool_results.append(block)
-        assert all(tr["content"] != "[旧工具结果已清理]" for tr in tool_results)
+        assert all(tr["content"] != CLEARED_TOOL_RESULT_PLACEHOLDER for tr in tool_results)
 
     def test_already_cleared_not_re_cleared(self):
         """If a tool_result already has the placeholder, don't count it for clearing."""
         messages = [{"role": "user", "content": "start"}]
-        messages.extend(_make_tool_round("tu_1", "a", "[旧工具结果已清理]"))
+        messages.extend(_make_tool_round("tu_1", "a", CLEARED_TOOL_RESULT_PLACEHOLDER))
         messages.extend(_make_tool_round("tu_2", "b", "fresh_data" * 50))
 
         result = micro_compact(messages, keep_recent=1)
@@ -154,8 +156,8 @@ class TestMicroCompactEdgeCases:
                     if isinstance(block, dict) and block.get("type") == "tool_result":
                         tool_results.append(block)
 
-        assert tool_results[0]["content"] == "[旧工具结果已清理]"
-        assert tool_results[1]["content"] != "[旧工具结果已清理]"
+        assert tool_results[0]["content"] == CLEARED_TOOL_RESULT_PLACEHOLDER
+        assert tool_results[1]["content"] != CLEARED_TOOL_RESULT_PLACEHOLDER
 
 
 class TestMicroCompactInCompressIfNeeded:

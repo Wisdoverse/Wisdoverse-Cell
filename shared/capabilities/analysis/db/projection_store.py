@@ -56,6 +56,9 @@ def _row_to_subtask(
         subtask_status=row.subtask_status,
         completed=row.completed,
         updated_at=row.updated_at,
+        title=row.title,
+        blocked_reason=row.blocked_reason,
+        feature_id=row.feature_id,
     )
 
 
@@ -109,6 +112,9 @@ class SqlAlchemyWorkPackageProjectionStore(WorkPackageProjectionPort):
                 parent_wp_id=projection.parent_wp_id,
                 subtask_status=projection.subtask_status,
                 completed=projection.completed,
+                title=projection.title,
+                blocked_reason=projection.blocked_reason,
+                feature_id=projection.feature_id,
                 updated_at=projection.updated_at,
             )
             stmt = stmt.on_conflict_do_update(
@@ -119,6 +125,9 @@ class SqlAlchemyWorkPackageProjectionStore(WorkPackageProjectionPort):
                     "parent_wp_id": stmt.excluded.parent_wp_id,
                     "subtask_status": stmt.excluded.subtask_status,
                     "completed": stmt.excluded.completed,
+                    "title": stmt.excluded.title,
+                    "blocked_reason": stmt.excluded.blocked_reason,
+                    "feature_id": stmt.excluded.feature_id,
                     "updated_at": stmt.excluded.updated_at,
                 },
             )

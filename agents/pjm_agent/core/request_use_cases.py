@@ -1,9 +1,11 @@
 """Application use cases for PJM agent requests."""
+
 from __future__ import annotations
 
 from typing import Any, Protocol
 
 from shared.core import request_error, unknown_action_error
+from shared.core.identifiers import WorkPackageId
 from shared.utils.logger import get_logger
 
 from .decomposition_ports import PJMDecompositionStore
@@ -36,7 +38,7 @@ class PJMPushPort(Protocol):
     async def push_alerts(self, alerts: list[dict[str, Any]]) -> Any:
         """Push active alerts."""
 
-    async def send_stale_approval_reminder(self, *, wp_id: int, subject: str) -> Any:
+    async def send_stale_approval_reminder(self, *, wp_id: WorkPackageId, subject: str) -> Any:
         """Send a stale approval reminder."""
 
 

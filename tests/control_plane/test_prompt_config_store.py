@@ -10,6 +10,7 @@ from shared.control_plane.models import AgentRole, CompanyContext
 from shared.control_plane.prompt_config_store import (
     SqlAlchemyControlPlanePromptConfigStore,
 )
+from shared.core.identifiers import AgentRoleId, CompanyId
 
 
 @pytest.mark.asyncio
@@ -30,19 +31,19 @@ async def test_prompt_config_store_upserts_prompt_without_losing_metadata(
     )
 
     role = await store.get_agent_role(
-        company_id=company.company_id,
-        agent_id="requirement-manager",
+        company_id=CompanyId(company.company_id),
+        agent_id=AgentRoleId("requirement-manager"),
     )
     created = await store.upsert_agent_prompt_config(
-        company_id=company.company_id,
-        agent_id="requirement-manager",
+        company_id=CompanyId(company.company_id),
+        agent_id=AgentRoleId("requirement-manager"),
         system_prompt="Extract requirements.",
         updated_by="human:pm",
         metadata={"source": "initial"},
     )
     updated = await store.upsert_agent_prompt_config(
-        company_id=company.company_id,
-        agent_id="requirement-manager",
+        company_id=CompanyId(company.company_id),
+        agent_id=AgentRoleId("requirement-manager"),
         system_prompt="Extract requirements and risks.",
         updated_by="human:cpo",
     )

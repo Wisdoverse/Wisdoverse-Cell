@@ -37,6 +37,7 @@ from ..agent_registry_use_cases import get_agent_role as get_agent_role_from_reg
 from ..agent_registry_use_cases import list_agent_roles as list_agent_roles_from_registry
 from ..agent_runner import AgentWakeupError
 from ..api_serialization import row_to_dict
+from ..domain.agent_role import InvalidAgentRoleStatusError, InvalidAgentRoleTransitionError
 from ..models import AgentInteractionMode, AgentKind, AgentRole
 from ..store_factory import ControlPlaneStores
 from ..unit_of_work import ControlPlaneUnitOfWork
@@ -298,6 +299,13 @@ def create_agent_router(
             raise_control_plane_api_error(status_code=400, detail="unsupported_adapter_type")
         except AgentNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="agent_not_found")
+        except InvalidAgentRoleStatusError:
+            raise_control_plane_api_error(status_code=400, detail="invalid_agent_status")
+        except InvalidAgentRoleTransitionError:
+            raise_control_plane_api_error(
+                status_code=400,
+                detail="invalid_agent_status_transition",
+            )
         await uow.commit()
         return row_to_dict(row)
 

@@ -33,17 +33,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ..models import ApprovalStatus, EvolutionRolloutState
 from ..models import EvolutionProposal as EvolutionProposalRecord
-from ..models import EvolutionRolloutState
+from .events import ControlPlaneDomainEvent
+from .state_machine import ControlPlaneStateMachine
 
 
 class InvalidEvolutionRolloutTransitionError(ValueError):
     """Raised when an EvolutionProposal rollout transition is not allowed."""
 
 
-VALID_ROLLOUT_TRANSITIONS: dict[
-    EvolutionRolloutState, frozenset[EvolutionRolloutState]
-] = {
+VALID_ROLLOUT_TRANSITIONS: dict[EvolutionRolloutState, frozenset[EvolutionRolloutState]] = {
     EvolutionRolloutState.PROPOSED: frozenset(
         {
             EvolutionRolloutState.SHADOW,
@@ -63,21 +63,57 @@ VALID_ROLLOUT_TRANSITIONS: dict[
             EvolutionRolloutState.ROLLED_BACK,
         }
     ),
-    EvolutionRolloutState.ACTIVE: frozenset(
-        {EvolutionRolloutState.ROLLED_BACK}
-    ),
+    EvolutionRolloutState.ACTIVE: frozenset({EvolutionRolloutState.ROLLED_BACK}),
     EvolutionRolloutState.ROLLED_BACK: frozenset(),
     EvolutionRolloutState.REJECTED: frozenset(),
 }
 
+ROLLOUT_STATE_MACHINE = ControlPlaneStateMachine.from_transitions(
+    VALID_ROLLOUT_TRANSITIONS
+)
 
-TERMINAL_ROLLOUT_STATES: frozenset[EvolutionRolloutState] = frozenset(
-    state for state, allowed in VALID_ROLLOUT_TRANSITIONS.items() if not allowed
+TERMINAL_ROLLOUT_STATES: frozenset[EvolutionRolloutState] = (
+    ROLLOUT_STATE_MACHINE.terminal_states
+)
+
+ROLLOUT_STATES_REQUIRING_APPROVAL: frozenset[EvolutionRolloutState] = frozenset(
+    {
+        EvolutionRolloutState.CANARY,
+        EvolutionRolloutState.ACTIVE,
+    }
 )
 
 
+def evolution_rollout_state(
+    value: EvolutionRolloutState | str | None,
+) -> EvolutionRolloutState | None:
+    """Return a typed rollout state from enum/string input."""
+    if value is None:
+        return None
+    if isinstance(value, EvolutionRolloutState):
+        return value
+    return EvolutionRolloutState(str(value))
+
+
+def rollout_state_requires_approval(
+    rollout_state: EvolutionRolloutState | str | None,
+) -> bool:
+    """True when the target rollout state requires approved human approval."""
+    target = evolution_rollout_state(rollout_state)
+    return target in ROLLOUT_STATES_REQUIRING_APPROVAL
+
+
+def approval_state_is_approved(
+    approval_state: ApprovalStatus | str | None,
+) -> bool:
+    """True when an approval state satisfies rollout promotion policy."""
+    if approval_state is None:
+        return False
+    return str(approval_state) == ApprovalStatus.APPROVED.value
+
+
 @dataclass(frozen=True, slots=True)
-class EvolutionRolloutStatusChanged:
+class EvolutionRolloutStatusChanged(ControlPlaneDomainEvent):
     """In-memory domain event raised by EvolutionProposal.advance_rollout()."""
 
     proposal_id: str
@@ -109,27 +145,39 @@ class EvolutionProposal:
 
     @property
     def rollout_state(self) -> EvolutionRolloutState:
-        return self.record.rollout_state
+        state = evolution_rollout_state(self.record.rollout_state)
+        if state is None:
+            raise InvalidEvolutionRolloutTransitionError(
+                f"EvolutionProposal {self.proposal_id}: missing rollout state"
+            )
+        return state
 
     @property
     def is_terminal(self) -> bool:
-        return self.rollout_state in TERMINAL_ROLLOUT_STATES
+        return ROLLOUT_STATE_MACHINE.is_terminal(self.rollout_state)
 
-    def advance_rollout(self, target: EvolutionRolloutState) -> None:
+    def advance_rollout(self, target: EvolutionRolloutState | str) -> None:
         """Move rollout state to `target` if permitted by the FSM."""
-        if target not in VALID_ROLLOUT_TRANSITIONS[self.rollout_state]:
+        target_state = evolution_rollout_state(target)
+        if target_state is None:
             raise InvalidEvolutionRolloutTransitionError(
-                f"EvolutionProposal {self.proposal_id}: illegal rollout "
-                f"transition {self.rollout_state} -> {target}"
+                f"EvolutionProposal {self.proposal_id}: missing rollout target"
             )
+        ROLLOUT_STATE_MACHINE.ensure_can_transition(
+            self.rollout_state,
+            target_state,
+            subject=f"EvolutionProposal {self.proposal_id}",
+            error_type=InvalidEvolutionRolloutTransitionError,
+            transition_name="rollout transition",
+        )
         previous = self.rollout_state
-        self.record = self.record.model_copy(update={"rollout_state": target})
+        self.record = self.record.model_copy(update={"rollout_state": target_state})
         self._events.append(
             EvolutionRolloutStatusChanged(
                 proposal_id=self.proposal_id,
                 company_id=self.record.company_id,
                 from_state=previous,
-                to_state=target,
+                to_state=target_state,
             )
         )
 

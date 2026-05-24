@@ -125,6 +125,86 @@ async def test_command_event_builds_context_persists_and_emits_decision_events()
 
 
 @pytest.mark.asyncio
+async def test_scratchpad_projection_runs_after_decision_persistence() -> None:
+    calls: list[str] = []
+    scratchpad = _scratchpad()
+    state_store = _state_store()
+
+    async def persist_decisions(_decisions: list[Decision]) -> None:
+        calls.append("persist")
+
+    async def update_scratchpad(_decisions: list[Decision]) -> None:
+        calls.append("scratchpad")
+
+    state_store.persist = AsyncMock(side_effect=persist_decisions)
+    scratchpad.update = AsyncMock(side_effect=update_scratchpad)
+    decision = Decision(
+        target_agent="requirement-manager",
+        action="dispatch_task",
+        task_id="task_1",
+        instruction="Create PRD",
+        workflow_id="wf_1",
+    )
+    use_case = CoordinatorEventUseCase(
+        scratchpad=scratchpad,
+        state_store=state_store,
+        thinker=AsyncMock(return_value=[decision]),
+    )
+
+    await use_case.handle(
+        Event.create(
+            event_type=EventTypes.COORDINATOR_COMMAND,
+            source_agent="chat-agent",
+            payload={
+                "command_id": "cmd_1",
+                "intent": "new feature",
+                "original_message": "build it",
+                "user_id": "u_1",
+                "user_name": "Alice",
+            },
+        )
+    )
+
+    assert calls == ["persist", "scratchpad"]
+
+
+@pytest.mark.asyncio
+async def test_scratchpad_projection_is_not_written_when_decision_persist_fails() -> None:
+    scratchpad = _scratchpad()
+    state_store = _state_store()
+    state_store.persist = AsyncMock(side_effect=RuntimeError("state store down"))
+    decision = Decision(
+        target_agent="requirement-manager",
+        action="dispatch_task",
+        task_id="task_1",
+        instruction="Create PRD",
+        workflow_id="wf_1",
+    )
+    use_case = CoordinatorEventUseCase(
+        scratchpad=scratchpad,
+        state_store=state_store,
+        thinker=AsyncMock(return_value=[decision]),
+    )
+
+    with pytest.raises(RuntimeError, match="state store down"):
+        await use_case.handle(
+            Event.create(
+                event_type=EventTypes.COORDINATOR_COMMAND,
+                source_agent="chat-agent",
+                payload={
+                    "command_id": "cmd_1",
+                    "intent": "new feature",
+                    "original_message": "build it",
+                    "user_id": "u_1",
+                    "user_name": "Alice",
+                },
+            )
+        )
+
+    scratchpad.update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_existing_decision_trace_id_is_preserved() -> None:
     decision = Decision(
         target_agent="chat-agent",

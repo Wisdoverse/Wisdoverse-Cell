@@ -42,7 +42,7 @@ graph TD
         SA["sync capability :8010"]
         AA["analysis capability :8011"]
         PM["PJM agent :8012"]
-        CA["user interaction gateway :8013"]
+        CA["chat agent :8013"]
         QA["QA agent :8014"]
         DA["Dev agent :8015"]
         EA["evolution capability :8016"]
@@ -111,7 +111,8 @@ control plane, not Python packages.
 | `shared.capabilities.sync` | Capability module | Compatibility runtime for separate OpenProject and Feishu Bitable sync boundaries | HTTP `:8010` | Active |
 | `shared.capabilities.analysis` | Capability module | Risk detection and data analysis | HTTP `:8011` | Active |
 | `agents.pjm_agent` | Business runtime agent | Task breakdown, approval preparation, alerts, and reports | HTTP `:8012` | Active |
-| `services.gateways.user_interaction` | Integration gateway | User-facing reception and routing surface | HTTP `:8013` | Active |
+| `agents.chat_agent` | Business runtime agent | Chat conversations, card operations, and chat-triggered integration commands | HTTP `:8013` | Active; ADR-0010 compatibility cutover |
+| `services.gateways.user_interaction` | Integration gateway | User-facing reception and routing surface | HTTP `:8013` | Compatibility entry during ADR-0010 cutover |
 | `agents.qa_agent` | Business runtime agent | Automated code quality and acceptance checks | HTTP `:8014` | Active |
 | `agents.dev_agent` | Business runtime agent | AgentForge-backed software delivery workflow execution | HTTP `:8015` | Active |
 | `services.orchestration.coordinator` | System worker | Event routing and decision synthesis | `create_agent_app()` service boundary | Active |

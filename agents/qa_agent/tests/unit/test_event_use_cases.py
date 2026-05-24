@@ -2,8 +2,16 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from agents.qa_agent.adapters.acceptance_request_acl import QAAcceptanceRequestACL
 from agents.qa_agent.core.event_use_cases import QAEventUseCase
 from shared.schemas.event import Event, EventTypes
+
+
+def _use_case(runner) -> QAEventUseCase:
+    return QAEventUseCase(
+        runner=runner,
+        request_translator=QAAcceptanceRequestACL(),
+    )
 
 
 @pytest.mark.asyncio
@@ -25,7 +33,7 @@ async def test_code_committed_event_builds_acceptance_request() -> None:
         trace_id="trace-code",
     )
 
-    result = await QAEventUseCase(runner=runner).handle(event)
+    result = await _use_case(runner).handle(event)
 
     assert result == []
     runner.run_acceptance.assert_awaited_once()
@@ -69,7 +77,7 @@ async def test_run_requested_event_builds_acceptance_request_and_logs_instructio
     )
 
     with patch("agents.qa_agent.core.event_use_cases.logger") as logger:
-        result = await QAEventUseCase(runner=runner).handle(event)
+        result = await _use_case(runner).handle(event)
 
     assert result == []
     logger.info.assert_called_once_with(
@@ -98,7 +106,7 @@ async def test_unknown_event_returns_empty_without_running_acceptance() -> None:
     runner = AsyncMock()
     runner.run_acceptance = AsyncMock()
 
-    result = await QAEventUseCase(runner=runner).handle(
+    result = await _use_case(runner).handle(
         Event.create(
             event_type="unknown.event",
             source_agent="test",

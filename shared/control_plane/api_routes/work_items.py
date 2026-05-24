@@ -14,6 +14,7 @@ from ..api_serialization import row_to_dict, serialize_value
 from ..audit_timeline_use_cases import (
     build_work_item_activity as build_work_item_activity_from_store,
 )
+from ..domain.work_item import InvalidWorkItemTransitionError
 from ..models import WorkItem, WorkItemPriority, WorkItemStatus
 from ..store_factory import ControlPlaneStores
 from ..unit_of_work import ControlPlaneUnitOfWork
@@ -284,6 +285,11 @@ def create_work_item_router(
             )
         except WorkItemNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
+        except InvalidWorkItemTransitionError:
+            raise_control_plane_api_error(
+                status_code=400,
+                detail="invalid_work_item_transition",
+            )
         await uow.commit()
         return row_to_dict(row)
 
@@ -314,6 +320,11 @@ def create_work_item_router(
         except AgentWakeupError as exc:
             await uow.commit()
             raise_control_plane_api_error(status_code=exc.status_code, detail=exc.detail)
+        except InvalidWorkItemTransitionError:
+            raise_control_plane_api_error(
+                status_code=400,
+                detail="invalid_work_item_transition",
+            )
 
         await uow.commit()
         return {
@@ -354,6 +365,11 @@ def create_work_item_router(
         except AgentWakeupError as exc:
             await uow.commit()
             raise_control_plane_api_error(status_code=exc.status_code, detail=exc.detail)
+        except InvalidWorkItemTransitionError:
+            raise_control_plane_api_error(
+                status_code=400,
+                detail="invalid_work_item_transition",
+            )
 
         await uow.commit()
         return {
@@ -388,6 +404,11 @@ def create_work_item_router(
             raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
         except WorkItemAssigneeRequiredError:
             raise_control_plane_api_error(status_code=400, detail="assignee_required")
+        except InvalidWorkItemTransitionError:
+            raise_control_plane_api_error(
+                status_code=400,
+                detail="invalid_work_item_transition",
+            )
         await uow.commit()
         return row_to_dict(row)
 
@@ -408,6 +429,11 @@ def create_work_item_router(
             )
         except WorkItemNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
+        except InvalidWorkItemTransitionError:
+            raise_control_plane_api_error(
+                status_code=400,
+                detail="invalid_work_item_transition",
+            )
         await uow.commit()
         return row_to_dict(row)
 
@@ -431,6 +457,11 @@ def create_work_item_router(
             raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
         except WorkItemCloseStatusError:
             raise_control_plane_api_error(status_code=400, detail="invalid_close_status")
+        except InvalidWorkItemTransitionError:
+            raise_control_plane_api_error(
+                status_code=400,
+                detail="invalid_work_item_transition",
+            )
         await uow.commit()
         return row_to_dict(row)
 

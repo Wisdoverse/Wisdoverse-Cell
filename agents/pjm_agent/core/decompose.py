@@ -4,6 +4,7 @@ import json
 import re
 
 from shared.control_plane.agent_prompt_config import resolve_agent_system_prompt
+from shared.core.identifiers import WorkPackageId
 from shared.infra.llm_gateway import LLMGateway
 from shared.utils.logger import get_logger
 
@@ -34,7 +35,7 @@ class DecomposeService:
 
     async def decompose(
         self,
-        wp_id: int,
+        wp_id: WorkPackageId,
         subject: str,
         description: str,
         wp_type: str,
@@ -95,7 +96,7 @@ class DecomposeService:
 
     async def check_task_detail(
         self,
-        wp_id: int,
+        wp_id: WorkPackageId,
         subject: str,
         description: str,
         project_name: str = "",

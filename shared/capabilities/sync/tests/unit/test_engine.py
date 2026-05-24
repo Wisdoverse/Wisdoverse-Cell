@@ -14,6 +14,7 @@ from shared.capabilities.sync.core import (
     OpenProjectSyncEngine,
 )
 from shared.capabilities.sync.core.engine import SyncEngine
+from shared.capabilities.sync.core.mapper import DataMapper
 from shared.schemas.event import EventTypes
 
 
@@ -32,6 +33,7 @@ class FakeSyncLockStore:
 class FakeFeishuBitableSyncOperation:
     def __init__(self):
         self.subtasks: list[dict] = []
+        self.staged_events: list[object] = []
         self.completed: list[dict] = []
 
     async def create_log(self, sync_type: str, status: str) -> object:
@@ -68,14 +70,25 @@ class FakeFeishuBitableSyncOperation:
             }
         )
 
+    async def stage_event(self, event: object) -> None:
+        self.staged_events.append(event)
+
 
 class FakeFeishuBitableSyncStore:
     def __init__(self):
         self.operation = FakeFeishuBitableSyncOperation()
+        self.published_event_ids: list[str] = []
+        self.failed_events: list[tuple[str, str]] = []
 
     @asynccontextmanager
     async def transaction(self):
         yield self.operation
+
+    async def mark_event_published(self, event_id: str) -> None:
+        self.published_event_ids.append(event_id)
+
+    async def mark_event_failed(self, event_id: str, error: str) -> None:
+        self.failed_events.append((event_id, error))
 
 
 class FakeOpenProjectSyncOperation:
@@ -250,6 +263,51 @@ async def test_openproject_sync_creates_mapping(
 
 
 @pytest.mark.asyncio
+async def test_openproject_sync_updates_existing_mapping(
+    openproject_engine,
+    fake_openproject_store,
+    mock_op_client,
+    mock_bitable,
+):
+    """Existing OP-to-Feishu mappings use the domain projection decision."""
+    fake_openproject_store.operation.mappings_by_op_id[100] = SimpleNamespace(
+        op_work_package_id=100,
+        feishu_record_id="rec_existing",
+        op_project_id=1,
+        title="Old title",
+    )
+    mock_op_client.get_work_packages.return_value = [
+        {
+            "id": 100,
+            "subject": "Updated task",
+            "_links": {"type": {"title": "Task"}},
+            "percentageDone": 25,
+        }
+    ]
+
+    with patch("shared.capabilities.sync.core.openproject.engine.data_mapper") as mock_mapper:
+        wp_data = MagicMock()
+        wp_data.op_id = 100
+        wp_data.project_id = 1
+        wp_data.title = "Updated task"
+        wp_data.parent_id = None
+        mock_mapper.op_to_work_package_data.return_value = wp_data
+        mock_mapper.work_package_to_feishu_fields.return_value = {
+            "task": "Updated task"
+        }
+
+        result = await openproject_engine.sync_to_bitable()
+
+    assert result["status"] == "success"
+    assert result["processed"] == 1
+    mock_bitable.update_record.assert_awaited_once_with(
+        "rec_existing",
+        {"task": "Updated task"},
+    )
+    mock_bitable.create_record.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_openproject_sync_preserves_trace_id_on_decompose_event(
     fake_openproject_store,
     fake_lock_store,
@@ -407,6 +465,103 @@ async def test_feishu_bitable_sync_empty(feishu_bitable_engine, mock_bitable):
     result = await feishu_bitable_engine.sync_progress_to_openproject()
     assert result["status"] == "success"
     assert result["processed"] == 0
+
+
+@pytest.mark.asyncio
+async def test_feishu_bitable_sync_rolls_up_parent_progress(
+    feishu_bitable_engine,
+    fake_feishu_bitable_store,
+    mock_op_client,
+    mock_bitable,
+):
+    """Parent progress is derived through the Sync projection policy."""
+    mock_bitable.list_all_records.return_value = [
+        {
+            "record_id": "rec_done",
+            "fields": {
+                DataMapper.FIELD_PARENT_OP_ID: 123.0,
+                DataMapper.FIELD_SUBTASK_NAME: "A",
+                DataMapper.FIELD_SUBTASK_STATUS: "完成",
+            },
+        },
+        {
+            "record_id": "rec_open",
+            "fields": {
+                DataMapper.FIELD_PARENT_OP_ID: 123.0,
+                DataMapper.FIELD_SUBTASK_NAME: "B",
+                DataMapper.FIELD_SUBTASK_STATUS: "进行中",
+            },
+        },
+    ]
+
+    result = await feishu_bitable_engine.sync_progress_to_openproject()
+
+    assert result["status"] == "success"
+    assert result["processed"] == 1
+    mock_op_client.update_work_package.assert_awaited_once_with(
+        123,
+        {"percentageDone": 50},
+    )
+    assert fake_feishu_bitable_store.operation.subtasks == [
+        {
+            "parent_op_id": 123,
+            "record_id": "rec_done",
+            "name": "A",
+            "status": "完成",
+        },
+        {
+            "parent_op_id": 123,
+            "record_id": "rec_open",
+            "name": "B",
+            "status": "进行中",
+        },
+    ]
+    [staged_event] = fake_feishu_bitable_store.operation.staged_events
+    assert staged_event.event_type == EventTypes.SYNC_PROGRESS_UPDATED
+    assert staged_event.payload == {
+        "parent_op_id": 123,
+        "progress_percent": 50,
+        "subtask_count": 2,
+        "completed_subtask_count": 1,
+        "scope": "feishu_bitable",
+    }
+
+
+@pytest.mark.asyncio
+async def test_feishu_bitable_sync_publishes_staged_progress_event(
+    fake_lock_store,
+    fake_feishu_bitable_store,
+    mock_op_client,
+    mock_bitable,
+):
+    """Feishu progress updates are staged before post-commit publishing."""
+    publisher = AsyncMock()
+    engine = FeishuBitableSyncEngine(
+        sync_store=fake_feishu_bitable_store,
+        lock_store=fake_lock_store,
+        op_client=mock_op_client,
+        bitable=mock_bitable,
+        event_publisher=publisher,
+    )
+    mock_bitable.list_all_records.return_value = [
+        {
+            "record_id": "rec_done",
+            "fields": {
+                DataMapper.FIELD_PARENT_OP_ID: 123.0,
+                DataMapper.FIELD_SUBTASK_STATUS: "完成",
+            },
+        }
+    ]
+
+    result = await engine.sync_progress_to_openproject(trace_id="trace-sync")
+
+    assert result["status"] == "success"
+    [staged_event] = fake_feishu_bitable_store.operation.staged_events
+    assert staged_event.event_type == EventTypes.SYNC_PROGRESS_UPDATED
+    assert staged_event.metadata.trace_id == "trace-sync"
+    publisher.publish.assert_awaited_once_with(staged_event)
+    assert fake_feishu_bitable_store.published_event_ids == [staged_event.event_id]
+    assert fake_feishu_bitable_store.failed_events == []
 
 
 @pytest.mark.asyncio

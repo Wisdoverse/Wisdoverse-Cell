@@ -24,7 +24,7 @@ gate: no code changes until the proposal in §6 is confirmed.
 
 ---
 
-## 1. Current Architecture Understanding (当前架构理解)
+## 1. Current Architecture Understanding
 
 ### 1.1 Project Structure Overview
 
@@ -73,14 +73,15 @@ docker/, infra/, docs/, tests/, plugins/, scripts/, conftest.py, ...
 | PJM Agent | `agents/pjm_agent/` | Decomposition, alerts, reports, approval prep |
 | QA Agent | `agents/qa_agent/` | Acceptance runs, quality results |
 | Dev Agent | `agents/dev_agent/` | Delivery tasks, workflow execution, MR handoff |
-| User Interaction Gateway | `services/gateways/user_interaction/` | Chat surface, Feishu webhook intake |
+| Chat Agent | `agents/chat_agent/` | Conversation history, card operations, daily progress, chat-triggered integration commands |
+| User Interaction Gateway | `services/gateways/user_interaction/` | Chat/webhook ingress and Feishu ACL; HTTP boundary to chat-agent |
 | Channel Gateway | `services/gateways/channel/` | Outbound multi-channel delivery |
 | Coordinator | `services/orchestration/coordinator/` | Cross-boundary event classification + dispatch |
 | Sync Capability | `shared/capabilities/sync/` | OpenProject ↔ Feishu Bitable projection |
 | Analysis Capability | `shared/capabilities/analysis/` | Risk detection, report generation |
 | Evolution Capability | `shared/capabilities/evolution/` | L1/L2/L3 evolution proposals |
 | Control Plane Ledger | `shared/control_plane/` | Companies, goals, work items, runs, approvals, budgets, artifacts, audit, evolution |
-| Identity / User | `shared/db/user_store.py`, `shared/messaging/inbound/user_service.py` | Platform user identity |
+| Identity / User | `shared/db/user_store.py`, `shared/db/identity_event_outbox_store.py`, `shared/messaging/inbound/user_service.py` | Platform user identity and identity event staging |
 
 ### 1.3 Tech Stack
 
@@ -152,7 +153,7 @@ Observed layer behavior (verified in the Phase 1 audit):
 
 ---
 
-## 2. Current Problem Diagnosis (当前问题诊断)
+## 2. Current Problem Diagnosis
 
 Findings grouped by priority. Each item lists description, location, scope of
 impact, risk level, and recommended handling.
@@ -201,7 +202,7 @@ impact, risk level, and recommended handling.
 
 ---
 
-## 3. Bounded Context Analysis (领域边界分析)
+## 3. Bounded Context Analysis
 
 The contexts below are derived from the current code and table ownership.
 Each context lists: responsibility, business objects, owned data, exposed
@@ -300,14 +301,17 @@ fitness. The capability/runtime mapping matches
 
 - **Responsibility**: receive inbound chat / webhook traffic and deliver
   outbound messages across channels.
-- **Business objects**: ConversationHistory, CardOperation, DailyProgress.
-- **Owned data**: `chat_agent_*`, `channel_gateway_event_outbox`.
+- **Business objects**: gateway owns none; ConversationHistory,
+  CardOperation, and DailyProgress belong to `agents/chat_agent/`.
+- **Owned data**: `chat_agent_*` belongs to `agents/chat_agent/`;
+  `channel_gateway_event_outbox` belongs to Channel Gateway.
 - **Capabilities exposed**: chat REST/webhooks, outbound card operations,
   channel messages.
 - **External dependencies**: Feishu, WeCom, business agents (downstream
   recipients of intent), control plane.
-- **Boundary clarity**: medium. Two gateway services + chat-agent share
-  responsibilities; gateway must not own product-domain records.
+- **Boundary clarity**: high. Chat-agent runtime owns product logic,
+  persistence, scheduler, outbox dispatching, and internal HTTP APIs after
+  ADR-0010 Steps 1-7; gateway production code calls it through HTTP adapters.
 - **Split fit**: gateway boundary, not a business context. Keep as-is.
 
 ### 3.8 Coordination / Orchestration
@@ -358,15 +362,16 @@ fitness. The capability/runtime mapping matches
 
 ### 3.11 Identity / User
 
-- **Responsibility**: platform user identity, lookup, and link to runtime
-  context.
-- **Business objects**: User, Platform.
-- **Owned data**: `users` (single table; no dedicated API today).
+- **Responsibility**: platform user identity, lookup, link to runtime
+  context, and PII-safe identity event staging.
+- **Business objects**: User, Platform, IdentityEventOutbox.
+- **Owned data**: `users`, `identity_event_outbox` (no dedicated API today).
 - **Capabilities exposed**: identity lookup through messaging-inbound and
-  shared user store.
+  shared user store; `identity.*` events through the identity outbox.
 - **External dependencies**: every runtime that needs user context.
-- **Boundary clarity**: low. Multiple read paths; one historical write
-  path; no public API.
+- **Boundary clarity**: medium-high. Writes route through the identity
+  service path and aggregate methods; identity events are staged in the
+  same local transaction. No public API yet.
 - **Split fit**: define the public boundary first (P1-5). Splitting can wait
   until the API contract is durable.
 
@@ -381,7 +386,7 @@ fitness. The capability/runtime mapping matches
 
 ---
 
-## 4. Target Architecture Proposal (目标架构建议)
+## 4. Target Architecture Proposal
 
 ### 4.1 Overall Architecture
 
@@ -492,7 +497,7 @@ Decision matrix per candidate (from §3 + Phase 1 H1):
 | Evolution | Medium | Yes (own tables) | Low | Low | Yes (proposal flow needs guardrails) | Low | No | Low | Medium | Keep modular; harden approval/rollback first |
 | Requirement Manager | Yes | Yes | Medium | Medium | Yes | Yes | No | Medium | Medium | Keep modular; extract after Dev/QA pattern proves |
 | PJM | Yes | Yes | Low | Low | Yes | Medium | No | Medium | Medium | Keep modular; pair with sync sub-split |
-| Identity / User | No (no public API) | Partial | Low | Low | Yes | Low | No | Low | High | Define API first; do not split runtime |
+| Identity / User | No (no public API) | Yes (users + outbox) | Low | Low | Yes | Low | No | Low | High | Define API first; do not split runtime |
 
 Rule of thumb: extract only when **all four** of these are true: (a) outbox
 + projection + idempotency + replay are in place; (b) per-runtime
@@ -509,8 +514,8 @@ Target ownership matches the bounded contexts in §3 and the table matrix in
    API, RPC, EventBus, or an explicit read-only projection table.
 2. Outbox per runtime. Same DB today; one DB per runtime after Stage 4.
 3. Analysis must consume only projections, never source tables (P2-2 target).
-4. `users` becomes an Identity boundary with a single write path
-   (P1-5 target).
+4. `users` and `identity_event_outbox` form the Identity boundary with a
+   single write path (P1-5 target).
 5. Sync's OpenProject and Feishu Bitable sub-aggregates own separate
    sub-schemas; the orchestrator endpoint joins via APIs, not by reading
    each other's tables.
@@ -618,13 +623,13 @@ Implementation choice (recommend committing to it in Stage 0):
 
 ---
 
-## 5. Phased Migration Roadmap (渐进式改造路线)
+## 5. Phased Migration Roadmap
 
 Six stages. Each stage states goal, scope, verification, risk, and done
 criteria. Stages 0 and 1 are non-behavior-changing and can ship first; later
 stages depend on the seams the earlier stages established.
 
-### 5.1 Stage 0 — Architecture Docs and Standards (建立架构文档和规范)
+### 5.1 Stage 0 — Architecture Docs and Standards
 
 - **Goal**: lock the contract the rest of the work runs against.
 - **Scope (deliverables)**:
@@ -651,7 +656,7 @@ stages depend on the seams the earlier stages established.
 - **Done criteria**: all 10 docs merged on `main`; `docs/INDEX.md` updated;
   `AGENTS.md` references them under the architecture-constitution section.
 
-### 5.2 Stage 1 — Code Structure Cleanup (整理现有代码结构)
+### 5.2 Stage 1 — Code Structure Cleanup
 
 - **Goal**: tighten module boundaries without touching business behavior.
 - **Scope**:
@@ -681,7 +686,7 @@ stages depend on the seams the earlier stages established.
 - **Done criteria**: regression green; architecture-boundary tests cover
   the new rules; PR descriptions cite the rules added.
 
-### 5.3 Stage 2 — Core Domain Modeling (明确核心领域模型)
+### 5.3 Stage 2 — Core Domain Modeling
 
 - **Goal**: turn the implicit domain into explicit code.
 - **Scope** per business runtime (one PR per aggregate to keep diffs small):
@@ -707,7 +712,7 @@ stages depend on the seams the earlier stages established.
 - **Done criteria**: every business runtime has a non-empty `core/domain/`
   with an aggregate, an FSM, and matching unit tests.
 
-### 5.4 Stage 3 — Data Ownership and Boundaries (明确数据归属和边界)
+### 5.4 Stage 3 — Data Ownership and Boundaries
 
 - **Goal**: enforce the data-ownership rules from §4.5.
 - **Scope**:
@@ -735,7 +740,7 @@ stages depend on the seams the earlier stages established.
   has a single public API; architecture-boundary test forbids the
   remaining cross-runtime ORM access.
 
-### 5.5 Stage 4 — Service Boundary Evolution (服务边界演进)
+### 5.5 Stage 4 — Service Boundary Evolution
 
 - **Goal**: split the first one or two runtimes once the seams are ready.
 - **Scope** (per service to extract):
@@ -759,7 +764,7 @@ stages depend on the seams the earlier stages established.
 - **Done criteria**: one runtime runs independently in staging with
   bounded outbox lag, no DLQ growth, observable SLIs meeting their SLOs.
 
-### 5.6 Stage 5 — Engineering Quality (工程质量提升)
+### 5.6 Stage 5 — Engineering Quality
 
 - **Goal**: lock the engineering bar so later stages do not regress.
 - **Scope** (10 items from the brief):
@@ -793,7 +798,7 @@ stages depend on the seams the earlier stages established.
 
 ---
 
-## 6. First Minimal Step Proposal (第一阶段最小改造方案)
+## 6. First Minimal Step Proposal
 
 ### 6.1 Why This First
 
@@ -892,7 +897,7 @@ Touched (additive only):
 
 ---
 
-## 7. Confirmation Gate (是否需要我确认)
+## 7. Confirmation Gate
 
 Yes. Per the brief, no code is to be modified until you confirm the
 proposal in §6.

@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from agents.dev_agent.core.config import DevCoreConfig
+from agents.dev_agent.core.domain.lifecycle.task_lifecycle import FAILED, PLANNING
 from agents.dev_agent.core.result_collector import ResultCollector
 from agents.dev_agent.models.schemas import VALID_TRANSITIONS
 from shared.schemas.event import EventTypes
@@ -67,3 +68,38 @@ async def test_result_collector_uses_injected_gitlab_project_id_for_qa_event():
 
     qa_event = next(event for event in events if event.event_type == EventTypes.QA_RUN_REQUESTED)
     assert qa_event.payload["gitlab_project_id"] == 42
+
+
+@pytest.mark.asyncio
+async def test_result_collector_uses_shared_qa_gate_contract_for_retry():
+    task = SimpleNamespace(
+        id="dev-1",
+        wp_id=123,
+        mr_url="https://mr/7",
+        retry_count=0,
+        created_at=None,
+    )
+    repo = AsyncMock()
+    repo.update_status = AsyncMock(return_value=True)
+    notifier = AsyncMock()
+    collector = ResultCollector(
+        repo=repo,
+        log_repo=AsyncMock(),
+        gitlab=AsyncMock(),
+        notifier=notifier,
+    )
+
+    events = await collector.handle_qa_result(
+        task,
+        {"summary": {"l0_gate": "ERROR"}},
+    )
+
+    assert events == []
+    repo.update_status.assert_any_await(
+        "dev-1",
+        FAILED,
+        error_message="QA L0 failed",
+        failed_step="qa",
+    )
+    repo.update_status.assert_any_await("dev-1", PLANNING, retry_count=1)
+    notifier.notify_task_completed.assert_not_awaited()

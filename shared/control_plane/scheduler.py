@@ -4,15 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
 
 from shared.control_plane.agent_operation_ports import ControlPlaneAgentOperationStore
 from shared.control_plane.agent_runner import AgentWakeupError, ControlPlaneAgentRunner
+from shared.control_plane.domain.agent_wakeup_adapter import AgentWakeupAdapterConfig
 from shared.control_plane.models import AgentRunStatus
 from shared.core.ids import generate_ulid
 
-_DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 300
-_MIN_HEARTBEAT_INTERVAL_SECONDS = 60
 _SCHEDULER_ACTOR_ID = "control-plane:scheduler"
 
 
@@ -34,19 +32,6 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
-
-
-def _heartbeat_enabled(config: dict[str, Any]) -> bool:
-    return config.get("heartbeat_enabled") is True
-
-
-def _heartbeat_interval_seconds(config: dict[str, Any]) -> int:
-    raw = config.get("heartbeat_interval_seconds", _DEFAULT_HEARTBEAT_INTERVAL_SECONDS)
-    try:
-        value = int(raw)
-    except (TypeError, ValueError):
-        value = _DEFAULT_HEARTBEAT_INTERVAL_SECONDS
-    return max(value, _MIN_HEARTBEAT_INTERVAL_SECONDS)
 
 
 class ControlPlaneHeartbeatScheduler:
@@ -76,11 +61,11 @@ class ControlPlaneHeartbeatScheduler:
         )
         results: list[AgentHeartbeatResult] = []
         for agent in agents:
-            config = dict(agent.adapter_config or {})
-            if not _heartbeat_enabled(config):
+            adapter_config = AgentWakeupAdapterConfig.from_agent_role(agent)
+            if not adapter_config.heartbeat_enabled():
                 continue
 
-            interval_seconds = _heartbeat_interval_seconds(config)
+            interval_seconds = adapter_config.heartbeat_interval_seconds()
             due, skipped_reason = await self._is_due(
                 agent_id=agent.agent_id,
                 company_id=company_id,

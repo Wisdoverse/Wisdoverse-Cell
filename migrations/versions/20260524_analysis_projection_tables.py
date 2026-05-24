@@ -23,6 +23,15 @@ def _table_exists(table_name: str) -> bool:
     return sa.inspect(op.get_bind()).has_table(table_name)
 
 
+def _column_exists(table_name: str, column_name: str) -> bool:
+    if not _table_exists(table_name):
+        return False
+    return any(
+        column["name"] == column_name
+        for column in sa.inspect(op.get_bind()).get_columns(table_name)
+    )
+
+
 def _index_exists(table_name: str, index_name: str) -> bool:
     if not _table_exists(table_name):
         return False
@@ -101,6 +110,19 @@ def upgrade() -> None:
             sa.Column("parent_wp_id", sa.Integer(), nullable=False),
             sa.Column("subtask_status", sa.String(length=64), nullable=False),
             sa.Column(
+                "title",
+                sa.String(length=512),
+                nullable=False,
+                server_default="",
+            ),
+            sa.Column(
+                "blocked_reason",
+                sa.String(length=512),
+                nullable=False,
+                server_default="",
+            ),
+            sa.Column("feature_id", sa.String(length=64), nullable=True),
+            sa.Column(
                 "completed",
                 sa.Boolean(),
                 nullable=False,
@@ -123,10 +145,57 @@ def upgrade() -> None:
             "analysis_subtask_progress_projection",
             ["updated_at"],
         )
+        op.create_index(
+            "ix_analysis_spp_feature_id",
+            "analysis_subtask_progress_projection",
+            ["feature_id"],
+        )
+    else:
+        if not _column_exists("analysis_subtask_progress_projection", "title"):
+            op.add_column(
+                "analysis_subtask_progress_projection",
+                sa.Column(
+                    "title",
+                    sa.String(length=512),
+                    nullable=False,
+                    server_default="",
+                ),
+            )
+        if not _column_exists(
+            "analysis_subtask_progress_projection",
+            "blocked_reason",
+        ):
+            op.add_column(
+                "analysis_subtask_progress_projection",
+                sa.Column(
+                    "blocked_reason",
+                    sa.String(length=512),
+                    nullable=False,
+                    server_default="",
+                ),
+            )
+        if not _column_exists("analysis_subtask_progress_projection", "feature_id"):
+            op.add_column(
+                "analysis_subtask_progress_projection",
+                sa.Column("feature_id", sa.String(length=64), nullable=True),
+            )
+        if not _index_exists(
+            "analysis_subtask_progress_projection",
+            "ix_analysis_spp_feature_id",
+        ):
+            op.create_index(
+                "ix_analysis_spp_feature_id",
+                "analysis_subtask_progress_projection",
+                ["feature_id"],
+            )
 
 
 def downgrade() -> None:
     if _table_exists("analysis_subtask_progress_projection"):
+        _drop_index_if_exists(
+            "ix_analysis_spp_feature_id",
+            "analysis_subtask_progress_projection",
+        )
         _drop_index_if_exists(
             "ix_analysis_spp_updated_at",
             "analysis_subtask_progress_projection",

@@ -1,6 +1,6 @@
 """Tests for Requirement Manager Feishu card adapters."""
 
-from shared.integrations.feishu.cards.requirement import (
+from agents.requirement_manager.adapters.feishu_cards import (
     FeishuRequirementCardRenderer,
 )
 

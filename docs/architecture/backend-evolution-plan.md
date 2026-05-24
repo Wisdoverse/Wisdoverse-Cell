@@ -191,9 +191,9 @@ that guide, it is called out explicitly.
 | Analysis can drift into source-table reads | Reporting code can become an implicit write owner of other domains | `backend-boundaries.md` §6 |
 | Error response contract tests are still uneven at route level | Runtime APIs expose a structured envelope and base consumer tests prove the shared failure modes, but route-specific provider/consumer tests are not yet routine | `backend-boundaries.md` §6 |
 | `users` lacks a dedicated public user/profile API boundary | Identity data can become shared mutable state if unrelated modules write directly | `backend-boundaries.md` §6 |
-| Agent `core/` mixes use cases with domain rules and lifecycle helpers (partial: 4 business agents and Control Plane have `core/domain/`; sync, analysis, evolution, coordinator, gateways do not) | Without an explicit domain layer per product-owning context, ports and use cases pick up domain invariants and can leak into adapters | [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §5.1 and DDD-002 |
-| User Interaction Gateway owns product-domain tables (`chat_agent_*`) | Gateway boundary violation: ownership belongs to a chat-agent runtime, not a gateway | [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §5.12 and DDD-016 |
-| User Interaction core imports `shared.infra.conversation_engine` directly | Application-layer purity violation; LLM SDK leaks into core via infra | [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §5.13 and DDD-017 |
+| Agent `core/` mixes use cases with domain rules and lifecycle helpers | Closed for tracked code architecture: product-owning runtimes now have explicit domain packages or documented gateway exclusions; chat-agent owns `ConversationTranscript` for history-trimming invariants, `CardOperationLogEntry` for card-operation log invariants, and `DailyProgressEntry` for daily-progress status transitions | [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §5.1 and DDD-002 |
+| User Interaction Gateway compatibility access to chat-agent internals | Closed for code architecture: gateway production code calls chat-agent only through HTTP adapters, and legacy gateway core/db/model aliases for chat-agent product state have been removed | [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §5.12 and DDD-016 |
+| Chat-agent conversation-engine composition | Closed for gateway purity: `ConversationEnginePort` / `ConversationEngineFactory` live inside `agents/chat_agent/core/chat_ports.py`, and gateway production code no longer imports chat-agent internals | [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §5.13 and DDD-017 |
 | Coordinator `CoordinatorStateStore` is in-memory by default | No operator replay tooling for in-flight coordination state; closes Phase 1 audit §11 open question 2 | [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §5.14 and DDD-018 |
 | Aggregates are anemic (Control Plane all 13; Sync; Analysis; Identity) | Domain logic lives in lifecycle modules and use cases, not on aggregates; weak invariants | [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) §5.6 and DDD-001, DDD-003, DDD-005 |
 | Sync capability still hosts OpenProject and Feishu Bitable in one runtime | The sub-boundaries are split inside `core/`, but a single runtime makes targeted scaling and failure isolation impossible | `architecture.md` §3.1, `SPEC.md` §4.1.3 |
@@ -235,22 +235,22 @@ remediation roadmap (rows DDD-001 through DDD-022) is the authoritative
 follow-up list; this section keeps the same headlines in summary form to
 avoid drift.
 
-1. Make `core/domain/` mandatory for every product-owning runtime; today
-   only 4 of 13 contexts have it (audit §5.1, DDD-002).
-2. Finish lifecycle module moves into `core/domain/lifecycle/`; delete
-   legacy duplicates `core/requirement_lifecycle.py` and
-   `core/task_lifecycle.py` (audit §5.2, DDD-020).
+1. Keep `core/domain/` mandatory for every product-owning runtime that
+   owns stateful product records; gateways remain excluded (audit §5.1,
+   DDD-002).
+2. Keep lifecycle modules in `core/domain/lifecycle/`; architecture tests
+   block the retired top-level duplicates (audit §5.2, DDD-020).
 3. Add per-context ubiquitous-language glossary under each runtime's
    `README.md` linked to [`docs/overview/glossary.md`](../overview/glossary.md)
    (audit §5.11, DDD-009).
-4. Audit every `*_use_cases.py` for hidden infrastructure imports
-   (audit §5.13, DDD-017; recurring violation in User Interaction).
+4. Audit every new `*_use_cases.py` for hidden infrastructure imports
+   (audit §5.13, DDD-017; the User Interaction violation is closed).
 5. Treat `shared/control_plane/` as one bounded context with 13 aggregates;
    do not split until aggregate roots and state machines are explicit
    (audit §4.1, DDD-001).
 6. Document each aggregate root and its lifecycle in
    `docs/guides/backend-boundaries.md` §3 alongside table ownership.
-7. Add the cross-agent core import block plus the new boundary tests
+7. Maintain the cross-agent core import block plus the boundary tests
    listed in the audit §6 PRs (DDD-002, DDD-011, DDD-014, DDD-016).
 
 ---

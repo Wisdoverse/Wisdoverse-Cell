@@ -115,20 +115,18 @@ class AnalysisModule(BaseAgent):
         )
         projection_store = SqlAlchemyWorkPackageProjectionStore(self._db_manager)
         self._daily = DailyReportGenerator(
-            bitable=bitable_service,
             messenger=messenger,
             projection_port=projection_store,
             config=core_config,
         )
         self._weekly = WeeklyReportGenerator(
-            bitable=bitable_service,
             messenger=messenger,
             projection_port=projection_store,
             config=core_config,
         )
         self._milestone = MilestoneChecker(
-            bitable=bitable_service,
             messenger=messenger,
+            projection_port=projection_store,
             config=core_config,
         )
         self._quality = QualityEvaluator(

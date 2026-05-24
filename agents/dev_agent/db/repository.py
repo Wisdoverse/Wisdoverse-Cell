@@ -6,11 +6,18 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import DevTaskId, WorkPackageId
 from shared.core.ids import generate_id
 from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
-from ..core.domain.lifecycle.task_lifecycle import ACTIVE_STATUSES, IN_PROGRESS_STATUSES, can_transition
+from ..core.domain.lifecycle.task_lifecycle import (
+    ACTIVE_STATUSES,
+    IN_PROGRESS_STATUSES,
+    TaskStatus,
+    can_transition,
+)
+from ..core.domain.task_values import RiskLevel, risk_level_value
 from ..models.dev import DevAgentEventOutbox, DevAgentTask, DevAgentWorkflowLog
 
 logger = get_logger("dev_agent.repository")
@@ -21,14 +28,17 @@ class DevTaskRepository:
         self.session = session
 
     async def create_task(
-        self, wp_id: int, task_title: str, risk_level: str = "MEDIUM"
+        self,
+        wp_id: WorkPackageId,
+        task_title: str,
+        risk_level: RiskLevel | str = RiskLevel.MEDIUM,
     ) -> DevAgentTask | None:
         """Create task atomically. Returns None if wp_id already exists (idempotent)."""
         stmt = pg_insert(DevAgentTask).values(
             id=generate_id("dev"),
-            wp_id=wp_id,
+            wp_id=int(wp_id),
             task_title=task_title,
-            risk_level=risk_level,
+            risk_level=risk_level_value(risk_level),
         ).on_conflict_do_nothing(index_elements=["wp_id"])
         result = await self.session.execute(stmt)
         await self.session.flush()
@@ -36,15 +46,15 @@ class DevTaskRepository:
             return None  # Already exists
         return await self.get_by_wp_id(wp_id)
 
-    async def get_by_wp_id(self, wp_id: int) -> DevAgentTask | None:
+    async def get_by_wp_id(self, wp_id: WorkPackageId) -> DevAgentTask | None:
         result = await self.session.execute(
-            select(DevAgentTask).where(DevAgentTask.wp_id == wp_id)
+            select(DevAgentTask).where(DevAgentTask.wp_id == int(wp_id))
         )
         return result.scalar_one_or_none()
 
-    async def get_by_id(self, task_id: str) -> DevAgentTask | None:
+    async def get_by_id(self, task_id: DevTaskId) -> DevAgentTask | None:
         result = await self.session.execute(
-            select(DevAgentTask).where(DevAgentTask.id == task_id)
+            select(DevAgentTask).where(DevAgentTask.id == str(task_id))
         )
         return result.scalar_one_or_none()
 
@@ -54,7 +64,12 @@ class DevTaskRepository:
         )
         return result.scalar_one_or_none()
 
-    async def update_status(self, task_id: str, new_status: str, **kwargs) -> bool:
+    async def update_status(
+        self,
+        task_id: DevTaskId,
+        new_status: TaskStatus,
+        **kwargs,
+    ) -> bool:
         task = await self.get_by_id(task_id)
         if not task:
             logger.error("update_status_task_not_found", task_id=task_id, target_status=new_status)
@@ -67,7 +82,7 @@ class DevTaskRepository:
                 to_status=new_status,
             )
             return False
-        task.status = new_status
+        task.status = str(new_status)
         task.updated_at = datetime.now(UTC)
         for key, value in kwargs.items():
             if hasattr(task, key):
@@ -75,7 +90,7 @@ class DevTaskRepository:
         await self.session.flush()
         return True
 
-    async def mark_polled(self, task_id: str, *, polled_at: datetime) -> bool:
+    async def mark_polled(self, task_id: DevTaskId, *, polled_at: datetime) -> bool:
         task = await self.get_by_id(task_id)
         if not task:
             logger.error("mark_polled_task_not_found", task_id=task_id)
@@ -145,18 +160,18 @@ class DevWorkflowLogRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def create_log(self, task_id: str, **kwargs) -> DevAgentWorkflowLog:
+    async def create_log(self, task_id: DevTaskId, **kwargs) -> DevAgentWorkflowLog:
         log = DevAgentWorkflowLog(
-            id=generate_id("dwl"), task_id=task_id, **kwargs
+            id=generate_id("dwl"), task_id=str(task_id), **kwargs
         )
         self.session.add(log)
         await self.session.flush()
         return log
 
-    async def get_by_task_id(self, task_id: str) -> DevAgentWorkflowLog | None:
+    async def get_by_task_id(self, task_id: DevTaskId) -> DevAgentWorkflowLog | None:
         result = await self.session.execute(
             select(DevAgentWorkflowLog)
-            .where(DevAgentWorkflowLog.task_id == task_id)
+            .where(DevAgentWorkflowLog.task_id == str(task_id))
             .order_by(DevAgentWorkflowLog.created_at.desc())
         )
         return result.scalar_one_or_none()

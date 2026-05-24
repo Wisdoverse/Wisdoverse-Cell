@@ -14,7 +14,7 @@ from shared.schemas.event import Event, EventTypes
 @pytest.mark.asyncio
 async def test_agent_init(mock_event_bus, mock_chat_service):
     """Verify ChatAgent initialization attributes."""
-    from services.gateways.user_interaction.service.agent import ChatAgent
+    from agents.chat_agent.service.agent import ChatAgent
 
     agent = ChatAgent(db=MagicMock(), bus=mock_event_bus)
 
@@ -33,7 +33,7 @@ async def test_agent_init(mock_event_bus, mock_chat_service):
 @pytest.mark.asyncio
 async def test_handle_event_pm_response(mock_event_bus, mock_chat_service):
     """Verify handle_event processes CHAT_PM_RESPONSE and returns no events."""
-    from services.gateways.user_interaction.service.agent import ChatAgent
+    from agents.chat_agent.service.agent import ChatAgent
     from shared.observability.privacy import hash_identifier
 
     agent = ChatAgent(db=MagicMock(), bus=mock_event_bus)
@@ -45,7 +45,7 @@ async def test_handle_event_pm_response(mock_event_bus, mock_chat_service):
     )
 
     with patch(
-        "services.gateways.user_interaction.core.event_use_cases.logger"
+        "agents.chat_agent.core.event_use_cases.logger"
     ) as logger:
         result = await agent.handle_event(event)
 
@@ -59,7 +59,7 @@ async def test_handle_event_pm_response(mock_event_bus, mock_chat_service):
 @pytest.mark.asyncio
 async def test_handle_request_chat(mock_event_bus, mock_chat_service):
     """Verify handle_request action=chat calls the chat service."""
-    from services.gateways.user_interaction.service.agent import ChatAgent
+    from agents.chat_agent.service.agent import ChatAgent
 
     agent = ChatAgent(db=MagicMock(), bus=mock_event_bus)
     agent._chat = mock_chat_service
@@ -77,7 +77,7 @@ async def test_handle_request_chat(mock_event_bus, mock_chat_service):
 @pytest.mark.asyncio
 async def test_handle_request_chat_user_assistant(mock_event_bus, mock_chat_service):
     """handle_request action=chat_user_assistant calls the user assistant."""
-    from services.gateways.user_interaction.service.agent import ChatAgent
+    from agents.chat_agent.service.agent import ChatAgent
 
     agent = ChatAgent(db=MagicMock(), bus=mock_event_bus)
     agent._chat = mock_chat_service
@@ -108,7 +108,7 @@ async def test_handle_request_chat_user_assistant(mock_event_bus, mock_chat_serv
 @pytest.mark.asyncio
 async def test_handle_request_clear_history(mock_event_bus, mock_chat_service):
     """Verify handle_request action=clear_history clears chat history."""
-    from services.gateways.user_interaction.service.agent import ChatAgent
+    from agents.chat_agent.service.agent import ChatAgent
 
     agent = ChatAgent(db=MagicMock(), bus=mock_event_bus)
     agent._chat = mock_chat_service
@@ -125,7 +125,7 @@ async def test_handle_request_clear_history(mock_event_bus, mock_chat_service):
 @pytest.mark.asyncio
 async def test_health_check_uses_injected_health_store(mock_event_bus):
     """Health check delegates database probing to the health-store port."""
-    from services.gateways.user_interaction.service.agent import ChatAgent
+    from agents.chat_agent.service.agent import ChatAgent
 
     health_store = AsyncMock()
     health_store.is_database_ready = AsyncMock(return_value=True)
@@ -145,7 +145,7 @@ async def test_health_check_uses_injected_health_store(mock_event_bus):
 @pytest.mark.asyncio
 async def test_handle_request_unknown(mock_event_bus, mock_chat_service):
     """Verify handle_request returns an error for an unknown action."""
-    from services.gateways.user_interaction.service.agent import ChatAgent
+    from agents.chat_agent.service.agent import ChatAgent
 
     agent = ChatAgent(db=MagicMock(), bus=mock_event_bus)
     agent._chat = mock_chat_service
@@ -161,7 +161,7 @@ async def test_handle_request_unknown(mock_event_bus, mock_chat_service):
 @pytest.mark.asyncio
 async def test_cleanup_conversations_uses_history_store(mock_event_bus):
     """cleanup_conversations delegates persistence to the chat history store."""
-    from services.gateways.user_interaction.service.agent import ChatAgent
+    from agents.chat_agent.service.agent import ChatAgent
 
     history_store = MagicMock()
     history_store.delete_inactive = AsyncMock(return_value=7)

@@ -15,6 +15,7 @@ from shared.utils.logger import get_logger
 
 from .card_ports import QualityCardRendererPort
 from .config import QACoreConfig
+from .domain.acceptance_verdict import AcceptanceVerdict
 from .domain.acceptance_vocabulary import (
     is_blocking_finding,
     is_warning_finding,
@@ -145,7 +146,8 @@ class QANotifier:
                 raise RuntimeError("qa_acceptance_completed_publish_rejected")
 
             # Publish gate-failed if L0 failed
-            if summary.get("l0_gate") == "FAIL":
+            verdict = AcceptanceVerdict.from_summary(summary)
+            if verdict.is_blocking:
                 blocking = [
                     f
                     for f in kwargs["findings"]
@@ -187,7 +189,7 @@ class QANotifier:
     ) -> bool:
         """Determine if Feishu notification is warranted."""
         # Always notify on L0 FAIL
-        if summary.get("l0_gate") == "FAIL":
+        if AcceptanceVerdict.from_summary(summary).is_blocking:
             return True
 
         # Notify on configured high-severity L1 checks

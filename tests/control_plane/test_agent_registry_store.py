@@ -7,6 +7,7 @@ from shared.control_plane.agent_registry_store import (
     SqlAlchemyControlPlaneAgentRegistryStore,
 )
 from shared.control_plane.models import AgentRole, CompanyContext
+from shared.core.identifiers import AgentRoleId, CompanyId
 
 
 @pytest.mark.asyncio
@@ -30,20 +31,20 @@ async def test_agent_registry_store_owns_role_lifecycle(db_session: AsyncSession
     )
 
     listed = await store.list_agent_roles(
-        company_id=company.company_id,
+        company_id=CompanyId(company.company_id),
         agent_kind="organization_role",
         interaction_mode="direct",
         adapter_type="codex_local",
         search="growth",
     )
     updated = await store.update_agent_role(
-        company_id=company.company_id,
-        agent_id="growth-researcher",
+        company_id=CompanyId(company.company_id),
+        agent_id=AgentRoleId("growth-researcher"),
         values={"metadata": {"seed": "test", "status": "reviewed"}},
     )
     disabled = await store.update_agent_role_status(
-        company_id=company.company_id,
-        agent_id="growth-researcher",
+        company_id=CompanyId(company.company_id),
+        agent_id=AgentRoleId("growth-researcher"),
         status="disabled",
     )
 

@@ -24,14 +24,18 @@ and terminal states (``approved``, ``rejected``, ``failed``) do not
 re-enter the lifecycle without a fresh record.
 """
 
-PENDING = "pending"
-WRITING = "writing"
-APPROVED = "approved"
-WRITE_FAILED = "write_failed"
-FAILED = "failed"
-REJECTED = "rejected"
+from typing import NewType
 
-DECOMPOSITION_STATUSES: tuple[str, ...] = (
+DecompositionStatus = NewType("DecompositionStatus", str)
+
+PENDING = DecompositionStatus("pending")
+WRITING = DecompositionStatus("writing")
+APPROVED = DecompositionStatus("approved")
+WRITE_FAILED = DecompositionStatus("write_failed")
+FAILED = DecompositionStatus("failed")
+REJECTED = DecompositionStatus("rejected")
+
+DECOMPOSITION_STATUSES: tuple[DecompositionStatus, ...] = (
     PENDING,
     WRITING,
     APPROVED,
@@ -40,9 +44,9 @@ DECOMPOSITION_STATUSES: tuple[str, ...] = (
     REJECTED,
 )
 
-TERMINAL_STATUSES: tuple[str, ...] = (APPROVED, REJECTED, FAILED)
+TERMINAL_STATUSES: tuple[DecompositionStatus, ...] = (APPROVED, REJECTED, FAILED)
 
-VALID_TRANSITIONS: dict[str, set[str]] = {
+VALID_TRANSITIONS: dict[DecompositionStatus, set[DecompositionStatus]] = {
     PENDING: {WRITING, APPROVED, FAILED, REJECTED, WRITE_FAILED},
     WRITING: {APPROVED, WRITE_FAILED, FAILED},
     WRITE_FAILED: {WRITING, FAILED, REJECTED},
@@ -52,12 +56,15 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
 }
 
 
-def can_transition(from_status: str, to_status: str) -> bool:
+def can_transition(
+    from_status: DecompositionStatus,
+    to_status: DecompositionStatus,
+) -> bool:
     """Return whether a decomposition record can move between two states."""
     return to_status in VALID_TRANSITIONS.get(from_status, set())
 
 
-def is_terminal(status: str) -> bool:
+def is_terminal(status: DecompositionStatus) -> bool:
     """Return whether the given status is a terminal lifecycle state."""
     return status in TERMINAL_STATUSES
 
@@ -65,6 +72,7 @@ def is_terminal(status: str) -> bool:
 __all__ = [
     "APPROVED",
     "DECOMPOSITION_STATUSES",
+    "DecompositionStatus",
     "FAILED",
     "PENDING",
     "REJECTED",

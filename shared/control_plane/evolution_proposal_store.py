@@ -1,10 +1,11 @@
 """SQLAlchemy adapter for control-plane evolution proposal persistence."""
+
 from __future__ import annotations
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.core.identifiers import CompanyId
+from shared.core.identifiers import ApprovalRequestId, CompanyId, EvolutionProposalId
 
 from .approval_store import SqlAlchemyControlPlaneApprovalStore
 from .audit_event_store import SqlAlchemyControlPlaneAuditEventStore
@@ -22,9 +23,7 @@ from .store_utils import model_values, now_utc
 from .tables import EvolutionProposalTable
 
 
-class SqlAlchemyControlPlaneEvolutionProposalStore(
-    ControlPlaneEvolutionProposalStore
-):
+class SqlAlchemyControlPlaneEvolutionProposalStore(ControlPlaneEvolutionProposalStore):
     """Session-scoped evolution proposal store."""
 
     def __init__(self, session: AsyncSession):
@@ -42,12 +41,12 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
     async def request_approval(self, approval: ApprovalRequest) -> ApprovalRequest:
         return await self._approvals.request_approval(approval)
 
-    async def get_approval(self, approval_id: str) -> ApprovalRequest | None:
+    async def get_approval(self, approval_id: ApprovalRequestId) -> ApprovalRequest | None:
         return await self._approvals.get_approval(approval_id)
 
     async def resolve_approval(
         self,
-        approval_id: str,
+        approval_id: ApprovalRequestId,
         *,
         status: ApprovalStatus | str,
         resolved_by: str,
@@ -58,27 +57,23 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
             resolved_by=resolved_by,
         )
 
-    async def create_evolution_proposal(
-        self, proposal: EvolutionProposal
-    ) -> EvolutionProposal:
+    async def create_evolution_proposal(self, proposal: EvolutionProposal) -> EvolutionProposal:
         row = EvolutionProposalTable(**model_values(proposal))
         self._session.add(row)
         await self._session.flush()
         return evolution_proposal_record(row)
 
     async def get_evolution_proposal(
-        self, proposal_id: str
+        self, proposal_id: EvolutionProposalId
     ) -> EvolutionProposal | None:
         row = await self._get_evolution_proposal_row(proposal_id)
         return evolution_proposal_record(row) if row is not None else None
 
     async def _get_evolution_proposal_row(
-        self, proposal_id: str
+        self, proposal_id: EvolutionProposalId
     ) -> EvolutionProposalTable | None:
         result = await self._session.execute(
-            select(EvolutionProposalTable).where(
-                EvolutionProposalTable.proposal_id == proposal_id
-            )
+            select(EvolutionProposalTable).where(EvolutionProposalTable.proposal_id == proposal_id)
         )
         return result.scalar_one_or_none()
 
@@ -110,11 +105,11 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
 
     async def update_evolution_proposal_status(
         self,
-        proposal_id: str,
+        proposal_id: EvolutionProposalId,
         *,
         approval_state: str | None = None,
         rollout_state: str | None = None,
-        approval_id: str | None = None,
+        approval_id: ApprovalRequestId | None = None,
     ) -> EvolutionProposal | None:
         row = await self._get_evolution_proposal_row(proposal_id)
         if row is None:
@@ -131,15 +126,13 @@ class SqlAlchemyControlPlaneEvolutionProposalStore(
 
     async def update_evolution_proposal_approval_state_by_approval(
         self,
-        approval_id: str,
+        approval_id: ApprovalRequestId,
         *,
         approval_state: str,
         rollout_state: str | None = None,
     ) -> EvolutionProposal | None:
         result = await self._session.execute(
-            select(EvolutionProposalTable).where(
-                EvolutionProposalTable.approval_id == approval_id
-            )
+            select(EvolutionProposalTable).where(EvolutionProposalTable.approval_id == approval_id)
         )
         row = result.scalar_one_or_none()
         if row is None:

@@ -9,6 +9,7 @@ import pytest
 from agents.requirement_manager.core.requirement_command_use_cases import (
     RequirementCommandUseCase,
 )
+from shared.core.identifiers import OpenQuestionId, RequirementId
 
 
 class FakeUnitOfWork:
@@ -54,7 +55,7 @@ async def test_confirm_requirement_commits_factory_uow_and_publishes_side_effect
 
     assert result is entity
     workflow.confirm_requirement.assert_awaited_once_with(
-        requirement_id="req_1",
+        requirement_id=RequirementId("req_1"),
         confirmed_by="pm",
         uow=uow,
     )
@@ -87,7 +88,7 @@ async def test_update_requirement_accepts_caller_owned_uow():
 
     assert result is entity
     workflow.update_requirement.assert_awaited_once_with(
-        requirement_id="req_1",
+        requirement_id=RequirementId("req_1"),
         changes={"title": "Updated"},
         uow=provided_uow,
     )
@@ -112,7 +113,7 @@ async def test_answer_question_commits_without_publishing_side_effects():
 
     assert result is mutation_result.entity
     workflow.answer_question.assert_awaited_once_with(
-        "q_1",
+        OpenQuestionId("q_1"),
         answer="US first",
         answered_by="pm",
         uow=uow,
@@ -146,7 +147,7 @@ async def test_batch_reject_commits_and_publishes_each_mutation_result():
     assert result is results
     assert uow.committed is True
     workflow.batch_reject_requirements.assert_awaited_once_with(
-        requirement_ids=["req_1", "req_2"],
+        requirement_ids=[RequirementId("req_1"), RequirementId("req_2")],
         reason="Out of scope",
         rejected_by="pm",
         uow=uow,

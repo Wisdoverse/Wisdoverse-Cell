@@ -312,6 +312,7 @@ class Settings(BaseSettings):
     # Deprecated aliases kept so older .env files continue to load.
     sync_agent_host: str = "sync-module"
     sync_agent_port: int = 8010
+    chat_agent_url: str = "http://chat-agent:8013"
     pjm_agent_url: str = "http://pjm-agent:8012"
 
     # ============ Deprecated provider-specific proxy settings ============
