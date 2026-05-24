@@ -10,6 +10,7 @@ from shared.messaging.outbound.models.events import ChannelEventTypes
 from shared.schemas.event import EventTypes
 
 AGENT_ROOTS = {
+    "chat_agent",
     "dev_agent",
     "pjm_agent",
     "qa_agent",
@@ -448,7 +449,6 @@ def test_event_publisher_port_lives_in_shared_core() -> None:
     assert "class EventPublisher(Protocol)" not in infra_source
 
     source_paths = (
-        Path("agents/qa_agent/core/notifier.py"),
         Path("agents/pjm_agent/core/decomposition_orchestrator.py"),
         Path("shared/capabilities/sync/core/openproject/engine.py"),
         Path("shared/capabilities/sync/core/engine.py"),
@@ -7264,6 +7264,44 @@ def test_business_aggregates_have_unit_tests() -> None:
             "state transitions + invariants (see architecture-principles.md "
             "§4.8 + ddd-compliance-audit.md row DDD-015)."
         )
+
+
+def test_lifecycle_mutation_paths_use_domain_aggregates() -> None:
+    """Aggregate files are not enough; production mutation paths must use them."""
+    requirement_repo = Path("agents/requirement_manager/db/repository.py").read_text()
+    requirement_workflow = Path(
+        "agents/requirement_manager/core/requirement_mutation_workflow.py"
+    ).read_text()
+    pjm_repo = Path("agents/pjm_agent/db/repository.py").read_text()
+    dev_repo = Path("agents/dev_agent/db/repository.py").read_text()
+
+    assert "RequirementAggregate(" in requirement_repo
+    assert "aggregate.transition_to(CONFIRMED" in requirement_repo
+    assert "aggregate.transition_to(REJECTED" in requirement_repo
+    assert "RequirementAggregate(" in requirement_workflow
+    assert "aggregate.transition_to(CHANGED" in requirement_workflow
+
+    assert "Decomposition(" in pjm_repo
+    assert "aggregate.transition_to(target_status)" in pjm_repo
+
+    assert "Task(task_id=task_id" in dev_repo
+    assert "aggregate.transition_to(new_status)" in dev_repo
+    assert "Task(task_id=task.id" in dev_repo
+    assert "aggregate.transition_to(EXPIRED)" in dev_repo
+
+
+def test_qa_notifier_does_not_publish_integration_events_directly() -> None:
+    """QA acceptance events must be staged by the acceptance UoW/outbox path."""
+    notifier_source = Path("agents/qa_agent/core/notifier.py").read_text()
+    factory_source = Path("agents/qa_agent/service/notifier_factory.py").read_text()
+
+    assert "EventPublisher" not in notifier_source
+    assert "EventTypes.QA_ACCEPTANCE_COMPLETED" not in notifier_source
+    assert "EventTypes.QA_GATE_FAILED" not in notifier_source
+    assert "def _publish_events" not in notifier_source
+    assert "self._event_publisher.publish" not in notifier_source
+    assert "eventbus_summary_required" in notifier_source
+    assert "EventBusEventPublisher" not in factory_source
 
 
 def test_qa_acceptance_verdict_owns_gate_vocabulary() -> None:

@@ -4,12 +4,13 @@ Feedback API.
 Handles requirement confirmation, rejection, and question answers by
 delegating business logic to the agent.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from shared.api import raise_question_not_found, raise_requirement_not_found
 from shared.observability.privacy import hash_identifier
 from shared.utils.logger import get_logger
 
+from ..core.domain.requirement import InvalidRequirementTransitionError
 from ..core.feedback_use_cases import RequirementFeedbackUseCase
 from .dependencies import get_requirement_feedback_use_case
 from .schemas import (
@@ -35,10 +36,13 @@ async def confirm_requirement(
     feedback: RequirementFeedbackUseCase = Depends(get_requirement_feedback_use_case),
 ):
     """Confirm a requirement."""
-    requirement = await feedback.confirm_requirement(
-        requirement_id=requirement_id,
-        confirmed_by=request.confirmed_by,
-    )
+    try:
+        requirement = await feedback.confirm_requirement(
+            requirement_id=requirement_id,
+            confirmed_by=request.confirmed_by,
+        )
+    except InvalidRequirementTransitionError as exc:
+        raise _requirement_transition_conflict(exc) from exc
 
     if not requirement:
         raise_requirement_not_found()
@@ -53,16 +57,31 @@ async def reject_requirement(
     feedback: RequirementFeedbackUseCase = Depends(get_requirement_feedback_use_case),
 ):
     """Reject a requirement."""
-    requirement = await feedback.reject_requirement(
-        requirement_id=requirement_id,
-        reason=request.reason,
-        rejected_by=request.rejected_by,
-    )
+    try:
+        requirement = await feedback.reject_requirement(
+            requirement_id=requirement_id,
+            reason=request.reason,
+            rejected_by=request.rejected_by,
+        )
+    except InvalidRequirementTransitionError as exc:
+        raise _requirement_transition_conflict(exc) from exc
 
     if not requirement:
         raise_requirement_not_found()
 
     return RequirementOut.model_validate(requirement)
+
+
+def _requirement_transition_conflict(
+    exc: InvalidRequirementTransitionError,
+) -> HTTPException:
+    return HTTPException(
+        status_code=409,
+        detail={
+            "code": "invalid_requirement_transition",
+            "message": str(exc),
+        },
+    )
 
 
 @router.post("/questions/{question_id}/answer", response_model=OpenQuestionOut)

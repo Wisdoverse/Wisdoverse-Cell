@@ -1,6 +1,6 @@
 # DDD Compliance Audit
 
-Last updated: 2026-05-23
+Last updated: 2026-05-24
 
 Status: Foundation document. Joins the Stage 0 architecture doc set under
 `docs/architecture/`. Reconciles with
@@ -128,8 +128,11 @@ real invariants.
 The remediation sequence stayed inside the existing migration plan:
 no new framework, no new stage, and no new runtime identifier.
 
-Aggregate compliance score across the thirteen contexts (gateways score
-several dimensions as `n/a` by design — see §4.9):
+Historical baseline aggregate compliance score across the thirteen contexts
+from the original audit table (gateways score several dimensions as `n/a`
+by design — see §4.9). Later rows in the scoring history below record
+code-architecture closures and should not be read as a recomputed 156-cell
+score unless this table is explicitly recalculated in the same PR:
 
 | Status | Count | % of 156 cells | % excluding n/a |
 |--------|-------|----------------|-----------------|
@@ -218,6 +221,7 @@ Scoring history (each landed `DDD-NNN` PR updates the totals here):
 | Current branch Requirement Manager Feishu card-action inbound ACL | `agents/requirement_manager/integrations/feishu/acl.py` adds immutable `FeishuCardAction` translation for interactive-card callback payloads, operator IDs, Requirement IDs, pagination, batch IDs, rejection reasons, and PJM work-package IDs; `integrations/feishu/card.py` now consumes that local ACL object instead of reading `action.value`, `form_value`, or `operator.open_id` directly | 100 |
 | Current branch Requirement Manager Feishu card-action response model | `agents/requirement_manager/integrations/feishu/acl.py` adds immutable `FeishuCardActionResponse` for callback toast/card payloads; `integrations/feishu/card.py` now returns the local response object's `to_payload()` output for success, error, info, and card-only responses instead of constructing raw Feishu callback dictionaries inline | 100 |
 | Current branch Requirement Manager Feishu router adapter | `agents/requirement_manager/integrations/feishu/router.py` wraps the shared Feishu webhook router and handler registration behind `register_requirement_feishu_handlers()`; `app/main.py` now includes the Feishu webhook router through the Requirement-local integration package, and `init_feishu_gateway()` registers handlers through the local adapter instead of importing the shared router module directly | 100 |
+| Current branch production lifecycle boundary closure | Requirement Manager confirmation/rejection/update, PJM decomposition status writes, and Dev task status/expiry writes now construct the owning aggregate and call the aggregate FSM before persistence; QA notification no longer has a direct EventBus publish fallback and relies on the acceptance outbox summary supplied by `QAAcceptanceExecutionUseCase`; `tests/unit/test_architecture_boundaries.py` guards aggregate use in production mutation paths, chat-agent cross-agent import coverage, QA no-direct-publish behavior, and full EventTypes-to-payload-model parity | 100 |
 | Current branch Requirement Manager LLM extraction-response ACL | `agents/requirement_manager/core/llm_extraction_response.py` adds immutable `LLMExtractionResponse` / `LLMExtracted*` response models for raw LLM Gateway extraction JSON, Markdown-fence cleanup, category normalization, priority normalization, and malformed-item filtering; `core/extractor.py` now consumes that local ACL instead of parsing `json.loads()` and external labels inline | 100 |
 | Current branch Requirement Manager aggregate-consistency policy | `agents/requirement_manager/core/domain/aggregate_consistency.py` adds `RequirementAggregateConsistencyPolicy`, immutable `RequirementTransactionScope`, and typed consistency errors for the allowed immediate-consistency write scopes: meeting ingest, Requirement lifecycle mutations with optional feedback evidence, question answers, outbox staging, and post-commit side effects; `meeting_ingest_workflow.py` and `requirement_mutation_workflow.py` now assert their declared aggregate write sets before UoW writes | 100 |
 | Current branch Interaction Gateway webhook value object | `services/gateways/user_interaction/core/webhook_intake.py` promotes `FeishuWebhookMessage` to a frozen slotted value object with local `from_webhook_body()` translation and `text_content()` normalization; webhook intake now carries immutable primitive message fields rather than a mutable raw Feishu message dictionary | 100 |

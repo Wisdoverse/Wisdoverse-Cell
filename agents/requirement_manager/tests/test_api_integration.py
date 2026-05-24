@@ -200,6 +200,82 @@ class TestFeedbackAPI:
             rejected_by="产品经理",
         )
 
+    @pytest.mark.asyncio
+    async def test_confirm_transition_conflict_returns_http_409(self):
+        """Confirm endpoint maps illegal lifecycle transitions to 409."""
+        from agents.requirement_manager.api.dependencies import (
+            get_requirement_feedback_use_case,
+        )
+        from agents.requirement_manager.app.main import app
+        from agents.requirement_manager.core.domain.requirement import (
+            InvalidRequirementTransitionError,
+        )
+
+        feedback_use_case = MagicMock()
+        feedback_use_case.confirm_requirement = AsyncMock(
+            side_effect=InvalidRequirementTransitionError(
+                requirement_id="req_123",
+                from_status="confirmed",
+                to_status="confirmed",
+            )
+        )
+        app.dependency_overrides[get_requirement_feedback_use_case] = (
+            lambda: feedback_use_case
+        )
+
+        try:
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+            ) as client:
+                response = await client.put(
+                    "/api/v1/requirements/req_123/confirm",
+                    json={"confirmed_by": "测试用户"},
+                )
+        finally:
+            app.dependency_overrides.pop(get_requirement_feedback_use_case, None)
+
+        assert response.status_code == 409
+        assert response.json()["detail"]["code"] == "invalid_requirement_transition"
+
+    @pytest.mark.asyncio
+    async def test_reject_transition_conflict_returns_http_409(self):
+        """Reject endpoint maps illegal lifecycle transitions to 409."""
+        from agents.requirement_manager.api.dependencies import (
+            get_requirement_feedback_use_case,
+        )
+        from agents.requirement_manager.app.main import app
+        from agents.requirement_manager.core.domain.requirement import (
+            InvalidRequirementTransitionError,
+        )
+
+        feedback_use_case = MagicMock()
+        feedback_use_case.reject_requirement = AsyncMock(
+            side_effect=InvalidRequirementTransitionError(
+                requirement_id="req_123",
+                from_status="rejected",
+                to_status="rejected",
+            )
+        )
+        app.dependency_overrides[get_requirement_feedback_use_case] = (
+            lambda: feedback_use_case
+        )
+
+        try:
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+            ) as client:
+                response = await client.put(
+                    "/api/v1/requirements/req_123/reject",
+                    json={"reason": "不符合产品方向", "rejected_by": "产品经理"},
+                )
+        finally:
+            app.dependency_overrides.pop(get_requirement_feedback_use_case, None)
+
+        assert response.status_code == 409
+        assert response.json()["detail"]["code"] == "invalid_requirement_transition"
+
 
 class TestAgentEventPublishing:
     """Agent event publishing tests."""

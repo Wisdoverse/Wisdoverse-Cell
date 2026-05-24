@@ -17,6 +17,7 @@ def _requirement(**overrides):
         "description": "Original description",
         "priority": "MEDIUM",
         "category": "feature",
+        "status": "pending",
         "add_history": MagicMock(),
     }
     values.update(overrides)
@@ -75,6 +76,7 @@ async def test_update_requirement_records_history_feedback_and_changed_event():
         RequirementId("req_1"),
         title="Updated title",
         priority="HIGH",
+        status="changed",
     )
     original.add_history.assert_called_once()
     uow.feedback.create.assert_awaited_once()

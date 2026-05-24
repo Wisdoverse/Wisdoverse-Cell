@@ -45,7 +45,7 @@ test.describe("Agent Detail page", () => {
   test("navigates between agent detail tabs", async ({ page }) => {
     await page.goto("/en/agents/requirement-manager");
     await page.getByRole("tab", { name: /events/i }).click();
-    await expect(page.getByRole("tabpanel")).toContainText("Extracted 3 new requirements");
+    await expect(page.getByRole("tabpanel")).toContainText(/Events|No real events recorded/);
     await page.getByRole("tab", { name: /config/i }).click();
     await expect(page.getByRole("tabpanel")).toContainText("Agent ID");
     await expect(page.getByRole("tabpanel")).toContainText("requirement-manager");

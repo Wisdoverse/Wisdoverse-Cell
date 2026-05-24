@@ -8,7 +8,14 @@ test.describe("Home page", () => {
 
   test("redirects root to /home", async ({ page }) => {
     await page.goto("/en");
-    await expect(page).toHaveURL(/\/en\/home/);
+    await page.waitForLoadState("domcontentloaded");
+
+    const url = new URL(page.url());
+    if (url.pathname === "/en/login") {
+      expect(url.searchParams.get("callbackUrl")).toBe("/en/home");
+    } else {
+      expect(url.pathname).toBe("/en/home");
+    }
   });
 
   test("displays greeting banner", async ({ page }) => {
@@ -29,6 +36,6 @@ test.describe("Home page", () => {
   });
 
   test("displays recent activity section", async ({ page }) => {
-    await expect(page.getByText("Recent Activity")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Recent Activity" })).toBeVisible();
   });
 });

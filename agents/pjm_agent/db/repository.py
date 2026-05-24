@@ -8,9 +8,18 @@ from typing import Any, Optional
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.core.identifiers import OpenProjectProjectId, WorkPackageId
 from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
+from ..core.domain.decomposition import (
+    Decomposition,
+    InvalidDecompositionTransitionError,
+)
+from ..core.domain.lifecycle.decomposition_lifecycle import (
+    PENDING,
+    DecompositionStatus,
+)
 from ..models.pm import AlertLog, DecompositionRecord, PJMEventOutbox, PMConfigCache
 
 logger = get_logger("pjm_agent.repository")
@@ -72,11 +81,16 @@ class DecompositionRepository:
         self.session = session
 
     async def create(
-        self, wp_id: int, project_id: int, decompose_result: dict, assignee_id: int | None = None
+        self,
+        wp_id: WorkPackageId | int,
+        project_id: OpenProjectProjectId | int,
+        decompose_result: dict,
+        assignee_id: int | None = None,
     ) -> DecompositionRecord:
         record = DecompositionRecord(
-            wp_id=wp_id,
-            project_id=project_id,
+            wp_id=int(wp_id),
+            project_id=int(project_id),
+            status=str(PENDING),
             assignee_id=assignee_id,
             decompose_result=decompose_result,
         )
@@ -90,11 +104,33 @@ class DecompositionRepository:
         )
         return result.scalar_one_or_none()
 
-    async def update_status(self, wp_id: int, status: str, approved_by: str | None = None) -> bool:
+    async def update_status(
+        self,
+        wp_id: WorkPackageId | int,
+        status: DecompositionStatus | str,
+        approved_by: str | None = None,
+    ) -> bool:
         record = await self.get_by_wp_id(wp_id)
         if not record:
             return False
-        record.status = status
+        target_status = DecompositionStatus(str(status))
+        if record.status != str(target_status):
+            aggregate = Decomposition(
+                wp_id=WorkPackageId(int(wp_id)),
+                status=DecompositionStatus(str(record.status)),
+            )
+            try:
+                aggregate.transition_to(target_status)
+                aggregate.pull_events()
+            except InvalidDecompositionTransitionError:
+                logger.error(
+                    "invalid_decomposition_transition",
+                    wp_id=wp_id,
+                    from_status=record.status,
+                    to_status=target_status,
+                )
+                raise
+            record.status = str(aggregate.status)
         record.updated_at = datetime.now(UTC)
         if approved_by:
             record.approved_by = approved_by
@@ -107,7 +143,7 @@ class DecompositionRepository:
         cutoff = datetime.now(UTC) - timedelta(hours=older_than_hours)
         result = await self.session.execute(
             select(DecompositionRecord)
-            .where(DecompositionRecord.status == "pending")
+            .where(DecompositionRecord.status == str(PENDING))
             .where(DecompositionRecord.created_at < cutoff)
         )
         return list(result.scalars().all())
