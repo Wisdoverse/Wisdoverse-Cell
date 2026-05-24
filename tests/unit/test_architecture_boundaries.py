@@ -506,8 +506,11 @@ def test_dev_agent_core_uses_repository_ports() -> None:
     assert "from ..db.repository import" not in app_source
     assert "DevTaskRepository(session)" not in app_source
     assert "DevWorkflowLogRepository(session)" not in app_source
-    assert "SqlAlchemyDevTaskStore(session)" in app_source
-    assert "SqlAlchemyDevWorkflowLogStore(session)" in app_source
+    assert "SqlAlchemyDevTaskStore(session)" not in app_source
+    assert "SqlAlchemyDevWorkflowLogStore(session)" not in app_source
+    assert "SqlAlchemyDevSessionUnitOfWorkFactory(db_manager)" in app_source
+    assert "SqlAlchemyDevTaskStore(session)" in uow_source
+    assert "SqlAlchemyDevWorkflowLogStore(session)" in uow_source
 
     for path in _python_files(Path("agents/dev_agent/core")):
         for module in _imported_modules(path):
@@ -2996,6 +2999,8 @@ def test_dev_scheduler_keeps_persistence_details_behind_ports() -> None:
     app_source = Path("agents/dev_agent/app/main.py").read_text()
     use_case_source = Path("agents/dev_agent/core/scheduler_use_cases.py").read_text()
     port_source = Path("agents/dev_agent/core/repositories.py").read_text()
+    uow_port_source = Path("agents/dev_agent/core/unit_of_work_ports.py").read_text()
+    uow_adapter_source = Path("agents/dev_agent/db/unit_of_work.py").read_text()
     task_adapter_source = Path("agents/dev_agent/db/task_store.py").read_text()
     repository_source = Path("agents/dev_agent/db/repository.py").read_text()
     lock_source = Path("agents/dev_agent/db/reconcile_lock.py").read_text()
@@ -3006,13 +3011,29 @@ def test_dev_scheduler_keeps_persistence_details_behind_ports() -> None:
     assert "from sqlalchemy import text" not in app_source
     assert "session.execute(" not in app_source
     assert "session.flush(" not in app_source
+    assert "await session.commit()" not in app_source
+    assert "SqlAlchemyDevTaskStore(" not in app_source
+    assert "SqlAlchemyDevWorkflowLogStore(" not in app_source
+    assert "SqlAlchemyDevReconcileLock(" not in app_source
     assert "pg_try_advisory_lock" not in app_source
     assert "pg_advisory_unlock" not in app_source
 
-    assert "SqlAlchemyDevReconcileLock(session)" in app_source
+    assert "SqlAlchemyDevSessionUnitOfWorkFactory(db_manager)" in app_source
+    assert "lock = uow.reconcile_lock" in app_source
+    assert "repo = uow.tasks" in app_source
+    assert "log_repo = uow.workflow_logs" in app_source
+    assert "await uow.outbox.add(evt)" in app_source
+    assert "await uow.commit()" in app_source
     assert "repo.mark_polled(task.id, polled_at=now)" in app_source
     assert "_scheduler_use_case.poll_interval(elapsed)" in app_source
-    assert "_scheduler_use_case.expire_stale_pending(repo, hours=24)" in app_source
+    assert "_scheduler_use_case.expire_stale_pending(" in app_source
+    assert "uow.tasks" in app_source
+
+    assert "class DevReconcileLockPort(Protocol)" in uow_port_source
+    assert "outbox: DevEventOutboxStore" in uow_port_source
+    assert "reconcile_lock: DevReconcileLockPort" in uow_port_source
+    assert "SqlAlchemyDevEventOutboxSessionStore(session)" in uow_adapter_source
+    assert "SqlAlchemyDevReconcileLock(session)" in uow_adapter_source
 
     assert "async def mark_polled" in port_source
     assert "async def mark_polled" in task_adapter_source
@@ -4935,8 +4956,10 @@ def test_dev_result_collection_events_have_durable_outbox_contract() -> None:
     assert "await self._event_bus.publish(event)" not in service_source
     assert "SqlAlchemyDevEventOutboxSessionStore" in adapter_source
     assert "DevEventOutboxRepository(session)" not in app_source
-    assert "SqlAlchemyDevEventOutboxSessionStore(" in app_source
-    assert "await outbox.add(evt)" in app_source
+    assert "SqlAlchemyDevEventOutboxSessionStore(session)" in Path(
+        "agents/dev_agent/db/unit_of_work.py"
+    ).read_text()
+    assert "await uow.outbox.add(evt)" in app_source
     assert "await agent.publish_staged_dev_events(staged_events)" in app_source
     assert "event_bus.publish" not in app_source
     assert "`dev_agent_event_outbox`" in doc_source
@@ -6051,7 +6074,9 @@ def test_requirement_manager_feishu_bot_messages_use_inbound_acl() -> None:
 
     assert "class FeishuBotMessage" in acl_source
     assert "class FeishuBotCommand" in acl_source
-    assert "BOT_COMMAND_PATTERN" in acl_source
+    assert "BOT_COMMAND_PATTERN" not in acl_source
+    assert "payload.split(maxsplit=1)" in acl_source
+    assert "char.isalnum()" in acl_source
     assert "def ingest_kwargs(" in acl_source
     assert "def _message_text(" in acl_source
     assert "def _bot_command(" in acl_source

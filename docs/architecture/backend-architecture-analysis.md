@@ -156,11 +156,12 @@ sampled agents.
 
 ### 4.3 Use Cases — Orchestration Plus Transaction Boundary
 
-`*_use_cases.py` modules orchestrate ports and own the transaction boundary
-via async session context managers. Example:
-`agents/qa_agent/core/acceptance_execution_use_cases.py:242-261` opens a
-session, calls repository operations, stages events, and exits the context.
-No inline SQL or HTTP found in spot-checked use cases.
+`*_use_cases.py` modules orchestrate ports and increasingly own explicit
+unit-of-work transaction seams. Control Plane command routes, Requirement
+Manager core commands, Dev Agent event/request handling and scheduler
+maintenance, QA acceptance execution, and PJM decomposition paths now commit
+through UOW/transaction ports. Remaining adapter/capability maintenance paths
+may still use session context managers directly.
 
 The coordinator follows the same pattern in
 `services/orchestration/coordinator/core/event_use_cases.py:49-89`: read
@@ -225,12 +226,12 @@ Two other repository files exist and are smaller:
   agent-local adapters wrap them without duplication.
 - No Python imports from `frontend/`.
 
-`tests/unit/test_architecture_boundaries.py` is 4583 LOC and encodes
-roughly 10 distinct rule categories (cross-agent imports, LLM SDK isolation,
+`tests/unit/test_architecture_boundaries.py` is 7240 LOC and encodes
+architecture-boundary rule families (cross-agent imports, LLM SDK isolation,
 canonical-path enforcement, core/app separation, util purity, channel
 abstraction, ID contract, HTTP error contract, outbox-as-publish path,
 `shared/services` retirement). This is the executable form of the boundary
-rules and currently passes on `main`.
+rules and must pass before DDD boundary work is considered complete.
 
 ### 5.2 Retired Compatibility Surfaces
 
@@ -243,17 +244,13 @@ Architecture-boundary tests block both packages from being reintroduced.
 
 ### 5.3 Other Observed Issues
 
-- **`AsyncSession` leaks into route layer.**
-  `shared/control_plane/api.py:730,742,761` (and similar handlers) inject
-  `AsyncSession` directly via FastAPI `Depends` and instantiate stores at
-  the route level. This couples handlers to the ORM session type rather than
-  to a service abstraction.
-- **ORM types escape the persistence layer.**
-  `shared/control_plane/approval_gate.py:15,52` imports
-  `ApprovalRequestTable` and returns it from business logic.
-  `shared/control_plane/repository.py:79` shows
-  `create_company(...) -> CompanyContextTable`. Use cases receive ORM rows
-  instead of domain models in some paths.
+- **Closed: Control Plane route/session composition is split.**
+  Command routes live under `shared/control_plane/api_routes/`; the main API
+  module owns dependency and router composition.
+- **Closed for Control Plane public ports: ORM rows stay inside store
+  adapters.** Store ports and application use cases expose domain records;
+  architecture-boundary tests block the deleted repository facade from
+  returning SQLAlchemy rows again.
 - **AgentClient rarely used.** Inter-agent communication is dominantly
   event-driven through outboxes. `shared/infra/agent_client.py` exposes
   `AgentClientErrorCategory` (6 categories) but only one production caller
@@ -274,15 +271,15 @@ concrete file citations from §4 / §5.
 
 | # | Problem | Evidence | Why high risk |
 |---|---------|----------|----------------|
-| H1 | Single Alembic migrations directory holds all 19 migrations for every runtime | `migrations/versions/` (19 files, all numbered chronologically across boundaries) | Blocks any agent from being split out independently. Schema drift in one boundary forces a global migration. |
+| H1 | Single Alembic migrations directory holds all 24 migrations for every runtime | `migrations/versions/` (24 files, all numbered chronologically across boundaries) | Blocks any agent from being split out independently. Schema drift in one boundary forces a global migration. |
 | H2 | Closed: the `shared/control_plane/repository.py` compatibility facade has been retired; per-aggregate `*_store.py` adapters own SQL directly. | `shared/control_plane/*_store.py`, `tests/unit/test_architecture_boundaries.py` | Control Plane aggregate stores are now structurally split, and architecture tests block facade resurrection. |
-| H3 | Partially closed: Control Plane command routes, Dev Agent event/request use cases, QA acceptance execution, and PJM decomposition transactions use explicit unit-of-work boundaries with `commit()` and rollback cleanup; many agent/capability use cases still rely on session context exit. | `shared/control_plane/unit_of_work.py`, `shared/control_plane/api.py`, `agents/dev_agent/core/unit_of_work_ports.py`, `agents/qa_agent/core/unit_of_work_ports.py`, `agents/pjm_agent/core/decomposition_ports.py`, `agents/*/core/*_use_cases.py` | The central governance API plus Dev, QA, and PJM decomposition runtime write boundaries have clear transaction seams, but remaining multi-aggregate agent/capability writes still need per-runtime adoption. |
-| H4 | State transitions modeled as scattered string comparisons | `shared/capabilities/sync/core/engine.py:74-87` (`if op_status == "failed" or feishu_status == "failed"`), evolution and outbox tables with `status` string defaults | No explicit FSM. Adding states or invariants requires touching every consumer; bugs that "skip" a state are silent. |
+| H3 | Partially closed: Control Plane command routes, Requirement Manager core commands, Dev Agent event/request/scheduler write paths, QA acceptance execution, and PJM decomposition transactions use explicit unit-of-work boundaries with `commit()` and rollback cleanup; many agent/capability use cases still rely on session context exit. | `shared/control_plane/unit_of_work.py`, `shared/control_plane/api.py`, `agents/requirement_manager/db/unit_of_work.py`, `agents/dev_agent/core/unit_of_work_ports.py`, `agents/dev_agent/db/unit_of_work.py`, `agents/qa_agent/core/unit_of_work_ports.py`, `agents/pjm_agent/core/decomposition_ports.py`, `agents/*/core/*_use_cases.py` | The central governance API plus Requirement, Dev, QA, and PJM decomposition runtime write boundaries have clear transaction seams, but remaining multi-aggregate agent/capability writes still need per-runtime adoption. |
+| H4 | Closed for landed lifecycle aggregates: business agents, Control Plane, QA acceptance, and Sync operation transitions are represented by aggregate FSMs and typed transition errors. | `agents/*/core/domain/lifecycle/`, `shared/control_plane/domain/agent_run.py`, `shared/capabilities/sync/core/domain/sync_operation.py`, aggregate unit tests | New non-trivial records must keep the same FSM + domain-event pattern; string-only lifecycle logic should not be reintroduced. |
 | H5 | Closed for Control Plane: store ports and application/use-case returns expose domain records; ORM rows stay inside store adapters and private row helpers. | `shared/control_plane/domain_records.py`, `shared/control_plane/*_ports.py`, `shared/control_plane/*_store.py` | Control Plane callers no longer depend on SQLAlchemy row types. |
-| H6 | No metrics layer / no Prometheus exporters / no LLM cost-and-token metrics surface | `shared/observability/` review; no exporter found; budgets exist in `shared/control_plane/budget_*` but are not emitted as metrics | At-least-once outbox delivery and LLM cost are operational evidence we cannot dashboard today. Budget enforcement happens, but operators cannot watch lag/cost trends. |
-| H7 | OpenTelemetry is optional and not guaranteed deployed | `shared/observability/tracing.py:22-56`, gated on `settings.otel_endpoint` | Trace IDs are propagated through `RequestIdMiddleware`, but cross-service traces require OTEL to be on. Production may be running blind. |
+| H6 | Closed at code boundary: shared Prometheus metrics cover LLM cost/tokens, event bus/DLQ, outbox dispatcher lag/errors, event-loop errors, and circuit-breaker state. | `shared/observability/metrics.py`, `shared/observability/outbox.py`, `shared/infra/event_bus.py`, `docker/prometheus/rules/application.yml` | Remaining risk is production dashboard coverage and threshold tuning, not absence of a metrics surface. |
+| H7 | Closed at bootstrap boundary: tracing installs a runtime provider with a no-export fallback outside production, and production fails closed without an OTEL endpoint. | `shared/observability/tracing.py`, `shared/config.py`, `docker/compose/docker-compose.app.yml` | Remaining risk is sampling and dashboard evidence during production hardening. |
 | H8 | No HTTP contract tests per agent; no producer/consumer event contract tests | `tests/` layout review; only structural tests in `test_architecture_boundaries.py` | Architecture import direction is enforced, but payload compatibility is not. Adding/changing a field on an event or an HTTP response is currently caught by handwritten unit tests only. |
-| H9 | `users` table has no dedicated public API boundary | `shared/db/user_store.py`, `shared/messaging/inbound/user_service.py`; identity rows are reachable through messaging-inbound paths | Identity data risks becoming shared mutable state. Documented in `backend-boundaries.md` §6. |
+| H9 | Partially closed: Identity / User has a documented single write owner, identity domain events, and `identity_event_outbox`; no public user/profile API exists yet. | `docs/architecture/identity-boundary.md`, `shared/messaging/inbound/user_service.py`, `shared/core/identity_resolution.py`, `shared/db/user_store.py` | Internal writes are constrained; runtime extraction still needs a public API boundary. |
 
 ---
 
@@ -291,14 +288,14 @@ concrete file citations from §4 / §5.
 | # | Problem | Severity | Evidence |
 |---|---------|----------|----------|
 | M1 | Closed: Control Plane HTTP handlers and DTOs are split into `shared/control_plane/api_routes/`; the main API module only composes routers and owns session/UOW dependencies | Low | `shared/control_plane/api.py`, `shared/control_plane/api_routes/*.py` |
-| M2 | Domain layer is implicit; lifecycle helpers, ports, and use cases co-exist under `core/` without a separate `core/domain/` | Medium | `agents/<agent>/core/`, `shared/control_plane/agent_run_lifecycle.py` |
+| M2 | Closed: product-owning runtimes now expose explicit `core/domain/` packages and lifecycle helpers live in canonical domain paths | Low | `agents/*/core/domain/`, `shared/control_plane/domain/`, `tests/unit/test_architecture_boundaries.py` |
 | M3 | Closed: compatibility surfaces `shared/services/*`, root `skills/*`, and `shared.grpc.server` have been retired | Low | `tests/unit/test_architecture_boundaries.py` |
-| M4 | Sync capability hosts OpenProject and Feishu Bitable in one runtime; sub-boundaries exist only inside `core/` | Medium | `shared/capabilities/sync/core/engine.py`, `shared/capabilities/sync/core/progress.py` |
-| M5 | Analysis can read source-domain tables; no explicit projection layer | Medium | `shared/capabilities/analysis/` (no projection module) |
+| M4 | Partially closed: Sync has OpenProject and Feishu Bitable sub-engines, per-side stores/outboxes, and ADR-0009 cutover steps; runtime container split remains scheduled | Medium | `shared/capabilities/sync/core/openproject/`, `shared/capabilities/sync/core/feishu_bitable/`, `docs/adr/0009-sync-sub-runtime-split.md` |
+| M5 | Closed for reporting paths: Analysis report/milestone use cases read from `WorkPackageProjectionPort`; projection updater owns source-port ingestion | Low | `shared/capabilities/analysis/core/domain/projection.py`, `shared/capabilities/analysis/core/projection_updater.py` |
 | M6 | Closed at the runtime baseline: `create_agent_app()` responses use the structured error envelope while preserving legacy `detail`; base contract tests cover auth, HTTPException, validation, and unexpected failures | Low | `shared/api/errors.py`, `shared/middleware/error_handler.py`, `tests/integration/test_runtime_error_contract.py` |
 | M7 | No per-agent OpenAPI snapshots; route inventory only documented via the `/api/v1` metadata endpoint | Low | `agents/requirement_manager/app/routes.py:9-25` |
 | M8 | Closed: production settings fail closed for required secrets, internal transport protection, telemetry endpoint, control-plane approval enforcement, A2A JWT, and enabled platform callback secrets | Low | `shared/config.py`, `tests/unit/test_config_secrets.py` |
-| M9 | Partially closed: Control Plane commands, Dev Agent event/request handling, QA acceptance execution, and PJM decomposition transactions use explicit UOWs; remaining agent/capability writes still need per-runtime adoption where they span multiple aggregates or outboxes | Low | §H3 above |
+| M9 | Partially closed: Control Plane commands, Requirement Manager core commands, Dev Agent event/request/scheduler handling, QA acceptance execution, and PJM decomposition transactions use explicit UOWs; remaining agent/capability writes still need per-runtime adoption where they span multiple aggregates or outboxes | Low | §H3 above |
 | M10 | Closed: the deprecated `shared/grpc/server.py` entry point has been removed; shared gRPC keeps protocol artifacts only | Low | `docs/overview/project-layout.md`, `tests/integration/test_grpc_server.py` |
 | M11 | `data/` directory contains local development state under git ignore; not a code problem but a contributor surface to keep clean | Low | `.gitignore`, `docs/overview/project-layout.md` |
 
@@ -314,18 +311,19 @@ addressed.
    pattern is clean; not god-services.
 2. **Route handlers** under `agents/*/api/` and the per-handler shape inside
    `shared/control_plane/api.py`. Each handler is thin.
-3. **Use-case modules** under `agents/*/core/*_use_cases.py`. Orchestration
-   and transaction boundary placement are correct.
+3. **Use-case modules** under `agents/*/core/*_use_cases.py`. Keep the
+   orchestration pattern; continue UOW adoption where a write path spans
+   multiple aggregates or outboxes.
 4. **`shared/core/`**. Abstract ports only.
 5. **`shared/utils/`**. Pure foundational helpers.
 6. **`shared/integrations/feishu/cards/`**. Centralized, reused, no
    duplication.
 7. **`shared/app/` runtime and plugin model**. `create_agent_app()` and the
    plugin system already give a clean extension seam.
-8. **Outbox dispatcher runtime plugin pattern.** It is uniform across 10
-   boundaries; tightening should happen at the metrics / alerting layer
-   (§H6), not in the dispatcher code itself.
-9. **`tests/unit/test_architecture_boundaries.py`**. 4583 LOC of executable
+8. **Outbox dispatcher runtime plugin pattern.** It is uniform across runtime
+   boundaries; tightening should happen at the dashboard / alert threshold
+   layer (§H6), not in the dispatcher code itself.
+9. **`tests/unit/test_architecture_boundaries.py`**. 7240 LOC of executable
    boundary rules. Extend it; do not rewrite it.
 10. **Public runtime identifiers** (`requirement-manager`, `pjm-agent`,
     `qa-agent`, `dev-agent`, `chat-agent`, `sync-module`, `analysis-module`,
@@ -344,13 +342,13 @@ from §6 and align with the phases already drafted in
 |----------|--------|-----------|---------|
 | P0 | Keep the retired Control Plane repository facade from returning | H2 remains closed through architecture tests | Architecture-boundary tests |
 | P0 | Introduce structured error body alongside the existing `X-Error-Code` header and apply uniformly | M6 closure; needed before any public API stability promise | Backend evolution plan Phase A |
-| P0 | Emit outbox-lag, DLQ-rate, and LLM cost-and-token metrics (Prometheus exporter or OpenTelemetry metrics); make tracing always-on rather than gated | H6 + H7 closure; required before any independent deployment | Backend evolution plan Phase 7 |
-| P1 | Introduce an explicit domain layer per agent (`core/domain/`) that holds entities, value objects, and state-machine modeling; move `*_lifecycle.py` and string-status decisions into it | H4 + M2 closure; precondition for tighter aggregate invariants | Backend evolution plan Phase B |
-| P1 | Extend explicit transaction seams from Control Plane command routes into agent/capability use cases that span more than one aggregate or outbox | H3 / M9 follow-up; supports reliable recovery and future service extraction | Backend evolution plan Phase B follow-up |
+| P0 | Production-tune metric dashboards, alert thresholds, and tracing sampling now that the code-level observability surfaces exist | H6 + H7 hardening; required before any independent deployment | Backend evolution plan Phase 7 |
+| P1 | Keep explicit `core/domain/` and FSM coverage mandatory for new product-owning runtime records | H4 + M2 remain closed through architecture tests | Backend evolution plan Phase B |
+| P1 | Extend explicit transaction seams into remaining agent/capability use cases that span more than one aggregate or outbox | H3 / M9 follow-up; supports reliable recovery and future service extraction | Backend evolution plan Phase B follow-up |
 | P1 | Add HTTP contract tests per agent and provider/consumer event contract tests per event in the catalog | H8 closure; supports any contract evolution | Backend evolution plan Phase 8 |
 | P2 | Define and adopt a per-runtime migration ownership story (separate Alembic directories or a per-runtime migration tool) | H1 closure; gate before any service extraction | Backend evolution plan Phase G |
 | P2 | Add a `users` / identity API boundary; route all writes through it | H9 closure | Backend evolution plan Phase E |
-| P2 | Add an explicit projection layer for Analysis | M5 closure | Backend evolution plan Phase C |
+| P2 | Production-prove Analysis projection freshness, replay, and backfill | M5 hardening | Backend evolution plan Phase C |
 | P3 | Keep retired `shared/services/*`, root `skills/*`, and `shared.grpc.server` from returning | M3 / M10 remain closed | Architecture-boundary tests |
 | P3 | Split Sync into two sub-capability runtimes (OpenProject and Feishu Bitable) once each side has its own outbox and repository | M4 closure | Backend evolution plan Phase D |
 | P3 | Keep Control Plane HTTP handlers out of `shared/control_plane/api.py` | M1 remains closed | Architecture-boundary tests block DTO and handler drift back into the composition module |
@@ -431,10 +429,10 @@ the status rows current when an audit item changes. Concrete verification:
   - `shared/control_plane/api.py` remains the Control Plane composition
     entrypoint; HTTP handlers and DTOs live in
     `shared/control_plane/api_routes/`
-  - `tests/unit/test_architecture_boundaries.py` = 4583 LOC
-  - `migrations/versions/` = 19 files
-  - `grep "session.begin" agents/ services/ shared/` = 0 hits
-  - Backend Python source (non-test) ≈ 795 files
+  - `tests/unit/test_architecture_boundaries.py` = 7240 LOC
+  - `migrations/versions/` = 24 files
+  - `grep "session.begin" agents/ services/ shared/` = 2 nested transaction hits
+  - Backend Python source (non-test) ≈ 892 files
 - No code, schema, route, event, configuration, or deployment artifact was
   modified during the original analysis phase.
 

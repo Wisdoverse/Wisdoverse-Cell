@@ -19,10 +19,7 @@ from ..core.scheduler_use_cases import DevSchedulerUseCase
 from ..core.security_scanner import SecurityScanner
 from ..core.workflow_planner import inject_project_id
 from ..db.database import db_manager
-from ..db.outbox_store import SqlAlchemyDevEventOutboxSessionStore
-from ..db.reconcile_lock import SqlAlchemyDevReconcileLock
-from ..db.task_store import SqlAlchemyDevTaskStore
-from ..db.workflow_log_store import SqlAlchemyDevWorkflowLogStore
+from ..db.unit_of_work import SqlAlchemyDevSessionUnitOfWorkFactory
 from ..service.agent import DevAgent
 from ..service.config_factory import build_dev_core_config
 from ..service.notifier_factory import build_dev_notifier
@@ -165,16 +162,16 @@ async def _reconcile() -> None:
     from ..core.security_scanner import SecurityScanner
 
     try:
-        async with db_manager.session() as session:
-            lock = SqlAlchemyDevReconcileLock(session)
+        async with SqlAlchemyDevSessionUnitOfWorkFactory(db_manager)() as uow:
+            lock = uow.reconcile_lock
             if not await lock.try_acquire():
                 logger.debug("reconcile_lock_not_acquired")
                 return
 
             staged_events = []
             try:
-                repo = SqlAlchemyDevTaskStore(session)
-                log_repo = SqlAlchemyDevWorkflowLogStore(session)
+                repo = uow.tasks
+                log_repo = uow.workflow_logs
 
                 # Update gauge metrics
                 active_tasks = await repo.list_active_tasks()
@@ -254,11 +251,8 @@ async def _reconcile() -> None:
                                     # (qa.run-requested, dev.mr-created, etc.)
                                     # in the same local transaction as task updates.
                                     if events:
-                                        outbox = SqlAlchemyDevEventOutboxSessionStore(
-                                            session
-                                        )
                                         for evt in events:
-                                            await outbox.add(evt)
+                                            await uow.outbox.add(evt)
                                         staged_events.extend(events)
                                 else:
                                     # No GitLab client — just mark security_scanning
@@ -311,7 +305,7 @@ async def _reconcile() -> None:
                                     exc_info=True,
                                 )
 
-                await session.commit()
+                await uow.commit()
             finally:
                 await lock.release()
             if staged_events:
@@ -406,11 +400,13 @@ async def _expire_stale() -> None:
         return
 
     try:
-        async with db_manager.session() as session:
-            repo = SqlAlchemyDevTaskStore(session)
-            expired = await _scheduler_use_case.expire_stale_pending(repo, hours=24)
+        async with SqlAlchemyDevSessionUnitOfWorkFactory(db_manager)() as uow:
+            expired = await _scheduler_use_case.expire_stale_pending(
+                uow.tasks,
+                hours=24,
+            )
             if expired > 0:
                 logger.info("expired_stale_tasks", count=expired)
-            await session.commit()
+            await uow.commit()
     except Exception as e:
         logger.error("expire_stale_error", error=str(e), exc_info=True)

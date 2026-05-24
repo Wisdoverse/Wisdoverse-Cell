@@ -6,11 +6,45 @@ from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.schemas.event import Event
+
+from ..core.outbox_ports import DevEventOutboxStore
 from ..core.repositories import DevTaskRepositoryPort, DevWorkflowLogRepositoryPort
-from ..core.unit_of_work_ports import DevUnitOfWork
+from ..core.unit_of_work_ports import DevReconcileLockPort, DevUnitOfWork
 from .database import DatabaseManager
+from .outbox_store import SqlAlchemyDevEventOutboxSessionStore
+from .reconcile_lock import SqlAlchemyDevReconcileLock
 from .task_store import SqlAlchemyDevTaskStore
 from .workflow_log_store import SqlAlchemyDevWorkflowLogStore
+
+
+class NoopDevReconcileLock(DevReconcileLockPort):
+    """In-memory reconcile lock for injected tests."""
+
+    async def try_acquire(self) -> bool:
+        return True
+
+    async def release(self) -> None:
+        return None
+
+
+class NoopDevEventOutboxStore(DevEventOutboxStore):
+    """In-memory outbox placeholder for injected tests."""
+
+    def __init__(self) -> None:
+        self.events: list[Event] = []
+
+    async def add(self, event: Event) -> None:
+        self.events.append(event)
+
+    async def list_pending(self, limit: int = 100) -> list[object]:
+        return self.events[:limit]
+
+    async def mark_published(self, event_id: str) -> None:
+        return None
+
+    async def mark_failed(self, event_id: str, error: str) -> None:
+        return None
 
 
 class InjectedDevUnitOfWork(DevUnitOfWork):
@@ -21,9 +55,15 @@ class InjectedDevUnitOfWork(DevUnitOfWork):
         *,
         tasks: DevTaskRepositoryPort,
         workflow_logs: DevWorkflowLogRepositoryPort,
+        outbox: DevEventOutboxStore | None = None,
+        reconcile_lock: DevReconcileLockPort | None = None,
     ) -> None:
         self.tasks = tasks
         self.workflow_logs = workflow_logs
+        self.outbox = outbox if outbox is not None else NoopDevEventOutboxStore()
+        self.reconcile_lock = (
+            reconcile_lock if reconcile_lock is not None else NoopDevReconcileLock()
+        )
         self.completed = False
 
     async def commit(self) -> None:
@@ -42,6 +82,8 @@ class SqlAlchemyDevSessionUnitOfWork(InjectedDevUnitOfWork):
         session: object,
         tasks: DevTaskRepositoryPort | None = None,
         workflow_logs: DevWorkflowLogRepositoryPort | None = None,
+        outbox: DevEventOutboxStore | None = None,
+        reconcile_lock: DevReconcileLockPort | None = None,
     ) -> None:
         super().__init__(
             tasks=tasks if tasks is not None else SqlAlchemyDevTaskStore(session),
@@ -50,6 +92,12 @@ class SqlAlchemyDevSessionUnitOfWork(InjectedDevUnitOfWork):
                 if workflow_logs is not None
                 else SqlAlchemyDevWorkflowLogStore(session)
             ),
+            outbox=outbox
+            if outbox is not None
+            else SqlAlchemyDevEventOutboxSessionStore(session),
+            reconcile_lock=reconcile_lock
+            if reconcile_lock is not None
+            else SqlAlchemyDevReconcileLock(session),
         )
         self._session = session
 
@@ -75,6 +123,8 @@ class SqlAlchemyDevUnitOfWork(DevUnitOfWork):
         self._session = session
         self.tasks = SqlAlchemyDevTaskStore(session)
         self.workflow_logs = SqlAlchemyDevWorkflowLogStore(session)
+        self.outbox = SqlAlchemyDevEventOutboxSessionStore(session)
+        self.reconcile_lock = SqlAlchemyDevReconcileLock(session)
         self.completed = False
 
     async def commit(self) -> None:
@@ -115,15 +165,21 @@ class InjectedDevUnitOfWorkFactory:
         *,
         tasks: DevTaskRepositoryPort,
         workflow_logs: DevWorkflowLogRepositoryPort,
+        outbox: DevEventOutboxStore | None = None,
+        reconcile_lock: DevReconcileLockPort | None = None,
     ) -> None:
         self._tasks = tasks
         self._workflow_logs = workflow_logs
+        self._outbox = outbox
+        self._reconcile_lock = reconcile_lock
 
     @asynccontextmanager
     async def __call__(self) -> AsyncIterator[DevUnitOfWork]:
         uow = InjectedDevUnitOfWork(
             tasks=self._tasks,
             workflow_logs=self._workflow_logs,
+            outbox=self._outbox,
+            reconcile_lock=self._reconcile_lock,
         )
         try:
             yield uow

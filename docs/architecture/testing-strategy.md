@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Last updated: 2026-05-18
+Last updated: 2026-05-24
 
 Status: Foundation document.
 
@@ -13,7 +13,7 @@ The authoritative test surface today is documented in:
 
 - `tests/` (cross-cutting tests)
 - `tests/unit/test_architecture_boundaries.py` (executable architecture
-  rules; 4583 LOC, ~10 rule categories)
+  rules; 7240 LOC, architecture-boundary rule families)
 - `agents/*/tests/` (service-local tests)
 
 ---

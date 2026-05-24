@@ -213,9 +213,18 @@ class TestReconcilePublishesEvents:
             with (
                 patch.object(main_module, "_get_agent", return_value=runtime_agent),
                 patch.object(main_module, "db_manager") as mock_db,
-                patch.object(main_module, "SqlAlchemyDevTaskStore", return_value=mock_repo),
-                patch.object(main_module, "SqlAlchemyDevWorkflowLogStore", return_value=AsyncMock()),
-                patch.object(main_module, "SqlAlchemyDevEventOutboxSessionStore", return_value=outbox),
+                patch(
+                    "agents.dev_agent.db.unit_of_work.SqlAlchemyDevTaskStore",
+                    return_value=mock_repo,
+                ),
+                patch(
+                    "agents.dev_agent.db.unit_of_work.SqlAlchemyDevWorkflowLogStore",
+                    return_value=AsyncMock(),
+                ),
+                patch(
+                    "agents.dev_agent.db.unit_of_work.SqlAlchemyDevEventOutboxSessionStore",
+                    return_value=outbox,
+                ),
                 patch(
                     "agents.dev_agent.core.result_collector.ResultCollector",
                     return_value=mock_collector,
