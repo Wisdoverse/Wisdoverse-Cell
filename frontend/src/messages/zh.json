@@ -274,7 +274,37 @@
     "agentFleet": "智能体舰队",
     "recentActivity": "最近动态",
     "noApprovals": "暂无待审批项",
-    "noActivity": "暂无最近动态"
+    "noActivity": "暂无最近动态",
+    "noAgents": "该分组暂无智能体",
+    "commandCenter": {
+      "badge": "运营指挥台",
+      "description": "集中查看在线智能体、工作队列、审批和运行证据。",
+      "actions": {
+        "workflows": "工作流",
+        "agents": "舰队",
+        "approvals": "审批"
+      },
+      "workflowTitle": "工作队列",
+      "workflowDescription": "当前运营通道共有 {count} 个开放工作项。",
+      "runningWork": "运行中",
+      "readyWork": "就绪或排队",
+      "approvalWork": "等待审批",
+      "blockedWork": "阻塞或失败",
+      "priorityTitle": "下一交接",
+      "priorityDescription": "优先处理风险最高的工作项。",
+      "queueEmptyTitle": "队列清爽",
+      "queueEmptyDescription": "没有阻塞、等待或排队的工作需要处理。",
+      "unassigned": "未分配",
+      "evidenceTitle": "运行证据",
+      "evidenceDescription": "最新执行、成本和覆盖信号。",
+      "activeAgents": "智能体",
+      "goalCoverage": "目标覆盖",
+      "latestRun": "最新运行",
+      "runCost": "运行成本",
+      "tokens": "Token",
+      "completedRuns": "已完成运行",
+      "unassignedWork": "未分配工作"
+    }
   },
   "activity": {
     "title": "动态",

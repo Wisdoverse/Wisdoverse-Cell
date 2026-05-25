@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import type {
-  ControlPlaneAgentDefinition,
-} from "@/entities/agent";
+import type { ControlPlaneAgentDefinition } from "@/entities/agent";
 import type {
   ControlPlaneAgentRun,
+  ControlPlaneApproval,
   ControlPlaneWorkItem,
 } from "@/entities/control-plane";
-import { controlPlaneRuntimeForAgent } from "./control-plane-home";
+import {
+  controlPlaneRuntimeForAgent,
+  selectPriorityWorkItem,
+  summarizeHomeCommandCenter,
+} from "./control-plane-home";
 
 const NOW = "2026-05-09T07:00:00.000Z";
 
@@ -86,6 +89,33 @@ function workItem(status: ControlPlaneWorkItem["status"]): ControlPlaneWorkItem 
   };
 }
 
+function approval(status: ControlPlaneApproval["status"]): ControlPlaneApproval {
+  return {
+    approval_id: `approval_${status}`,
+    company_id: "cmp_wisdoverse_cell",
+    category: "technical",
+    status,
+    requested_by: "test",
+    source_agent_id: "requirement-manager",
+    proposed_action: "Approve deployment",
+    reason: "Needs review",
+    risk: "Low",
+    rollback_note: "Rollback",
+    affected_resources: [],
+    artifact_links: [],
+    run_id: null,
+    work_item_id: null,
+    goal_id: null,
+    trace_id: null,
+    resolved_by: null,
+    resolved_at: null,
+    expires_at: null,
+    metadata: {},
+    created_at: NOW,
+    updated_at: NOW,
+  };
+}
+
 describe("controlPlaneRuntimeForAgent", () => {
   it("treats catalog-active agents with no runs as idle, not running", () => {
     // Regression guard: previously this returned `running` because the
@@ -113,9 +143,7 @@ describe("controlPlaneRuntimeForAgent", () => {
   });
 
   it("surfaces runtime failures from runs and work items as error", () => {
-    expect(controlPlaneRuntimeForAgent(agent("active"), [run("failed")], []).status).toBe(
-      "error",
-    );
+    expect(controlPlaneRuntimeForAgent(agent("active"), [run("failed")], []).status).toBe("error");
     expect(controlPlaneRuntimeForAgent(agent("active"), [], [workItem("failed")]).status).toBe(
       "error",
     );
@@ -126,5 +154,72 @@ describe("controlPlaneRuntimeForAgent", () => {
 
     expect(runtime.status).toBe("idle");
     expect(runtime.task_count).toBe(1);
+  });
+});
+
+describe("summarizeHomeCommandCenter", () => {
+  it("rolls up operator-facing work, approval, run, and cost signals", () => {
+    const workItems = [
+      workItem("running"),
+      { ...workItem("blocked"), work_item_id: "work_blocked" },
+      { ...workItem("awaiting_approval"), work_item_id: "work_approval" },
+      {
+        ...workItem("queued"),
+        work_item_id: "work_unassigned",
+        owner_agent_id: null,
+        goal_id: "goal_test",
+      },
+    ];
+    const runs = [
+      { ...run("running"), cost_usd: 1.25, input_tokens: 100, output_tokens: 50 },
+      {
+        ...run("succeeded"),
+        run_id: "run_done",
+        cost_usd: 0.75,
+        input_tokens: 25,
+        output_tokens: 25,
+      },
+    ];
+
+    const summary = summarizeHomeCommandCenter({
+      agents: [agent("active")],
+      runs,
+      workItems,
+      approvals: [approval("pending"), approval("approved")],
+    });
+
+    expect(summary.runningCount).toBe(1);
+    expect(summary.openWorkCount).toBe(4);
+    expect(summary.attentionCount).toBe(5);
+    expect(summary.pendingApprovalCount).toBe(1);
+    expect(summary.runningWorkCount).toBe(1);
+    expect(summary.blockedWorkCount).toBe(1);
+    expect(summary.approvalWorkCount).toBe(1);
+    expect(summary.unassignedWorkCount).toBe(1);
+    expect(summary.goalLinkedWorkCount).toBe(1);
+    expect(summary.completedRunCount).toBe(1);
+    expect(summary.runCostUsd).toBe(2);
+    expect(summary.tokenCount).toBe(200);
+  });
+
+  it("selects blocked and failed work before ordinary queued work", () => {
+    const queued = {
+      ...workItem("queued"),
+      work_item_id: "work_queued",
+      updated_at: "2026-05-09T08:00:00.000Z",
+    };
+    const blocked = {
+      ...workItem("blocked"),
+      work_item_id: "work_blocked",
+      updated_at: "2026-05-09T06:00:00.000Z",
+    };
+    const failed = {
+      ...workItem("failed"),
+      work_item_id: "work_failed",
+      updated_at: "2026-05-09T05:00:00.000Z",
+    };
+
+    expect(selectPriorityWorkItem([queued, blocked])?.work_item_id).toBe("work_blocked");
+    expect(selectPriorityWorkItem([queued, blocked, failed])?.work_item_id).toBe("work_failed");
   });
 });

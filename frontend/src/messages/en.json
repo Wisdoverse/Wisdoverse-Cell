@@ -274,7 +274,37 @@
     "agentFleet": "Agent Fleet",
     "recentActivity": "Recent Activity",
     "noApprovals": "No pending approvals",
-    "noActivity": "No recent activity"
+    "noActivity": "No recent activity",
+    "noAgents": "No agents in this group yet",
+    "commandCenter": {
+      "badge": "Operator command center",
+      "description": "One view for live agents, work queues, approvals, and run evidence.",
+      "actions": {
+        "workflows": "Workflows",
+        "agents": "Fleet",
+        "approvals": "Approvals"
+      },
+      "workflowTitle": "Work queue",
+      "workflowDescription": "{count} open items across the active operating lane.",
+      "runningWork": "Running",
+      "readyWork": "Ready or queued",
+      "approvalWork": "Awaiting approval",
+      "blockedWork": "Blocked or failed",
+      "priorityTitle": "Next handoff",
+      "priorityDescription": "Highest-risk item that should be handled first.",
+      "queueEmptyTitle": "Queue is clear",
+      "queueEmptyDescription": "No blocked, waiting, or queued work needs action.",
+      "unassigned": "Unassigned",
+      "evidenceTitle": "Run evidence",
+      "evidenceDescription": "Latest execution, spend, and coverage signals.",
+      "activeAgents": "Agents",
+      "goalCoverage": "Goal coverage",
+      "latestRun": "Latest run",
+      "runCost": "Run cost",
+      "tokens": "Tokens",
+      "completedRuns": "Completed runs",
+      "unassignedWork": "Unassigned work"
+    }
   },
   "activity": {
     "title": "Activity",

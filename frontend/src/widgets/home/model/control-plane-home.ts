@@ -5,19 +5,47 @@ import type {
 } from "@/entities/agent";
 import type {
   ControlPlaneAgentRun,
+  ControlPlaneApproval,
   ControlPlaneWorkItem,
 } from "@/entities/control-plane";
 import { mapControlPlaneLifecycleStatus } from "@/entities/agent";
 
 const RUNNING_RUN_STATUSES = new Set(["pending", "running"]);
 const FAILED_RUN_STATUSES = new Set(["failed", "timed_out"]);
-const OPEN_WORK_STATUSES = new Set([
-  "queued",
-  "ready",
-  "running",
-  "blocked",
-  "awaiting_approval",
-]);
+const OPEN_WORK_STATUSES = new Set(["queued", "ready", "running", "blocked", "awaiting_approval"]);
+const ATTENTION_WORK_STATUSES = new Set(["blocked", "failed"]);
+const ACTION_QUEUE_STATUSES = new Set([...OPEN_WORK_STATUSES, "failed"]);
+const WORK_ITEM_ATTENTION_WEIGHT: Record<ControlPlaneWorkItem["status"], number> = {
+  failed: 0,
+  blocked: 1,
+  awaiting_approval: 2,
+  running: 3,
+  ready: 4,
+  queued: 5,
+  completed: 6,
+  cancelled: 7,
+};
+
+export interface HomeCommandCenterSummary {
+  runningCount: number;
+  attentionCount: number;
+  errorCount: number;
+  pendingApprovalCount: number;
+  agentCount: number;
+  openWorkCount: number;
+  blockedWorkCount: number;
+  approvalWorkCount: number;
+  readyWorkCount: number;
+  runningWorkCount: number;
+  goalLinkedWorkCount: number;
+  unassignedWorkCount: number;
+  completedRunCount: number;
+  failedRunCount: number;
+  runCostUsd: number;
+  tokenCount: number;
+  latestRun: ControlPlaneAgentRun | undefined;
+  priorityWorkItem: ControlPlaneWorkItem | undefined;
+}
 
 function latestRun(runs: ControlPlaneAgentRun[]): ControlPlaneAgentRun | undefined {
   return runs.reduce<ControlPlaneAgentRun | undefined>((latest, run) => {
@@ -114,4 +142,66 @@ export function workItemsForAgent(
 
 export function countOpenWorkItems(workItems: ControlPlaneWorkItem[]): number {
   return workItems.filter((workItem) => OPEN_WORK_STATUSES.has(workItem.status)).length;
+}
+
+export function selectPriorityWorkItem(
+  workItems: ControlPlaneWorkItem[],
+): ControlPlaneWorkItem | undefined {
+  return [...workItems]
+    .filter((workItem) => ACTION_QUEUE_STATUSES.has(workItem.status))
+    .sort((left, right) => {
+      const statusDelta =
+        WORK_ITEM_ATTENTION_WEIGHT[left.status] - WORK_ITEM_ATTENTION_WEIGHT[right.status];
+      if (statusDelta !== 0) return statusDelta;
+      return new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime();
+    })[0];
+}
+
+export function summarizeHomeCommandCenter(input: {
+  agents: ControlPlaneAgentDefinition[];
+  runs: ControlPlaneAgentRun[];
+  workItems: ControlPlaneWorkItem[];
+  approvals: ControlPlaneApproval[];
+}): HomeCommandCenterSummary {
+  const runtimes = input.agents.map((agent) =>
+    controlPlaneRuntimeForAgent(
+      agent,
+      runsForAgent(input.runs, agent.agent_id),
+      workItemsForAgent(input.workItems, agent.agent_id),
+    ),
+  );
+  const pendingApprovals = input.approvals.filter((approval) => approval.status === "pending");
+  const blockedWorkCount = input.workItems.filter((workItem) =>
+    ATTENTION_WORK_STATUSES.has(workItem.status),
+  ).length;
+  const failedRunCount = input.runs.filter((run) => FAILED_RUN_STATUSES.has(run.status)).length;
+
+  return {
+    runningCount: runtimes.filter((runtime) => runtime.status === "running").length,
+    attentionCount: countOpenWorkItems(input.workItems) + pendingApprovals.length,
+    errorCount:
+      runtimes.reduce((total, runtime) => total + runtime.error_count, 0) +
+      input.workItems.filter((workItem) => workItem.status === "failed" && !workItem.owner_agent_id)
+        .length,
+    pendingApprovalCount: pendingApprovals.length,
+    agentCount: input.agents.length,
+    openWorkCount: countOpenWorkItems(input.workItems),
+    blockedWorkCount,
+    approvalWorkCount: input.workItems.filter((workItem) => workItem.status === "awaiting_approval")
+      .length,
+    readyWorkCount: input.workItems.filter(
+      (workItem) => workItem.status === "ready" || workItem.status === "queued",
+    ).length,
+    runningWorkCount: input.workItems.filter((workItem) => workItem.status === "running").length,
+    goalLinkedWorkCount: input.workItems.filter((workItem) => Boolean(workItem.goal_id)).length,
+    unassignedWorkCount: input.workItems.filter(
+      (workItem) => !workItem.owner_agent_id && OPEN_WORK_STATUSES.has(workItem.status),
+    ).length,
+    completedRunCount: input.runs.filter((run) => run.status === "succeeded").length,
+    failedRunCount,
+    runCostUsd: input.runs.reduce((total, run) => total + run.cost_usd, 0),
+    tokenCount: input.runs.reduce((total, run) => total + run.input_tokens + run.output_tokens, 0),
+    latestRun: latestRun(input.runs),
+    priorityWorkItem: selectPriorityWorkItem(input.workItems),
+  };
 }

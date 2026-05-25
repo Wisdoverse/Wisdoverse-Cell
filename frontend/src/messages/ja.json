@@ -274,7 +274,37 @@
     "agentFleet": "エージェントフリート",
     "recentActivity": "最近のアクティビティ",
     "noApprovals": "承認待ちの項目はありません",
-    "noActivity": "最近のアクティビティはありません"
+    "noActivity": "最近のアクティビティはありません",
+    "noAgents": "このグループにはエージェントがありません",
+    "commandCenter": {
+      "badge": "運用コマンドセンター",
+      "description": "稼働中のエージェント、作業キュー、承認、実行証跡を一画面で確認できます。",
+      "actions": {
+        "workflows": "ワークフロー",
+        "agents": "フリート",
+        "approvals": "承認"
+      },
+      "workflowTitle": "作業キュー",
+      "workflowDescription": "現在の運用レーンに {count} 件の未完了作業があります。",
+      "runningWork": "実行中",
+      "readyWork": "準備済みまたは待機中",
+      "approvalWork": "承認待ち",
+      "blockedWork": "ブロックまたは失敗",
+      "priorityTitle": "次の引き継ぎ",
+      "priorityDescription": "最初に処理すべき高リスクの作業項目です。",
+      "queueEmptyTitle": "キューは空です",
+      "queueEmptyDescription": "対応が必要なブロック、待機、キュー中の作業はありません。",
+      "unassigned": "未割り当て",
+      "evidenceTitle": "実行証跡",
+      "evidenceDescription": "最新の実行、コスト、カバレッジ信号です。",
+      "activeAgents": "エージェント",
+      "goalCoverage": "目標カバレッジ",
+      "latestRun": "最新実行",
+      "runCost": "実行コスト",
+      "tokens": "トークン",
+      "completedRuns": "完了した実行",
+      "unassignedWork": "未割り当て作業"
+    }
   },
   "activity": {
     "title": "アクティビティ",
