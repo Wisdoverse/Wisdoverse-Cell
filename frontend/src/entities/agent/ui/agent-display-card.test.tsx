@@ -48,7 +48,7 @@ describe("AgentCard", () => {
         runtime={{ ...mockRuntime, status: "paused" }}
       />
     );
-    expect(screen.getByText("Paused")).toBeDefined();
+    expect(screen.getByText("statusLabels.paused")).toBeDefined();
   });
 
   it("shows task count", () => {

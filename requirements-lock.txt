@@ -25,10 +25,10 @@ gunicorn>=23.0.0
 sqlalchemy[asyncio]>=2.0.49
 asyncpg>=0.30.0
 aiosqlite>=0.22.1
-alembic>=1.15.0
+alembic>=1.18.4
 
 # Redis
-redis>=5.2.0
+redis>=7.4.0
 
 # NATS JetStream
 nats-py>=2.9.0
@@ -38,7 +38,7 @@ pymilvus>=2.5.0
 sentence-transformers>=5.4.1
 
 # LLM
-litellm==1.83.14
+litellm==1.86.0
 langchain>=0.3.0
 langchain-community>=0.3.0
 tenacity>=9.0.0
@@ -85,6 +85,6 @@ pytest-asyncio>=0.24.0
 pytest-cov>=7.1.0
 pytest-benchmark>=5.0.0
 pytest-timeout>=2.4.0
-fakeredis>=2.26.0
+fakeredis>=2.35.1
 black>=26.3.1
-ruff>=0.9.0
+ruff>=0.15.13

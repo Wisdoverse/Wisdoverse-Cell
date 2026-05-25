@@ -9,6 +9,7 @@ import {
   AgentDisplayCard,
   agentDefinitionsToMetas,
   DOMAIN_LIST,
+  getDomainLabelKey,
   useControlPlaneAgents,
 } from "@/entities/agent";
 import {
@@ -23,6 +24,7 @@ import {
 
 export function FleetGrid() {
   const t = useTranslations("home");
+  const ta = useTranslations("agents");
   const tc = useTranslations("common");
   const locale = useLocale();
   const router = useRouter();
@@ -75,7 +77,7 @@ export function FleetGrid() {
         domainsWithAgents.map(({ domain, agents }) => (
           <div key={domain.id} className="space-y-3">
             <h3 className="text-sm font-medium text-muted-foreground">
-              {domain.label}{" "}
+              {ta(`domainLabels.${getDomainLabelKey(domain.id)}`)}{" "}
               <span className="text-xs">({agents.length})</span>
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

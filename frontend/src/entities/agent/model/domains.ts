@@ -3,6 +3,7 @@ import type { AgentDomain } from "./types";
 export interface DomainConfig {
   id: AgentDomain;
   label: string;
+  labelKey: string;
   color: string;
   colorLight: string;
   cssVar: string;
@@ -13,6 +14,7 @@ export const DOMAINS: Record<AgentDomain, DomainConfig> = {
   product: {
     id: "product",
     label: "Product",
+    labelKey: "product",
     color: "#8B5CF6",
     colorLight: "var(--domain-product-light)",
     cssVar: "--domain-product",
@@ -21,6 +23,7 @@ export const DOMAINS: Record<AgentDomain, DomainConfig> = {
   engineering: {
     id: "engineering",
     label: "Engineering",
+    labelKey: "engineering",
     color: "#3B82F6",
     colorLight: "var(--domain-engineering-light)",
     cssVar: "--domain-engineering",
@@ -29,6 +32,7 @@ export const DOMAINS: Record<AgentDomain, DomainConfig> = {
   quality: {
     id: "quality",
     label: "Quality",
+    labelKey: "quality",
     color: "#22C55E",
     colorLight: "var(--domain-quality-light)",
     cssVar: "--domain-quality",
@@ -37,6 +41,7 @@ export const DOMAINS: Record<AgentDomain, DomainConfig> = {
   operations: {
     id: "operations",
     label: "Operations",
+    labelKey: "operations",
     color: "#F59E0B",
     colorLight: "var(--domain-operations-light)",
     cssVar: "--domain-operations",
@@ -45,6 +50,7 @@ export const DOMAINS: Record<AgentDomain, DomainConfig> = {
   business: {
     id: "business",
     label: "Business",
+    labelKey: "business",
     color: "#EC4899",
     colorLight: "var(--domain-business-light)",
     cssVar: "--domain-business",
@@ -53,6 +59,7 @@ export const DOMAINS: Record<AgentDomain, DomainConfig> = {
   "market-sales": {
     id: "market-sales",
     label: "Market & Sales",
+    labelKey: "marketSales",
     color: "#F97316",
     colorLight: "var(--domain-market-sales-light)",
     cssVar: "--domain-market-sales",
@@ -61,6 +68,7 @@ export const DOMAINS: Record<AgentDomain, DomainConfig> = {
   "data-ai": {
     id: "data-ai",
     label: "Data & AI",
+    labelKey: "dataAi",
     color: "#06B6D4",
     colorLight: "var(--domain-data-ai-light)",
     cssVar: "--domain-data-ai",
@@ -72,6 +80,10 @@ export function getDomainConfig(domain: AgentDomain): DomainConfig {
   const config = DOMAINS[domain];
   if (!config) throw new Error(`Unknown domain: ${domain}`);
   return config;
+}
+
+export function getDomainLabelKey(domain: AgentDomain): string {
+  return getDomainConfig(domain).labelKey;
 }
 
 export const DOMAIN_LIST = Object.values(DOMAINS);

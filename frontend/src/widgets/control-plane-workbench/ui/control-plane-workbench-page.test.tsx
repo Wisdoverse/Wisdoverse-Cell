@@ -196,9 +196,9 @@ describe("ControlPlaneWorkbenchPage", () => {
     expect(screen.getAllByText("Goal Alpha").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Work Alpha").length).toBeGreaterThan(0);
     expect(screen.getAllByText("run_alpha").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("succeeded").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("statusLabels.succeeded").length).toBeGreaterThan(0);
     expect(screen.getByText("control-plane workbench")).toBeInTheDocument();
-    expect(screen.getAllByText("pending").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("statusLabels.pending").length).toBeGreaterThan(0);
   });
 
   it("exposes durable approval actions from the evidence panel", async () => {

@@ -12,11 +12,7 @@ interface RequirementHeaderProps {
   onReject: () => void;
 }
 
-export function RequirementHeader({
-  requirement,
-  onConfirm,
-  onReject,
-}: RequirementHeaderProps) {
+export function RequirementHeader({ requirement, onConfirm, onReject }: RequirementHeaderProps) {
   const t = useTranslations("requirements");
   const tc = useTranslations("common");
   const router = useRouter();
@@ -26,21 +22,19 @@ export function RequirementHeader({
       <Button
         variant="ghost"
         size="sm"
-        className="gap-1 text-muted-foreground"
+        className="text-muted-foreground gap-1"
         onClick={() => router.push("../requirements")}
       >
         <ArrowLeft className="h-4 w-4" />
         {t("backToList")}
       </Button>
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">
-          {requirement.title}
-        </h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <h1 className="text-2xl font-bold tracking-tight break-words">{requirement.title}</h1>
         {requirement.status === "pending" && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
-              className="text-green-600 border-green-200 hover:bg-green-50"
+              className="border-green-200 text-green-600 hover:bg-green-50"
               onClick={onConfirm}
             >
               <Check className="mr-1 h-4 w-4" />
@@ -48,7 +42,7 @@ export function RequirementHeader({
             </Button>
             <Button
               variant="outline"
-              className="text-red-600 border-red-200 hover:bg-red-50"
+              className="border-red-200 text-red-600 hover:bg-red-50"
               onClick={onReject}
             >
               <X className="mr-1 h-4 w-4" />

@@ -203,9 +203,13 @@ export interface MessageSearchParams {
 export interface ApprovalRequest {
   id: string;
   source_agent_id: string;
+  requested_by?: string;
   approval_type: ApprovalType;
   title: string;
   summary: string;
+  risk?: string;
+  rollback_note?: string;
+  affected_resources?: string[];
   context_link?: string;
   urgency: "urgent" | "normal" | "low";
   status: "pending" | "approved" | "rejected";

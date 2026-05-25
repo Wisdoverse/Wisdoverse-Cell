@@ -1,9 +1,10 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { Badge } from "@/shared/ui/badge";
 import { cn } from "@/lib/utils";
-import { useTranslations } from "next-intl";
-import type { AgentMeta, AgentRuntimeStatus, AgentStatus } from "../model/types";
+import type { AgentKind, AgentMeta, AgentRuntimeStatus } from "../model/types";
 import { AgentAvatar } from "./agent-avatar";
 import { AgentStatusDot } from "./agent-status-dot";
 
@@ -14,43 +15,28 @@ interface AgentCardProps {
   className?: string;
 }
 
-const statusLabels: Record<AgentStatus, string> = {
-  running: "Running",
-  idle: "Idle",
-  paused: "Paused",
-  warning: "Warning",
-  error: "Error",
-  stopped: "Stopped",
-};
-
-const kindLabels: Record<string, string> = {
-  organization_role: "Role",
-  business_runtime_agent: "Agent",
-  capability_module: "Module",
-  integration_gateway: "Gateway",
-  system_worker: "System",
-};
-
 export function AgentCard({ meta, runtime, onClick, className }: AgentCardProps) {
   const t = useTranslations("agents");
-  const kindLabel =
+  const kindKey: AgentKind | "reserved" =
     meta.implemented === false
-      ? "Reserved"
+      ? "reserved"
       : meta.businessAgent
-        ? "Agent"
+        ? "business_runtime_agent"
         : meta.agentKind
-          ? (kindLabels[meta.agentKind] ?? meta.agentKind)
+          ? meta.agentKind
           : meta.source === "control-plane"
-            ? "Role"
-            : "Module";
+            ? "organization_role"
+            : "capability_module";
+  const kindLabel =
+    kindKey === "reserved" ? t("agentKindBadges.reserved") : t(`agentKindBadges.${kindKey}`);
 
   return (
     <button
       onClick={onClick}
       className={cn(
-        "flex min-h-44 flex-col gap-3 rounded-lg border bg-card p-4 text-left transition-all duration-200",
+        "bg-card flex min-h-44 flex-col gap-3 rounded-lg border p-4 text-left transition-all duration-200",
         "hover:-translate-y-0.5 hover:shadow-md",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
         className,
       )}
     >
@@ -63,16 +49,14 @@ export function AgentCard({ meta, runtime, onClick, className }: AgentCardProps)
               {kindLabel}
             </Badge>
           </div>
-          <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div className="text-muted-foreground mt-1 flex items-center gap-1.5 text-xs">
             <AgentStatusDot status={runtime.status} size="sm" />
-            <span>{statusLabels[runtime.status]}</span>
+            <span>{t(`statusLabels.${runtime.status}`)}</span>
           </div>
         </div>
       </div>
 
-      <p className="line-clamp-2 min-h-10 text-xs text-muted-foreground">
-        {meta.description}
-      </p>
+      <p className="text-muted-foreground line-clamp-2 min-h-10 text-xs">{meta.description}</p>
 
       <div className="flex flex-wrap gap-1.5">
         {meta.interactionMode && (
@@ -80,37 +64,31 @@ export function AgentCard({ meta, runtime, onClick, className }: AgentCardProps)
             {t(`interactionModes.${meta.interactionMode}`)}
           </Badge>
         )}
-        {meta.adapterType && (
-          <Badge variant="secondary" className="rounded-md text-[11px]">
-            {meta.adapterType}
-          </Badge>
-        )}
       </div>
 
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      <div className="text-muted-foreground flex items-center gap-4 text-xs">
         <div>
-          <span className="font-medium text-foreground">{runtime.task_count}</span>{" "}
-          tasks
+          <span className="text-foreground font-medium">{runtime.task_count}</span>{" "}
+          {t("taskCount", { count: runtime.task_count })}
         </div>
         {runtime.pending_count > 0 && (
           <div>
-            <span className="font-medium text-amber-600">
-              {runtime.pending_count}
-            </span>{" "}
-            pending
+            <span className="font-medium text-amber-600">{runtime.pending_count}</span>{" "}
+            {t("pendingCount", { count: runtime.pending_count })}
           </div>
         )}
         {runtime.error_count > 0 && (
           <div>
-            <span className="font-medium text-red-600">
-              {runtime.error_count}
-            </span>{" "}
-            errors
+            <span className="font-medium text-red-600">{runtime.error_count}</span>{" "}
+            {t("errorCount", { count: runtime.error_count })}
           </div>
         )}
       </div>
 
-      <div className="mt-auto h-1.5 w-full overflow-hidden rounded-full bg-muted">
+      <div
+        aria-label={t("healthLabel", { value: runtime.health })}
+        className="bg-muted mt-auto h-1.5 w-full overflow-hidden rounded-full"
+      >
         <div
           className="h-full rounded-full transition-all duration-500"
           style={{

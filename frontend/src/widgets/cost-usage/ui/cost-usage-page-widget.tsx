@@ -74,7 +74,7 @@ export function CostUsagePageWidget() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <PageHeader title={t("title")} />
+        <PageHeader title={t("title")} description={t("description")} />
         <div className="flex shrink-0 gap-1 rounded-lg border p-1">
           {COST_USAGE_PERIODS.map((nextPeriod) => (
             <Button
@@ -83,7 +83,7 @@ export function CostUsagePageWidget() {
               size="sm"
               onClick={() => setPeriod(nextPeriod)}
             >
-              {nextPeriod}
+              {t(`periods.${nextPeriod}`)}
             </Button>
           ))}
         </div>

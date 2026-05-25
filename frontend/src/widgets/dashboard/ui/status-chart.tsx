@@ -26,7 +26,11 @@ export function StatusChart({ counts, isLoading }: StatusChartProps) {
 
   const data = Object.entries(counts)
     .filter(([, value]) => value > 0)
-    .map(([name, value]) => ({ name, value }));
+    .map(([name, value]) => ({
+      name,
+      label: t(`statusLabels.${name}`),
+      value,
+    }));
 
   if (isLoading) {
     return (
@@ -64,7 +68,7 @@ export function StatusChart({ counts, isLoading }: StatusChartProps) {
                 outerRadius={100}
                 paddingAngle={2}
                 dataKey="value"
-                nameKey="name"
+                nameKey="label"
               >
                 {data.map((entry) => (
                   <Cell
@@ -75,11 +79,7 @@ export function StatusChart({ counts, isLoading }: StatusChartProps) {
               </Pie>
               <Tooltip
                 formatter={(value, name) => {
-                  const label = String(name ?? "");
-                  return [
-                    value ?? 0,
-                    label.charAt(0).toUpperCase() + label.slice(1),
-                  ];
+                  return [value ?? 0, String(name ?? "")];
                 }}
               />
             </PieChart>

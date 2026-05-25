@@ -4,6 +4,8 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import useSWR from "swr";
+import { AlertTriangle, Clock3, ShieldCheck } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { ApprovalFilters } from "./approval-filters";
 import { ApprovalList } from "./approval-list";
@@ -30,9 +32,13 @@ function toApprovalRequest(approval: ControlPlaneApproval): ApprovalRequest {
   return {
     id: approval.approval_id,
     source_agent_id: approval.source_agent_id,
+    requested_by: approval.requested_by,
     approval_type: approval.category,
     title: approval.proposed_action,
     summary: approval.reason || approval.risk,
+    risk: approval.risk,
+    rollback_note: approval.rollback_note,
+    affected_resources: approval.affected_resources,
     context_link: approval.artifact_links[0],
     urgency: approvalUrgency(approval),
     status: "pending",
@@ -40,6 +46,36 @@ function toApprovalRequest(approval: ControlPlaneApproval): ApprovalRequest {
     resolved_at: approval.resolved_at ?? undefined,
     resolved_by: approval.resolved_by ?? undefined,
   };
+}
+
+function SummaryTile({
+  label,
+  value,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  icon: LucideIcon;
+  tone: "amber" | "rose" | "emerald";
+}) {
+  const toneClass = {
+    amber: "text-amber-600 dark:text-amber-300",
+    rose: "text-rose-600 dark:text-rose-300",
+    emerald: "text-emerald-600 dark:text-emerald-300",
+  }[tone];
+
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-2xl font-semibold leading-none tabular-nums">{value}</div>
+          <div className="text-muted-foreground mt-2 text-sm">{label}</div>
+        </div>
+        <Icon className={toneClass} />
+      </div>
+    </div>
+  );
 }
 
 export function ApprovalsPageWidget() {
@@ -72,6 +108,10 @@ export function ApprovalsPageWidget() {
     }
     return nextCounts;
   }, [approvals]);
+  const urgentCount = useMemo(
+    () => approvals.filter((approval) => approval.urgency === "urgent").length,
+    [approvals],
+  );
 
   const handleApprove = useCallback(
     async (id: string) => {
@@ -104,6 +144,26 @@ export function ApprovalsPageWidget() {
   return (
     <div className="space-y-4">
       <PageHeader title={t("title")} description={t("description")} />
+      <div className="grid gap-3 md:grid-cols-3">
+        <SummaryTile
+          label={t("waitingSummary")}
+          value={approvals.length}
+          icon={Clock3}
+          tone="amber"
+        />
+        <SummaryTile
+          label={t("urgentSummary")}
+          value={urgentCount}
+          icon={AlertTriangle}
+          tone="rose"
+        />
+        <SummaryTile
+          label={t("readySummary")}
+          value={filtered.length}
+          icon={ShieldCheck}
+          tone="emerald"
+        />
+      </div>
       <ApprovalFilters
         activeType={activeType}
         onTypeChange={setActiveType}

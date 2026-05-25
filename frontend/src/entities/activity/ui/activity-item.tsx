@@ -1,3 +1,5 @@
+import { useLocale } from "next-intl";
+
 import type { ActivityEvent } from "@/lib/api/types";
 import { AgentDisplayAvatar, AGENT_REGISTRY, DomainBadge } from "@/entities/agent";
 import { cn } from "@/lib/utils";
@@ -7,14 +9,15 @@ interface ActivityItemProps {
   className?: string;
 }
 
-function formatTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleTimeString([], {
+function formatTime(dateStr: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
-  });
+  }).format(new Date(dateStr));
 }
 
 export function ActivityItem({ event, className }: ActivityItemProps) {
+  const locale = useLocale();
   const agentMeta = AGENT_REGISTRY[event.agent_id];
 
   return (
@@ -40,7 +43,7 @@ export function ActivityItem({ event, className }: ActivityItemProps) {
         </p>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="text-xs text-muted-foreground">
-            {formatTime(event.timestamp)}
+            {formatTime(event.timestamp, locale)}
           </span>
           {agentMeta && <DomainBadge domain={agentMeta.domain} />}
         </div>

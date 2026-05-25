@@ -36,16 +36,16 @@ function getStateColor(state: string): string {
 
 function getStateLabel(
   state: string,
-  t: ReturnType<typeof useTranslations<"dashboard">>,
+  t: ReturnType<typeof useTranslations<"monitor">>,
 ): string {
   switch (state.toLowerCase()) {
     case "closed":
-      return t("circuitClosed");
+      return t("modelProtectionClosed");
     case "open":
-      return t("circuitOpen");
+      return t("modelProtectionOpen");
     case "half-open":
     case "half_open":
-      return t("circuitHalfOpen");
+      return t("modelProtectionHalfOpen");
     default:
       return state;
   }
@@ -55,7 +55,6 @@ export function CircuitBreakerCard({
   data,
   isLoading,
 }: CircuitBreakerCardProps) {
-  const t = useTranslations("dashboard");
   const tMonitor = useTranslations("monitor");
   const { mutate } = useSWRConfig();
   const [resetting, setResetting] = useState(false);
@@ -78,7 +77,7 @@ export function CircuitBreakerCard({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t("circuitBreaker")}</CardTitle>
+          <CardTitle>{tMonitor("modelProtection")}</CardTitle>
         </CardHeader>
         <CardContent>
           <Skeleton className="h-16 w-full rounded-lg" />
@@ -92,7 +91,7 @@ export function CircuitBreakerCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("circuitBreaker")}</CardTitle>
+        <CardTitle>{tMonitor("modelProtection")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-3">
@@ -100,9 +99,12 @@ export function CircuitBreakerCard({
             className={`inline-block h-4 w-4 rounded-full ${getStateColor(state)}`}
           />
           <span className="text-lg font-semibold">
-            {getStateLabel(state, t)}
+            {getStateLabel(state, tMonitor)}
           </span>
         </div>
+        <p className="text-sm text-muted-foreground">
+          {tMonitor("modelProtectionDescription")}
+        </p>
         <Button
           variant="outline"
           size="sm"

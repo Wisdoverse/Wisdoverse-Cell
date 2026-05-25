@@ -32,7 +32,10 @@ export function IngestResult({ result }: IngestResultProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <dl className="grid grid-cols-2 gap-4 text-sm">
+        <p className="text-muted-foreground mb-4 text-sm">
+          {t("successDescription")}
+        </p>
+        <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-muted-foreground">{tn("requirements")}</dt>
             <dd className="text-2xl font-semibold">

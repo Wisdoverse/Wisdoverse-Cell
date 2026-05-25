@@ -66,6 +66,9 @@ export function UploadForm({ source, onSuccess }: UploadFormProps) {
           rows={10}
           required
         />
+        <p className="text-muted-foreground text-xs">
+          {t("contentHelp")}
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -77,6 +80,9 @@ export function UploadForm({ source, onSuccess }: UploadFormProps) {
           onChange={(e) => setContext(e.target.value)}
           rows={3}
         />
+        <p className="text-muted-foreground text-xs">
+          {t("contextHelp")}
+        </p>
       </div>
 
       <Button type="submit" disabled={loading || !content.trim()}>
