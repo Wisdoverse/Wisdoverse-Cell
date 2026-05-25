@@ -8,7 +8,7 @@ import {
   CardContent,
 } from "@/shared/ui/card";
 import { Skeleton } from "@/shared/ui/skeleton";
-import type { HealthReadyResponse } from "@/lib/api/types";
+import type { HealthReadyResponse, HealthStatus } from "@/lib/api/types";
 
 interface HealthGridProps {
   data: HealthReadyResponse | undefined;
@@ -17,16 +17,31 @@ interface HealthGridProps {
 
 const SERVICE_KEYS = ["postgres", "redis", "milvus", "nats"] as const;
 
-function StatusDot({ status }: { status: string }) {
+function serviceStatusLabel(
+  status: HealthStatus | "unknown",
+  t: ReturnType<typeof useTranslations<"monitor">>,
+): string {
+  return t(`statusLabels.${status}`);
+}
+
+function StatusDot({
+  status,
+  label,
+}: {
+  status: HealthStatus | "unknown";
+  label: string;
+}) {
   const color =
     status === "ok" || status === "healthy"
       ? "bg-green-500"
+      : status === "degraded"
+        ? "bg-amber-500"
       : "bg-red-500";
 
   return (
     <span
       className={`inline-block h-3 w-3 rounded-full ${color}`}
-      aria-label={status}
+      aria-label={label}
     />
   );
 }
@@ -65,18 +80,24 @@ export function HealthGrid({ data, isLoading }: HealthGridProps) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {SERVICE_KEYS.map((key) => {
             const check = checks[key];
+            const status = check?.status ?? "unknown";
             return (
               <div
                 key={key}
                 className="flex flex-col items-center gap-2 rounded-lg border p-4"
               >
-                <StatusDot status={check?.status || "unknown"} />
+                <StatusDot status={status} label={serviceStatusLabel(status, t)} />
                 <span className="text-sm font-medium">
                   {t(`services.${key}`)}
                 </span>
+                <span className="text-xs text-muted-foreground">
+                  {serviceStatusLabel(status, t)}
+                </span>
                 {check?.latency_ms !== undefined && (
                   <span className="text-xs text-muted-foreground">
-                    {check.latency_ms.toFixed(0)}ms
+                    {t("latencyValue", {
+                      value: check.latency_ms.toFixed(0),
+                    })}
                   </span>
                 )}
               </div>

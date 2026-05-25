@@ -180,6 +180,11 @@ describe("CommandCenter", () => {
     });
     expect(readMetric("stats.attention")).toBe("3");
     expect(readMetric("stats.pendingApprovals")).toBe("1");
+    expect(screen.getByText("focus.resolveBlockers.title")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /focus\.resolveBlockers\.cta/ })).toHaveAttribute(
+      "href",
+      "/en/workflows",
+    );
     expect(screen.getByText("commandCenter.priorityTitle")).toBeInTheDocument();
     expect(screen.getByText("Review customer-risk deployment")).toBeInTheDocument();
   });

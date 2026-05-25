@@ -12,25 +12,19 @@ interface ApprovalFiltersProps {
 
 const APPROVAL_TABS = ["all", "finance", "legal", "technical", "customer"] as const;
 
-export function ApprovalFilters({
-  activeType,
-  onTypeChange,
-  counts,
-}: ApprovalFiltersProps) {
+export function ApprovalFilters({ activeType, onTypeChange, counts }: ApprovalFiltersProps) {
   const t = useTranslations("approvals");
 
   return (
     <Tabs
       value={activeType ?? "all"}
-      onValueChange={(value) =>
-        onTypeChange(value === "all" ? undefined : value)
-      }
+      onValueChange={(value) => onTypeChange(value === "all" ? undefined : value)}
     >
-      <TabsList>
+      <TabsList className="h-auto w-full flex-wrap justify-start">
         {APPROVAL_TABS.map((tab) => (
-          <TabsTrigger key={tab} value={tab}>
+          <TabsTrigger key={tab} value={tab} className="flex-none">
             {t(tab)}
-            <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5">
+            <Badge variant="secondary" className="ml-1.5 px-1.5 text-[10px]">
               {counts[tab] ?? 0}
             </Badge>
           </TabsTrigger>

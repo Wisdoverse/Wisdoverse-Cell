@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   ChangeHistory,
@@ -22,10 +22,13 @@ type RequirementDetailPageWidgetProps = {
   id: string;
 };
 
-export function RequirementDetailPageWidget({
-  id,
-}: RequirementDetailPageWidgetProps) {
+function formatDate(value: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(value));
+}
+
+export function RequirementDetailPageWidget({ id }: RequirementDetailPageWidgetProps) {
   const t = useTranslations("requirements");
+  const locale = useLocale();
   const { data: requirement, isLoading, mutate } = useRequirement(id);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [rejectId, setRejectId] = useState<string | null>(null);
@@ -50,7 +53,7 @@ export function RequirementDetailPageWidget({
 
   if (!requirement) {
     return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
+      <div className="text-muted-foreground flex items-center justify-center py-16">
         <p>{t("notFound")}</p>
       </div>
     );
@@ -99,44 +102,30 @@ export function RequirementDetailPageWidget({
                 <div className="space-y-3 border-t pt-3">
                   <div className="flex items-center justify-between">
                     <dt className="text-muted-foreground">{t("createdAt")}</dt>
-                    <dd>
-                      {new Date(requirement.created_at).toLocaleDateString()}
-                    </dd>
+                    <dd>{formatDate(requirement.created_at, locale)}</dd>
                   </div>
                   <div className="flex items-center justify-between">
                     <dt className="text-muted-foreground">{t("updatedAt")}</dt>
-                    <dd>
-                      {new Date(requirement.updated_at).toLocaleDateString()}
-                    </dd>
+                    <dd>{formatDate(requirement.updated_at, locale)}</dd>
                   </div>
                 </div>
                 {requirement.confirmed_by && (
                   <div className="space-y-3 border-t pt-3">
                     <div className="flex items-center justify-between">
-                      <dt className="text-muted-foreground">
-                        {t("confirmedBy")}
-                      </dt>
+                      <dt className="text-muted-foreground">{t("confirmedBy")}</dt>
                       <dd>{requirement.confirmed_by}</dd>
                     </div>
                     {requirement.confirmed_at && (
                       <div className="flex items-center justify-between">
-                        <dt className="text-muted-foreground">
-                          {t("confirmedAt")}
-                        </dt>
-                        <dd>
-                          {new Date(
-                            requirement.confirmed_at,
-                          ).toLocaleDateString()}
-                        </dd>
+                        <dt className="text-muted-foreground">{t("confirmedAt")}</dt>
+                        <dd>{formatDate(requirement.confirmed_at, locale)}</dd>
                       </div>
                     )}
                   </div>
                 )}
                 {requirement.rejection_reason && (
                   <div className="border-t pt-3">
-                    <dt className="mb-1 text-muted-foreground">
-                      {t("rejectionReason")}
-                    </dt>
+                    <dt className="text-muted-foreground mb-1">{t("rejectionReason")}</dt>
                     <dd className="rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
                       {requirement.rejection_reason}
                     </dd>
@@ -150,16 +139,8 @@ export function RequirementDetailPageWidget({
         </div>
       </div>
 
-      <ConfirmDialog
-        id={confirmId}
-        onClose={() => setConfirmId(null)}
-        onSuccess={mutate}
-      />
-      <RejectSheet
-        id={rejectId}
-        onClose={() => setRejectId(null)}
-        onSuccess={mutate}
-      />
+      <ConfirmDialog id={confirmId} onClose={() => setConfirmId(null)} onSuccess={mutate} />
+      <RejectSheet id={rejectId} onClose={() => setRejectId(null)} onSuccess={mutate} />
     </div>
   );
 }

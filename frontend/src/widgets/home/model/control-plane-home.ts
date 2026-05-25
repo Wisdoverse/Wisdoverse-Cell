@@ -47,6 +47,20 @@ export interface HomeCommandCenterSummary {
   priorityWorkItem: ControlPlaneWorkItem | undefined;
 }
 
+export type HomeOperatorFocusKind =
+  | "resolveBlockers"
+  | "reviewApprovals"
+  | "assignWork"
+  | "monitorRuns"
+  | "startWork";
+
+export interface HomeOperatorFocus {
+  kind: HomeOperatorFocusKind;
+  count: number;
+  href: "/workflows" | "/approvals" | "/activity" | "/ingest";
+  tone: "rose" | "amber" | "sky" | "emerald" | "slate";
+}
+
 function latestRun(runs: ControlPlaneAgentRun[]): ControlPlaneAgentRun | undefined {
   return runs.reduce<ControlPlaneAgentRun | undefined>((latest, run) => {
     if (!latest) return run;
@@ -155,6 +169,53 @@ export function selectPriorityWorkItem(
       if (statusDelta !== 0) return statusDelta;
       return new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime();
     })[0];
+}
+
+export function selectHomeOperatorFocus(summary: HomeCommandCenterSummary): HomeOperatorFocus {
+  const blockerCount = summary.blockedWorkCount + summary.errorCount;
+  if (blockerCount > 0) {
+    return {
+      kind: "resolveBlockers",
+      count: blockerCount,
+      href: "/workflows",
+      tone: "rose",
+    };
+  }
+
+  const approvalCount = summary.pendingApprovalCount + summary.approvalWorkCount;
+  if (approvalCount > 0) {
+    return {
+      kind: "reviewApprovals",
+      count: approvalCount,
+      href: "/approvals",
+      tone: "amber",
+    };
+  }
+
+  if (summary.unassignedWorkCount > 0 || summary.readyWorkCount > 0) {
+    return {
+      kind: "assignWork",
+      count: summary.unassignedWorkCount || summary.readyWorkCount,
+      href: "/workflows",
+      tone: "sky",
+    };
+  }
+
+  if (summary.runningWorkCount > 0 || summary.runningCount > 0) {
+    return {
+      kind: "monitorRuns",
+      count: summary.runningWorkCount || summary.runningCount,
+      href: "/activity",
+      tone: "emerald",
+    };
+  }
+
+  return {
+    kind: "startWork",
+    count: 0,
+    href: "/ingest",
+    tone: "slate",
+  };
 }
 
 export function summarizeHomeCommandCenter(input: {

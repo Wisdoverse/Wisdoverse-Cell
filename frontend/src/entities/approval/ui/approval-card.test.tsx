@@ -9,6 +9,9 @@ const mockApproval: ApprovalRequest = {
   approval_type: "technical",
   title: "Confirm REQ-041",
   summary: "User login feature extracted from meeting notes",
+  risk: "Could affect paid users",
+  rollback_note: "Revert the rollout",
+  affected_resources: ["frontend", "billing"],
   urgency: "normal",
   status: "pending",
   created_at: "2026-02-25T14:15:00Z",
@@ -19,6 +22,9 @@ describe("ApprovalCard", () => {
     render(<ApprovalCard approval={mockApproval} />);
     expect(screen.getByText("Confirm REQ-041")).toBeDefined();
     expect(screen.getByText(/User login feature/)).toBeDefined();
+    expect(screen.getByText("Could affect paid users")).toBeDefined();
+    expect(screen.getByText("Revert the rollout")).toBeDefined();
+    expect(screen.getByText("frontend")).toBeDefined();
   });
 
   it("renders approve and reject buttons", () => {

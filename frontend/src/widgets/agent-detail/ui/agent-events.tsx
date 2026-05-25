@@ -1,12 +1,8 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
-import {
-  AGENT_REGISTRY,
-  AgentAvatar,
-  AgentDomainBadge,
-} from "@/entities/agent";
+import { AGENT_REGISTRY, AgentAvatar, AgentDomainBadge } from "@/entities/agent";
 import { useControlPlaneRuns } from "@/entities/control-plane";
 import { controlPlaneRunsToActivityEvents } from "@/entities/activity";
 import type { ActivityEvent } from "@/lib/api/types";
@@ -16,26 +12,23 @@ interface AgentEventsProps {
   agentId: string;
 }
 
-function formatTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleTimeString([], {
+function formatTime(dateStr: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
-  });
+  }).format(new Date(dateStr));
 }
 
 function AgentActivityItem({ event }: { event: ActivityEvent }) {
   const agentMeta = AGENT_REGISTRY[event.agent_id];
+  const locale = useLocale();
 
   return (
     <div className={cn("flex items-start gap-3 py-2")}>
       {agentMeta ? (
-        <AgentAvatar
-          domain={agentMeta.domain}
-          shortName={agentMeta.shortName}
-          size="sm"
-        />
+        <AgentAvatar domain={agentMeta.domain} shortName={agentMeta.shortName} size="sm" />
       ) : (
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-xs">
+        <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-lg text-xs">
           ?
         </div>
       )}
@@ -46,8 +39,8 @@ function AgentActivityItem({ event }: { event: ActivityEvent }) {
           <span className="text-muted-foreground">{event.description}</span>
         </p>
         <div className="mt-0.5 flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">
-            {formatTime(event.timestamp)}
+          <span className="text-muted-foreground text-xs">
+            {formatTime(event.timestamp, locale)}
           </span>
           {agentMeta && <AgentDomainBadge domain={agentMeta.domain} />}
         </div>
@@ -58,12 +51,16 @@ function AgentActivityItem({ event }: { event: ActivityEvent }) {
 
 export function AgentEvents({ agentId }: AgentEventsProps) {
   const t = useTranslations("agentDetail");
+  const ta = useTranslations("activity");
   const { data, error, isLoading } = useControlPlaneRuns({
     agent_id: agentId,
     limit: 50,
   });
   const events = controlPlaneRunsToActivityEvents(data?.runs ?? [], (run) =>
-    t("runEvent", { runId: run.run_id, status: run.status }),
+    t("runEvent", {
+      runId: run.run_id,
+      status: ta(`runStatuses.${run.status}`),
+    }),
   );
 
   return (
@@ -73,11 +70,11 @@ export function AgentEvents({ agentId }: AgentEventsProps) {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">{t("loadingEvents")}</p>
+          <p className="text-muted-foreground text-sm">{t("loadingEvents")}</p>
         ) : error ? (
-          <p className="text-sm text-destructive">{t("eventsLoadError")}</p>
+          <p className="text-destructive text-sm">{t("eventsLoadError")}</p>
         ) : events.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("noEvents")}</p>
+          <p className="text-muted-foreground text-sm">{t("noEvents")}</p>
         ) : (
           <div className="divide-y">
             {events.map((event) => (

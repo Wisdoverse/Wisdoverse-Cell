@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useMemo } from "react";
 import useSWR from "swr";
 import {
+  Activity,
   ArrowRight,
   Bot,
   CheckCircle2,
@@ -12,8 +13,10 @@ import {
   ClipboardList,
   GitBranch,
   ShieldCheck,
+  Upload,
   Workflow,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { useControlPlaneAgents } from "@/entities/agent";
 import {
@@ -27,7 +30,11 @@ import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { summarizeHomeCommandCenter } from "../model/control-plane-home";
+import {
+  selectHomeOperatorFocus,
+  summarizeHomeCommandCenter,
+  type HomeOperatorFocus,
+} from "../model/control-plane-home";
 
 function getGreetingKey(): "morning" | "afternoon" | "evening" {
   const hour = new Date().getHours();
@@ -77,6 +84,37 @@ function metricToneClass(tone: "emerald" | "amber" | "rose" | "indigo") {
   }[tone];
 }
 
+function focusToneClass(tone: HomeOperatorFocus["tone"]) {
+  return {
+    rose: "border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-50",
+    amber:
+      "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-50",
+    sky: "border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-900/60 dark:bg-sky-950/20 dark:text-sky-50",
+    emerald:
+      "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-50",
+    slate:
+      "border-slate-200 bg-slate-50 text-slate-950 dark:border-slate-800 dark:bg-slate-950/20 dark:text-slate-50",
+  }[tone];
+}
+
+function focusIconToneClass(tone: HomeOperatorFocus["tone"]) {
+  return {
+    rose: "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-200",
+    amber: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200",
+    sky: "bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-200",
+    emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200",
+    slate: "bg-slate-100 text-slate-700 dark:bg-slate-900/50 dark:text-slate-200",
+  }[tone];
+}
+
+const focusIconMap: Record<HomeOperatorFocus["kind"], LucideIcon> = {
+  resolveBlockers: Workflow,
+  reviewApprovals: ShieldCheck,
+  assignWork: ClipboardList,
+  monitorRuns: Activity,
+  startWork: Upload,
+};
+
 function MetricCell({
   label,
   value,
@@ -97,6 +135,56 @@ function MetricCell({
         {value}
       </div>
       <p className="text-muted-foreground mt-2 text-sm">{label}</p>
+    </div>
+  );
+}
+
+function OperatorFocusPanel({ focus }: { focus: HomeOperatorFocus }) {
+  const t = useTranslations("home.commandCenter");
+  const locale = useLocale();
+  const Icon = focusIconMap[focus.kind];
+
+  return (
+    <div className={cn("rounded-lg border p-4", focusToneClass(focus.tone))}>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 gap-3">
+          <div
+            className={cn(
+              "flex size-10 shrink-0 items-center justify-center rounded-lg",
+              focusIconToneClass(focus.tone),
+            )}
+          >
+            <Icon className="size-5" />
+          </div>
+          <div className="min-w-0">
+            <Badge variant="secondary" className="rounded-md">
+              {t(`focus.${focus.kind}.badge`, { count: focus.count })}
+            </Badge>
+            <h2 className="mt-2 text-lg font-semibold tracking-normal">
+              {t(`focus.${focus.kind}.title`, { count: focus.count })}
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm opacity-80">
+              {t(`focus.${focus.kind}.description`, { count: focus.count })}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
+          <Button asChild size="sm">
+            <Link href={`/${locale}${focus.href}`}>
+              <ArrowRight className="size-4" />
+              {t(`focus.${focus.kind}.cta`)}
+            </Link>
+          </Button>
+          {focus.href !== "/activity" ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/${locale}/activity`}>
+                <Activity className="size-4" />
+                {t("focus.activityCta")}
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -233,6 +321,7 @@ export function CommandCenter() {
       }),
     [agents, approvals, runs, workItems],
   );
+  const focus = useMemo(() => selectHomeOperatorFocus(summary), [summary]);
   const goalCoverage =
     summary.openWorkCount > 0
       ? Math.round((summary.goalLinkedWorkCount / summary.openWorkCount) * 100)
@@ -293,6 +382,8 @@ export function CommandCenter() {
             tone="indigo"
           />
         </div>
+
+        <OperatorFocusPanel focus={focus} />
 
         <div className="grid gap-4 lg:grid-cols-[1.15fr_0.9fr_0.95fr]">
           <div className="bg-background/80 rounded-lg border p-4">

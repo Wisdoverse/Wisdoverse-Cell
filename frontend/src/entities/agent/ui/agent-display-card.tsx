@@ -1,6 +1,8 @@
 "use client";
 
-import type { AgentMeta, AgentRuntimeStatus, AgentStatus } from "../model/types";
+import { useTranslations } from "next-intl";
+
+import type { AgentMeta, AgentRuntimeStatus } from "../model/types";
 import { AgentAvatar } from "./agent-display-avatar";
 import { AgentStatusDot } from "./agent-display-status-dot";
 import { cn } from "@/lib/utils";
@@ -12,16 +14,9 @@ interface AgentCardProps {
   className?: string;
 }
 
-const statusLabels: Record<AgentStatus, string> = {
-  running: "Running",
-  idle: "Idle",
-  paused: "Paused",
-  warning: "Warning",
-  error: "Error",
-  stopped: "Stopped",
-};
-
 export function AgentCard({ meta, runtime, onClick, className }: AgentCardProps) {
+  const t = useTranslations("agents");
+
   return (
     <button
       onClick={onClick}
@@ -44,7 +39,7 @@ export function AgentCard({ meta, runtime, onClick, className }: AgentCardProps)
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <AgentStatusDot status={runtime.status} size="sm" />
-            <span>{statusLabels[runtime.status]}</span>
+            <span>{t(`statusLabels.${runtime.status}`)}</span>
           </div>
         </div>
       </div>
@@ -52,23 +47,26 @@ export function AgentCard({ meta, runtime, onClick, className }: AgentCardProps)
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <div>
           <span className="font-medium text-foreground">{runtime.task_count}</span>
-          {" "}tasks
+          {" "}{t("taskCount", { count: runtime.task_count })}
         </div>
         {runtime.pending_count > 0 && (
           <div>
             <span className="font-medium text-amber-600">{runtime.pending_count}</span>
-            {" "}pending
+            {" "}{t("pendingCount", { count: runtime.pending_count })}
           </div>
         )}
         {runtime.error_count > 0 && (
           <div>
             <span className="font-medium text-red-600">{runtime.error_count}</span>
-            {" "}errors
+            {" "}{t("errorCount", { count: runtime.error_count })}
           </div>
         )}
       </div>
 
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+      <div
+        aria-label={t("healthLabel", { value: runtime.health })}
+        className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+      >
         <div
           className="h-full rounded-full transition-all duration-500"
           style={{

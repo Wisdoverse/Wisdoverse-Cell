@@ -22,7 +22,7 @@
     "home": "Home",
     "activityFeed": "Activity",
     "workflows": "Workflows",
-    "controlPlane": "Control Plane",
+    "controlPlane": "Workflow Desk",
     "approvals": "Approvals",
     "agents": "Agents",
     "fleetOverview": "Fleet",
@@ -39,40 +39,48 @@
     "settings": "Settings"
   },
   "costUsage": {
-    "title": "Cost & Usage",
-    "totalCost": "Total Cost",
-    "totalTokens": "Total Tokens",
+    "title": "Model Spend",
+    "description": "Review model spend, token volume, and which agents are consuming the most capacity.",
+    "totalCost": "Total spend",
+    "totalTokens": "Model tokens",
     "avgDailyCost": "Avg / Day",
     "dailyCost": "Daily Cost",
-    "tokenUsageByAgent": "Token Usage by Agent",
+    "tokenUsageByAgent": "Model usage by agent",
     "noCostData": "No cost recorded for this period.",
     "noTokenData": "No token usage recorded for this period.",
     "agent": "Agent",
     "tokens": "Tokens",
-    "cost": "Cost"
+    "cost": "Cost",
+    "periods": {
+      "7d": "7 days",
+      "30d": "30 days",
+      "90d": "90 days"
+    }
   },
   "dashboard": {
-    "title": "Dashboard",
-    "pending": "Pending",
+    "title": "Operations Overview",
+    "description": "Scan requirement review, AI teammate status, model usage, and the next operator actions.",
+    "pending": "Waiting review",
     "confirmed": "Confirmed",
     "rejected": "Rejected",
-    "total": "Total Requirements",
-    "statusDistribution": "Requirement Status Distribution",
-    "llmUsage": "Today's LLM Usage",
-    "weeklyTrend": "Weekly Requirement Trend",
-    "quickActions": "Quick Actions",
+    "total": "All requirements",
+    "statusDistribution": "Requirement readiness",
+    "llmUsage": "Today's model usage",
+    "weeklyTrend": "Requirement intake trend",
+    "quickActions": "Next actions",
     "uploadMeeting": "Upload Meeting Notes",
     "exportPRD": "Export PRD",
-    "pendingRequirements": "Pending Requirements",
+    "pendingRequirements": "Review Requirements",
     "refresh": "Refresh Data",
-    "cost": "Cost (USD)",
-    "tokens": "Total Tokens",
-    "calls": "API Calls",
-    "avgLatency": "Avg Latency",
-    "circuitBreaker": "Circuit Breaker Status",
-    "circuitClosed": "Closed",
-    "circuitOpen": "Open",
-    "circuitHalfOpen": "Half-Open",
+    "cost": "Model spend",
+    "tokens": "Model tokens",
+    "calls": "Model calls",
+    "avgLatency": "Avg response",
+    "latencyValue": "{value} ms",
+    "circuitBreaker": "Model protection",
+    "circuitClosed": "Normal",
+    "circuitOpen": "Paused",
+    "circuitHalfOpen": "Recovering",
     "exportFailed": "PRD export failed. Please try again.",
     "loadError": "Some data failed to load. Please try refreshing.",
     "noData": "No data available",
@@ -82,16 +90,27 @@
     "fleet_running": "Running",
     "fleet_idle": "Idle",
     "fleet_error": "Error",
-    "fleet_stopped": "Stopped"
+    "fleet_stopped": "Stopped",
+    "trendTooltip": "Requirements",
+    "statusLabels": {
+      "pending": "Waiting review",
+      "confirmed": "Confirmed",
+      "rejected": "Rejected",
+      "changed": "Changed"
+    }
   },
   "requirements": {
     "title": "Requirements",
+    "pageDescription": "Review extracted requirements, clear open questions, and confirm only items that are ready for delivery.",
     "list": "Requirements List",
     "detail": "Requirement Detail",
     "allStatus": "All Status",
     "allPriority": "All Priority",
     "allCategory": "All Category",
-    "semanticSearch": "Semantic search...",
+    "semanticSearch": "Search current view...",
+    "pendingReviewSummary": "Waiting for review",
+    "highPrioritySummary": "High priority",
+    "openQuestionsSummary": "Open questions",
     "batchConfirm": "Batch Confirm",
     "batchReject": "Batch Reject",
     "confirmTitle": "Confirm Requirement",
@@ -120,7 +139,13 @@
     "batchConfirmSuccess": "Successfully confirmed {succeeded} of {total} requirements",
     "batchRejectSuccess": "Successfully rejected {succeeded} of {total} requirements",
     "selectedCount": "{count} selected",
+    "selectAll": "Select all requirements",
+    "selectRequirement": "Select {title}",
+    "confirmRequirement": "Confirm {title}",
+    "rejectRequirement": "Reject {title}",
+    "openQuestionCount": "{count} open questions",
     "description": "Description",
+    "titleField": "Title",
     "confirmedBy": "Confirmed By",
     "confirmedAt": "Confirmed At",
     "rejectionReason": "Rejection Reason",
@@ -132,6 +157,10 @@
     "similarity": "Similarity",
     "noSimilar": "No similar requirements found",
     "noHistory": "No change history",
+    "justNow": "just now",
+    "changedBy": "Changed by {actor}",
+    "changeFromTo": "{field}: {oldValue} -> {newValue}",
+    "changeValue": "{field}: {value}",
     "noContext": "No context messages",
     "notFound": "Requirement not found",
     "noQuestions": "No related questions",
@@ -151,35 +180,92 @@
   },
   "ingest": {
     "title": "Content Ingest",
+    "description": "Paste meeting notes or message records and let agents turn them into requirements and follow-up questions.",
+    "guidanceAriaLabel": "Content ingest workflow",
+    "guidance": {
+      "extract": {
+        "title": "Extract requirements",
+        "description": "Agents identify concrete requests, owners, and delivery clues from the content."
+      },
+      "questions": {
+        "title": "Find unclear points",
+        "description": "Ambiguous or missing details become questions for operators to answer."
+      },
+      "review": {
+        "title": "Review before delivery",
+        "description": "Confirm ready requirements and resolve questions before work moves forward."
+      }
+    },
     "uploadTab": "Manual Upload",
     "wechatTab": "WeChat Records",
     "titleField": "Title (optional)",
     "titlePlaceholder": "Meeting topic",
     "contentField": "Meeting Content",
     "contentPlaceholder": "Paste meeting notes or chat records...",
+    "contentHelp": "Include decisions, requests, dates, owners, and any quoted customer wording when available.",
     "contextField": "Context (optional)",
     "contextPlaceholder": "e.g. Requirement discussion with Client A on Jan 18",
+    "contextHelp": "Add background that is not in the pasted text, such as customer, channel, project, or meeting purpose.",
     "submit": "Extract Requirements",
     "success": "Successfully extracted {count} requirements",
+    "successDescription": "Review the extracted requirements and answer generated questions before assigning work.",
     "viewRequirements": "View Requirements",
     "viewQuestions": "View Questions"
   },
   "questions": {
     "title": "Pending Questions",
+    "description": "Answer unresolved questions so agents can turn uncertain requirements into actionable work.",
     "noQuestions": "No pending questions",
+    "summaryAriaLabel": "Pending question summary",
+    "summary": {
+      "waiting": {
+        "label": "Waiting answers",
+        "description": "Questions blocking requirement confirmation"
+      },
+      "withContext": {
+        "label": "With source context",
+        "description": "Questions that include surrounding notes"
+      },
+      "oldest": {
+        "label": "Oldest age",
+        "description": "Days since the oldest open question"
+      }
+    },
+    "contextLabel": "Source context",
+    "askedAt": "Asked {time}",
+    "answerLabel": "Your answer",
     "answerPlaceholder": "Enter your answer...",
     "submitAnswer": "Submit Answer",
-    "answerSuccess": "Answer submitted"
+    "answerSuccess": "Answer submitted",
+    "statusLabels": {
+      "open": "Open",
+      "answered": "Answered",
+      "dismissed": "Dismissed"
+    }
   },
   "monitor": {
     "title": "Operations Monitor",
+    "description": "Check whether core services and model calls are available before escalating to engineering.",
     "systemHealth": "System Health",
     "allServicesNormal": "All services normal",
-    "serviceDown": "Service down",
-    "resetCircuitBreaker": "Manual Reset",
-    "resetSuccess": "Circuit breaker reset",
-    "resetFailed": "Circuit breaker reset failed",
+    "serviceDown": "A service needs attention",
+    "modelProtection": "Model protection",
+    "modelProtectionDescription": "This protects users when model calls are failing. Reset only after the model path has recovered.",
+    "modelProtectionClosed": "Normal",
+    "modelProtectionOpen": "Paused to prevent repeated failures",
+    "modelProtectionHalfOpen": "Testing recovery",
+    "resetCircuitBreaker": "Restore model calls",
+    "resetSuccess": "Model calls restored",
+    "resetFailed": "Model call restoration failed",
     "loadError": "Some monitoring data failed to load.",
+    "latencyValue": "{value} ms",
+    "statusLabels": {
+      "ok": "Normal",
+      "healthy": "Normal",
+      "degraded": "Slow",
+      "unhealthy": "Needs attention",
+      "unknown": "Unknown"
+    },
     "services": {
       "postgres": "PostgreSQL",
       "redis": "Redis",
@@ -189,22 +275,56 @@
   },
   "messages": {
     "title": "Messages",
+    "description": "Search source conversations, inspect context, and see which messages have already been turned into requirements.",
     "searchKeyword": "Search by keyword...",
     "sender": "Sender",
+    "senderPlaceholder": "Sender name or ID",
     "timeRange": "Time Range",
+    "startDate": "From",
+    "endDate": "To",
     "content": "Content",
     "source": "Source",
+    "messageType": "Message type",
     "time": "Time",
     "extracted": "Extracted",
-    "sessionLoadError": "Failed to load session"
+    "notExtracted": "Not extracted",
+    "status": "Status",
+    "noResults": "No messages match the current search.",
+    "sessionContext": "Conversation context",
+    "sessionLoadError": "Failed to load session",
+    "summaryAriaLabel": "Message search summary",
+    "summary": {
+      "shown": {
+        "label": "Messages shown",
+        "description": "Results in the current search"
+      },
+      "extracted": {
+        "label": "Already extracted",
+        "description": "Messages already used for requirements"
+      },
+      "sessions": {
+        "label": "Conversations",
+        "description": "Expandable conversation threads"
+      }
+    },
+    "messageTypes": {
+      "text": "Text",
+      "image": "Image",
+      "file": "File",
+      "system": "System"
+    }
   },
   "settings": {
     "title": "Settings",
+    "description": "Manage the signed-in operator, interface language, and display preferences.",
     "account": "Account",
     "accountDescription": "Current signed-in operator",
     "name": "Name",
     "email": "Email",
     "role": "Role",
+    "roleAdmin": "Administrator",
+    "roleManager": "Operations manager",
+    "roleViewer": "Read-only viewer",
     "session": "Session",
     "sessionActive": "Active",
     "signOut": "Sign out",
@@ -221,22 +341,22 @@
     "logout": "Logout",
     "loginWithFeishu": "Login with Feishu",
     "loginWithWecom": "Login with WeCom",
-    "username": "Username",
+    "username": "Work email",
     "password": "Password",
-    "usernamePlaceholder": "Enter your username",
+    "usernamePlaceholder": "Enter your work email",
     "passwordPlaceholder": "Enter your password",
     "loginError": "Invalid username or password",
     "networkError": "Unable to connect to server. Please try again later.",
-    "loginDescription": "Sign in to your account to continue",
+    "loginDescription": "Sign in to the operator desk to continue requirements, approvals, and run review.",
     "signingIn": "Signing in...",
-    "setupDescription": "Create the first administrator account",
-    "adminEmail": "Admin email",
+    "setupDescription": "Create the first workspace administrator for operator access and team management.",
+    "adminEmail": "Work email",
     "adminEmailPlaceholder": "admin@example.com",
     "displayName": "Display name",
-    "displayNamePlaceholder": "Administrator",
+    "displayNamePlaceholder": "Operations lead",
     "confirmPassword": "Confirm password",
     "confirmPasswordPlaceholder": "Enter the password again",
-    "createAdmin": "Create admin",
+    "createAdmin": "Create administrator account",
     "creatingAdmin": "Creating admin...",
     "setupPasswordMismatch": "Passwords do not match",
     "setupConflict": "An administrator account already exists",
@@ -295,6 +415,39 @@
       "queueEmptyTitle": "Queue is clear",
       "queueEmptyDescription": "No blocked, waiting, or queued work needs action.",
       "unassigned": "Unassigned",
+      "focus": {
+        "activityCta": "View activity",
+        "resolveBlockers": {
+          "badge": "{count} urgent signals",
+          "title": "Clear blockers first",
+          "description": "Failed or blocked work is stopping delivery. Open the workflow desk, check the owner, and decide whether to retry, reassign, or escalate.",
+          "cta": "Open workflow desk"
+        },
+        "reviewApprovals": {
+          "badge": "{count} approvals waiting",
+          "title": "Review pending approvals",
+          "description": "Agents are waiting for a human decision before they can continue. Review the request, risk, and rollback note before approving.",
+          "cta": "Open approvals"
+        },
+        "assignWork": {
+          "badge": "{count} items ready",
+          "title": "Assign the next work",
+          "description": "Ready or unassigned work is waiting for an owner. Route it to the right agent or operator so execution can continue.",
+          "cta": "Assign work"
+        },
+        "monitorRuns": {
+          "badge": "{count} active runs",
+          "title": "Monitor active execution",
+          "description": "Work is currently running. Watch the activity stream for completion, failure, or a new approval request.",
+          "cta": "Watch activity"
+        },
+        "startWork": {
+          "badge": "Queue clear",
+          "title": "Start from new input",
+          "description": "There is no urgent work waiting. Import meeting notes, messages, or task context to start the next operating loop.",
+          "cta": "Import content"
+        }
+      },
       "evidenceTitle": "Run evidence",
       "evidenceDescription": "Latest execution, spend, and coverage signals.",
       "activeAgents": "Agents",
@@ -308,15 +461,42 @@
   },
   "activity": {
     "title": "Activity",
-    "description": "All activity across your AI agent fleet",
+    "description": "Track what agents are doing, which runs finished, and which runs need operator attention.",
     "today": "Today",
     "yesterday": "Yesterday",
     "allDomains": "All Domains",
+    "summaryAriaLabel": "Activity summary",
+    "summary": {
+      "total": {
+        "label": "Run records",
+        "description": "Recent agent work in this activity feed"
+      },
+      "running": {
+        "label": "In progress",
+        "description": "Pending or running work to watch"
+      },
+      "attention": {
+        "label": "Needs attention",
+        "description": "Failed, cancelled, or timed out runs"
+      },
+      "completed": {
+        "label": "Completed",
+        "description": "Runs that finished successfully"
+      }
+    },
     "noActivity": "No activity yet",
     "noActivityDescription": "Activity from your agents will appear here.",
     "loading": "Loading activity...",
     "loadError": "Failed to load activity.",
-    "runEvent": "run {runId} is {status}"
+    "runEvent": "Evidence {runId}: {status}",
+    "runStatuses": {
+      "pending": "waiting to start",
+      "running": "running now",
+      "succeeded": "completed successfully",
+      "failed": "failed and needs review",
+      "cancelled": "cancelled",
+      "timed_out": "timed out and needs review"
+    }
   },
   "events": {
     "requirementConfirmed": "Requirement confirmed",
@@ -326,7 +506,7 @@
   },
   "approvals": {
     "title": "Approvals",
-    "description": "Manage all approval requests from your AI agents",
+    "description": "Review the request, risk, rollback plan, and affected resources before deciding.",
     "all": "All",
     "finance": "Finance",
     "legal": "Legal",
@@ -335,12 +515,23 @@
     "urgent": "Urgent",
     "normal": "Normal",
     "low": "Low",
+    "waitingSummary": "Waiting for decision",
+    "urgentSummary": "Urgent",
+    "readySummary": "Shown in current view",
+    "risk": "Risk",
+    "rollback": "Rollback plan",
+    "affectedResources": "Affected resources",
+    "viewEvidence": "View evidence",
+    "approve": "Approve",
+    "reject": "Reject",
+    "ask": "Ask",
     "noApprovals": "No pending approvals",
     "approved": "Approved successfully",
     "rejected": "Rejected successfully"
   },
   "controlPlane": {
-    "title": "Control Plane",
+    "title": "Workflow Desk",
+    "operatorDescription": "Plan goals, assign work, review approvals, and check evidence from one operator-facing desk.",
     "refresh": "Refresh",
     "loadError": "Control-plane data failed to load.",
     "goals": "Goals",
@@ -399,20 +590,129 @@
     "status": "Status",
     "started": "Started",
     "tier": "Tier",
-    "updated": "Updated"
+    "updated": "Updated",
+    "statusLabels": {
+      "active": "Active",
+      "approved": "Approved",
+      "queued": "Queued",
+      "ready": "Ready",
+      "running": "Running",
+      "succeeded": "Succeeded",
+      "timed_out": "Timed out",
+      "completed": "Completed",
+      "proposed": "Proposed",
+      "pending": "Waiting",
+      "shadow": "Shadow",
+      "canary": "Canary",
+      "awaiting_approval": "Needs approval",
+      "blocked": "Blocked",
+      "failed": "Failed",
+      "rejected": "Rejected",
+      "rolled_back": "Rolled back",
+      "cancelled": "Cancelled",
+      "draft": "Draft",
+      "paused": "Paused",
+      "archived": "Archived",
+      "accepted": "Accepted",
+      "superseded": "Superseded",
+      "expired": "Expired",
+      "agent_run": "Agent run",
+      "approval": "Approval",
+      "decision": "Decision",
+      "artifact": "Artifact",
+      "budget_usage": "Budget usage",
+      "audit_event": "Audit event",
+      "prd": "PRD",
+      "report": "Report",
+      "qa_result": "QA result",
+      "issue": "Issue",
+      "merge_request": "Merge request",
+      "code_patch": "Code patch",
+      "run_walkthrough": "Run walkthrough",
+      "other": "Other"
+    },
+    "priorityLabels": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "critical": "Critical"
+    },
+    "scopeLabels": {
+      "company": "Company",
+      "goal": "Goal",
+      "agent": "Agent",
+      "work_item": "Work item"
+    },
+    "periodLabels": {
+      "daily": "Daily",
+      "monthly": "Monthly",
+      "quarterly": "Quarterly",
+      "total": "Total"
+    }
   },
   "agents": {
     "title": "Agent Fleet",
-    "description": "Monitor and manage your AI agent fleet",
+    "description": "See which AI teammates are working, paused, or need help before opening details.",
     "searchPlaceholder": "Search agents...",
     "all": "All",
     "running": "Running",
     "idle": "Idle",
     "paused": "Paused",
+    "warning": "Warning",
     "error": "Error",
     "stopped": "Stopped",
     "allKinds": "All agent kinds",
     "noAgents": "No agents in this group yet",
+    "noMatchingAgents": "No agents match the current view",
+    "summaryAriaLabel": "Agent fleet status summary",
+    "summary": {
+      "total": {
+        "label": "AI teammates",
+        "description": "Configured roles and service agents"
+      },
+      "running": {
+        "label": "Working now",
+        "description": "Ready or actively handling work"
+      },
+      "attention": {
+        "label": "Needs attention",
+        "description": "Warnings, errors, or failed runs"
+      },
+      "offline": {
+        "label": "Paused or offline",
+        "description": "Not available for new work"
+      }
+    },
+    "statusLabels": {
+      "running": "Running",
+      "idle": "Idle",
+      "paused": "Paused",
+      "warning": "Warning",
+      "error": "Error",
+      "stopped": "Stopped"
+    },
+    "agentKindBadges": {
+      "organization_role": "Role",
+      "business_runtime_agent": "Agent",
+      "capability_module": "Module",
+      "integration_gateway": "Gateway",
+      "system_worker": "System",
+      "reserved": "Reserved"
+    },
+    "domainLabels": {
+      "product": "Product",
+      "engineering": "Engineering",
+      "quality": "Quality",
+      "operations": "Operations",
+      "business": "Business",
+      "marketSales": "Market & Sales",
+      "dataAi": "Data & AI"
+    },
+    "domainRunningSummary": "{running}/{total} running",
+    "taskCount": "tasks",
+    "pendingCount": "pending",
+    "errorCount": "errors",
+    "healthLabel": "Health {value}%",
     "agentsWillAppear": "Agents will appear here once they are configured.",
     "createAgent": "Create Agent",
     "createAgentDescription": "Create an agent record with the information operators use day to day. Runtime settings stay available under advanced options.",
@@ -468,6 +768,7 @@
       "project-management-agent": "Project management agent",
       "quality-agent": "QA agent",
       "development-agent": "Development agent",
+      "chat-agent": "Chat agent",
       "reception": "User gateway",
       "orchestrator": "Coordinator",
       "sync-capability": "Sync capability",
@@ -481,6 +782,13 @@
     "reportsTo": "Reports to",
     "noManager": "No manager",
     "adapterType": "Adapter",
+    "adapterTypeOptions": {
+      "builtin": "Built-in runtime",
+      "codex_local": "Local Codex runner",
+      "claude_local": "Local Claude runner",
+      "process": "Local process",
+      "http": "External HTTP service"
+    },
     "model": "Model",
     "baseUrl": "Base URL",
     "requestPath": "Request path",
@@ -508,21 +816,23 @@
     "runtimeLoadError": "Failed to load live agent runtime status."
   },
   "agentDetail": {
-    "backToFleet": "Fleet",
+    "backToFleet": "Agents",
     "overview": "Overview",
-    "events": "Events",
-    "config": "Configuration",
-    "processed": "Processed",
-    "pending": "Pending",
-    "errors": "Errors",
-    "health": "Health",
-    "uptime": "Uptime",
-    "connectedAgents": "Connected Agents",
-    "noConnections": "No connections",
-    "loadingEvents": "Loading events...",
-    "eventsLoadError": "Failed to load events.",
-    "noEvents": "No real events recorded for this agent.",
-    "runEvent": "run {runId} is {status}",
+    "events": "Run history",
+    "config": "Run settings",
+    "processed": "Run records",
+    "pending": "Open work",
+    "errors": "Needs attention",
+    "health": "Stability",
+    "uptime": "Running for",
+    "uptimeDaysHours": "{days}d {hours}h",
+    "uptimeHoursMinutes": "{hours}h {minutes}m",
+    "connectedAgents": "Handoffs",
+    "noConnections": "No handoffs",
+    "loadingEvents": "Loading run history...",
+    "eventsLoadError": "Failed to load run history.",
+    "noEvents": "No run history recorded for this agent.",
+    "runEvent": "Evidence {runId}: {status}",
     "runtimeLoadError": "Failed to load live runtime status.",
     "notFound": "Agent not found",
     "agentId": "Agent ID",
@@ -541,7 +851,11 @@
     "approvalTypes": "Approval Types",
     "upstream": "Upstream Agents",
     "downstream": "Downstream Agents",
+    "configDescription": "The default view keeps operator-facing ownership and handoff details visible. Service identifiers, event contracts, and component settings are folded into advanced details.",
+    "advancedRuntimeDetails": "Advanced runtime details",
+    "advancedRuntimeDetailsDescription": "Use this when platform engineers need to inspect adapters, events, or component wiring. Daily operators usually do not need to change it.",
     "systemPrompt": "System prompt",
+    "systemPromptDescription": "Edit only when the agent's behavior boundary needs to change. Saved changes affect future runs.",
     "promptNotConfigured": "No override configured",
     "promptUpdatedAt": "Updated",
     "promptLoadError": "Failed to load prompt config.",
@@ -554,6 +868,42 @@
     "editAgentDescription": "Update who this agent is, what it owns, and advanced runtime settings when needed.",
     "saveAgent": "Save agent",
     "agentUpdating": "Saving",
-    "agentUpdateSuccess": "Agent updated"
+    "agentUpdateSuccess": "Agent updated",
+    "tabLabels": {
+      "overview": "Overview",
+      "tasks": "Tasks",
+      "events": "Run history",
+      "connections": "Handoffs",
+      "config": "Run settings",
+      "logs": "Logs"
+    },
+    "approvalTypeLabels": {
+      "finance": "Finance approval",
+      "legal": "Legal approval",
+      "technical": "Technical approval",
+      "customer": "Customer confirmation"
+    },
+    "contextSourceLabels": {
+      "agentforge": "AgentForge delivery platform",
+      "controlPlane": "Control-plane work",
+      "eventBus": "Event bus",
+      "feishu": "Feishu",
+      "gitlab": "GitLab",
+      "manualUpload": "Manual upload",
+      "openProject": "OpenProject",
+      "scratchpad": "Scratchpad",
+      "traces": "Run traces",
+      "wecom": "WeCom"
+    },
+    "adapterTypeLabels": {
+      "builtin": "Built-in runtime",
+      "http": "External HTTP service",
+      "openaiAssistant": "OpenAI Assistant"
+    },
+    "widgetLabels": {
+      "requirements": "Requirement review",
+      "ingest": "Content ingest",
+      "questions": "Open questions"
+    }
   }
 }

@@ -22,7 +22,7 @@
     "home": "首页",
     "activityFeed": "动态",
     "workflows": "工作流",
-    "controlPlane": "控制面",
+    "controlPlane": "工作流工作台",
     "approvals": "审批中心",
     "agents": "智能体",
     "fleetOverview": "舰队总览",
@@ -39,31 +39,38 @@
     "settings": "设置"
   },
   "costUsage": {
-    "title": "成本与用量",
-    "totalCost": "总成本",
-    "totalTokens": "总 Tokens",
+    "title": "模型成本",
+    "description": "查看模型花费、用量规模，以及哪些智能体消耗了最多容量。",
+    "totalCost": "总花费",
+    "totalTokens": "模型用量",
     "avgDailyCost": "日均成本",
     "dailyCost": "每日成本",
-    "tokenUsageByAgent": "按智能体统计 Tokens",
+    "tokenUsageByAgent": "按智能体统计模型用量",
     "noCostData": "该周期暂无成本记录。",
-    "noTokenData": "该周期暂无 Token 用量记录。",
+    "noTokenData": "该周期暂无模型用量记录。",
     "agent": "智能体",
-    "tokens": "Tokens",
-    "cost": "成本"
+    "tokens": "用量",
+    "cost": "成本",
+    "periods": {
+      "7d": "7 天",
+      "30d": "30 天",
+      "90d": "90 天"
+    }
   },
   "dashboard": {
-    "title": "数据总览",
-    "pending": "待确认",
+    "title": "运营总览",
+    "description": "集中查看需求复核、AI 同事状态、模型用量和下一步运营动作。",
+    "pending": "等待复核",
     "confirmed": "已确认",
     "rejected": "已拒绝",
-    "total": "总需求",
-    "statusDistribution": "需求状态分布",
-    "llmUsage": "今日 LLM 使用统计",
-    "weeklyTrend": "本周需求趋势",
-    "quickActions": "快捷操作",
+    "total": "全部需求",
+    "statusDistribution": "需求就绪情况",
+    "llmUsage": "今日模型用量",
+    "weeklyTrend": "需求进入趋势",
+    "quickActions": "下一步操作",
     "uploadMeeting": "上传会议记录",
     "exportPRD": "导出 PRD",
-    "pendingRequirements": "待确认需求",
+    "pendingRequirements": "复核需求",
     "refresh": "刷新数据",
     "exportFailed": "导出 PRD 失败，请重试",
     "loadError": "部分数据加载失败，请尝试刷新页面。",
@@ -73,25 +80,37 @@
     "fleetTotal": "总数",
     "fleet_running": "运行中",
     "fleet_idle": "空闲",
-    "fleet_error": "错误",
+    "fleet_error": "异常",
     "fleet_stopped": "已停止",
-    "cost": "成本 (USD)",
-    "tokens": "总 Tokens",
-    "calls": "调用次数",
-    "avgLatency": "平均延迟",
-    "circuitBreaker": "断路器状态",
+    "cost": "模型花费",
+    "tokens": "模型用量",
+    "calls": "模型调用",
+    "avgLatency": "平均响应",
+    "latencyValue": "{value} 毫秒",
+    "circuitBreaker": "模型保护状态",
     "circuitClosed": "正常",
-    "circuitOpen": "断开",
-    "circuitHalfOpen": "半开"
+    "circuitOpen": "已暂停",
+    "circuitHalfOpen": "恢复观察中",
+    "trendTooltip": "需求数",
+    "statusLabels": {
+      "pending": "等待复核",
+      "confirmed": "已确认",
+      "rejected": "已拒绝",
+      "changed": "已变更"
+    }
   },
   "requirements": {
     "title": "需求管理",
+    "pageDescription": "复核智能体提取的需求，先清理未回答问题，只确认已经可以进入交付的事项。",
     "list": "需求列表",
     "detail": "需求详情",
     "allStatus": "全部状态",
     "allPriority": "全部优先级",
     "allCategory": "全部分类",
-    "semanticSearch": "语义搜索...",
+    "semanticSearch": "搜索当前视图...",
+    "pendingReviewSummary": "等待复核",
+    "highPrioritySummary": "高优先级",
+    "openQuestionsSummary": "未回答问题",
     "batchConfirm": "批量确认",
     "batchReject": "批量拒绝",
     "confirmTitle": "确认需求",
@@ -120,7 +139,13 @@
     "batchConfirmSuccess": "成功确认 {succeeded}/{total} 个需求",
     "batchRejectSuccess": "成功拒绝 {succeeded}/{total} 个需求",
     "selectedCount": "已选择 {count} 项",
+    "selectAll": "选择全部需求",
+    "selectRequirement": "选择 {title}",
+    "confirmRequirement": "确认 {title}",
+    "rejectRequirement": "拒绝 {title}",
+    "openQuestionCount": "{count} 个未回答问题",
     "description": "描述",
+    "titleField": "标题",
     "confirmedBy": "确认人",
     "confirmedAt": "确认时间",
     "rejectionReason": "拒绝原因",
@@ -132,6 +157,10 @@
     "similarity": "相似度",
     "noSimilar": "未找到相似需求",
     "noHistory": "暂无变更历史",
+    "justNow": "刚刚",
+    "changedBy": "操作人：{actor}",
+    "changeFromTo": "{field}：{oldValue} -> {newValue}",
+    "changeValue": "{field}：{value}",
     "noContext": "暂无上下文消息",
     "notFound": "未找到该需求",
     "noQuestions": "暂无关联问题",
@@ -151,35 +180,92 @@
   },
   "ingest": {
     "title": "内容接入",
+    "description": "粘贴会议纪要或消息记录，让智能体提取需求和需要补充确认的问题。",
+    "guidanceAriaLabel": "内容接入流程",
+    "guidance": {
+      "extract": {
+        "title": "提取需求",
+        "description": "智能体会从内容中找出明确诉求、负责人和交付线索。"
+      },
+      "questions": {
+        "title": "发现不清楚的点",
+        "description": "模糊或缺失的信息会变成待运营人员回答的问题。"
+      },
+      "review": {
+        "title": "交付前复核",
+        "description": "先确认可执行需求并回答问题，再把工作继续分派出去。"
+      }
+    },
     "uploadTab": "手动上传",
     "wechatTab": "微信记录",
     "titleField": "标题（可选）",
     "titlePlaceholder": "会议主题",
     "contentField": "会议内容",
     "contentPlaceholder": "粘贴会议纪要或聊天记录...",
+    "contentHelp": "尽量包含决策、诉求、日期、负责人，以及客户原话。",
     "contextField": "上下文说明（可选）",
     "contextPlaceholder": "例如：1月18日与客户A的需求讨论",
+    "contextHelp": "补充粘贴内容里没有的信息，例如客户、渠道、项目或会议目的。",
     "submit": "提取需求",
     "success": "成功提取 {count} 个需求",
+    "successDescription": "请先复核提取出的需求，并回答生成的问题，再安排后续执行。",
     "viewRequirements": "查看需求列表",
     "viewQuestions": "查看问题"
   },
   "questions": {
     "title": "待确认问题",
+    "description": "回答尚未明确的问题，让智能体把不确定的需求变成可执行工作。",
     "noQuestions": "暂无待确认问题",
+    "summaryAriaLabel": "待确认问题概览",
+    "summary": {
+      "waiting": {
+        "label": "等待回答",
+        "description": "正在阻塞需求确认的问题"
+      },
+      "withContext": {
+        "label": "带上下文",
+        "description": "包含来源说明的问题"
+      },
+      "oldest": {
+        "label": "最久等待",
+        "description": "最早未回答问题已等待天数"
+      }
+    },
+    "contextLabel": "来源上下文",
+    "askedAt": "提出于 {time}",
+    "answerLabel": "你的回答",
     "answerPlaceholder": "输入回答...",
     "submitAnswer": "提交回答",
-    "answerSuccess": "回答已提交"
+    "answerSuccess": "回答已提交",
+    "statusLabels": {
+      "open": "待回答",
+      "answered": "已回答",
+      "dismissed": "已忽略"
+    }
   },
   "monitor": {
     "title": "运营监控",
+    "description": "先确认核心服务和模型调用是否可用，再决定是否升级给工程处理。",
     "systemHealth": "系统健康",
     "allServicesNormal": "所有服务正常",
-    "serviceDown": "服务异常",
-    "resetCircuitBreaker": "手动重置",
-    "resetSuccess": "断路器已重置",
-    "resetFailed": "断路器重置失败",
+    "serviceDown": "有服务需要处理",
+    "modelProtection": "模型保护状态",
+    "modelProtectionDescription": "当模型调用连续失败时会自动暂停，避免影响用户。确认模型通路恢复后再手动恢复。",
+    "modelProtectionClosed": "正常",
+    "modelProtectionOpen": "已暂停，防止连续失败",
+    "modelProtectionHalfOpen": "正在观察恢复",
+    "resetCircuitBreaker": "恢复模型调用",
+    "resetSuccess": "模型调用已恢复",
+    "resetFailed": "模型调用恢复失败",
     "loadError": "部分监控数据加载失败。",
+    "latencyValue": "{value} 毫秒",
+    "statusLabels": {
+      "ok": "正常",
+      "healthy": "正常",
+      "degraded": "变慢",
+      "unhealthy": "需要处理",
+      "unknown": "未知"
+    },
     "services": {
       "postgres": "PostgreSQL",
       "redis": "Redis",
@@ -189,22 +275,56 @@
   },
   "messages": {
     "title": "消息管理",
+    "description": "检索来源会话，查看上下文，并确认哪些消息已经转成需求。",
     "searchKeyword": "关键词搜索...",
     "sender": "发送人",
+    "senderPlaceholder": "发送人姓名或 ID",
     "timeRange": "时间范围",
+    "startDate": "开始日期",
+    "endDate": "结束日期",
     "content": "内容",
     "source": "来源",
+    "messageType": "消息类型",
     "time": "时间",
     "extracted": "已提取",
-    "sessionLoadError": "加载会话失败"
+    "notExtracted": "未提取",
+    "status": "状态",
+    "noResults": "当前搜索没有匹配消息。",
+    "sessionContext": "会话上下文",
+    "sessionLoadError": "加载会话失败",
+    "summaryAriaLabel": "消息搜索概览",
+    "summary": {
+      "shown": {
+        "label": "当前消息",
+        "description": "本次搜索展示的结果"
+      },
+      "extracted": {
+        "label": "已提取",
+        "description": "已经用于生成需求的消息"
+      },
+      "sessions": {
+        "label": "会话",
+        "description": "可展开查看上下文的会话"
+      }
+    },
+    "messageTypes": {
+      "text": "文本",
+      "image": "图片",
+      "file": "文件",
+      "system": "系统消息"
+    }
   },
   "settings": {
     "title": "设置",
+    "description": "管理当前运营人员的登录状态、界面语言和显示偏好。",
     "account": "账号",
     "accountDescription": "当前登录的操作员",
     "name": "姓名",
     "email": "邮箱",
     "role": "角色",
+    "roleAdmin": "管理员",
+    "roleManager": "运营管理者",
+    "roleViewer": "只读查看者",
     "session": "会话",
     "sessionActive": "已登录",
     "signOut": "退出登录",
@@ -221,22 +341,22 @@
     "logout": "退出登录",
     "loginWithFeishu": "飞书登录",
     "loginWithWecom": "企微登录",
-    "username": "用户名",
+    "username": "工作邮箱",
     "password": "密码",
-    "usernamePlaceholder": "请输入用户名",
+    "usernamePlaceholder": "输入工作邮箱",
     "passwordPlaceholder": "请输入密码",
     "loginError": "用户名或密码错误",
     "networkError": "无法连接服务器，请稍后重试",
-    "loginDescription": "登录您的账户以继续",
+    "loginDescription": "登录运营工作台，继续处理需求、审批和运行记录",
     "signingIn": "登录中...",
-    "setupDescription": "创建第一个管理员账户",
-    "adminEmail": "管理员邮箱",
+    "setupDescription": "创建第一个工作台管理员，用于管理运营入口和团队访问",
+    "adminEmail": "工作邮箱",
     "adminEmailPlaceholder": "admin@example.com",
     "displayName": "显示名称",
-    "displayNamePlaceholder": "管理员",
+    "displayNamePlaceholder": "运营负责人",
     "confirmPassword": "确认密码",
     "confirmPasswordPlaceholder": "再次输入密码",
-    "createAdmin": "创建管理员",
+    "createAdmin": "创建管理员账号",
     "creatingAdmin": "创建中...",
     "setupPasswordMismatch": "两次输入的密码不一致",
     "setupConflict": "管理员账户已存在",
@@ -295,6 +415,39 @@
       "queueEmptyTitle": "队列清爽",
       "queueEmptyDescription": "没有阻塞、等待或排队的工作需要处理。",
       "unassigned": "未分配",
+      "focus": {
+        "activityCta": "查看动态",
+        "resolveBlockers": {
+          "badge": "{count} 个紧急信号",
+          "title": "先处理阻塞",
+          "description": "失败或阻塞的工作会卡住交付。打开工作流工作台，确认负责人，然后选择重试、改派或升级处理。",
+          "cta": "打开工作流"
+        },
+        "reviewApprovals": {
+          "badge": "{count} 个审批等待处理",
+          "title": "处理待审批事项",
+          "description": "智能体正在等待人工决策才能继续。审批前先查看请求内容、风险说明和回滚方式。",
+          "cta": "打开审批中心"
+        },
+        "assignWork": {
+          "badge": "{count} 个事项可推进",
+          "title": "分配下一项工作",
+          "description": "就绪或未分配的工作正在等待负责人。把它派给合适的智能体或运营人员，让执行继续推进。",
+          "cta": "分配工作"
+        },
+        "monitorRuns": {
+          "badge": "{count} 个任务运行中",
+          "title": "观察正在执行的任务",
+          "description": "当前已有工作在执行。查看动态流，关注完成、失败或新的审批请求。",
+          "cta": "查看动态"
+        },
+        "startWork": {
+          "badge": "队列清空",
+          "title": "从新的输入开始",
+          "description": "当前没有紧急待处理工作。导入会议纪要、消息或任务上下文，开始下一轮运营流程。",
+          "cta": "导入内容"
+        }
+      },
       "evidenceTitle": "运行证据",
       "evidenceDescription": "最新执行、成本和覆盖信号。",
       "activeAgents": "智能体",
@@ -308,15 +461,42 @@
   },
   "activity": {
     "title": "动态",
-    "description": "AI 智能体舰队的全部活动记录",
+    "description": "跟踪智能体正在做什么、哪些运行已完成，以及哪些运行需要运营处理。",
     "today": "今天",
     "yesterday": "昨天",
     "allDomains": "全部领域",
+    "summaryAriaLabel": "动态概览",
+    "summary": {
+      "total": {
+        "label": "运行记录",
+        "description": "当前动态流中的近期智能体工作"
+      },
+      "running": {
+        "label": "进行中",
+        "description": "需要继续观察的等待或运行中工作"
+      },
+      "attention": {
+        "label": "需要关注",
+        "description": "失败、取消或超时的运行"
+      },
+      "completed": {
+        "label": "已完成",
+        "description": "已成功完成的运行"
+      }
+    },
     "noActivity": "暂无动态",
     "noActivityDescription": "智能体的活动记录将显示在此处。",
     "loading": "正在加载动态...",
     "loadError": "动态加载失败。",
-    "runEvent": "运行 {runId} 当前状态为 {status}"
+    "runEvent": "证据 {runId}：{status}",
+    "runStatuses": {
+      "pending": "等待开始",
+      "running": "正在运行",
+      "succeeded": "已成功完成",
+      "failed": "失败，需要复核",
+      "cancelled": "已取消",
+      "timed_out": "已超时，需要复核"
+    }
   },
   "events": {
     "requirementConfirmed": "需求已确认",
@@ -326,7 +506,7 @@
   },
   "approvals": {
     "title": "审批中心",
-    "description": "管理 AI 智能体的所有审批请求",
+    "description": "先核对请求内容、风险、回滚方案和影响范围，再做审批决定。",
     "all": "全部",
     "finance": "财务",
     "legal": "法务",
@@ -335,12 +515,23 @@
     "urgent": "紧急",
     "normal": "普通",
     "low": "低",
+    "waitingSummary": "等待决策",
+    "urgentSummary": "紧急",
+    "readySummary": "当前视图",
+    "risk": "风险",
+    "rollback": "回滚方案",
+    "affectedResources": "影响范围",
+    "viewEvidence": "查看证据",
+    "approve": "通过",
+    "reject": "拒绝",
+    "ask": "追问",
     "noApprovals": "暂无待审批项",
     "approved": "审批通过",
     "rejected": "已拒绝"
   },
   "controlPlane": {
-    "title": "控制面",
+    "title": "工作流工作台",
+    "operatorDescription": "在一个运营视角的工作台里规划目标、分配工作、处理审批并核对执行证据。",
     "refresh": "刷新",
     "loadError": "控制面数据加载失败。",
     "goals": "目标",
@@ -399,20 +590,129 @@
     "status": "状态",
     "started": "开始时间",
     "tier": "层级",
-    "updated": "更新时间"
+    "updated": "更新时间",
+    "statusLabels": {
+      "active": "启用中",
+      "approved": "已通过",
+      "queued": "排队中",
+      "ready": "可开始",
+      "running": "运行中",
+      "succeeded": "已成功",
+      "timed_out": "已超时",
+      "completed": "已完成",
+      "proposed": "已提议",
+      "pending": "等待中",
+      "shadow": "影子验证",
+      "canary": "小流量验证",
+      "awaiting_approval": "待审批",
+      "blocked": "已阻塞",
+      "failed": "失败",
+      "rejected": "已拒绝",
+      "rolled_back": "已回滚",
+      "cancelled": "已取消",
+      "draft": "草稿",
+      "paused": "已暂停",
+      "archived": "已归档",
+      "accepted": "已接受",
+      "superseded": "已替换",
+      "expired": "已过期",
+      "agent_run": "智能体运行",
+      "approval": "审批",
+      "decision": "决策",
+      "artifact": "产物",
+      "budget_usage": "预算使用",
+      "audit_event": "审计事件",
+      "prd": "PRD",
+      "report": "报告",
+      "qa_result": "验收结果",
+      "issue": "问题",
+      "merge_request": "合并请求",
+      "code_patch": "代码补丁",
+      "run_walkthrough": "运行说明",
+      "other": "其他"
+    },
+    "priorityLabels": {
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "critical": "紧急"
+    },
+    "scopeLabels": {
+      "company": "公司",
+      "goal": "目标",
+      "agent": "智能体",
+      "work_item": "工作项"
+    },
+    "periodLabels": {
+      "daily": "每日",
+      "monthly": "每月",
+      "quarterly": "每季度",
+      "total": "总计"
+    }
   },
   "agents": {
     "title": "智能体舰队",
-    "description": "监控和管理您的 AI 智能体舰队",
+    "description": "先看清哪些 AI 同事正在工作、暂停或需要处理，再进入详情。",
     "searchPlaceholder": "搜索智能体...",
     "all": "全部",
     "running": "运行中",
     "idle": "空闲",
     "paused": "已暂停",
+    "warning": "预警",
     "error": "异常",
     "stopped": "已停止",
     "allKinds": "全部智能体类型",
     "noAgents": "该分组暂无智能体",
+    "noMatchingAgents": "当前视图没有匹配的智能体",
+    "summaryAriaLabel": "智能体舰队状态概览",
+    "summary": {
+      "total": {
+        "label": "AI 同事",
+        "description": "已配置的角色和服务智能体"
+      },
+      "running": {
+        "label": "正在工作",
+        "description": "可用或正在处理任务"
+      },
+      "attention": {
+        "label": "需要关注",
+        "description": "存在预警、异常或失败运行"
+      },
+      "offline": {
+        "label": "暂停或离线",
+        "description": "暂时不能接收新任务"
+      }
+    },
+    "statusLabels": {
+      "running": "运行中",
+      "idle": "空闲",
+      "paused": "已暂停",
+      "warning": "预警",
+      "error": "异常",
+      "stopped": "已停止"
+    },
+    "agentKindBadges": {
+      "organization_role": "角色",
+      "business_runtime_agent": "智能体",
+      "capability_module": "能力",
+      "integration_gateway": "网关",
+      "system_worker": "系统",
+      "reserved": "预留"
+    },
+    "domainLabels": {
+      "product": "产品",
+      "engineering": "工程",
+      "quality": "质量",
+      "operations": "运营",
+      "business": "业务",
+      "marketSales": "市场销售",
+      "dataAi": "数据与 AI"
+    },
+    "domainRunningSummary": "运行中 {running}/{total}",
+    "taskCount": "项任务",
+    "pendingCount": "项待处理",
+    "errorCount": "个异常",
+    "healthLabel": "健康度 {value}%",
     "agentsWillAppear": "智能体配置完成后将显示在此处。",
     "createAgent": "新建智能体",
     "createAgentDescription": "先填写运营日常需要的信息；运行参数仍可在高级设置中维护。",
@@ -468,6 +768,7 @@
       "project-management-agent": "项目管理智能体",
       "quality-agent": "质量验收智能体",
       "development-agent": "研发执行智能体",
+      "chat-agent": "对话智能体",
       "reception": "用户入口网关",
       "orchestrator": "协调器",
       "sync-capability": "同步能力模块",
@@ -481,6 +782,13 @@
     "reportsTo": "汇报给",
     "noManager": "无上级",
     "adapterType": "运行适配器",
+    "adapterTypeOptions": {
+      "builtin": "内置运行服务",
+      "codex_local": "本地 Codex 执行器",
+      "claude_local": "本地 Claude 执行器",
+      "process": "本地进程",
+      "http": "外部 HTTP 服务"
+    },
     "model": "模型",
     "baseUrl": "服务地址",
     "requestPath": "请求路径",
@@ -508,21 +816,23 @@
     "runtimeLoadError": "实时运行状态加载失败。"
   },
   "agentDetail": {
-    "backToFleet": "舰队",
+    "backToFleet": "智能体",
     "overview": "概览",
-    "events": "事件",
-    "config": "配置",
-    "processed": "已处理",
-    "pending": "待处理",
-    "errors": "异常",
-    "health": "健康度",
-    "uptime": "运行时长",
-    "connectedAgents": "关联智能体",
-    "noConnections": "暂无关联",
-    "loadingEvents": "正在加载事件...",
-    "eventsLoadError": "事件加载失败。",
-    "noEvents": "该智能体暂无真实事件记录。",
-    "runEvent": "运行 {runId} 当前状态为 {status}",
+    "events": "运行记录",
+    "config": "运行设置",
+    "processed": "运行记录",
+    "pending": "待推进事项",
+    "errors": "需关注",
+    "health": "稳定度",
+    "uptime": "持续运行",
+    "uptimeDaysHours": "{days} 天 {hours} 小时",
+    "uptimeHoursMinutes": "{hours} 小时 {minutes} 分钟",
+    "connectedAgents": "协作流向",
+    "noConnections": "暂无协作对象",
+    "loadingEvents": "正在加载运行记录...",
+    "eventsLoadError": "运行记录加载失败。",
+    "noEvents": "该智能体暂无运行记录。",
+    "runEvent": "证据 {runId}：{status}",
     "runtimeLoadError": "实时运行状态加载失败。",
     "notFound": "未找到该智能体",
     "agentId": "智能体 ID",
@@ -541,7 +851,11 @@
     "approvalTypes": "审批类型",
     "upstream": "上游智能体",
     "downstream": "下游智能体",
+    "configDescription": "默认只显示运营人员需要判断的信息；服务标识、事件契约和组件配置收在高级详情里。",
+    "advancedRuntimeDetails": "高级运行详情",
+    "advancedRuntimeDetailsDescription": "供平台工程师排查接入、事件和组件配置时使用，日常运营无需修改。",
     "systemPrompt": "系统提示词",
+    "systemPromptDescription": "仅在需要调整智能体行为边界时修改；保存后会影响后续运行。",
     "promptNotConfigured": "未配置覆盖提示词",
     "promptUpdatedAt": "更新时间",
     "promptLoadError": "提示词配置加载失败。",
@@ -554,6 +868,42 @@
     "editAgentDescription": "更新这个智能体是谁、负责什么；需要时再调整高级运行设置。",
     "saveAgent": "保存智能体",
     "agentUpdating": "保存中",
-    "agentUpdateSuccess": "智能体已更新"
+    "agentUpdateSuccess": "智能体已更新",
+    "tabLabels": {
+      "overview": "概览",
+      "tasks": "任务",
+      "events": "运行记录",
+      "connections": "协作关系",
+      "config": "运行设置",
+      "logs": "日志"
+    },
+    "approvalTypeLabels": {
+      "finance": "财务审批",
+      "legal": "法务审批",
+      "technical": "技术审批",
+      "customer": "客户确认"
+    },
+    "contextSourceLabels": {
+      "agentforge": "AgentForge 交付平台",
+      "controlPlane": "控制面任务",
+      "eventBus": "事件总线",
+      "feishu": "飞书",
+      "gitlab": "GitLab",
+      "manualUpload": "手动上传",
+      "openProject": "OpenProject",
+      "scratchpad": "临时工作区",
+      "traces": "运行追踪",
+      "wecom": "企业微信"
+    },
+    "adapterTypeLabels": {
+      "builtin": "内置运行服务",
+      "http": "外部 HTTP 服务",
+      "openaiAssistant": "OpenAI Assistant"
+    },
+    "widgetLabels": {
+      "requirements": "需求复核",
+      "ingest": "内容接入",
+      "questions": "待确认问题"
+    }
   }
 }

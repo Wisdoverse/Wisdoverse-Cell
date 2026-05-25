@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   Table,
   TableBody,
@@ -14,20 +14,36 @@ import { Badge } from "@/shared/ui/badge";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { getSession } from "@/lib/api/messages";
-import type { MessageSearchResult, MessageSession } from "@/lib/api/types";
+import type {
+  MessageSearchResult,
+  MessageSession,
+  MessageType,
+} from "@/lib/api/types";
 
 interface MessageTableProps {
   data: MessageSearchResult[];
   isLoading: boolean;
 }
 
-function formatTime(iso: string): string {
+const messageTypeKeys: Record<MessageType, string> = {
+  text: "text",
+  image: "image",
+  file: "file",
+  system: "system",
+};
+
+function formatTime(iso: string, locale: string): string {
   const date = new Date(iso);
   if (isNaN(date.getTime())) {
     console.warn("[message-table] Invalid timestamp received:", iso);
     return iso;
   }
-  return date.toLocaleString();
+  return new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function truncate(text: string, max: number): string {
@@ -36,6 +52,7 @@ function truncate(text: string, max: number): string {
 
 export function MessageTable({ data, isLoading }: MessageTableProps) {
   const t = useTranslations("messages");
+  const locale = useLocale();
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [session, setSession] = useState<MessageSession | null>(null);
   const [sessionLoading, setSessionLoading] = useState(false);
@@ -77,7 +94,7 @@ export function MessageTable({ data, isLoading }: MessageTableProps) {
   }
 
   if (data.length === 0) {
-    return <EmptyState />;
+    return <EmptyState message={t("noResults")} />;
   }
 
   return (
@@ -87,9 +104,9 @@ export function MessageTable({ data, isLoading }: MessageTableProps) {
           <TableRow>
             <TableHead>{t("sender")}</TableHead>
             <TableHead>{t("content")}</TableHead>
-            <TableHead>{t("source")}</TableHead>
+            <TableHead>{t("messageType")}</TableHead>
             <TableHead>{t("time")}</TableHead>
-            <TableHead>{t("extracted")}</TableHead>
+            <TableHead>{t("status")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -105,14 +122,17 @@ export function MessageTable({ data, isLoading }: MessageTableProps) {
                 <TableCell className="max-w-xs">
                   {truncate(row.content, 80)}
                 </TableCell>
-                <TableCell>{row.message_type}</TableCell>
+                <TableCell>{t(`messageTypes.${messageTypeKeys[row.message_type]}`)}</TableCell>
                 <TableCell className="whitespace-nowrap">
-                  {formatTime(row.sent_at)}
+                  {formatTime(row.sent_at, locale)}
                 </TableCell>
                 <TableCell>
-                  {row.extracted && (
-                    <Badge variant="secondary">{t("extracted")}</Badge>
-                  )}
+                  <Badge
+                    variant={row.extracted ? "secondary" : "outline"}
+                    className="rounded-md"
+                  >
+                    {row.extracted ? t("extracted") : t("notExtracted")}
+                  </Badge>
                 </TableCell>
               </TableRow>
               {expandedRow === row.id && (
@@ -130,6 +150,9 @@ export function MessageTable({ data, isLoading }: MessageTableProps) {
                       </p>
                     ) : session ? (
                       <div className="space-y-2">
+                        <p className="text-muted-foreground text-xs">
+                          {t("sessionContext")}
+                        </p>
                         {session.messages.map((msg) => (
                           <div
                             key={msg.id}
@@ -142,7 +165,7 @@ export function MessageTable({ data, isLoading }: MessageTableProps) {
                               {msg.content}
                             </span>
                             <span className="text-xs text-muted-foreground shrink-0">
-                              {formatTime(msg.sent_at)}
+                              {formatTime(msg.sent_at, locale)}
                             </span>
                           </div>
                         ))}

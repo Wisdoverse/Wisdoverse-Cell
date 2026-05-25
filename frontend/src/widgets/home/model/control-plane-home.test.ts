@@ -8,6 +8,7 @@ import type {
 } from "@/entities/control-plane";
 import {
   controlPlaneRuntimeForAgent,
+  selectHomeOperatorFocus,
   selectPriorityWorkItem,
   summarizeHomeCommandCenter,
 } from "./control-plane-home";
@@ -221,5 +222,51 @@ describe("summarizeHomeCommandCenter", () => {
 
     expect(selectPriorityWorkItem([queued, blocked])?.work_item_id).toBe("work_blocked");
     expect(selectPriorityWorkItem([queued, blocked, failed])?.work_item_id).toBe("work_failed");
+  });
+
+  it("selects the operator focus in action priority order", () => {
+    const blockedSummary = summarizeHomeCommandCenter({
+      agents: [agent("active")],
+      runs: [],
+      workItems: [workItem("blocked"), workItem("awaiting_approval")],
+      approvals: [approval("pending")],
+    });
+    expect(selectHomeOperatorFocus(blockedSummary)).toMatchObject({
+      kind: "resolveBlockers",
+      href: "/workflows",
+    });
+
+    const approvalSummary = summarizeHomeCommandCenter({
+      agents: [agent("active")],
+      runs: [],
+      workItems: [workItem("awaiting_approval")],
+      approvals: [approval("pending")],
+    });
+    expect(selectHomeOperatorFocus(approvalSummary)).toMatchObject({
+      kind: "reviewApprovals",
+      href: "/approvals",
+    });
+
+    const readySummary = summarizeHomeCommandCenter({
+      agents: [agent("active")],
+      runs: [],
+      workItems: [workItem("ready")],
+      approvals: [],
+    });
+    expect(selectHomeOperatorFocus(readySummary)).toMatchObject({
+      kind: "assignWork",
+      href: "/workflows",
+    });
+
+    const clearSummary = summarizeHomeCommandCenter({
+      agents: [agent("active")],
+      runs: [],
+      workItems: [],
+      approvals: [],
+    });
+    expect(selectHomeOperatorFocus(clearSummary)).toMatchObject({
+      kind: "startWork",
+      href: "/ingest",
+    });
   });
 });
