@@ -14,6 +14,8 @@ import type { Category, RequirementFilters } from "@/lib/api/types";
 interface RequirementsFiltersProps {
   filters: RequirementFilters;
   onFiltersChange: (filters: RequirementFilters) => void;
+  searchQuery: string;
+  onSearchQueryChange: (value: string) => void;
 }
 
 const CATEGORY_I18N_KEYS: Record<Category, string> = {
@@ -31,6 +33,8 @@ const CATEGORIES = Object.keys(CATEGORY_I18N_KEYS) as Category[];
 export function RequirementsFilters({
   filters,
   onFiltersChange,
+  searchQuery,
+  onSearchQueryChange,
 }: RequirementsFiltersProps) {
   const t = useTranslations("requirements");
 
@@ -96,6 +100,8 @@ export function RequirementsFilters({
 
       <Input
         placeholder={t("semanticSearch")}
+        value={searchQuery}
+        onChange={(event) => onSearchQueryChange(event.target.value)}
         className="w-[240px]"
       />
     </div>

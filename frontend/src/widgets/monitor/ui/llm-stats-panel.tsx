@@ -63,7 +63,9 @@ export function LLMStatsPanel({ data, isLoading }: LLMStatsPanelProps) {
     },
     {
       label: t("avgLatency"),
-      value: `${(data?.avg_latency_ms || 0).toFixed(0)}ms`,
+      value: t("latencyValue", {
+        value: (data?.avg_latency_ms || 0).toFixed(0),
+      }),
     },
   ];
 

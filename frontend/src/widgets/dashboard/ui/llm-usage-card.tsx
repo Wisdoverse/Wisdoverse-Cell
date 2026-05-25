@@ -110,7 +110,9 @@ export function LLMUsageCard({
           <div className="rounded-lg border p-3">
             <p className="text-sm text-muted-foreground">{t("avgLatency")}</p>
             <p className="text-2xl font-bold">
-              {(data?.avg_latency_ms || 0).toFixed(0)}ms
+              {t("latencyValue", {
+                value: (data?.avg_latency_ms || 0).toFixed(0),
+              })}
             </p>
           </div>
         </div>

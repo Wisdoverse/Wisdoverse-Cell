@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/shared/ui/button";
 import { Textarea } from "@/shared/ui/textarea";
+import { Label } from "@/shared/ui/label";
 import { answerQuestion } from "@/lib/api/export";
 
 interface AnswerFormProps {
@@ -38,12 +39,16 @@ export function AnswerForm({ questionId, onSuccess }: AnswerFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <Textarea
-        placeholder={t("answerPlaceholder")}
-        value={answer}
-        onChange={(e) => setAnswer(e.target.value)}
-        rows={3}
-      />
+      <div className="space-y-2">
+        <Label htmlFor={`answer-${questionId}`}>{t("answerLabel")}</Label>
+        <Textarea
+          id={`answer-${questionId}`}
+          placeholder={t("answerPlaceholder")}
+          value={answer}
+          onChange={(e) => setAnswer(e.target.value)}
+          rows={3}
+        />
+      </div>
       <Button
         type="submit"
         size="sm"

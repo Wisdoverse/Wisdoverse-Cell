@@ -452,7 +452,7 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
                       <SelectContent>
                         {ADAPTER_TYPES.map((adapterType) => (
                           <SelectItem key={adapterType} value={adapterType}>
-                            {adapterType}
+                            {t(`adapterTypeOptions.${adapterType}`)}
                           </SelectItem>
                         ))}
                       </SelectContent>

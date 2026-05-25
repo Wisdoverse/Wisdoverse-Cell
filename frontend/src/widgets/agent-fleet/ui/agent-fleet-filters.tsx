@@ -30,6 +30,7 @@ const STATUS_OPTIONS = [
   "running",
   "idle",
   "paused",
+  "warning",
   "error",
   "stopped",
 ] as const;

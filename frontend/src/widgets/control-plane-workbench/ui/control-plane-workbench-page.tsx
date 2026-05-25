@@ -190,6 +190,8 @@ function formatDate(value: string | null | undefined, locale: string): string {
 }
 
 function StatusBadge({ value }: { value: string }) {
+  const t = useTranslations("controlPlane");
+
   return (
     <Badge
       variant="outline"
@@ -199,12 +201,14 @@ function StatusBadge({ value }: { value: string }) {
           "border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-300",
       )}
     >
-      {value.replaceAll("_", " ")}
+      {t(`statusLabels.${value}`)}
     </Badge>
   );
 }
 
 function WorkPriorityBadge({ priority }: { priority: WorkItemPriority }) {
+  const t = useTranslations("controlPlane");
+
   return (
     <Badge
       variant="outline"
@@ -213,7 +217,7 @@ function WorkPriorityBadge({ priority }: { priority: WorkItemPriority }) {
         priorityClass[priority],
       )}
     >
-      {priority}
+      {t(`priorityLabels.${priority}`)}
     </Badge>
   );
 }
@@ -508,6 +512,7 @@ function UpdateWorkItemDialog({ workbench }: { workbench: Workbench }) {
               value={status}
               values={workItemStatuses}
               onChange={setStatus}
+              labelForValue={(value) => t(`statusLabels.${value}`)}
             />
           </div>
           <div className="space-y-2">
@@ -541,11 +546,13 @@ function PolicySelect<T extends string>({
   value,
   values,
   onChange,
+  labelForValue,
 }: {
   id: string;
   value: T;
   values: T[];
   onChange: (value: T) => void;
+  labelForValue?: (value: T) => string;
 }) {
   return (
     <Select value={value} onValueChange={(next) => onChange(next as T)}>
@@ -555,7 +562,7 @@ function PolicySelect<T extends string>({
       <SelectContent>
         {values.map((item) => (
           <SelectItem key={item} value={item}>
-            {item.replaceAll("_", " ")}
+            {labelForValue ? labelForValue(item) : item.replaceAll("_", " ")}
           </SelectItem>
         ))}
       </SelectContent>
@@ -635,6 +642,7 @@ function CreateBudgetPolicyDialog({ workbench }: { workbench: Workbench }) {
                   setScope(value);
                   setScopeId(value === "company" ? "" : scopeId || "dev-agent");
                 }}
+                labelForValue={(value) => t(`scopeLabels.${value}`)}
               />
             </div>
             <div className="space-y-2">
@@ -644,6 +652,7 @@ function CreateBudgetPolicyDialog({ workbench }: { workbench: Workbench }) {
                 value={period}
                 values={budgetPeriods}
                 onChange={setPeriod}
+                labelForValue={(value) => t(`periodLabels.${value}`)}
               />
             </div>
             <div className="space-y-2">
@@ -653,6 +662,7 @@ function CreateBudgetPolicyDialog({ workbench }: { workbench: Workbench }) {
                 value={status}
                 values={budgetStatuses}
                 onChange={setStatus}
+                labelForValue={(value) => t(`statusLabels.${value}`)}
               />
             </div>
             <div className="space-y-2">
@@ -785,6 +795,7 @@ function EditBudgetPolicyDialog({
                 value={status}
                 values={budgetStatuses}
                 onChange={setStatus}
+                labelForValue={(value) => t(`statusLabels.${value}`)}
               />
             </div>
             <div className="space-y-2">
@@ -915,7 +926,7 @@ function BudgetPolicyItem({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate text-[13px] font-semibold leading-5">
-            {policy.scope.replaceAll("_", " ")} / {policy.period}
+            {t(`scopeLabels.${policy.scope}`)} / {t(`periodLabels.${policy.period}`)}
           </div>
           <div className="mt-1 truncate text-xs text-muted-foreground">
             {policy.scope_id ?? policy.company_id}
@@ -1657,6 +1668,9 @@ export function ControlPlaneWorkbenchPage() {
               <h1 className="text-[1.7rem] font-semibold leading-tight tracking-normal text-zinc-950 sm:text-[2rem] dark:text-white">
                 {workbench.selectedGoal?.title ?? t("title")}
               </h1>
+              <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+                {t("operatorDescription")}
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {workbench.activeRunId && (

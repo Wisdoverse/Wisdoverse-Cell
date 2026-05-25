@@ -22,7 +22,7 @@
     "home": "ホーム",
     "activityFeed": "アクティビティ",
     "workflows": "ワークフロー",
-    "controlPlane": "コントロールプレーン",
+    "controlPlane": "ワークフローデスク",
     "approvals": "承認センター",
     "agents": "エージェント",
     "fleetOverview": "フリート概要",
@@ -39,40 +39,48 @@
     "settings": "設定"
   },
   "costUsage": {
-    "title": "コストと使用量",
-    "totalCost": "総コスト",
-    "totalTokens": "総トークン数",
+    "title": "モデルコスト",
+    "description": "モデル費用、使用量、どのエージェントが容量を多く使っているかを確認します。",
+    "totalCost": "総費用",
+    "totalTokens": "モデル使用量",
     "avgDailyCost": "日次平均",
     "dailyCost": "日次コスト",
-    "tokenUsageByAgent": "エージェント別トークン使用量",
+    "tokenUsageByAgent": "エージェント別モデル使用量",
     "noCostData": "この期間のコスト記録はありません。",
-    "noTokenData": "この期間のトークン使用量はありません。",
+    "noTokenData": "この期間のモデル使用量はありません。",
     "agent": "エージェント",
-    "tokens": "トークン",
-    "cost": "コスト"
+    "tokens": "使用量",
+    "cost": "コスト",
+    "periods": {
+      "7d": "7日",
+      "30d": "30日",
+      "90d": "90日"
+    }
   },
   "dashboard": {
-    "title": "ダッシュボード",
+    "title": "運用概要",
+    "description": "要件確認、AIチームメイトの状態、モデル使用量、次の運用アクションを確認します。",
     "pending": "確認待ち",
     "confirmed": "確認済み",
     "rejected": "却下済み",
-    "total": "総要件数",
-    "statusDistribution": "要件ステータス分布",
-    "llmUsage": "本日のLLM使用統計",
-    "weeklyTrend": "今週の要件トレンド",
-    "quickActions": "クイックアクション",
+    "total": "すべての要件",
+    "statusDistribution": "要件の準備状況",
+    "llmUsage": "本日のモデル使用量",
+    "weeklyTrend": "要件流入トレンド",
+    "quickActions": "次のアクション",
     "uploadMeeting": "議事録をアップロード",
     "exportPRD": "PRDをエクスポート",
-    "pendingRequirements": "確認待ち要件",
+    "pendingRequirements": "要件を確認",
     "refresh": "データを更新",
     "cost": "コスト (USD)",
-    "tokens": "総トークン数",
-    "calls": "API呼び出し回数",
-    "avgLatency": "平均レイテンシ",
-    "circuitBreaker": "サーキットブレーカー状態",
+    "tokens": "モデル使用量",
+    "calls": "モデル呼び出し",
+    "avgLatency": "平均応答",
+    "latencyValue": "{value} ミリ秒",
+    "circuitBreaker": "モデル保護状態",
     "circuitClosed": "正常",
-    "circuitOpen": "オープン",
-    "circuitHalfOpen": "ハーフオープン",
+    "circuitOpen": "一時停止",
+    "circuitHalfOpen": "回復確認中",
     "exportFailed": "PRDのエクスポートに失敗しました。再度お試しください。",
     "loadError": "一部のデータの読み込みに失敗しました。ページを更新してください。",
     "noData": "データがありません",
@@ -82,16 +90,27 @@
     "fleet_running": "実行中",
     "fleet_idle": "待機中",
     "fleet_error": "エラー",
-    "fleet_stopped": "停止中"
+    "fleet_stopped": "停止中",
+    "trendTooltip": "要件数",
+    "statusLabels": {
+      "pending": "確認待ち",
+      "confirmed": "確認済み",
+      "rejected": "却下済み",
+      "changed": "変更済み"
+    }
   },
   "requirements": {
     "title": "要件管理",
+    "pageDescription": "抽出された要件を確認し、未回答の質問を解消してから、デリバリー可能な項目だけを確認します。",
     "list": "要件一覧",
     "detail": "要件詳細",
     "allStatus": "全ステータス",
     "allPriority": "全優先度",
     "allCategory": "全カテゴリ",
-    "semanticSearch": "セマンティック検索...",
+    "semanticSearch": "現在の表示を検索...",
+    "pendingReviewSummary": "確認待ち",
+    "highPrioritySummary": "高優先度",
+    "openQuestionsSummary": "未回答の質問",
     "batchConfirm": "一括確認",
     "batchReject": "一括却下",
     "confirmTitle": "要件を確認",
@@ -120,7 +139,13 @@
     "batchConfirmSuccess": "{total}件中{succeeded}件の要件を確認しました",
     "batchRejectSuccess": "{total}件中{succeeded}件の要件を却下しました",
     "selectedCount": "{count}件選択中",
+    "selectAll": "すべての要件を選択",
+    "selectRequirement": "{title}を選択",
+    "confirmRequirement": "{title}を確認",
+    "rejectRequirement": "{title}を却下",
+    "openQuestionCount": "{count}件の未回答質問",
     "description": "説明",
+    "titleField": "タイトル",
     "confirmedBy": "確認者",
     "confirmedAt": "確認日時",
     "rejectionReason": "却下理由",
@@ -132,6 +157,10 @@
     "similarity": "類似度",
     "noSimilar": "類似要件が見つかりません",
     "noHistory": "変更履歴がありません",
+    "justNow": "たった今",
+    "changedBy": "変更者：{actor}",
+    "changeFromTo": "{field}：{oldValue} -> {newValue}",
+    "changeValue": "{field}：{value}",
     "noContext": "コンテキストメッセージがありません",
     "notFound": "要件が見つかりません",
     "noQuestions": "関連質問がありません",
@@ -151,35 +180,92 @@
   },
   "ingest": {
     "title": "コンテンツ取込",
+    "description": "議事録やメッセージ記録を貼り付け、エージェントが要件と確認すべき質問に変換します。",
+    "guidanceAriaLabel": "コンテンツ取込フロー",
+    "guidance": {
+      "extract": {
+        "title": "要件を抽出",
+        "description": "エージェントが具体的な依頼、担当者、デリバリーの手がかりを見つけます。"
+      },
+      "questions": {
+        "title": "不明点を見つける",
+        "description": "曖昧または不足している情報は、運用担当者が回答する質問になります。"
+      },
+      "review": {
+        "title": "デリバリー前に確認",
+        "description": "作業を進める前に、実行可能な要件を確認し質問を解消します。"
+      }
+    },
     "uploadTab": "手動アップロード",
     "wechatTab": "WeChat記録",
     "titleField": "タイトル（任意）",
     "titlePlaceholder": "会議テーマ",
     "contentField": "会議内容",
     "contentPlaceholder": "議事録またはチャット記録を貼り付けてください...",
+    "contentHelp": "決定事項、依頼、日付、担当者、顧客の原文があれば含めてください。",
     "contextField": "コンテキスト説明（任意）",
     "contextPlaceholder": "例：1月18日のクライアントAとの要件打ち合わせ",
+    "contextHelp": "貼り付けた内容にない背景、顧客、チャネル、プロジェクト、会議目的を補足します。",
     "submit": "要件を抽出",
     "success": "{count}件の要件を抽出しました",
+    "successDescription": "作業を割り当てる前に、抽出された要件を確認し生成された質問に回答してください。",
     "viewRequirements": "要件一覧を表示",
     "viewQuestions": "質問を表示"
   },
   "questions": {
     "title": "確認待ち質問",
+    "description": "未確定の質問に回答し、曖昧な要件を実行可能な作業に変えます。",
     "noQuestions": "確認待ちの質問はありません",
+    "summaryAriaLabel": "確認待ち質問サマリー",
+    "summary": {
+      "waiting": {
+        "label": "回答待ち",
+        "description": "要件確認を止めている質問"
+      },
+      "withContext": {
+        "label": "文脈あり",
+        "description": "周辺メモを含む質問"
+      },
+      "oldest": {
+        "label": "最長待機",
+        "description": "最も古い未回答質問の経過日数"
+      }
+    },
+    "contextLabel": "出典コンテキスト",
+    "askedAt": "{time} に作成",
+    "answerLabel": "回答",
     "answerPlaceholder": "回答を入力...",
     "submitAnswer": "回答を送信",
-    "answerSuccess": "回答を送信しました"
+    "answerSuccess": "回答を送信しました",
+    "statusLabels": {
+      "open": "回答待ち",
+      "answered": "回答済み",
+      "dismissed": "却下済み"
+    }
   },
   "monitor": {
     "title": "運用監視",
+    "description": "エンジニアへエスカレーションする前に、主要サービスとモデル呼び出しが利用可能か確認します。",
     "systemHealth": "システムヘルス",
     "allServicesNormal": "全サービス正常",
-    "serviceDown": "サービス異常",
-    "resetCircuitBreaker": "手動リセット",
-    "resetSuccess": "サーキットブレーカーをリセットしました",
-    "resetFailed": "サーキットブレーカーのリセットに失敗しました",
+    "serviceDown": "対応が必要なサービスがあります",
+    "modelProtection": "モデル保護状態",
+    "modelProtectionDescription": "モデル呼び出しが連続して失敗すると自動的に一時停止します。モデル経路の回復を確認してから復旧してください。",
+    "modelProtectionClosed": "正常",
+    "modelProtectionOpen": "連続失敗を防ぐため一時停止",
+    "modelProtectionHalfOpen": "回復を確認中",
+    "resetCircuitBreaker": "モデル呼び出しを復旧",
+    "resetSuccess": "モデル呼び出しを復旧しました",
+    "resetFailed": "モデル呼び出しの復旧に失敗しました",
     "loadError": "一部の監視データの読み込みに失敗しました。",
+    "latencyValue": "{value} ミリ秒",
+    "statusLabels": {
+      "ok": "正常",
+      "healthy": "正常",
+      "degraded": "低速",
+      "unhealthy": "対応が必要",
+      "unknown": "不明"
+    },
     "services": {
       "postgres": "PostgreSQL",
       "redis": "Redis",
@@ -189,22 +275,56 @@
   },
   "messages": {
     "title": "メッセージ管理",
+    "description": "元の会話を検索し、文脈を確認し、どのメッセージが要件化済みかを確認します。",
     "searchKeyword": "キーワード検索...",
     "sender": "送信者",
+    "senderPlaceholder": "送信者名またはID",
     "timeRange": "期間",
+    "startDate": "開始日",
+    "endDate": "終了日",
     "content": "内容",
     "source": "ソース",
+    "messageType": "メッセージ種別",
     "time": "時刻",
     "extracted": "抽出済み",
-    "sessionLoadError": "セッションの読み込みに失敗しました"
+    "notExtracted": "未抽出",
+    "status": "状態",
+    "noResults": "現在の検索条件に一致するメッセージはありません。",
+    "sessionContext": "会話コンテキスト",
+    "sessionLoadError": "セッションの読み込みに失敗しました",
+    "summaryAriaLabel": "メッセージ検索サマリー",
+    "summary": {
+      "shown": {
+        "label": "表示メッセージ",
+        "description": "現在の検索結果"
+      },
+      "extracted": {
+        "label": "抽出済み",
+        "description": "すでに要件生成に使われたメッセージ"
+      },
+      "sessions": {
+        "label": "会話",
+        "description": "文脈を展開できる会話"
+      }
+    },
+    "messageTypes": {
+      "text": "テキスト",
+      "image": "画像",
+      "file": "ファイル",
+      "system": "システムメッセージ"
+    }
   },
   "settings": {
     "title": "設定",
+    "description": "現在の運用担当者、表示言語、画面表示の設定を管理します。",
     "account": "アカウント",
     "accountDescription": "現在サインイン中のオペレーター",
     "name": "名前",
     "email": "メール",
     "role": "ロール",
+    "roleAdmin": "管理者",
+    "roleManager": "運用管理者",
+    "roleViewer": "閲覧のみ",
     "session": "セッション",
     "sessionActive": "有効",
     "signOut": "ログアウト",
@@ -221,22 +341,22 @@
     "logout": "ログアウト",
     "loginWithFeishu": "Feishuでログイン",
     "loginWithWecom": "WeComでログイン",
-    "username": "ユーザー名",
+    "username": "業務メール",
     "password": "パスワード",
-    "usernamePlaceholder": "ユーザー名を入力",
+    "usernamePlaceholder": "業務メールを入力",
     "passwordPlaceholder": "パスワードを入力",
     "loginError": "ユーザー名またはパスワードが正しくありません",
     "networkError": "サーバーに接続できません。しばらくしてから再度お試しください。",
-    "loginDescription": "アカウントにサインインして続行",
+    "loginDescription": "運用デスクにサインインし、要件、承認、実行記録の確認を続けます。",
     "signingIn": "サインイン中...",
-    "setupDescription": "最初の管理者アカウントを作成",
-    "adminEmail": "管理者メール",
+    "setupDescription": "運用入口とチームアクセスを管理する最初のワークスペース管理者を作成します。",
+    "adminEmail": "業務メール",
     "adminEmailPlaceholder": "admin@example.com",
     "displayName": "表示名",
-    "displayNamePlaceholder": "管理者",
+    "displayNamePlaceholder": "運用責任者",
     "confirmPassword": "パスワード確認",
     "confirmPasswordPlaceholder": "パスワードを再入力",
-    "createAdmin": "管理者を作成",
+    "createAdmin": "管理者アカウントを作成",
     "creatingAdmin": "作成中...",
     "setupPasswordMismatch": "パスワードが一致しません",
     "setupConflict": "管理者アカウントは既に存在します",
@@ -274,19 +394,109 @@
     "agentFleet": "エージェントフリート",
     "recentActivity": "最近のアクティビティ",
     "noApprovals": "承認待ちの項目はありません",
-    "noActivity": "最近のアクティビティはありません"
+    "noActivity": "最近のアクティビティはありません",
+    "noAgents": "このグループにはエージェントがありません",
+    "commandCenter": {
+      "badge": "運用コマンドセンター",
+      "description": "稼働中のエージェント、作業キュー、承認、実行証跡を一画面で確認できます。",
+      "actions": {
+        "workflows": "ワークフロー",
+        "agents": "フリート",
+        "approvals": "承認"
+      },
+      "workflowTitle": "作業キュー",
+      "workflowDescription": "現在の運用レーンに {count} 件の未完了作業があります。",
+      "runningWork": "実行中",
+      "readyWork": "準備済みまたは待機中",
+      "approvalWork": "承認待ち",
+      "blockedWork": "ブロックまたは失敗",
+      "priorityTitle": "次の引き継ぎ",
+      "priorityDescription": "最初に処理すべき高リスクの作業項目です。",
+      "queueEmptyTitle": "キューは空です",
+      "queueEmptyDescription": "対応が必要なブロック、待機、キュー中の作業はありません。",
+      "unassigned": "未割り当て",
+      "focus": {
+        "activityCta": "アクティビティを表示",
+        "resolveBlockers": {
+          "badge": "{count} 件の緊急シグナル",
+          "title": "ブロックを先に解消",
+          "description": "失敗またはブロックされた作業がデリバリーを止めています。ワークフローデスクで担当者を確認し、再試行、再割り当て、エスカレーションを判断してください。",
+          "cta": "ワークフローを開く"
+        },
+        "reviewApprovals": {
+          "badge": "{count} 件の承認待ち",
+          "title": "承認待ちを確認",
+          "description": "エージェントは人の判断を待っています。承認前に依頼内容、リスク、ロールバック手順を確認してください。",
+          "cta": "承認を開く"
+        },
+        "assignWork": {
+          "badge": "{count} 件が着手可能",
+          "title": "次の作業を割り当て",
+          "description": "準備済みまたは未割り当ての作業が担当者を待っています。適切なエージェントまたは運用担当者に渡して実行を進めてください。",
+          "cta": "作業を割り当て"
+        },
+        "monitorRuns": {
+          "badge": "{count} 件が実行中",
+          "title": "実行中の作業を監視",
+          "description": "現在作業が実行されています。アクティビティで完了、失敗、新しい承認依頼を確認してください。",
+          "cta": "アクティビティを見る"
+        },
+        "startWork": {
+          "badge": "キューは空です",
+          "title": "新しい入力から開始",
+          "description": "緊急対応が必要な作業はありません。議事録、メッセージ、タスク文脈を取り込み、次の運用ループを始めてください。",
+          "cta": "コンテンツを取り込む"
+        }
+      },
+      "evidenceTitle": "実行証跡",
+      "evidenceDescription": "最新の実行、コスト、カバレッジ信号です。",
+      "activeAgents": "エージェント",
+      "goalCoverage": "目標カバレッジ",
+      "latestRun": "最新実行",
+      "runCost": "実行コスト",
+      "tokens": "トークン",
+      "completedRuns": "完了した実行",
+      "unassignedWork": "未割り当て作業"
+    }
   },
   "activity": {
     "title": "アクティビティ",
-    "description": "AIエージェントフリートのすべてのアクティビティ",
+    "description": "エージェントの作業状況、完了した実行、対応が必要な実行を追跡します。",
     "today": "今日",
     "yesterday": "昨日",
     "allDomains": "すべてのドメイン",
+    "summaryAriaLabel": "アクティビティサマリー",
+    "summary": {
+      "total": {
+        "label": "実行記録",
+        "description": "このフィードの最近のエージェント作業"
+      },
+      "running": {
+        "label": "進行中",
+        "description": "確認が必要な待機中または実行中の作業"
+      },
+      "attention": {
+        "label": "対応が必要",
+        "description": "失敗、キャンセル、タイムアウトした実行"
+      },
+      "completed": {
+        "label": "完了",
+        "description": "正常に完了した実行"
+      }
+    },
     "noActivity": "アクティビティはありません",
     "noActivityDescription": "エージェントのアクティビティがここに表示されます。",
     "loading": "アクティビティを読み込み中...",
     "loadError": "アクティビティを読み込めません。",
-    "runEvent": "実行 {runId} は {status} です"
+    "runEvent": "証跡 {runId}: {status}",
+    "runStatuses": {
+      "pending": "開始待ち",
+      "running": "実行中",
+      "succeeded": "正常に完了",
+      "failed": "失敗、確認が必要",
+      "cancelled": "キャンセル済み",
+      "timed_out": "タイムアウト、確認が必要"
+    }
   },
   "events": {
     "requirementConfirmed": "要件が確認されました",
@@ -296,7 +506,7 @@
   },
   "approvals": {
     "title": "承認センター",
-    "description": "AIエージェントからのすべての承認リクエストを管理",
+    "description": "依頼内容、リスク、ロールバック手順、影響範囲を確認してから判断します。",
     "all": "すべて",
     "finance": "財務",
     "legal": "法務",
@@ -305,12 +515,23 @@
     "urgent": "緊急",
     "normal": "通常",
     "low": "低",
+    "waitingSummary": "判断待ち",
+    "urgentSummary": "緊急",
+    "readySummary": "現在の表示",
+    "risk": "リスク",
+    "rollback": "ロールバック手順",
+    "affectedResources": "影響範囲",
+    "viewEvidence": "証跡を見る",
+    "approve": "承認",
+    "reject": "却下",
+    "ask": "質問",
     "noApprovals": "承認待ちの項目はありません",
     "approved": "承認しました",
     "rejected": "却下しました"
   },
   "controlPlane": {
-    "title": "コントロールプレーン",
+    "title": "ワークフローデスク",
+    "operatorDescription": "目標、作業割り当て、承認、実行証跡を運用担当者向けの一画面で扱えます。",
     "refresh": "更新",
     "loadError": "コントロールプレーンデータを読み込めません。",
     "goals": "目標",
@@ -369,20 +590,129 @@
     "status": "ステータス",
     "started": "開始",
     "tier": "階層",
-    "updated": "更新"
+    "updated": "更新",
+    "statusLabels": {
+      "active": "有効",
+      "approved": "承認済み",
+      "queued": "キュー中",
+      "ready": "開始可能",
+      "running": "実行中",
+      "succeeded": "成功",
+      "timed_out": "タイムアウト",
+      "completed": "完了",
+      "proposed": "提案中",
+      "pending": "待機中",
+      "shadow": "シャドー検証",
+      "canary": "カナリア検証",
+      "awaiting_approval": "承認待ち",
+      "blocked": "ブロック中",
+      "failed": "失敗",
+      "rejected": "却下済み",
+      "rolled_back": "ロールバック済み",
+      "cancelled": "キャンセル済み",
+      "draft": "下書き",
+      "paused": "一時停止",
+      "archived": "アーカイブ済み",
+      "accepted": "承認済み",
+      "superseded": "置き換え済み",
+      "expired": "期限切れ",
+      "agent_run": "エージェント実行",
+      "approval": "承認",
+      "decision": "意思決定",
+      "artifact": "成果物",
+      "budget_usage": "予算使用",
+      "audit_event": "監査イベント",
+      "prd": "PRD",
+      "report": "レポート",
+      "qa_result": "QA結果",
+      "issue": "課題",
+      "merge_request": "マージリクエスト",
+      "code_patch": "コードパッチ",
+      "run_walkthrough": "実行説明",
+      "other": "その他"
+    },
+    "priorityLabels": {
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "critical": "緊急"
+    },
+    "scopeLabels": {
+      "company": "会社",
+      "goal": "目標",
+      "agent": "エージェント",
+      "work_item": "作業項目"
+    },
+    "periodLabels": {
+      "daily": "毎日",
+      "monthly": "毎月",
+      "quarterly": "四半期",
+      "total": "合計"
+    }
   },
   "agents": {
     "title": "エージェントフリート",
-    "description": "AIエージェントフリートの監視と管理",
+    "description": "どのAIチームメイトが稼働中、一時停止中、または対応待ちかを確認してから詳細を開きます。",
     "searchPlaceholder": "エージェントを検索...",
     "all": "すべて",
     "running": "実行中",
     "idle": "待機中",
     "paused": "一時停止",
+    "warning": "警告",
     "error": "エラー",
     "stopped": "停止中",
     "allKinds": "すべてのエージェント種別",
     "noAgents": "このグループにはエージェントがありません",
+    "noMatchingAgents": "現在の表示条件に一致するエージェントはありません",
+    "summaryAriaLabel": "エージェントフリート状態サマリー",
+    "summary": {
+      "total": {
+        "label": "AIチームメイト",
+        "description": "設定済みのロールとサービスエージェント"
+      },
+      "running": {
+        "label": "稼働中",
+        "description": "利用可能または作業を処理中"
+      },
+      "attention": {
+        "label": "対応が必要",
+        "description": "警告、エラー、失敗した実行"
+      },
+      "offline": {
+        "label": "一時停止またはオフライン",
+        "description": "新しい作業を受けられません"
+      }
+    },
+    "statusLabels": {
+      "running": "実行中",
+      "idle": "待機中",
+      "paused": "一時停止",
+      "warning": "警告",
+      "error": "エラー",
+      "stopped": "停止中"
+    },
+    "agentKindBadges": {
+      "organization_role": "ロール",
+      "business_runtime_agent": "エージェント",
+      "capability_module": "機能",
+      "integration_gateway": "ゲートウェイ",
+      "system_worker": "システム",
+      "reserved": "予約済み"
+    },
+    "domainLabels": {
+      "product": "プロダクト",
+      "engineering": "エンジニアリング",
+      "quality": "品質",
+      "operations": "運用",
+      "business": "ビジネス",
+      "marketSales": "マーケット・営業",
+      "dataAi": "データ・AI"
+    },
+    "domainRunningSummary": "実行中 {running}/{total}",
+    "taskCount": "件のタスク",
+    "pendingCount": "件の保留",
+    "errorCount": "件のエラー",
+    "healthLabel": "健全性 {value}%",
     "agentsWillAppear": "エージェントは設定後にここに表示されます。",
     "createAgent": "エージェント作成",
     "createAgentDescription": "運用担当者が日常的に使う情報から登録します。実行設定は詳細設定で編集できます。",
@@ -438,6 +768,7 @@
       "project-management-agent": "プロジェクト管理エージェント",
       "quality-agent": "品質確認エージェント",
       "development-agent": "開発実行エージェント",
+      "chat-agent": "チャットエージェント",
       "reception": "ユーザーゲートウェイ",
       "orchestrator": "コーディネーター",
       "sync-capability": "同期機能モジュール",
@@ -451,6 +782,13 @@
     "reportsTo": "上司",
     "noManager": "上司なし",
     "adapterType": "アダプター",
+    "adapterTypeOptions": {
+      "builtin": "組み込みランタイム",
+      "codex_local": "ローカル Codex ランナー",
+      "claude_local": "ローカル Claude ランナー",
+      "process": "ローカルプロセス",
+      "http": "外部 HTTP サービス"
+    },
     "model": "モデル",
     "baseUrl": "ベースURL",
     "requestPath": "リクエストパス",
@@ -478,21 +816,23 @@
     "runtimeLoadError": "ライブ実行ステータスを読み込めません。"
   },
   "agentDetail": {
-    "backToFleet": "フリート",
+    "backToFleet": "エージェント",
     "overview": "概要",
-    "events": "イベント",
-    "config": "設定",
-    "processed": "処理済み",
-    "pending": "保留中",
-    "errors": "エラー",
-    "health": "ヘルス",
-    "uptime": "稼働時間",
-    "connectedAgents": "接続エージェント",
-    "noConnections": "接続なし",
-    "loadingEvents": "イベントを読み込み中...",
-    "eventsLoadError": "イベントを読み込めません。",
-    "noEvents": "このエージェントの実イベントは記録されていません。",
-    "runEvent": "実行 {runId} は {status} です",
+    "events": "実行履歴",
+    "config": "実行設定",
+    "processed": "実行記録",
+    "pending": "未完了の作業",
+    "errors": "要確認",
+    "health": "安定度",
+    "uptime": "継続稼働",
+    "uptimeDaysHours": "{days}日 {hours}時間",
+    "uptimeHoursMinutes": "{hours}時間 {minutes}分",
+    "connectedAgents": "連携先",
+    "noConnections": "連携先なし",
+    "loadingEvents": "実行履歴を読み込み中...",
+    "eventsLoadError": "実行履歴を読み込めません。",
+    "noEvents": "このエージェントの実行履歴はありません。",
+    "runEvent": "証跡 {runId}：{status}",
     "runtimeLoadError": "ライブ実行ステータスを読み込めません。",
     "notFound": "エージェントが見つかりません",
     "agentId": "エージェントID",
@@ -511,7 +851,11 @@
     "approvalTypes": "承認タイプ",
     "upstream": "上流エージェント",
     "downstream": "下流エージェント",
+    "configDescription": "通常表示では運用担当者が判断に使う担当範囲と連携情報だけを表示します。サービス識別子、イベント契約、コンポーネント設定は詳細にまとめています。",
+    "advancedRuntimeDetails": "詳細な実行情報",
+    "advancedRuntimeDetailsDescription": "アダプター、イベント、コンポーネント連携を確認する必要がある場合に使用します。日常運用では通常変更不要です。",
     "systemPrompt": "システムプロンプト",
+    "systemPromptDescription": "エージェントの振る舞いの境界を変更する必要がある場合だけ編集してください。保存後は以降の実行に影響します。",
     "promptNotConfigured": "上書きプロンプト未設定",
     "promptUpdatedAt": "更新日時",
     "promptLoadError": "プロンプト設定を読み込めません。",
@@ -524,6 +868,42 @@
     "editAgentDescription": "このエージェントが誰で何を担当するかを更新します。必要な場合だけ詳細実行設定を調整します。",
     "saveAgent": "エージェント保存",
     "agentUpdating": "保存中",
-    "agentUpdateSuccess": "エージェントを更新しました"
+    "agentUpdateSuccess": "エージェントを更新しました",
+    "tabLabels": {
+      "overview": "概要",
+      "tasks": "タスク",
+      "events": "実行履歴",
+      "connections": "連携",
+      "config": "実行設定",
+      "logs": "ログ"
+    },
+    "approvalTypeLabels": {
+      "finance": "財務承認",
+      "legal": "法務承認",
+      "technical": "技術承認",
+      "customer": "顧客確認"
+    },
+    "contextSourceLabels": {
+      "agentforge": "AgentForgeデリバリー基盤",
+      "controlPlane": "コントロールプレーン作業",
+      "eventBus": "イベントバス",
+      "feishu": "Feishu",
+      "gitlab": "GitLab",
+      "manualUpload": "手動アップロード",
+      "openProject": "OpenProject",
+      "scratchpad": "スクラッチパッド",
+      "traces": "実行トレース",
+      "wecom": "WeCom"
+    },
+    "adapterTypeLabels": {
+      "builtin": "組み込みランタイム",
+      "http": "外部HTTPサービス",
+      "openaiAssistant": "OpenAI Assistant"
+    },
+    "widgetLabels": {
+      "requirements": "要件確認",
+      "ingest": "コンテンツ取込",
+      "questions": "未回答質問"
+    }
   }
 }

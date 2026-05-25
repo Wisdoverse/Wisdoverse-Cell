@@ -2,13 +2,16 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Loader2, RotateCcw, Save } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
+  AGENT_REGISTRY,
   AgentDomainBadge,
   updateAgentPromptConfig,
   useAgentPromptConfig,
   type AgentMeta,
+  type AgentTabId,
+  type ApprovalType,
 } from "@/entities/agent";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -17,6 +20,93 @@ import { Label } from "@/shared/ui/label";
 import { Textarea } from "@/shared/ui/textarea";
 
 const MAX_PROMPT_LENGTH = 50_000;
+const EMPTY_VALUE = "--";
+
+const TAB_LABEL_KEYS: Record<AgentTabId, string> = {
+  overview: "tabLabels.overview",
+  tasks: "tabLabels.tasks",
+  events: "tabLabels.events",
+  connections: "tabLabels.connections",
+  config: "tabLabels.config",
+  logs: "tabLabels.logs",
+};
+
+const APPROVAL_TYPE_LABEL_KEYS: Record<ApprovalType, string> = {
+  finance: "approvalTypeLabels.finance",
+  legal: "approvalTypeLabels.legal",
+  technical: "approvalTypeLabels.technical",
+  customer: "approvalTypeLabels.customer",
+};
+
+const CONTEXT_SOURCE_LABEL_KEYS: Record<string, string> = {
+  agentforge: "contextSourceLabels.agentforge",
+  control_plane: "contextSourceLabels.controlPlane",
+  event_bus: "contextSourceLabels.eventBus",
+  feishu: "contextSourceLabels.feishu",
+  gitlab: "contextSourceLabels.gitlab",
+  manual_upload: "contextSourceLabels.manualUpload",
+  openproject: "contextSourceLabels.openProject",
+  scratchpad: "contextSourceLabels.scratchpad",
+  traces: "contextSourceLabels.traces",
+  wecom: "contextSourceLabels.wecom",
+};
+
+const ADAPTER_TYPE_LABEL_KEYS: Record<string, string> = {
+  builtin: "adapterTypeLabels.builtin",
+  http: "adapterTypeLabels.http",
+  external_http: "adapterTypeLabels.http",
+  openai_assistant: "adapterTypeLabels.openaiAssistant",
+};
+
+const WIDGET_LABEL_KEYS: Record<string, string> = {
+  "rm-requirements": "widgetLabels.requirements",
+  "rm-ingest": "widgetLabels.ingest",
+  "rm-questions": "widgetLabels.questions",
+};
+
+const AGENT_ROLE_LABEL_KEYS: Record<string, string> = {
+  "requirement-agent": "agentRoles.requirement-agent",
+  "project-management-agent": "agentRoles.project-management-agent",
+  "quality-agent": "agentRoles.quality-agent",
+  "development-agent": "agentRoles.development-agent",
+  "chat-agent": "agentRoles.chat-agent",
+  orchestrator: "agentRoles.orchestrator",
+  "sync-capability": "agentRoles.sync-capability",
+  "analysis-capability": "agentRoles.analysis-capability",
+  "evolution-capability": "agentRoles.evolution-capability",
+  "channel-gateway": "agentRoles.channel-gateway",
+};
+
+type TranslationFn = (key: string) => string;
+
+function humanizeIdentifier(value: string): string {
+  return value
+    .replace(/[_-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function translateKnownValue(
+  value: string,
+  labelKeys: Record<string, string>,
+  t: TranslationFn,
+): string {
+  const key = labelKeys[value];
+  return key ? t(key) : humanizeIdentifier(value);
+}
+
+function formatAgentName(agentId: string): string {
+  return AGENT_REGISTRY[agentId]?.name ?? humanizeIdentifier(agentId);
+}
+
+function formatUpdatedAt(value: string | null | undefined, locale: string): string | null {
+  if (!value) return null;
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
 
 interface AgentConfigProps {
   agentMeta: AgentMeta;
@@ -25,15 +115,14 @@ interface AgentConfigProps {
 export function AgentConfig({ agentMeta }: AgentConfigProps) {
   const t = useTranslations("agentDetail");
   const ta = useTranslations("agents");
+  const locale = useLocale();
   const promptQuery = useAgentPromptConfig(agentMeta.id);
   const [draftPrompt, setDraftPrompt] = useState("");
   const [savingPrompt, setSavingPrompt] = useState(false);
   const savedPrompt = promptQuery.data?.system_prompt ?? "";
   const isPromptDirty = draftPrompt !== savedPrompt;
   const isPromptTooLong = draftPrompt.length > MAX_PROMPT_LENGTH;
-  const updatedAt = promptQuery.data?.updated_at
-    ? new Date(promptQuery.data.updated_at).toLocaleString()
-    : null;
+  const updatedAt = formatUpdatedAt(promptQuery.data?.updated_at, locale);
 
   useEffect(() => {
     if (promptQuery.data) {
@@ -64,18 +153,10 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
     setDraftPrompt(savedPrompt);
   }
 
-  const configEntries: {
+  const operatorEntries: {
     label: string;
     value: ReactNode;
   }[] = [
-    {
-      label: t("agentId"),
-      value: (
-        <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">
-          {agentMeta.id}
-        </code>
-      ),
-    },
     {
       label: t("domain"),
       value: <AgentDomainBadge domain={agentMeta.domain} />,
@@ -108,7 +189,7 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
       ? [
           {
             label: t("role"),
-            value: agentMeta.role,
+            value: translateKnownValue(agentMeta.role, AGENT_ROLE_LABEL_KEYS, ta),
           },
         ]
       : []),
@@ -117,18 +198,6 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
           {
             label: t("titleField"),
             value: agentMeta.title,
-          },
-        ]
-      : []),
-    ...(agentMeta.adapterType
-      ? [
-          {
-            label: t("adapterType"),
-            value: (
-              <Badge variant="outline" className="rounded-md">
-                {agentMeta.adapterType}
-              </Badge>
-            ),
           },
         ]
       : []),
@@ -156,10 +225,79 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
               <div className="flex flex-wrap gap-1">
                 {agentMeta.contextSources.map((source) => (
                   <Badge key={source} variant="secondary">
-                    {source}
+                    {translateKnownValue(source, CONTEXT_SOURCE_LABEL_KEYS, t)}
                   </Badge>
                 ))}
               </div>
+            ),
+          },
+        ]
+      : []),
+    {
+      label: t("approvalTypes"),
+      value:
+        agentMeta.approvalTypes && agentMeta.approvalTypes.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {agentMeta.approvalTypes.map((approvalType) => (
+              <Badge key={approvalType} variant="secondary">
+                {translateKnownValue(approvalType, APPROVAL_TYPE_LABEL_KEYS, t)}
+              </Badge>
+            ))}
+          </div>
+        ) : (
+          <span className="text-muted-foreground">{EMPTY_VALUE}</span>
+        ),
+    },
+    {
+      label: t("upstream"),
+      value:
+        agentMeta.upstream.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {agentMeta.upstream.map((id) => (
+              <Badge key={id} variant="outline">
+                {formatAgentName(id)}
+              </Badge>
+            ))}
+          </div>
+        ) : (
+          <span className="text-muted-foreground">{t("noConnections")}</span>
+        ),
+    },
+    {
+      label: t("downstream"),
+      value:
+        agentMeta.downstream.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {agentMeta.downstream.map((id) => (
+              <Badge key={id} variant="outline">
+                {formatAgentName(id)}
+              </Badge>
+            ))}
+          </div>
+        ) : (
+          <span className="text-muted-foreground">{t("noConnections")}</span>
+        ),
+    },
+  ];
+
+  const advancedEntries: {
+    label: string;
+    value: ReactNode;
+  }[] = [
+    {
+      label: t("agentId"),
+      value: (
+        <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">{agentMeta.id}</code>
+      ),
+    },
+    ...(agentMeta.adapterType
+      ? [
+          {
+            label: t("adapterType"),
+            value: (
+              <Badge variant="outline" className="rounded-md">
+                {translateKnownValue(agentMeta.adapterType, ADAPTER_TYPE_LABEL_KEYS, t)}
+              </Badge>
             ),
           },
         ]
@@ -202,7 +340,7 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
         <div className="flex flex-wrap gap-1">
           {agentMeta.tabs.map((tab) => (
             <Badge key={tab} variant="secondary">
-              {tab}
+              {t(TAB_LABEL_KEYS[tab])}
             </Badge>
           ))}
         </div>
@@ -215,57 +353,12 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
           <div className="flex flex-wrap gap-1">
             {agentMeta.customWidgets.map((w) => (
               <Badge key={w} variant="outline">
-                {w}
+                {translateKnownValue(w, WIDGET_LABEL_KEYS, t)}
               </Badge>
             ))}
           </div>
         ) : (
-          <span className="text-muted-foreground">--</span>
-        ),
-    },
-    {
-      label: t("approvalTypes"),
-      value:
-        agentMeta.approvalTypes && agentMeta.approvalTypes.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {agentMeta.approvalTypes.map((a) => (
-              <Badge key={a} variant="secondary" className="capitalize">
-                {a}
-              </Badge>
-            ))}
-          </div>
-        ) : (
-          <span className="text-muted-foreground">--</span>
-        ),
-    },
-    {
-      label: t("upstream"),
-      value:
-        agentMeta.upstream.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {agentMeta.upstream.map((id) => (
-              <Badge key={id} variant="outline">
-                {id}
-              </Badge>
-            ))}
-          </div>
-        ) : (
-          <span className="text-muted-foreground">--</span>
-        ),
-    },
-    {
-      label: t("downstream"),
-      value:
-        agentMeta.downstream.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {agentMeta.downstream.map((id) => (
-              <Badge key={id} variant="outline">
-                {id}
-              </Badge>
-            ))}
-          </div>
-        ) : (
-          <span className="text-muted-foreground">--</span>
+          <span className="text-muted-foreground">{EMPTY_VALUE}</span>
         ),
     },
   ];
@@ -274,28 +367,49 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
     <Card>
       <CardHeader>
         <CardTitle>{t("config")}</CardTitle>
+        <p className="text-muted-foreground text-sm">{t("configDescription")}</p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
         <dl className="space-y-4">
-          {configEntries.map((entry) => (
+          {operatorEntries.map((entry) => (
             <div
               key={entry.label}
-              className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1"
+              className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between"
             >
-              <dt className="text-sm font-medium text-muted-foreground shrink-0 sm:w-40">
+              <dt className="text-muted-foreground shrink-0 text-sm font-medium sm:w-40">
                 {entry.label}
               </dt>
               <dd className="text-sm">{entry.value}</dd>
             </div>
           ))}
         </dl>
-        <div className="mt-6 space-y-3 border-t pt-6">
+        <details className="bg-muted/20 rounded-lg border p-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            {t("advancedRuntimeDetails")}
+          </summary>
+          <p className="text-muted-foreground mt-2 text-xs">
+            {t("advancedRuntimeDetailsDescription")}
+          </p>
+          <dl className="mt-4 space-y-4">
+            {advancedEntries.map((entry) => (
+              <div
+                key={entry.label}
+                className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between"
+              >
+                <dt className="text-muted-foreground shrink-0 text-sm font-medium sm:w-40">
+                  {entry.label}
+                </dt>
+                <dd className="text-sm">{entry.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+        <div className="space-y-3 border-t pt-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="space-y-1">
-              <Label htmlFor={`agent-system-prompt-${agentMeta.id}`}>
-                {t("systemPrompt")}
-              </Label>
-              <div className="text-xs text-muted-foreground">
+              <Label htmlFor={`agent-system-prompt-${agentMeta.id}`}>{t("systemPrompt")}</Label>
+              <p className="text-muted-foreground text-xs">{t("systemPromptDescription")}</p>
+              <div className="text-muted-foreground text-xs">
                 {promptQuery.error
                   ? t("promptLoadError")
                   : updatedAt
@@ -319,10 +433,7 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
                 size="sm"
                 onClick={handlePromptSave}
                 disabled={
-                  !isPromptDirty ||
-                  isPromptTooLong ||
-                  savingPrompt ||
-                  promptQuery.isLoading
+                  !isPromptDirty || isPromptTooLong || savingPrompt || promptQuery.isLoading
                 }
               >
                 {savingPrompt ? <Loader2 className="animate-spin" /> : <Save />}

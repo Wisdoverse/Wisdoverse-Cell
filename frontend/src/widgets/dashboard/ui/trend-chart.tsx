@@ -84,7 +84,7 @@ export function TrendChart({ data, isLoading }: TrendChartProps) {
             />
             <Tooltip
               labelFormatter={(label) => String(label)}
-              formatter={(value) => [value ?? 0, "Requirements"]}
+              formatter={(value) => [value ?? 0, t("trendTooltip")]}
             />
             <Area
               type="monotone"

@@ -31,20 +31,21 @@ import {
 import { listControlPlaneApprovals } from "@/entities/control-plane";
 import { LocaleSwitcher } from "./locale-switcher";
 
-const segmentLabels: Record<string, string> = {
-  home: "Home",
-  activity: "Activity",
-  approvals: "Approvals",
-  agents: "Fleet",
-  analytics: "Analytics",
-  cost: "Cost & Usage",
-  dashboard: "Dashboard",
-  requirements: "Requirements",
-  ingest: "Ingest",
-  questions: "Questions",
-  monitor: "Monitor",
-  messages: "Messages",
-  settings: "Settings",
+const segmentNavKeys: Record<string, string> = {
+  home: "home",
+  activity: "activityFeed",
+  workflows: "workflows",
+  approvals: "approvals",
+  agents: "fleetOverview",
+  analytics: "analytics",
+  cost: "costUsage",
+  dashboard: "dashboard",
+  requirements: "requirements",
+  ingest: "ingest",
+  questions: "questions",
+  monitor: "monitor",
+  messages: "messages",
+  settings: "settings",
 };
 
 export function TopBar() {
@@ -52,6 +53,7 @@ export function TopBar() {
   const { data: session } = useSession();
   const t = useTranslations("auth");
   const tc = useTranslations("common");
+  const tn = useTranslations("nav");
   const locale = useLocale();
   const pathname = usePathname();
   const { data: pendingApprovals } = useSWR(
@@ -78,7 +80,8 @@ export function TopBar() {
         <Breadcrumb>
           <BreadcrumbList>
             {pathSegments.map((segment, index) => {
-              const label = segmentLabels[segment] || segment;
+              const navKey = segmentNavKeys[segment];
+              const label = navKey ? tn(navKey) : segment;
               const href = `/${locale}/${pathSegments.slice(0, index + 1).join("/")}`;
               const isLast = index === pathSegments.length - 1;
 

@@ -1,3 +1,7 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+
 import { cn } from "@/lib/utils";
 import { getDomainConfig } from "../model/domains";
 import type { AgentDomain } from "../model/types";
@@ -8,6 +12,7 @@ interface DomainBadgeProps {
 }
 
 export function DomainBadge({ domain, className }: DomainBadgeProps) {
+  const t = useTranslations("agents");
   const config = getDomainConfig(domain);
 
   return (
@@ -21,7 +26,7 @@ export function DomainBadge({ domain, className }: DomainBadgeProps) {
         color: config.color,
       }}
     >
-      {config.label}
+      {t(`domainLabels.${config.labelKey}`)}
     </span>
   );
 }

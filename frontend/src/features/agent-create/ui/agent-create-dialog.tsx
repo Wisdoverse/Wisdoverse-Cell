@@ -518,7 +518,7 @@ export function AgentCreateDialog({ availableAgents, onCreated }: AgentCreateDia
                       <SelectContent>
                         {ADAPTER_TYPES.map((adapterType) => (
                           <SelectItem key={adapterType} value={adapterType}>
-                            {adapterType}
+                            {t(`adapterTypeOptions.${adapterType}`)}
                           </SelectItem>
                         ))}
                       </SelectContent>

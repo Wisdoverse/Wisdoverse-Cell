@@ -31,24 +31,27 @@ export function MessageSearch({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="space-y-2">
-          <Label>{t("content")}</Label>
+          <Label htmlFor="message-keyword">{t("content")}</Label>
           <Input
+            id="message-keyword"
             placeholder={t("searchKeyword")}
             value={params.keyword || ""}
             onChange={(e) => onChange({ ...params, keyword: e.target.value })}
           />
         </div>
         <div className="space-y-2">
-          <Label>{t("sender")}</Label>
+          <Label htmlFor="message-sender">{t("sender")}</Label>
           <Input
-            placeholder={t("sender")}
+            id="message-sender"
+            placeholder={t("senderPlaceholder")}
             value={params.sender_id || ""}
             onChange={(e) => onChange({ ...params, sender_id: e.target.value })}
           />
         </div>
         <div className="space-y-2">
-          <Label>{t("timeRange")}</Label>
+          <Label htmlFor="message-start-time">{t("startDate")}</Label>
           <Input
+            id="message-start-time"
             type="date"
             value={params.start_time || ""}
             onChange={(e) =>
@@ -57,10 +60,10 @@ export function MessageSearch({
           />
         </div>
         <div className="space-y-2">
-          <Label className="invisible">{t("timeRange")}</Label>
+          <Label htmlFor="message-end-time">{t("endDate")}</Label>
           <Input
+            id="message-end-time"
             type="date"
-            aria-label={t("timeRange")}
             value={params.end_time || ""}
             onChange={(e) => onChange({ ...params, end_time: e.target.value })}
           />
