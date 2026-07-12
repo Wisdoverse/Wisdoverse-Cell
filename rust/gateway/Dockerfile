@@ -1,4 +1,4 @@
-FROM rust:1.94-alpine AS builder
+FROM rust:1.97-alpine AS builder
 
 ARG ALPINE_MIRROR
 
@@ -14,7 +14,7 @@ COPY agents/requirement_manager/grpc/proto ./agents/requirement_manager/grpc/pro
 
 RUN cargo build --manifest-path rust/Cargo.toml --release -p wisdoverse-cell-rust-gateway
 
-FROM alpine:3.23
+FROM alpine:3.24
 
 ARG ALPINE_MIRROR
 
