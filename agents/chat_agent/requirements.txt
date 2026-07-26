@@ -8,7 +8,7 @@ asyncpg>=0.30.0
 redis>=5.2.0
 httpx>=0.28.0
 lark-oapi>=1.5.3
-litellm==1.83.14
+litellm==1.93.0
 pydantic-settings>=2.7.0
 structlog>=25.5.0
 prometheus-client>=0.21.0
