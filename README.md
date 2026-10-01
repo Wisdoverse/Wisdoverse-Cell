@@ -12,6 +12,10 @@ work. Each agent run produces verifiable evidence: events, artifacts, approvals,
 > Wisdoverse Cell is an engineering preview for trusted development and evaluation environments.
 > Review [SECURITY.md](./SECURITY.md) before any production-like deployment.
 
+The [Product Roadmap](./docs/overview/roadmap.md) tracks accepted business
+outcomes, governed autonomy and measured self-evolution, informed by a
+[public project survey](./docs/overview/public-project-landscape.md).
+
 ## Running Wisdoverse Cell
 
 ### Requirements

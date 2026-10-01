@@ -19,7 +19,10 @@ Wisdoverse Cell should be read as a company operating system, not only as a coll
 Mission -> Goals -> Work Items -> Agent Runs -> Decisions -> Audit Trail
 ```
 
-See [Product Model](overview/product-model.md) for the control-plane vocabulary and roadmap.
+See [Product Model](overview/product-model.md) for the control-plane vocabulary,
+[Product Roadmap](overview/roadmap.md) for delivery order and acceptance, and
+[Public Project Landscape](overview/public-project-landscape.md) for the
+source-pinned research behind the priorities.
 
 ---
 
