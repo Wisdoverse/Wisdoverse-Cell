@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0",
   "base_revision": "1704d615cadcde311af80aaf85cdbcb0b994b39e",
-  "source_fingerprint_sha256": "a40cc88d4fc5fb4ab2d5f265e7cef61fe2ccd7dcfc936bdea6c25649f44400c2",
+  "source_fingerprint_sha256": "4e642a9edfe199928c77b296c8d0cc013ddf37d35a6601f1744a451ca6db94f9",
   "files_sha256": {
     ".env.example": "24b0912e19d25ee74d8359fdae18aeb62412ec942ae8ae79000b916d9358d949",
-    ".github/workflows/ci.yml": "71ad0a5c510512dbda085e17e534363be7594dd54f99cb739bcbe5f903ee29a3",
+    ".github/workflows/ci.yml": "d966612e6a3534ebe32e845154a502e231ed32e12d9310cc262b0675c5dd0ee3",
     "Makefile": "fed9d0efa0a26713da92b08c72fdae6bcedf13042935836188e58509e081aef5",
     "SPEC.md": "44170751489b1a504018ef42aa36fa5805ed2551f6f4001086156d06901ee372",
     "agents/dev_agent/app/main.py": "92d03503470c158206b1e474237ec8f6f620e0de918b1231d4495c64b26e4198",
@@ -68,5 +68,11 @@
     "live_provider_pilot_accepted": false,
     "physical_audit_retention_implemented": false
   },
-  "review": "independent read-only review; legacy-header blocker fixed and regression-tested; no remaining scoped blocker"
+  "review": "independent read-only review; legacy-header blocker fixed and regression-tested; no remaining scoped blocker",
+  "ci_toolchain": {
+    "rust": "1.98.1",
+    "reason": "floating stable selected1.99; existing async_trait expansions failed double_must_use",
+    "last_passing_ci_run": 36855209356,
+    "local_rust_validation_claimed": false
+  }
 }

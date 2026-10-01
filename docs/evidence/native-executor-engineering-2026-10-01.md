@@ -47,6 +47,17 @@ Real PostgreSQL is Docker-managed rather than testcontainers. No new bus events
 or runtime extraction were introduced. Frontend is unchanged; its FSD boundary
 remains mandatory.
 
+## CI toolchain reconciliation
+
+The first PR CI run selected the newly released Rust 1.99 through floating
+`stable`, triggering 23 `double_must_use` errors in existing `async_trait`
+macro expansions. Rust business source was unchanged. The prior passing
+CI run `36855209356` used Rust 1.98.1 and passed all 74 Rust tests. The Rust
+CI job now explicitly selects 1.98.1; `--locked` and Clippy `-D warnings`
+remain enforced. Compiler upgrades require a separate compatibility review.
+The final PR CI run verifies this configuration; this is not a local Rust
+validation claim.
+
 ## Open acceptance
 
 Requirement confirmation still needs a validated mapping into OpenProject/PJM
