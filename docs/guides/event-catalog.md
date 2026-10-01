@@ -31,6 +31,12 @@ Naming convention:
 Prefer past-tense actions for facts that already happened. Use command-like
 actions only when the event intentionally requests work, such as `sync.trigger`.
 
+The native executor is a synchronous HTTP request/receipt boundary, not an
+EventBus protocol. Its addition defines no new bus events. The existing
+Requirement Manager → OpenProject/PJM handoff mapping remains open; a
+`requirement.confirmed` event is not currently consumed by PJM as a
+decomposition request.
+
 ## 2. Active Event Overview
 
 | Event type | Producer | Consumers | Purpose |

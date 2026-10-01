@@ -21,10 +21,13 @@ The [2026-10-01 Product Roadmap engineering snapshot](../overview/roadmap.md#eng
 and [engineering receipt](../evidence/product-roadmap-engineering-2026-10-01.md)
 now track implemented M0 report, M1 execution ownership/policy and opt-in
 worker, M2 bounded adapter paths, M3 signed release controls, M4 template and
-knowledge lifecycle, and FSD operator surfaces. These are code foundations;
-business-flow acceptance, native four-runtime conformance and stable handoff,
-live model/provider and platform pilot, observed recurring work, physical
-retention, and R0 staging/cloud acceptance remain open. See the
+knowledge lifecycle, and FSD operator surfaces. Subsequent native M2 work adds
+four owner-local durable ledgers; synthetic four-runtime handler conformance
+and PostgreSQL replay/concurrency are verified in the [native executor
+engineering receipt](../evidence/native-executor-engineering-2026-10-01.md).
+Business-flow acceptance, Requirement-to-OpenProject/PJM mapping, live
+provider/platform pilots, observed recurring work, physical retention, and R0
+staging/cloud acceptance remain open. See the
 [product governance](../runbooks/product-governance.md) and
 [Control Plane metrics](../runbooks/control-plane-metrics.md) runbooks for
 operator boundaries.

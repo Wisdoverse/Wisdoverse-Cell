@@ -20,6 +20,7 @@ from ..core.domain.lifecycle.task_lifecycle import EXECUTING, FAILED, SECURITY_S
 from ..core.scheduler_use_cases import DevSchedulerUseCase
 from ..core.security_scanner import SecurityScanner
 from ..db.database import db_manager
+from ..db.executor_ledger import EXECUTOR_ACTIONS, executor_ledger
 from ..db.unit_of_work import SqlAlchemyDevSessionUnitOfWorkFactory
 from ..service.agent import DevAgent
 from ..service.config_factory import build_dev_core_config
@@ -44,6 +45,8 @@ app = create_agent_app(
         (dev_router, [Depends(verify_internal_key)]),
     ],
     plugins=[DevOutboxDispatcherPlugin()],
+    native_executor_ledger=executor_ledger,
+    native_executor_actions=EXECUTOR_ACTIONS,
     control_plane_enabled=settings.control_plane_enabled,
     control_plane_company_id=settings.control_plane_company_id,
     on_startup=lambda rt: _on_startup(rt),

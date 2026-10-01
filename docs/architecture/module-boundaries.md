@@ -87,11 +87,17 @@ is opt-in and remains off by default.
   `FeedbackRecord`, `ChatMessage`, `LlmUsage`.
 - Owned data: `meetings`, `requirements`, `open_questions`,
   `feedback_records`, `llm_usage`, `chat_messages`,
-  `requirement_event_outbox`.
+  `requirement_event_outbox`, `requirement_manager_executor_requests` (native
+  executor request/receipt ledger).
 - Exposed capabilities: requirement REST API, gRPC (`HealthCheck` and
   related), `requirement.*` events, Feishu card flow.
 - Outbound dependencies: LLM Gateway, Feishu integration, Control Plane.
 - Boundary clarity: high.
+- The version 1.0 native executor HTTP request/receipt contract is additive and
+  disabled by default. Requirement Manager injects its own primary session and
+  ledger table; `shared/infra/native_executor_store.py` supplies only the
+  reusable SQL adapter. The wire boundary carries JSON contracts, never
+  cross-runtime ORM objects.
 - Split fitness: future service candidate. Gating: per-runtime migrations,
   analytics projection, contract tests, OpenAPI snapshot.
 - Context-map relationships: Anti-Corruption Layer to Interaction Gateway (meetings, chat), Feishu via `shared/integrations/feishu/`, and LLM Gateway extraction responses via `core/llm_extraction_response.py`. Customer/Supplier to PJM Agent (emits `requirement.*` integration events; PJM is the primary consumer). Conformist to Control Plane on `AgentRun`, `AuditEvent` Published Language.
@@ -102,12 +108,16 @@ is opt-in and remains off by default.
 - Core responsibility: decompose work; prepare approvals; surface reports
   and alerts.
 - Business objects: `DecompositionRecord`, `AlertLog`, `ConfigCache`.
-- Owned data: `pjm_agent_*` tables.
+- Owned data: `pjm_agent_*` tables, including the owner-local
+  `pjm_executor_requests` native executor request/receipt ledger.
 - Exposed capabilities: decomposition REST API, PJM events, OpenProject
   handoff.
 - Outbound dependencies: Requirement events, OpenProject via Sync,
   Control Plane (approvals, budgets).
 - Boundary clarity: medium-high. Some capability coupling with Sync.
+- The additive version 1.0 native executor HTTP contract is disabled by
+  default. PJM injects its own primary session and ledger table into the shared
+  SQL adapter; no cross-runtime ORM object crosses the HTTP boundary.
 - Split fitness: candidate after decomposition is fully state-machine
   modeled and OpenProject contracts are explicit.
 - Context-map relationships: Customer/Supplier to Requirement Manager (consumes `requirement.*`) and Coordinator (consumes `decomposition.request`). Customer/Supplier to Dev Agent, QA Agent, and Sync (emits `decomposition.*` events). Anti-Corruption Layer to OpenProject (via Sync capability). Conformist to Control Plane.
@@ -118,11 +128,18 @@ is opt-in and remains off by default.
 - Core responsibility: run delivery tasks; execute workflows; hand off to
   MR and QA.
 - Business objects: `DevTask`, `WorkflowLog`.
-- Owned data: `dev_agent_*` tables.
+- Owned data: `dev_agent_*` tables, including the owner-local
+  `dev_agent_executor_requests` native executor request/receipt ledger.
 - Exposed capabilities: delivery REST API, Dev events, MR handoff, QA
   request.
 - Outbound dependencies: GitLab, AgentForge, Control Plane, QA.
 - Boundary clarity: high.
+- The additive version 1.0 native executor HTTP contract is disabled by
+  default. Dev injects its own primary session and ledger table into the shared
+  SQL adapter; no cross-runtime ORM object crosses the HTTP boundary. Dev
+  S4.1's historical migration and restore acceptance covered its then-current
+  three-table scope only. Enabled native-executor deployments require
+  separate backup, restore, cutover, and rollback evidence for this ledger.
 - Split fitness: strong service candidate (long-running workflows). Gating:
   per-runtime migrations, projection for reporting, replay strategy.
 - Context-map relationships: Customer/Supplier to PJM (consumes `decomposition.*`) and QA (consumes `qa.gate-failed` for retry). Customer/Supplier to Channel Gateway (emits `mr.*` events). Anti-Corruption Layer to GitLab and AgentForge via `agents/dev_agent/adapters/gitlab_client.py` and `agents/dev_agent/adapters/agentforge_client.py`. Conformist to Control Plane.
@@ -132,10 +149,14 @@ is opt-in and remains off by default.
 - Runtime owner: `agents/qa_agent/`
 - Core responsibility: run acceptance; produce quality verdicts.
 - Business objects: `AcceptanceRun`, `AcceptanceResult`.
-- Owned data: `qa_acceptance_*`, `qa_agent_event_outbox`.
+- Owned data: `qa_acceptance_*`, `qa_agent_event_outbox`, and the owner-local
+  `qa_executor_requests` native executor request/receipt ledger.
 - Exposed capabilities: QA REST API, QA events, acceptance results.
 - Outbound dependencies: Dev events, Control Plane.
 - Boundary clarity: high. Idempotency contract already explicit.
+- The additive version 1.0 native executor HTTP contract is disabled by
+  default. QA injects its own primary session and ledger table into the shared
+  SQL adapter; no cross-runtime ORM object crosses the HTTP boundary.
 - Split fitness: strong service candidate once trigger contracts and
   idempotency keys are documented as public.
 - Context-map relationships: Customer/Supplier to Dev Agent (consumes `code.committed`; emits `qa.acceptance-completed` and `qa.gate-failed`). Conformist to Control Plane. Anti-Corruption Layer pending for GitLab / OpenProject context resolution (DDD-013).

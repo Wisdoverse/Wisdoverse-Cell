@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from shared.config import settings
+from shared.core.native_executor import NativeExecutorLedger
 from shared.middleware.internal_auth import verify_internal_key
 from shared.schemas.agent import BaseAgent
 from shared.utils.logger import get_logger
@@ -50,6 +51,8 @@ def create_agent_app(
     harden_excluded: bool = False,
     include_api_key_middleware: bool = True,
     plugins: list[RuntimePlugin] | None = None,
+    native_executor_ledger: NativeExecutorLedger | None = None,
+    native_executor_actions: frozenset[str] = frozenset(),
 ) -> FastAPI:
     """Create a fully configured FastAPI app for a BaseAgent.
 
@@ -110,6 +113,12 @@ def create_agent_app(
         init_tracing(service_name=runtime.agent_id)
         instrument_fastapi(app)
         instrument_httpx()
+
+        if settings.native_executor_enabled and native_executor_ledger is not None:
+            if settings.app_env == "development":
+                await native_executor_ledger.initialize()
+            else:
+                await native_executor_ledger.verify_schema()
 
         await runtime.startup()
         runtime.start_event_loop()
@@ -289,12 +298,19 @@ def create_agent_app(
     @app.post("/agent/request", tags=["agent"], dependencies=[Depends(verify_internal_key)])
     async def agent_request(request: Request):
         """Generic internal request boundary for deployed agent services."""
+        if request.headers.get("X-Executor-Contract"):
+            result = await app.state.native_executor_dispatch(request)
+            return JSONResponse(content=result.model_dump(mode="json"))
         payload = await request.json()
         trace_id = request.headers.get("X-Trace-ID")
         if isinstance(payload, dict) and trace_id and not payload.get("trace_id"):
             payload = {**payload, "trace_id": trace_id}
         result = await runtime.agent.handle_request(payload)
         return JSONResponse(content=result)
+
+    from .native_executor_api import install_native_executor_api
+
+    install_native_executor_api(app, runtime, native_executor_ledger, native_executor_actions)
 
     # ── Prometheus (must register before app starts; middleware observes HTTP calls) ──
     try:

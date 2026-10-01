@@ -21,6 +21,7 @@ from ..api import (
     webui_router,
 )
 from ..db.database import db_manager
+from ..db.executor_ledger import EXECUTOR_ACTIONS, executor_ledger
 from ..db.vector_store import vector_store
 from ..integrations.feishu import router as feishu_router
 from ..service import agent
@@ -90,6 +91,8 @@ app = create_agent_app(
         FeishuGatewayPlugin(),
         SessionTimeoutPlugin(),
     ],
+    native_executor_ledger=executor_ledger,
+    native_executor_actions=EXECUTOR_ACTIONS,
     control_plane_enabled=settings.control_plane_enabled,
     control_plane_company_id=settings.control_plane_company_id,
 )

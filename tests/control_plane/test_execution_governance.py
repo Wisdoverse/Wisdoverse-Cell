@@ -7,6 +7,7 @@ an isolated generated schema because SQLite does not implement row locking.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import sys
 from collections.abc import AsyncIterator
@@ -999,9 +1000,10 @@ async def test_postgres_heartbeat_claim_rechecks_recent_completion_under_company
 
 
 @pytest.mark.parametrize("ceiling", [0.0, 0.3])
+@pytest.mark.parametrize("estimated", [False, True])
 @pytest.mark.asyncio
-async def test_explicit_metered_cost_equal_to_ceiling_is_not_an_estimated_charge(
-    execution_session_factory, monkeypatch, ceiling
+async def test_reported_costs_preserve_actual_and_conservative_estimate_classification(
+    execution_session_factory, monkeypatch, ceiling, estimated
 ):
     monkeypatch.setattr("shared.config.settings.control_plane_local_adapter_enabled", True)
     monkeypatch.setattr(
@@ -1025,12 +1027,18 @@ async def test_explicit_metered_cost_equal_to_ceiling_is_not_an_estimated_charge
             )
         )
         agent.adapter_config["contract_version"] = "1.0"
+        response = {
+            "schema_version": "1.0",
+            "status": "succeeded",
+            "summary": "metered output",
+            "output": {"report": "ready"},
+            "cost_usd": ceiling / 2 if estimated else ceiling,
+            "cost_is_estimate": estimated,
+        }
         agent.adapter_config["command"] = [
             sys.executable,
             "-c",
-            'import json; print(json.dumps({"schema_version":"1.0","status":"succeeded","summary":"metered output","output":{"report":"ready"},"cost_usd":'
-            + str(ceiling)
-            + "}))",
+            f"print({json.dumps(response)!r})",
         ]
         from shared.control_plane.tables import AgentRoleTable
 
@@ -1049,4 +1057,4 @@ async def test_explicit_metered_cost_equal_to_ceiling_is_not_an_estimated_charge
         charges = await stores.budgets.list_budget_usage(company_id=CompanyId(agent.company_id))
         assert len(charges) == 1
         assert charges[0].cost_usd == ceiling
-        assert charges[0].metadata["charged_ceiling"] is False
+        assert charges[0].metadata["charged_ceiling"] is estimated

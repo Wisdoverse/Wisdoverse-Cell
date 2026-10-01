@@ -49,7 +49,7 @@ def _stream_patch(response: httpx.Response):
 
 
 @pytest.mark.asyncio
-async def test_legacy_http_response_is_recorded_and_propagates_contract_headers() -> None:
+async def test_legacy_http_response_preserves_legacy_dispatch_and_trace_headers() -> None:
     runner = ControlPlaneAgentRunner(repo=object())
     response = _response({"status": "ok"})
     with (
@@ -69,7 +69,7 @@ async def test_legacy_http_response_is_recorded_and_propagates_contract_headers(
     assert headers["X-Internal-Key"] == "secret-key"
     assert headers["X-Trace-ID"] == "trace-runner-http"
     assert headers["Idempotency-Key"] == "run-runner-http"
-    assert headers["X-Executor-Contract"] == "1.0"
+    assert "X-Executor-Contract" not in headers
 
 
 @pytest.mark.asyncio
@@ -87,17 +87,19 @@ async def test_http_v1_success_returns_bounded_contract_fields() -> None:
     )
     with (
         patch("shared.control_plane.agent_runner.settings") as mock_settings,
-        _stream_patch(response),
+        _stream_patch(response) as mock_stream,
     ):
         mock_settings.control_plane_http_adapter_allowlist = "http://agent.test"
         result = await runner._execute_http(
             _config(contract_version="1.0"), {"run_id": "run-v1", "action": "wakeup"}
         )
 
+    assert mock_stream.call_args.kwargs["headers"]["X-Executor-Contract"] == "1.0"
     assert result == {
         "status": "ok",
         "adapter": "http",
         "cost_usd": 0.04,
+        "cost_is_estimate": False,
         "summary": "Generated the requested report",
         "response": {"report_id": "r-1"},
         "artifact_references": ["artifact://reports/r-1"],

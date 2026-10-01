@@ -75,7 +75,10 @@ PYTEST_ROADMAP_PATHS = \
 	tests/unit/test_operational_readiness.py \
 	tests/unit/test_control_plane_worker.py \
 	tests/unit/test_first_success.py \
-	tests/unit/test_llm_skill_execution.py
+	tests/unit/test_llm_skill_execution.py \
+	tests/integration/test_native_executor_contract.py \
+	tests/integration/test_native_executor_postgres.py \
+	tests/unit/test_native_executor_migration.py
 
 PYTEST_E2E_PATHS = \
 	tests/e2e \

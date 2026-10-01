@@ -15,6 +15,7 @@ from agents.chat_agent.models import (  # noqa: F401
     DailyProgress,
 )
 from agents.chat_agent.models.base import Base as ChatAgentBase
+from agents.dev_agent.db.executor_ledger import executor_table as DevExecutorTable
 
 # Import all models so metadata is populated for Alembic autogenerate checks.
 from agents.dev_agent.models.base import Base as DevAgentBase
@@ -23,6 +24,7 @@ from agents.dev_agent.models.dev import (  # noqa: F401
     DevAgentTask,
     DevAgentWorkflowLog,
 )
+from agents.pjm_agent.db.executor_ledger import executor_table as PJMExecutorTable
 from agents.pjm_agent.models import (  # noqa: F401
     AlertLog,
     DecompositionRecord,
@@ -30,12 +32,14 @@ from agents.pjm_agent.models import (  # noqa: F401
     PMConfigCache,
 )
 from agents.pjm_agent.models.base import Base as PJMAgentBase
+from agents.qa_agent.db.executor_ledger import executor_table as QAExecutorTable
 from agents.qa_agent.models import (  # noqa: F401
     QAAcceptanceResult,
     QAAcceptanceRun,
     QAEventOutbox,
 )
 from agents.qa_agent.models.base import Base as QAAgentBase
+from agents.requirement_manager.db.executor_ledger import executor_table as RequirementExecutorTable
 from agents.requirement_manager.models import (  # noqa: F401
     ChatMessage,
     FeedbackRecord,
@@ -77,6 +81,10 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = [
+    DevExecutorTable.metadata,
+    PJMExecutorTable.metadata,
+    QAExecutorTable.metadata,
+    RequirementExecutorTable.metadata,
     RequirementManagerBase.metadata,
     control_plane_metadata,
     PJMAgentBase.metadata,

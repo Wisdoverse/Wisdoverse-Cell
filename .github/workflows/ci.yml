@@ -103,6 +103,21 @@ jobs:
           if any(case.find('failure') is not None or case.find('error') is not None for case in cases):
               sys.exit('PostgreSQL execution concurrency test failed')
           PY
+      - name: Native PostgreSQL receiver ownership must run
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://wisdoverse_cell:wisdoverse_cell@127.0.0.1:5433/wisdoverse_cell_migration_test
+        run: |
+          python -m pytest -q tests/integration/test_native_executor_postgres.py --junitxml=/tmp/native-executor-concurrency.xml
+          python - <<'PYTEST_GATE'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          cases = ET.parse('/tmp/native-executor-concurrency.xml').findall('.//testcase')
+          if len(cases) != 8 or any(case.find('skipped') is not None for case in cases):
+              sys.exit('Native PostgreSQL receiver tests were skipped or not collected')
+          if any(case.find('failure') is not None or case.find('error') is not None for case in cases):
+              sys.exit('Native PostgreSQL receiver ownership failed')
+          PYTEST_GATE
       - name: Migration round-trip
         env:
           TEST_DATABASE_URL: postgresql+asyncpg://wisdoverse_cell:wisdoverse_cell@127.0.0.1:5433/wisdoverse_cell_migration_test

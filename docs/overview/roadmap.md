@@ -44,7 +44,7 @@ repository's existing explicit advisory policy.
 | Area | Implemented foundation | Acceptance still needed |
 |------|------------------------|-------------------------|
 | Company operating model | Goals, roles, work items, runs, approvals, budgets, artifacts and audit records; [operator surfaces](./product-model.md#current-operator-surfaces) | One complete operator/business flow with durable outcome evidence |
-| Execution | [Registry](../../shared/control_plane/adapter_registry.py) and [runner](../../shared/control_plane/agent_runner.py): HTTP execution and gated local process paths; Codex/Claude are local aliases | Real executor conformance and safe lifecycle tests. `builtin` recording alone does not deliver a task. |
+| Execution | [Registry](../../shared/control_plane/adapter_registry.py) and [runner](../../shared/control_plane/agent_runner.py): HTTP execution and gated local process paths; the native receiver adds owner-local durable receipts for four runtimes | Synthetic native-handler conformance and PostgreSQL replay/concurrency are verified; live provider/platform conformance and safe lifecycle acceptance remain open. `builtin` recording alone does not deliver a task. |
 | Scheduling and recovery | Due-once [heartbeat scheduler](../../shared/control_plane/scheduler.py), per-runtime outboxes and selected deduplication paths | Production scheduler ownership, atomic claims/leases, safe restart and replay across the selected work path |
 | Governance | Approval commands/gates, budget policies/usage, internal authentication and local-adapter restrictions | Enforced operator/tool scopes, approval-to-action binding and concurrent budget behavior on every supported execution path |
 | Self-evolution | Proposal/rollout ledger plus evaluator, skill canary/rollback and collaboration shadow components | Integrated, measured proposal-to-experiment-to-rollback flow |
@@ -64,7 +64,7 @@ operator policy and metrics operations.
 |------|--------------------------------------------|-------------------------|
 | M0 — report and first outcome | First-success CLI creates a synthetic report through a real local-process boundary; work-item acceptance is linked to the latest run and artifact hash. | Complete business-flow acceptance, real accepted outcome and QA/review evidence; native four-runtime delivery is not established. |
 | M1 — ownership and policy | Execution ownership leases/reservations, scoped operator authorization, approval binding, conservative unknown-cost settlement, and an opt-in HTTP heartbeat worker are implemented. | Observed recurring work, recovery behavior on the selected runtime, and target-environment operational evidence. |
-| M2 — executor boundary | HTTP and gated local-process adapters have bounded execution paths; remote HTTP allowlist defaults empty. | Native four-runtime conformance and a stable executor handoff are missing; live model/provider and platform pilot evidence remains open. |
+| M2 — executor boundary | The default-off native HTTP receiver has versioned contracts, four owner-local durable ledgers, and bounded dispatch; synthetic four-runtime handler conformance and PostgreSQL replay/concurrency are verified. | Requirement-to-OpenProject/PJM business mapping, live provider/platform pilots, physical ledger retention and R0 deployment acceptance remain open. See the [native executor engineering receipt](../evidence/native-executor-engineering-2026-10-01.md) and the [runbook](../runbooks/native-executor.md). |
 | M3 — governed evolution | Fixed-case evaluation and signed release commands support approval-gated shadow/canary/promotion/rollback transitions. | Measured live model/provider evolution and verified rollback under target runtime conditions. No live-evolution acceptance is claimed. |
 | M4 — company reuse | Secret-scrubbed company template export/import and artifact-backed knowledge provenance, role ACL, versioning, expiry and deletion are implemented; imported roles remain paused. | Accepted template round trip and knowledge lifecycle/retention acceptance. |
 | Frontend architecture | Operator surfaces use Feature-Sliced Design organization. | Product-flow acceptance across the required operator states remains open. |
@@ -166,7 +166,24 @@ check or whole-system idempotency from one component's unique key.
 
 ## M2 — Executor and Integration Conformance
 
-Certify existing `http` and the selected gated local-process executor first.
+The native receiver now supplies a stable versioned HTTP boundary for the
+Requirement Manager, PJM, Dev, and QA runtimes. Its contract is default-off,
+company-scoped, idempotent by run ID and backed by owner-local durable
+receipts. Synthetic handler conformance across all four runtimes and
+PostgreSQL replay/concurrency behavior have been verified; see the [pending
+engineering evidence record](../evidence/native-executor-engineering-2026-10-01.md)
+and [native executor runbook](../runbooks/native-executor.md). A `recorded`
+receipt is not accepted delivery. No new bus events were introduced.
+
+The business mapping from confirmed Requirement to OpenProject work package
+and PJM decomposition is still missing. Live provider/platform pilots and
+physical retention/recovery evidence remain open, so this engineering work
+does not complete M2 acceptance or R0 deployment acceptance.
+
+The native receiver engineering boundary is implemented and synthetically
+verified. M2 acceptance still requires the scoped integration handoff and
+target-environment evidence described above. Certify the existing `http` and
+selected gated local-process paths for any release that relies on them.
 Codex/Claude registry entries do not establish dedicated or production-tested
 integrations. Test workspace/secret isolation, policy checks, artifact
 collection, usage attribution, timeout/cancellation, retry semantics and

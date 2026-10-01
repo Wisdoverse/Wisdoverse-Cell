@@ -9,6 +9,7 @@ from shared.middleware.internal_auth import verify_internal_key
 
 from ..api.qa import router as qa_router
 from ..db.database import db_manager
+from ..db.executor_ledger import EXECUTOR_ACTIONS, executor_ledger
 from ..service.agent import agent as _raw_agent
 from .plugins import QAOutboxDispatcherPlugin
 
@@ -26,6 +27,8 @@ app = create_agent_app(
         ),
         QAOutboxDispatcherPlugin(),
     ],
+    native_executor_ledger=executor_ledger,
+    native_executor_actions=EXECUTOR_ACTIONS,
     control_plane_enabled=settings.control_plane_enabled,
     control_plane_company_id=settings.control_plane_company_id,
 )
