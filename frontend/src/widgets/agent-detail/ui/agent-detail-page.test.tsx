@@ -108,7 +108,6 @@ describe("AgentDetailPage", () => {
     });
     vi.mocked(listControlPlaneRuns).mockResolvedValue({
       runs: [],
-      total: 0,
     });
     vi.mocked(listControlPlaneWorkItems).mockResolvedValue({
       work_items: [],
