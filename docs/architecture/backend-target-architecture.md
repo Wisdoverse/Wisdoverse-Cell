@@ -1,9 +1,13 @@
 # Backend Target Architecture and Phased Migration Plan
 
-Last updated: 2026-05-20
+Last updated: 2026-10-01
 
-Status: Design proposal. Awaiting user confirmation before any code is
-modified.
+Status: Maintained architecture reference. Delivery status and acceptance
+are tracked in [Backend Migration Plan](./migration-plan.md).
+
+The initial analysis below predates later remediation. Current implementation
+status uses main at commit 4fadf8b (2026-05-25) and the DDD audit; it does not
+establish staging or production acceptance.
 
 Scope: Python backend (`agents/`, `services/`, `shared/`, `migrations/`,
 backend tests). Rust gateway, frontend, Docker, and CI are referenced where
@@ -18,9 +22,9 @@ Inputs to this document:
 - Repo architecture constitution: `AGENTS.md`, `SPEC.md`,
   `docs/overview/architecture.md`, `docs/guides/backend-boundaries.md`.
 
-The document follows the output format requested in the senior-architect
-brief. Sections 1–6 are the design. Section 7 is the explicit confirmation
-gate: no code changes until the proposal in §6 is confirmed.
+Sections 1–4 describe architecture and boundary decisions. Section 5 records
+current delivery status, and Section 6 links the implementation and release
+review process.
 
 ---
 
@@ -633,312 +637,75 @@ Implementation choice (recommend committing to it in Stage 0):
 
 ## 5. Phased Migration Roadmap
 
-Six stages. Each stage states goal, scope, verification, risk, and done
-criteria. Stages 0 and 1 are non-behavior-changing and can ship first; later
-stages depend on the seams the earlier stages established.
+[Backend Migration Plan](./migration-plan.md) is the canonical six-stage
+execution plan. Its baseline, scope, dependencies and acceptance criteria
+apply here; this section summarizes status to avoid maintaining a second
+implementation checklist.
 
-### 5.1 Stage 0 — Architecture Docs and Standards
+| Stage | Current status | Next action |
+|-------|----------------|-------------|
+| 0. Architecture docs and standards | Implemented | Maintain linked docs and evidence |
+| 1. Code structure cleanup | Implemented | Preserve canonical paths, explicit UoWs and boundary tests |
+| 2. Core domain modeling | Implemented for the tracked DDD scope | Audit records 22/22 code-level closures; model additional invariants when required |
+| 3. Data ownership and boundaries | Implemented at code level | Verify projection freshness/backfill and rollout compatibility; public Identity API remains a future extraction prerequisite |
+| 4. Service boundary evolution | Partial; acceptance pending | Per-runtime migration cutover, staging observations, replay and rollback rehearsal |
+| 5. Engineering quality | Partial; continuous alongside Stage 4 | Expand route contracts and type coverage; verify operational gates on the target revision |
 
-- **Goal**: lock the contract the rest of the work runs against.
-- **Scope (deliverables)**:
-  1. `docs/architecture/architecture-principles.md` (the 10 binding rules
-     from §4.3 + the constraints from the brief, made executable).
-  2. `docs/architecture/module-boundaries.md` (consolidated view of §3, with
-     responsibility / data / deps / split criteria per context).
-  3. `docs/architecture/service-boundaries.md` (the matrix in §4.4).
-  4. `docs/architecture/data-ownership.md` (the rules in §4.5; links to
-     `docs/guides/backend-boundaries.md` §3).
-  5. `docs/architecture/api-guidelines.md` (§4.6.1).
-  6. `docs/architecture/event-guidelines.md` (§4.6.2).
-  7. `docs/architecture/testing-strategy.md` (§4.7).
-  8. `docs/architecture/observability-guidelines.md` (§4.8).
-  9. `docs/architecture/architecture-review-checklist.md` (a checklist
-     used in every architecture-affecting PR).
-  10. `docs/architecture/migration-plan.md` (the contents of §5 as a
-      standalone, linked document).
-- **Will not change**: any code, schema, route, event, configuration, or
-  runtime artifact.
-- **Risk**: low. Documentation only.
-- **Verification**: `git diff --check`; internal link resolver; reviewer
-  acceptance of each doc.
-- **Done criteria**: all 10 docs merged on `main`; `docs/INDEX.md` updated;
-  `AGENTS.md` references them under the architecture-constitution section.
+### 5.1 Delivered Foundation
 
-### 5.2 Stage 1 — Code Structure Cleanup
+- Control Plane HTTP handlers are per-surface routers with store/UoW
+  boundaries, domain lifecycle rules and architecture tests.
+- Analysis report/milestone reads use projections; Identity has a single
+  internal write owner and PII-safe outbox.
+- Chat Agent owns its product state. Gateway production paths call Chat
+  Agent through HTTP adapters; DDD-016/017 are closed at code level.
+- The [DDD Compliance Audit](./ddd-compliance-audit.md#2-executive-summary)
+  records all 22 remediation rows closed at code-architecture level.
+- [CI](../../.github/workflows/ci.yml) configures scoped Mypy and a
+  PostgreSQL migration round trip. These are implemented gates; their
+  coverage and target-revision results still matter for acceptance.
 
-- **Goal**: tighten module boundaries without touching business behavior.
-- **Scope**:
-  1. Add an explicit `core/domain/` directory per agent (empty at first;
-     no class moves yet — just the package).
-  2. Move `*_lifecycle.py` files into `core/domain/lifecycle/`.
-  3. Hide `AsyncSession` from route handlers in `shared/control_plane/api.py`.
-     Read routes receive store factories; command routes receive
-     `ControlPlaneUnitOfWork` and explicitly commit successful mutations.
-  4. Keep Control Plane HTTP handlers under per-surface routers in
-     `shared/control_plane/api_routes/`; `shared/control_plane/api.py` remains
-     the composition module (file move; no logic or HTTP contract change).
-  5. Add minimum tests around the use cases touched in (3) and (4).
-  6. Add `trace_id`, `agent_id`, and `run_id` logging on every use case
-     entry/exit (per §4.8 item 3) using a small helper.
-- **Will not change**: HTTP routes, request/response shapes, event names,
-  payload schemas, database schema, business behavior.
-- **Risk**: medium. File moves can break test discovery and CI cache; the
-  session-provider port introduces a new internal contract.
-- **Verification**:
-  - Full `make test` regression must match baseline (1860 passed / 15
-    skipped / 183 deselected).
-  - `tests/unit/test_architecture_boundaries.py` must still pass and grow
-    to assert the new rules (e.g., no `AsyncSession` in route signatures).
-  - Manual curl/HTTP smoke against `/api/v1/control-plane/*` to confirm
-    response shapes unchanged.
-- **Done criteria**: regression green; architecture-boundary tests cover
-  the new rules; PR descriptions cite the rules added.
+### 5.2 Remaining Delivery
 
-### 5.3 Stage 2 — Core Domain Modeling
+1. **P0 / S4.1–S4.3: deployment reliability.** Rehearse per-runtime migration
+   cutover, accept Dev or QA in staging, and complete the Sync split per
+   [ADR-0009](../adr/0009-sync-sub-runtime-split.md). Each cutover needs its
+   own pre-condition evidence, at least two weeks of realistic staging
+   observations within declared SLOs, and replay/rollback rehearsal.
+2. **P1 / S5.4: task operation flow.** Validate create, assign, run, approval
+   when required, artifact inspection and close, including failed-run retry,
+   reassignment, policy denial and duplicate commands/events.
+3. **P2: production operations.** Follow the
+   [Product Model milestones](../overview/product-model.md#delivery-priorities-and-acceptance)
+   for scheduler ownership, permissions, alerts and audit policy.
 
-- **Goal**: turn the implicit domain into explicit code.
-- **Scope** per business runtime (one PR per aggregate to keep diffs small):
-  1. Identify the aggregate root (e.g., `Requirement`, `DevTask`,
-     `AcceptanceRun`, `DecompositionRecord`, `AgentRun`).
-  2. Define entities, value objects, and aggregate boundaries.
-  3. Define an explicit state machine (allowed transitions, illegal
-     transitions raise a typed domain error).
-  4. Move state-transition decisions out of use cases and stores into the
-     aggregate.
-  5. Introduce domain events (in-memory) and let use cases collect them
-     for outbox publication.
-  6. Keep public HTTP and event payloads unchanged.
-- **Will not change**: APIs, event payloads, DB schema, business
-  behavior.
-- **Risk**: medium. Behavior must remain identical; any state-machine
-  refactor risks subtle differences.
-- **Verification**:
-  - Domain unit tests per aggregate (§4.7 #1).
-  - Use-case tests asserting the same observable outcomes as before
-    (snapshot/regression tests on responses + emitted events).
-  - Per-aggregate FSM coverage matrix in the PR description.
-- **Done criteria**: every business runtime has a non-empty `core/domain/`
-  with an aggregate, an FSM, and matching unit tests.
+Keep the modular deployment until each selected runtime satisfies the
+[Service Boundaries](./service-boundaries.md) pre-conditions. A source-level
+split does not prove independent operation, and accepting one runtime does
+not accept every Stage 4 cutover.
 
-### 5.4 Stage 3 — Data Ownership and Boundaries
+### 5.3 Evidence and Public Documentation
 
-- **Goal**: enforce the data-ownership rules from §4.5.
-- **Scope**:
-  1. Confirm one write owner per table; update
-     `docs/guides/backend-boundaries.md` §3 if any row is wrong.
-  2. Closed: Analysis now has explicit projection tables and report/milestone
-     read paths consume `WorkPackageProjectionPort` (P2-2).
-  3. Closed for internal writes: Identity / User now has a documented
-     write-owner path and `identity_event_outbox`; public API remains a Stage 4
-     extraction prerequisite (P1-5).
-  4. Move ORM types out of business-logic returns (P1-3): Control Plane store
-     ports and application use cases return domain models. ORM rows are
-     infrastructure-private inside SQLAlchemy adapters and private row helpers.
-  5. Add a CI rule to `tests/unit/test_architecture_boundaries.py` that
-     forbids cross-runtime ORM imports in the application layer.
-- **Will not change**: HTTP routes (additive only), event payloads
-  (additive only), running migrations are additive (new projection tables),
-  no in-place column changes.
-- **Risk**: medium-high. Touches more code; projection roll-forward needs
-  one operator step.
-- **Verification**:
-  - Migration test on the new projection tables.
-  - Provider/consumer event tests for the events that drive projection
-    inserts.
-  - Backfill script idempotency test.
-- **Done criteria**: Analysis report/milestone paths depend only on projection
-  ports; Identity has a single documented write owner; architecture-boundary
-  tests forbid remaining cross-runtime ORM access. The public Identity API is
-  a Stage 4 extraction prerequisite.
+Each milestone records its target revision, responsible role, dependencies,
+verification date, observation interval, declared SLOs, results, rollback
+outcome and remaining blockers. Public records contain sanitized summaries
+and source/PR references. Personal contacts, credentials, internal deployment
+links, customer data and raw production logs remain outside the repository.
 
-### 5.5 Stage 4 — Service Boundary Evolution
+Stages 0–3 supply extraction prerequisites. Stage 5 runs alongside Stage 4;
+cutover-critical quality checks pass before deployment acceptance. Refer to
+the migration plan for complete scope and maintenance rules.
 
-- **Goal**: split the first one or two runtimes once the seams are ready.
-- **Scope** (per service to extract):
-  1. Move that runtime to its own Alembic directory (or per-runtime
-     migration tool) — closes H1 / P0-2.
-  2. Switch from in-process subscribe to remote EventBus consumer group;
-     verify replay + DLQ.
-  3. Publish per-agent OpenAPI snapshot; lock contract.
-  4. Deploy as a separate container in staging; run the canary monitor.
-  5. Document rollback: revert the container to the bundled `cell`
-     topology and replay events from outbox.
-- **Will not change**: public HTTP routes, public event payloads, control
-  plane ledger contract.
-- **Risk**: high. First extraction is the riskiest. Pick Dev or QA first
-  (per §4.4 matrix).
-- **Verification**:
-  - Stage-3 done criteria all hold.
-  - Smoke tests on the new container in staging for at least two weeks
-    with outbox-lag, DLQ-rate, and LLM cost dashboards green.
-  - Documented rollback exercised once in staging.
-- **Done criteria**: one runtime runs independently in staging with
-  bounded outbox lag, no DLQ growth, observable SLIs meeting their SLOs.
+## 6. Delivery and Review
 
-### 5.6 Stage 5 — Engineering Quality
+Implementation changes follow the
+[Architecture Review Checklist](./architecture-review-checklist.md).
+Deployment acceptance follows the
+[Release Checklist](./release-checklist.md), runtime-specific ADRs, and
+[Rollback Checklist](./rollback-checklist.md). Record unresolved acceptance
+separately from completed code work.
 
-- **Goal**: lock the engineering bar so later stages do not regress.
-- **Scope** (10 items from the brief):
-  1. CI: keep the existing GitHub Actions pipeline; add per-runtime tests.
-  2. Lint: `ruff` already in use; promote warnings to errors in two
-     reviewed PRs.
-  3. Type check: add `mypy` (or `pyright`) on `shared/control_plane/`,
-     `shared/core/`, and one agent first; expand gradually.
-  4. Test: keep `make test` as the canonical regression gate; expand
-     contract + projection tests.
-  5. Migration check: CI runs Alembic up + down on every PR that touches
-     `migrations/`.
-  6. Dependency check: Dependabot already wired (see today-2026-05-18 memory
-     for chore/dependabot-config); ensure security alerts route to
-     Issues.
-  7. Security baseline: continue secret-detection and PII tests; add
-     scheduled `cso` mode runs.
-  8. Release checklist: documented in `docs/guides/operations.md`; gated
-     by the architecture-review checklist from Stage 0.
-  9. Rollback checklist: per-runtime; documented as part of Stage 4
-     extraction.
-  10. Incident runbook: extend `docs/guides/incident-response.md` to cover
-      outbox lag, DLQ overflow, LLM budget breach.
-- **Will not change**: any business behavior; this stage is gate
-  hardening.
-- **Risk**: low to medium; type-check rollout can be noisy.
-- **Verification**: every gate is enforced in CI and has a documented
-  override path.
-- **Done criteria**: every architecture-affecting PR passes the gate set
-  defined here without manual exceptions.
-
----
-
-## 6. First Minimal Step Proposal
-
-### 6.1 Why This First
-
-Stage 0 (architecture docs + standards) is the smallest, safest,
-verifiable step that materially advances every later stage:
-
-1. It is documentation-only. No business behavior changes.
-2. It does not change any public HTTP route, event, database schema,
-   configuration, or runtime artifact.
-3. It introduces no new framework or dependency.
-4. It has no production blast radius.
-5. It is fully reviewable through `git diff --check` plus link resolution.
-6. It produces the contract that every later code change must conform to.
-   Without it, Stage 1 refactors risk introducing the wrong abstractions.
-
-Alternative considered — start with code (e.g., apply P1-3 ORM-type
-cleanup immediately). Rejected because it would commit code shape decisions
-before the principles are documented and accepted. Likely rework cost is
-higher than the cost of an extra docs PR.
-
-### 6.2 Files to Add
-
-The minimal first step ships **10 new files under `docs/architecture/`**,
-plus updates to `docs/INDEX.md` and a one-line link from `AGENTS.md`. No
-existing source code or docs are modified beyond those two references.
-
-| File | Why |
-|------|-----|
-| `docs/architecture/architecture-principles.md` | Codify the 10 binding rules from §4.3 + the 20 constraints from the brief. Becomes the architecture constitution that every PR cites. |
-| `docs/architecture/module-boundaries.md` | Consolidate §3 bounded context analysis into one operator-and-engineer-readable document. Links to `docs/guides/backend-boundaries.md` for table ownership. |
-| `docs/architecture/service-boundaries.md` | The §4.4 matrix as a standalone doc. Used by every "should we split X?" question. |
-| `docs/architecture/data-ownership.md` | §4.5 rules; cross-links to the table matrix in `backend-boundaries.md` §3. |
-| `docs/architecture/api-guidelines.md` | §4.6.1; the contract every new HTTP route conforms to. |
-| `docs/architecture/event-guidelines.md` | §4.6.2; the contract every new EventBus event conforms to. |
-| `docs/architecture/testing-strategy.md` | §4.7 testing matrix made actionable per layer. |
-| `docs/architecture/observability-guidelines.md` | §4.8 minimum observability bar. |
-| `docs/architecture/architecture-review-checklist.md` | A checklist used in every architecture-affecting PR (one Markdown checklist). |
-| `docs/architecture/migration-plan.md` | §5 lifted into a standalone roadmap document for reference. |
-
-Touched (additive only):
-
-- `docs/INDEX.md` — append "Architecture Plans" entries linking the 10
-  files above (the section already exists for the two earlier docs).
-- `AGENTS.md` — append one bullet under the existing architecture
-  constitution section pointing at
-  `docs/architecture/architecture-principles.md` and the checklist.
-
-### 6.3 What Will Not Change
-
-- No file under `agents/`, `services/`, `shared/`, `migrations/`,
-  `rust/`, `frontend/`, `docker/`, `infra/`, `scripts/`, `tests/`, or
-  `plugins/` is modified.
-- No HTTP route, event, payload, database schema, environment variable,
-  or configuration file is modified.
-- No CI workflow is modified.
-- No dependency, lock file, or Docker image is modified.
-- `tests/unit/test_architecture_boundaries.py` is not modified yet (that
-  belongs to Stage 1).
-
-### 6.4 Risk
-
-- **Inherent risk**: very low. Documentation only.
-- **Process risk**: the 10 docs are substantial reading. Reviewers may
-  push back on specific phrasing or completeness. The mitigation is to
-  ship the docs in a single PR but accept revisions paragraph-by-paragraph
-  before merge.
-- **Drift risk**: if Phase 1 analysis or backend-evolution-plan content is
-  later contradicted by these new docs, downstream PRs can cite the wrong
-  source. The mitigation is the cross-link section §10.4 of the existing
-  plan doc: every architecture-affecting PR must reconcile the four anchor
-  docs in the same change.
-
-### 6.5 Verification
-
-- `git status` clean before commit; only the 10 new files plus the two
-  additive index/AGENTS updates show up.
-- `git diff --check` clean (no whitespace issues).
-- Every internal link in the new docs resolves to an existing file on disk
-  (script can be a single grep).
-- No Python, Rust, JavaScript, SQL, YAML, Dockerfile, or shell file
-  changed by the PR.
-- Manual reviewer pass on each of the 10 docs against the brief's output
-  format.
-
-### 6.6 Rollback
-
-- The PR is one atomic merge. Rollback is `git revert <merge_sha>` (or
-  reverting the PR via the GitHub UI). No data, no schema, no runtime
-  state is touched, so revert is instantaneous.
-- If a subset of docs is rejected, drop those files from the PR before
-  merge.
-- If the team prefers staging the docs across multiple PRs, split by file
-  groups (e.g., principles + checklist first; then API + event + obs;
-  then module + service + data; then testing + migration). Order does not
-  affect correctness.
-
----
-
-## 7. Confirmation Gate
-
-Yes. Per the brief, no code is to be modified until you confirm the
-proposal in §6.
-
-This document and the Phase 1 analysis it builds on are documentation only.
-Both were produced read-only; no Python, Rust, JavaScript, SQL, YAML,
-Dockerfile, or shell file has been changed during Phase 2.
-
-### 7.1 What I Will Do When You Confirm
-
-1. Cut a new branch off `main` (after `docs/backend-architecture-analysis`
-   merges) named `docs/architecture-foundation`.
-2. Add the 10 documentation files listed in §6.2, plus the two additive
-   updates to `docs/INDEX.md` and `AGENTS.md`.
-3. Verify locally per §6.5.
-4. Open a single PR titled
-   `docs(architecture): add architecture foundation docs (stage 0)`.
-5. Pause for review.
-6. Do **not** touch any source code, schema, route, event, configuration,
-   or deployment artifact.
-
-### 7.2 What I Will Not Do Without Further Confirmation
-
-- Any Stage 1+ code work (file moves, port introduction, FSM extraction,
-  projection tables, service extraction).
-- Any change to `tests/unit/test_architecture_boundaries.py`.
-- Any change to existing docs except the two additive references in §6.2.
-- Any change touching production configuration, secrets, environment
-  variables, or auth/authz/validation.
-
-If you would like a different first step (for example, one of the P0 code
-items instead of Stage 0 docs), reply with the alternative and I will
-re-scope the first step before any code is written.
+Documentation updates reconcile this section, the migration plan,
+[Backend Evolution Plan](./backend-evolution-plan.md) §0, and the
+[Product Model](../overview/product-model.md). The documentation index points
+contributors to the maintained roadmap.

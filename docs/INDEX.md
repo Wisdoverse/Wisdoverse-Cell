@@ -1,6 +1,6 @@
 # Wisdoverse Cell Documentation Index
 
-> Last updated: 2026-05-04
+> Last updated: 2026-10-01
 >
 > This is the entry point for Wisdoverse Cell documentation. Documentation is English-first. Non-English text should be limited to locale values, quoted source text, external platform contracts, and multilingual fixtures.
 
@@ -26,6 +26,7 @@ surfaces that currently exist.
 | Surface | Source of Truth | Notes |
 |---------|-----------------|-------|
 | Product contract | [SPEC](../SPEC.md) | Defines the control-plane goal and non-negotiable service boundaries |
+| Delivery roadmap | [Migration Plan](./architecture/migration-plan.md) | Six-stage implementation status, public evidence, P0/P1/P2 priorities and separate deployment acceptance |
 | Product vocabulary | [Product Model](./overview/product-model.md) | Defines goals, work items, agent roles, runs, decisions, artifacts, budgets, approvals, and audit trails |
 | Repository layout | [Project Layout](./overview/project-layout.md) | Maps source roots, current structure drift, cleanup phases, and ignored local-only paths |
 | System architecture | [Architecture Overview](./overview/architecture.md) | Maps architecture boundary rules, frontend, gateway, independently deployed agents, shared runtime, control-plane ledger, and adapters |
@@ -43,7 +44,7 @@ For onboarding, architecture, and shared terminology.
 
 | Document | Purpose |
 |----------|---------|
-| [Product Model](./overview/product-model.md) | Control-plane vocabulary and implemented foundation: goals, org chart, work items, runs, governance, budgets, audit logs |
+| [Product Model](./overview/product-model.md) | Control-plane vocabulary, implemented operator surfaces and product milestones with acceptance criteria |
 | [Project Layout](./overview/project-layout.md) | Repository source roots, architecture cleanup roadmap, docs map, and local-only file policy |
 | [Architecture Overview](./overview/architecture.md) | Current system architecture, boundary rules, communication model, control-plane runtime, frontend slices, and deployment topology |
 | [Onboarding Guide](./overview/onboarding.md) | First 30 minutes, first day, first week |
@@ -62,6 +63,8 @@ For onboarding, architecture, and shared terminology.
 | [ADR-0005: Channel Gateway Hexagonal Unification](./adr/0005-channel-gateway-hexagonal-unification.md) | 2026-03-08 | `core/messaging` ports and integration adapters |
 | [ADR-0007: Rust and Python Backend Migration](./adr/0007-rust-python-backend-migration.md) | 2026-05-04 | Rust edge plane plus Python agent plane migration path |
 | [ADR-0008: Coordinator Durable State Store](./adr/0008-coordinator-durable-state-store.md) | 2026-05-22 | Postgres-backed adapter for `CoordinatorStateStorePort`; replay tooling; closes Phase 1 §11 open question 2 / DDD-018 decision |
+| [ADR-0009: Sync Sub-Runtime Split](./adr/0009-sync-sub-runtime-split.md) | 2026-05-22 | Per-side Sync boundaries and staged deployment cutover with compatibility fallback |
+| [ADR-0010: Chat-Agent Runtime Extraction](./adr/0010-chat-agent-runtime-extraction.md) | 2026-05-22 | Chat Agent product ownership and gateway transport boundary |
 
 ---
 
@@ -103,10 +106,10 @@ Architecture Review Checklist before merge.
 | [Release Checklist](./architecture/release-checklist.md) | Pre-release sign-off across CI, contracts, data, observability, security, and operations |
 | [Rollback Checklist](./architecture/rollback-checklist.md) | Per-failure-class rollback playbook: code, configuration, data, events, frontend |
 | [Per-Runtime Migrations](./architecture/per-runtime-migrations.md) | Stage 4 pre-condition: cutover plan for splitting the Alembic surface per runtime |
-| [Migration Plan](./architecture/migration-plan.md) | Six-stage phased roadmap (Stage 0 docs → Stage 5 quality) |
-| [Backend Target Architecture](./architecture/backend-target-architecture.md) | Phase 2 target architecture and first-step proposal |
-| [Backend Architecture Analysis](./architecture/backend-architecture-analysis.md) | Phase 1 read-only audit (current state) |
-| [Backend Evolution Plan](./architecture/backend-evolution-plan.md) | Earlier follow-up plan after the PR #121 backend modularization slice |
+| [Migration Plan](./architecture/migration-plan.md) | Maintained six-stage roadmap: code status, deployment acceptance, priorities, ownership roles and exit evidence |
+| [Backend Target Architecture](./architecture/backend-target-architecture.md) | Architecture reference and reconciled delivery status |
+| [Backend Architecture Analysis](./architecture/backend-architecture-analysis.md) | Historical Phase 1 audit baseline with later gap reconciliations |
+| [Backend Evolution Plan](./architecture/backend-evolution-plan.md) | Maintained status reconciliation followed by historical modularization context |
 | [DDD Compliance Audit](./architecture/ddd-compliance-audit.md) | Per-context DDD-dimension scorecards and remediation roadmap (DDD-001 through DDD-022) |
 
 ---

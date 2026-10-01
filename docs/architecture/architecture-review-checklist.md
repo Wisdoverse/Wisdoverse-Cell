@@ -1,6 +1,6 @@
 # Architecture Review Checklist
 
-Last updated: 2026-05-18
+Last updated: 2026-10-01
 
 Status: Foundation document.
 
@@ -110,6 +110,10 @@ item does not apply, write "n/a" with a one-line reason.
 - [ ] If a runtime is being extracted, the extraction playbook in
       `service-boundaries.md` §4 is followed and pre-conditions are
       evidenced.
+- [ ] Any deployment-acceptance claim records target revision, responsible
+      role, verification date, observation interval, declared SLOs and
+      replay/rollback results. Code closure and configured CI are reported
+      separately from verified deployment acceptance.
 
 ## 9. Documentation Reconciliation
 
@@ -119,6 +123,11 @@ item does not apply, write "n/a" with a one-line reason.
 - [ ] `docs/architecture/architecture-principles.md` is updated if a
       principle changes.
 - [ ] Sibling docs under `docs/architecture/` are reconciled.
+- [ ] Roadmap updates reconcile migration-plan, backend-target-architecture §5,
+      backend-evolution-plan §0 and product-model priorities.
+- [ ] Public documentation uses repository evidence and sanitized examples;
+      personal contacts, credentials, internal deployment links, customer
+      data and raw production logs are excluded.
 - [ ] `docs/INDEX.md` is updated if a new doc is added.
 
 ## 10. Exceptions
