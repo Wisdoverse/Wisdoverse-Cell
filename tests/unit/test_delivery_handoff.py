@@ -233,6 +233,8 @@ async def test_http_verifier_redacts_invalid_or_unavailable_responses(failure: s
         ({"company_id": "cmp_delivery_unit"}, {"company_id": "cmp_foreign", "goal_id": "goal_reviewed", "status": "ready"}),
         ({"company_id": "cmp_delivery_unit"}, {"company_id": "cmp_delivery_unit", "goal_id": "goal_other", "status": "ready"}),
         ({"company_id": "cmp_delivery_unit"}, {"company_id": "cmp_delivery_unit", "goal_id": "goal_reviewed", "status": "done"}),
+        ({"company_id": "cmp_delivery_unit"}, {"company_id": "cmp_delivery_unit", "goal_id": "goal_reviewed", "status": "completed"}),
+        ({"company_id": "cmp_delivery_unit"}, {"company_id": "cmp_delivery_unit", "goal_id": "goal_reviewed", "status": "cancelled"}),
     ],
 )
 async def test_http_verifier_rejects_foreign_or_unavailable_delivery_context(

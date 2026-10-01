@@ -37,7 +37,7 @@ Historical roadmap and native-executor receipts remain unchanged.
 
 | Check | Result | Scope |
 |-------|--------|-------|
-| `make test-roadmap` with disposable PostgreSQL | 917 passed, no skips | Roadmap/governance/evolution/native receiver and new acceptance/domain/migration tests |
+| `make test-roadmap` with disposable PostgreSQL | 919 passed, no skips | Roadmap/governance/evolution/native receiver and new acceptance/domain/migration tests |
 | Exact new PostgreSQL CI gate | 12 passed, no skips | Company reuse 1, paired evolution 1, recurring work 2, retention 7, RM handoff 1 |
 | `make test-public` | 679 passed | Existing public regression suite |
 | Architecture + runtime error + new migration guards | 252 passed | 236 architecture checks, 12 runtime error cases, 4 new migration cases |

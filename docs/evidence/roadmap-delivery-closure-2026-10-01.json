@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "verification_date": "2026-10-01",
   "base_revision": "b585e849206c8a836449b2f26d745ab1d3a0a4a5",
-  "source_fingerprint_sha256": "571b5692c078d4461f190e125fc35e89e8df0089cf00248826ffc9261cf5ab25",
+  "source_fingerprint_sha256": "b84b3a6740a34e6d12f5644052df54b71f7e530d1b2e6a3c5d7083af78ea52b1",
   "files_sha256": {
     ".env.example": "2ae7ff7ac97c39ece1cae942ef4f322c409431438a31d036be0b7b7d7720d58e",
     ".github/workflows/ci.yml": "cc7313518da0c51209dd544c767c9414348739a3408161c249574556dc59d379",
@@ -19,7 +19,7 @@
     "agents/pjm_agent/models/schemas.py": "1343e79acfa178fa4feabaac665fa0709e563de33b0fb08d2bb7b2f51753d7d6",
     "agents/pjm_agent/service/config_factory.py": "20f41af533e7a564892e47341db57df2fda3b7a1b9815e21a44c1c3a34141b61",
     "agents/pjm_agent/tests/test_decomposition_approval.py": "35c664a6d1686edf3043a90171fabe93868b2bbdbbe4992bbdbdf688ac5e67e2",
-    "agents/requirement_manager/adapters/delivery_context.py": "abda9259e72fd9bea345cb8428eb5dabbeea863a6eab4a0c4236706ba107c3d8",
+    "agents/requirement_manager/adapters/delivery_context.py": "65bdee7936dd0223b9043585eae3631b61e98a43dcb173d30dcfd496faad20ff",
     "agents/requirement_manager/api/delivery_handoff.py": "a7a306ab0baff043da1c2d61be948646d37559cd9a34afb16fa8838a349f646b",
     "agents/requirement_manager/app/main.py": "15cef83f00279a023fe8064206047dbd866383aae4498b8129971bcd4d80aa56",
     "agents/requirement_manager/core/delivery_handoff.py": "e61a7ef8ead8ecb3b68b04bf5cafcb2f252f5d49f8c1f5d280cf30cd03b3cb53",
@@ -65,13 +65,13 @@
     "tests/integration/test_physical_retention.py": "b48320115e47042f97b66c47e9a8544341791d896e0b9587e91f5ec543e1390d",
     "tests/integration/test_recurring_work_acceptance.py": "6fb177e480417f583f0636fdfaf7a3f3bcf5f240a855af1c51c3d6db45d60fcf",
     "tests/integration/test_requirement_delivery_handoff.py": "eb583fd3f28f80edae38d0ba062ebb2bab7df4636da06f607637ee74bfe90839",
-    "tests/unit/test_delivery_handoff.py": "8c714bc2f0719f91f44de62d9b472c94682b6c2026a9bb0e1b8aedd5ffbf9429",
+    "tests/unit/test_delivery_handoff.py": "a5fc38aeb6691831c380477ed93519c2d13765c13cb7a3dc0c741e28e44e9c84",
     "tests/unit/test_delivery_retention_migration.py": "b0a5f516d9a2e0cf2676a860bd0a094101469dad3e1a6a0651329c083868c174"
   },
   "scope": "engineering and synthetic integrated acceptance; live roadmap deployment acceptance remains open",
   "local_checks": {
     "roadmap": {
-      "passed": 917,
+      "passed": 919,
       "skipped": 0
     },
     "new_postgres_gate": {

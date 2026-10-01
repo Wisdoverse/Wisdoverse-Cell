@@ -45,7 +45,7 @@ class HttpDeliveryContextVerifier:
                 goal_data.get("company_id") != command.company_id
                 or work_data.get("company_id") != command.company_id
                 or work_data.get("goal_id") != command.goal_id
-                or work_data.get("status") in {"done", "cancelled"}
+                or work_data.get("status") in {"done", "completed", "cancelled"}
             ):
                 raise ValueError("delivery_context_mismatch")
         except (httpx.HTTPError, TypeError, AttributeError) as exc:
