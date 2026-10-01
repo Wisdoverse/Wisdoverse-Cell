@@ -1,6 +1,6 @@
 # Per-Runtime Migration Cutover Plan
 
-Last updated: 2026-05-18
+Last updated: 2026-10-01
 
 Status: Stage 4 pre-condition design doc per
 [`migration-plan.md`](./migration-plan.md) §Stage 4 item 1
@@ -63,9 +63,91 @@ to coexist with the legacy global one during the cutover).
 
 ---
 
+## 2.1 Dev S4.1 Engineering Acceptance
+
+`agents/dev_agent/migrations/` contains a **rehearsal-only** candidate
+baseline (`20261001_dev_baseline`). Its environment accepts only a supplied
+connection; it does not read runtime database settings or enable a production
+CLI. The legacy migration chain and its Dev metadata imports remain active.
+The candidate freezes the Dev DDL inherited from the legacy chain, rather
+than generating DDL from mutable ORM models.
+
+| Owned table | Legacy source | Candidate owner |
+|-------------|---------------|-----------------|
+| `dev_agent_tasks` | `20260504_runtime_tables` | Dev Agent |
+| `dev_agent_workflow_logs` | `20260504_runtime_tables` | Dev Agent |
+| `dev_agent_event_outbox` | `20260512_dev_event_outbox` | Dev Agent |
+| `alembic_version_dev_agent` | New candidate tracking | Dev Agent |
+
+The synthetic engineering acceptance passed on PostgreSQL 18.6 on
+2026-10-01. The dated result and source fingerprint are recorded in the
+[S4.1 evidence record](./evidence/dev-migration-s41.md). To reproduce against
+a disposable PostgreSQL database, set `TEST_DATABASE_URL` to a
+`postgresql+asyncpg` URL and run:
+
+```bash
+TEST_DATABASE_URL='postgresql+asyncpg://user:password@127.0.0.1:5433/wisdoverse_cell_migration_test' \
+  make migration-rehearse-dev
+
+# Or use the local PostgreSQL 18 container's pg_dump/pg_restore clients.
+TEST_DATABASE_URL='postgresql+asyncpg://user:password@127.0.0.1:5433/wisdoverse_cell_migration_test' \
+  POSTGRES_CONTAINER=wisdoverse-cell-postgres make migration-rehearse-dev
+```
+
+The default machine-readable report is `.artifacts/s41-dev-postgresql.json`.
+Override it with `DEV_MIGRATION_REHEARSAL_REPORT`; direct Python invocation
+accepts `--report` or `REHEARSAL_REPORT`. Local PostgreSQL client binaries
+version 18 are supported. To run clients from a local Docker container, set
+`POSTGRES_CONTAINER` or pass `--postgres-container <container>`; the URL still
+identifies the same disposable database. The runner bounds connect, SQL and
+client operations at 10, 30 and 60 seconds respectively, with no retries.
+
+The runner creates a UUID-named `dev_rehearsal_<32 lowercase hex>` schema,
+sets a transaction-local search path with no public fallback, and removes the
+schema on completion or failure. It never downgrades the shared migration
+chain. Reports contain synthetic check results and source identity, not the
+database URL, credentials or row contents.
+
+The rehearsal verifies:
+
+- Fresh upgrade → downgrade to base → upgrade with identical schema inventory.
+- Baseline parity with independently applied legacy Dev DDL, including
+  columns/defaults, primary keys, indexes, checks, unique constraints and FKs.
+  CHECK comparison normalizes only PostgreSQL restore's equivalent array/text
+  casts for the two finite Dev vocabularies; literal choices stay significant.
+- Stamp → upgrade → rollback tracking → restamp with synthetic task,
+  workflow log and pending outbox rows preserved.
+- Separate version tracking and an unchanged legacy version sentinel.
+- A real custom-format `pg_dump`, destructive removal of the isolated schema,
+  and `pg_restore --single-transaction`, followed by schema/data comparison
+  and stamp rollback/restamp after restore.
+- Injected version mutation plus DDL failure rolls back to the savepoint;
+  actual missing-index drift prevents stamping, and inherited baseline
+  downgrade is rejected.
+- Source input fingerprint stability during verification.
+- Verified schema cleanup and preservation of the legacy version and
+  outside-runtime sentinels.
+
+**Inherited-schema rollback uses `stamp base`, never `downgrade base`.**
+The latter drops Dev tables and belongs only to the empty-schema rehearsal.
+This engineering acceptance covers a synthetic PostgreSQL schema only. It
+does not complete production-copy validation, cutover scheduling, operational
+backup sign-off, staging observation or production acceptance. Those rollout
+gates remain governed by §§3–5 and the release/rollback checklists. The shared
+legacy chain remains the active migration owner; there is no public API or
+event-payload change in this work.
+
+If cleanup reports failure, use the `rehearsal_schema` value in the sanitized
+report. Before manual removal, verify that the identifier begins with
+`dev_rehearsal_`, has exactly 32 lowercase hexadecimal suffix characters,
+belongs to this disposable rehearsal database, and is not in use. Only then
+may an operator remove that exact schema. Never broaden cleanup to a prefix or
+the public schema.
+
 ## 3. Pre-conditions
 
-The following MUST hold before this work begins:
+The following MUST hold before an actual physical cutover begins. They do not
+block the reversible synthetic engineering rehearsal in §2.1:
 
 - [ ] Migration Plan Stage 3 closure — no cross-runtime ORM imports
       (already locked by

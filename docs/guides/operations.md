@@ -578,6 +578,42 @@ TEST_DATABASE_URL="postgresql+asyncpg://wisdoverse_cell:wisdoverse_cell@127.0.0.
   make migration-test
 ```
 
+Dev S4.1's synthetic PostgreSQL 18.6 engineering rehearsal passed. To repeat
+it on a disposable PostgreSQL 18 database, use an asyncpg URL and run:
+
+```bash
+TEST_DATABASE_URL='postgresql+asyncpg://user:password@127.0.0.1:5433/wisdoverse_cell_migration_test' \
+  make migration-rehearse-dev
+
+# Or execute PostgreSQL client tools from the local Postgres 18 container.
+TEST_DATABASE_URL='postgresql+asyncpg://user:password@127.0.0.1:5433/wisdoverse_cell_migration_test' \
+  POSTGRES_CONTAINER=wisdoverse-cell-postgres make migration-rehearse-dev
+```
+
+The command writes `.artifacts/s41-dev-postgresql.json` by default. Set
+`DEV_MIGRATION_REHEARSAL_REPORT` to choose a different Make target; direct
+Python invocation accepts `--report` or `REHEARSAL_REPORT`. Local PostgreSQL
+18 client programs are supported. To use clients from a Docker container, set
+`POSTGRES_CONTAINER` or pass `--postgres-container <container>` to direct
+Python invocation. The runner passes credentials through environment
+variables, bounds connect/SQL/client operations at 10/30/60 seconds and does
+not retry. The URL and row data are excluded from the sanitized report.
+
+The runner checks fresh round trips, legacy Dev schema/ownership parity,
+stamp rollback/restamp with synthetic task/log/outbox rows, sentinels,
+injected transactional failure, actual drift rejection, inherited downgrade
+protection, and backup plus complete generated-schema loss and restore with
+post-restore schema/data comparison. It removes its UUID-named isolated schema
+and verifies cleanup. See the [S4.1 evidence record](../architecture/evidence/dev-migration-s41.md)
+and [candidate scope](../architecture/per-runtime-migrations.md#21-dev-s41-engineering-acceptance).
+
+If `schema_cleanup` fails, use the report's exact generated schema identifier.
+Before manual removal, confirm the `dev_rehearsal_` prefix, 32 lowercase
+hexadecimal suffix, correct disposable database, and no active use. Drop only
+that exact schema. Never run broad prefix or public-schema cleanup. The
+candidate remains rehearsal-only; production migration ownership stays with
+the shared chain until a separate physical cutover is accepted.
+
 `make migration-test` runs `alembic upgrade head`,
 `alembic downgrade base`, then `alembic upgrade head` again. A failing
 exit code at any step blocks the release per

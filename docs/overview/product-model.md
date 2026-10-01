@@ -158,6 +158,10 @@ links, credentials, customer data and raw production logs.
 | P2 / M4 | Company reuse and knowledge | Product maintainer + Control Plane maintainer | Stable contracts, M1 permissions and retention | Synthetic template round trip with secret scrubbing; permission/provenance/retention tests for reusable knowledge |
 | Release gate / R0 | Deployment acceptance | Runtime maintainer + release operator | Applicable product milestones and runtime-specific migration readiness | [S4.1–S4.3](../architecture/migration-plan.md#next-delivery-priorities) where extracting: migration rehearsal, two-week staging observation, replay and rollback; keep the bundled topology until split gates pass |
 
+Dev S4.1 synthetic PostgreSQL engineering acceptance is complete
+([evidence](../architecture/evidence/dev-migration-s41.md)); physical cutover
+and deployment acceptance remain pending.
+
 R0 preparation and the M0 task-flow work may proceed in parallel. Production
 promotion remains gated; service extraction is not a prerequisite for a
 trusted-development operator flow. Scheduled ownership, integrated evolution,

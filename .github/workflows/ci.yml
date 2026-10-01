@@ -96,6 +96,24 @@ jobs:
           POSTGRES_DB: wisdoverse_cell_migration_test
           CONTROL_PLANE_ENABLED: "true"
         run: make migration-test
+      - name: Dev candidate migration rehearsal
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://wisdoverse_cell:wisdoverse_cell@127.0.0.1:5433/wisdoverse_cell_migration_test
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: make migration-rehearse-dev
+      - name: Dev migration failure and isolation contracts
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://wisdoverse_cell:wisdoverse_cell@127.0.0.1:5433/wisdoverse_cell_migration_test
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: python -m pytest -q tests/unit/test_dev_migration_rehearsal.py tests/integration/test_dev_migration_rehearsal.py
+      - name: Upload sanitized migration evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: s41-dev-migration-evidence
+          path: .artifacts/s41-dev-postgresql.json
+          if-no-files-found: error
+          retention-days: 14
 
   rust-gateway:
     name: Rust gateway tests

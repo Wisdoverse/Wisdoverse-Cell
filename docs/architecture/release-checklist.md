@@ -1,6 +1,6 @@
 # Release Checklist
 
-Last updated: 2026-05-18
+Last updated: 2026-10-01
 
 Status: Foundation document. Stage 5 deliverable per
 [`migration-plan.md`](./migration-plan.md) §Stage 5 item 8.
@@ -69,6 +69,17 @@ an item does not apply, write "n/a" with a one-line reason.
       `docs/guides/backend-boundaries.md` §3.
 - [ ] Backfill scripts (if any) are idempotent and have been dry-run
       against a copy of production data.
+- [ ] For Dev S4.1 engineering evidence, review the dated
+      [PostgreSQL evidence record](./evidence/dev-migration-s41.md),
+      confirm its source fingerprint matches the release candidate's
+      intended rehearsal inputs, and retain the machine-readable report.
+- [ ] Before any physical per-runtime cutover, complete the production-copy
+      rehearsal, current pre-cutover backup, restore/rollback plan, runtime
+      preconditions and operator backup sign-off. Synthetic S4.1 evidence does
+      not satisfy these rollout checks.
+- [ ] Stage 4 cutover acceptance has its own target revision, two-week
+      staging observation, SLO results, replay and rollback outcome; S4.1
+      engineering acceptance alone does not mark Stage 4 accepted.
 
 ## 6. Boundary and Architecture
 

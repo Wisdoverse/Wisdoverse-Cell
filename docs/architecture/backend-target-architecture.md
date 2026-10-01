@@ -667,6 +667,14 @@ criteria apply here; this section summarizes rather than duplicates them.
   PostgreSQL migration round trip. These are implemented gates; their
   coverage and target-revision results still matter for acceptance.
 
+Dev S4.1 synthetic engineering acceptance passed on PostgreSQL 18.6, including
+schema parity, synthetic backup/loss/restore, tracking rollback/restamp,
+failure and drift guards, and cleanup. The candidate remains rehearsal-only
+and the legacy chain remains the active migration owner. Production-copy
+validation, physical cutover preconditions, scheduling, operator backup
+sign-off, staging observation and production acceptance remain pending. See
+[the evidence record](./evidence/dev-migration-s41.md) and [migration plan](./migration-plan.md#s41-engineering-evidence--2026-10-01).
+
 ### 5.2 Remaining Delivery
 
 1. **P0 / M0 / S5.4: first business outcome.** Validate create, assign, real
