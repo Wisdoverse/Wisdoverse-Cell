@@ -2,9 +2,12 @@
 
 Last updated: 2026-10-01
 
-Delivery baseline: main at commit 4fadf8b (2026-05-25). Implemented surfaces
-are repository evidence; deployment acceptance remains tracked separately in
-the [Backend Migration Plan](../architecture/migration-plan.md).
+Delivery baseline: main at commit c387877 (2026-10-01). Implemented surfaces
+are repository evidence. The [Product Roadmap](./roadmap.md) owns delivery
+order and outcome acceptance; the
+[Backend Migration Plan](../architecture/migration-plan.md) owns architecture
+stages and deployment cutover gates. The roadmap records current CI evidence
+separately from operator-flow and deployment acceptance.
 
 Wisdoverse Cell should be understood as an AI-native company control plane. The codebase already contains agent services, a gateway, shared runtime infrastructure, event contracts, and operational integrations; the public product model connects those pieces into a clear operating system for company work.
 
@@ -98,7 +101,7 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 | Workbench | `/[locale]/workflows` uses Feature-Sliced Design slices for goals, agents, approvals, budgets, runs, and timeline evidence | [API Reference](../guides/api-reference.md#control-plane-api), [Operations](../guides/operations.md#10-control-plane-operations) |
 | Agent creation | Operators can create `AgentRole` records with kind, interaction mode, context sources, reporting line, adapter type/config, capabilities, responsibilities, subscribed/published events, permissions, and status | [API Reference](../guides/api-reference.md#control-plane-api) |
 | Work item operations | `/api/v1/control-plane/work-items/{work_item_id}/activity`, `/run`, `/retry`, `/reassign`, `/block`, and `/close` make the work item the default operator command center | [API Reference](../guides/api-reference.md#control-plane-api), [Operations](../guides/operations.md#10-control-plane-operations) |
-| Agent execution | Internal manual wakeup and heartbeat ticks create normal `AgentRun` records through the adapter registry | [Operations](../guides/operations.md#10-control-plane-operations) |
+| Agent execution | Manual wakeup and heartbeat ticks create `AgentRun` records. HTTP and gated local-process paths execute work; `builtin` records a wakeup, and Codex/Claude entries share the local-process path. Real executor conformance remains pending. | [Operations](../guides/operations.md#10-control-plane-operations), [runner](../../shared/control_plane/agent_runner.py) |
 | Governance | Approval and budget gates append durable evidence before or during sensitive execution | [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
 | Cost controls | Operators can manage scoped budget policies and inspect usage evidence | [API Reference](../guides/api-reference.md#control-plane-api), [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
 | Evolution proposals | L1/L2/L3 self-evolution proposals are durable records with approval and rollout state; approval gates synchronize linked proposal state | [API Reference](../guides/api-reference.md#control-plane-api) |
@@ -139,32 +142,33 @@ failed-run states.
 
 ## Delivery Priorities and Acceptance
 
-Responsible roles describe the needed ownership; individual assignment and
-release dates remain open. Public progress contains sanitized examples,
-repository references and acceptance outcomes. Personal contacts, internal
-deployment links, credentials, customer data and raw production logs are
-excluded.
+The [Product Roadmap](./roadmap.md#delivery-order) is the active product backlog,
+informed by the [Public Project Landscape](./public-project-landscape.md).
+This table summarizes its order; detailed exit criteria live in that roadmap.
+Responsible roles describe ownership; individual assignment and release dates
+remain open. Public progress excludes personal contacts, internal deployment
+links, credentials, customer data and raw production logs.
 
 | Priority | Milestone | Responsible role | Dependency | Acceptance |
 |----------|-----------|------------------|------------|------------|
-| P0 | Deployment reliability | Runtime maintainer + release operator | Stage 3 code boundaries and runtime-specific migration readiness | [Roadmap S4.1–S4.3](../architecture/migration-plan.md#next-delivery-priorities): migration rehearsal, at least two weeks of staging observation, replay and rollback |
-| P1 | Task operation flow | Product maintainer + QA maintainer | Existing commands, operator home and workbench | Create → assign → run → approve when required → inspect artifact → close; retry and reassignment after failure; policy denial and duplicate-delivery handling; durable state after restart |
-| P2 | Production heartbeat ownership | Runtime maintainer + operator | Accepted task flow and idempotent run creation | A designated scheduler with timeout, retry/backoff and concurrency policy; repeated ticks and restarts do not duplicate the same due execution |
-| P2 | Fine-grained permissions | Control Plane maintainer | Defined operator and role scopes | Enforced checks for agent creation, run commands, budget changes and approval resolution; allow/deny behavior covered by contracts and UI states |
-| P2 | Operational SLOs | Operator + runtime maintainer | Staging measurements and declared targets | Dashboards and tested alerts for run success, queue latency, approval age, budget burn, adapter failures and event lag; recorded ownership and runbooks |
-| P2 | Audit retention and export | Control Plane maintainer + operator | Declared retention/redaction policy | Policy enforced for run logs, artifacts, approvals and budget records; authorized export and redaction verified with synthetic data |
-| Later | Richer board controls | Product maintainer + runtime maintainer | Accepted task flow, permissions and stable execution lifecycle | Pause, resume, terminate and rollback behavior defined per supported adapter; evidence retained and invalid actions rejected |
-| Later | Company templates | Product maintainer | Stable object contracts, permissions and audit policy | Synthetic company round trip preserves org/goals/roles/routines/skills; export scrubs secrets, contacts and environment-specific identifiers |
+| P0 / M0 | First repeatable business outcome | Product maintainer + runtime maintainer + QA | Existing commands, surfaces and execution gates | Real execution, QA/required approval, accepted artifact and goal-linked cost/audit evidence; failure and restart cases |
+| P1 / M1 | Reliable recurring work and governance | Control Plane maintainer + operator | M0 and explicit scope/lifecycle policy | Atomic task ownership, scheduler recovery, enforced permissions, approval binding, concurrent budget policy, observability and audit retention |
+| P1 / M2 | Executor and integration conformance | Runtime/integration maintainer + QA | M0; M1 before broader execution access | Certify existing HTTP/local execution and a scoped integration handoff before adding an executor/protocol |
+| P1 / M3 | Measured self-evolution | Evolution maintainer + QA + approving role | M0 evaluation baseline and M1 controls | Connect proposal, comparative evidence, approved L1 experiment, promotion/rejection and verified rollback |
+| P2 / M4 | Company reuse and knowledge | Product maintainer + Control Plane maintainer | Stable contracts, M1 permissions and retention | Synthetic template round trip with secret scrubbing; permission/provenance/retention tests for reusable knowledge |
+| Release gate / R0 | Deployment acceptance | Runtime maintainer + release operator | Applicable product milestones and runtime-specific migration readiness | [S4.1–S4.3](../architecture/migration-plan.md#next-delivery-priorities) where extracting: migration rehearsal, two-week staging observation, replay and rollback; keep the bundled topology until split gates pass |
 
-The P0 deployment and P1 task-flow work may be prepared in parallel. Each
-milestone retains its own acceptance criteria. Scheduled heartbeat ownership,
-fine-grained permissions and long-term audit policy remain planned capabilities,
-even though their underlying records and endpoints exist.
+R0 preparation and the M0 task-flow work may proceed in parallel. Production
+promotion remains gated; service extraction is not a prerequisite for a
+trusted-development operator flow. Scheduled ownership, integrated evolution,
+executor conformance and template export/import remain pending acceptance,
+even though component records, endpoints and tests exist.
 
 ## Remaining Product Hardening
 
-Use the milestone table above as the active product backlog. Code architecture
-closure does not close production operations or operator-flow acceptance.
+Use the linked Product Roadmap and the summary above as the active product
+backlog. Code architecture closure does not close production operations or
+operator-flow acceptance.
 Future proposals should build on the existing work-item commands and state
 which remaining milestone they complete, how it is verified, and what remains
 pending.

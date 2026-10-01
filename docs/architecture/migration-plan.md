@@ -2,15 +2,24 @@
 
 Last updated: 2026-10-01
 
-Status: Maintained six-stage roadmap. Canonical execution plan for
-[Backend Target Architecture](./backend-target-architecture.md) §5.
+Status: Maintained backend implementation roadmap. Canonical six-stage
+execution plan for [Backend Target Architecture](./backend-target-architecture.md)
+§5. The [Product Roadmap](../overview/roadmap.md) owns project delivery order;
+this plan owns architecture status and extraction acceptance gates.
 
 ## Current Baseline
 
-This review uses main at commit 4fadf8b (2026-05-25). Implementation status
+This review uses main at commit c387877 (2026-10-01). Implementation status
 is based on tracked source, CI configuration, and the
 [DDD Compliance Audit](./ddd-compliance-audit.md). No staging observation,
 production telemetry, or release sign-off was reviewed for this update.
+
+[PR #393](https://github.com/Wisdoverse/Wisdoverse-Cell/pull/393) supplies a
+tested engineering baseline: six CI and four CodeQL jobs passed on a tree
+identical to this main revision. See the
+[Product Roadmap baseline](../overview/roadmap.md#verified-baseline-and-open-acceptance)
+for exact run references and coverage limits. Deployment acceptance remains
+pending.
 
 **Implemented** means the capability is represented in the repository.
 **Accepted** requires dated verification for the target revision and environment.
@@ -41,15 +50,18 @@ in its authorized system.
 
 | Priority / item | Deliverable | Responsible role | Dependency | Exit evidence |
 |-----------------|-------------|------------------|------------|---------------|
-| P0 / S4.1 | Rehearse per-runtime migration cutover for Dev, or QA if its readiness evidence is stronger | Runtime maintainer + release operator | Stage 3 code boundaries; [migration pre-conditions](./per-runtime-migrations.md#3-pre-conditions) | Upgrade, downgrade and upgrade on disposable data; ownership inventory; backup/restore and rollback rehearsal |
-| P0 / S4.2 | Accept one independent runtime in staging | Release operator + runtime maintainer | S4.1; contracts, outbox, replay, idempotency and dashboards ready | At least two weeks of realistic staging load within declared SLOs; successful replay and rollback |
-| P0 / S4.3 | Complete the Sync deployment split under ADR-0009 | Sync maintainer + release operator | Per-side migration readiness, projection compatibility, baseline observations | Dual-write parity, per-side dispatcher verification, two-week staging observation and tested compatibility fallback |
-| P1 / S5.4 | Validate the task operation flow and its boundary contracts | Product maintainer + QA maintainer | Existing work-item commands and operator surfaces | Create → assign → run → approve when required → inspect artifact → close; failed-run retry and reassignment; duplicate commands/events without duplicate effects |
-| P2 / product hardening | Production scheduler ownership, permissions, SLO alerts and audit policy | Relevant runtime/product maintainer + operator | Accepted task flow and declared operating policies | [Product milestone criteria](../overview/product-model.md#delivery-priorities-and-acceptance) |
+| P0 / M0 / S5.4 | Validate the task operation flow and its boundary contracts | Product maintainer + runtime maintainer + QA | Existing work-item commands, operator surfaces and execution gates | Create → assign → real run → QA/required approval → accepted artifact → close; failure/recovery and durable goal/cost/audit links |
+| P1 / M1–M3 | Reliable scheduling, policy enforcement, executor conformance and integrated evolution | Relevant runtime/product maintainer + operator | M0 evidence; M1 gates before wider execution or live experiments | [Product milestone criteria](../overview/roadmap.md#delivery-order); route/event contracts, fault cases and comparative evaluation |
+| R0 / S4.1 | Rehearse per-runtime migration cutover for Dev, or QA if its readiness evidence is stronger | Runtime maintainer + release operator | Stage 3 code boundaries; [migration pre-conditions](./per-runtime-migrations.md#3-pre-conditions) | Upgrade, downgrade and upgrade on disposable data; ownership inventory; backup/restore and rollback rehearsal |
+| R0 / S4.2 | Accept one independent runtime in staging when extraction is justified | Release operator + runtime maintainer | S4.1; contracts, outbox, replay, idempotency and dashboards ready | At least two weeks of realistic staging load within declared SLOs; successful replay and rollback |
+| R0 / S4.3 | Complete the planned Sync deployment split under ADR-0009 when its gates pass | Sync maintainer + release operator | Per-side migration readiness, projection compatibility, baseline observations | Dual-write parity, per-side dispatcher verification, two-week staging observation and tested compatibility fallback |
 
-S4.1/S4.2 establish the extraction pattern. S4.3 prepares the already-decided
-Sync split and remains gated by its own ADR pre-conditions. Preparation may
-overlap; each runtime requires its own acceptance.
+M0 moves first in project delivery order; it can be accepted in the bundled,
+trusted-development topology. R0 preparation proceeds alongside it and still
+blocks production-like promotion. S4.1/S4.2 establish the extraction pattern;
+S4.3 remains the already-decided Sync split with its own ADR pre-conditions.
+Each selected runtime requires its own acceptance; product progress does not
+waive any migration, staging or rollback gate.
 
 ---
 
@@ -155,7 +167,7 @@ overlap; each runtime requires its own acceptance.
   | 4. Tests and task flow | Regression, domain, boundary, event and operator-surface tests exist | Add route-specific HTTP/provider-consumer contracts; validate S5.4, including policy denial, approval, timeout and recovery |
   | 5. Migration checks | CI runs `make migration-test` against PostgreSQL | Cover new per-runtime chains and cutovers; a shared-chain round trip alone does not verify extraction |
   | 6. Dependencies | Dependabot, Python audit and frontend audit configured | Triage actionable alerts and verify issue/release handling |
-  | 7. Security/privacy | Scheduled CodeQL and existing privacy/secret tests | Review affected public artifacts and remediation; this review does not establish a scheduled cso workflow |
+  | 7. Security/privacy | Scheduled CodeQL and existing privacy/secret tests | Review affected public artifacts and remediation; record the actual review scope, cadence and ownership |
   | 8. Release | Release checklist documented | Attach dated completion to the selected release |
   | 9. Rollback | Rollback checklist documented | Rehearse the actual runtime/data/event path in staging |
   | 10. Incident response | Outbox, DLQ and budget runbooks documented | Verify alert routing, thresholds and recovery drills for the selected topology |
@@ -198,6 +210,9 @@ from another milestone or a code-architecture score.
   and [Backend Evolution Plan](./backend-evolution-plan.md) §0 in the same change.
 - Keep [Product Model](../overview/product-model.md) aligned with task-flow and
   production-hardening dependencies.
+- Keep project order aligned with the [Product Roadmap](../overview/roadmap.md);
+  use [Public Project Landscape](../overview/public-project-landscape.md) for
+  dated external design evidence, not deployment acceptance.
 - Reconcile the [Architecture Review Checklist](./architecture-review-checklist.md)
   when evidence requirements change, and update the index.
 - This roadmap records delivery work; it does not change public contracts or

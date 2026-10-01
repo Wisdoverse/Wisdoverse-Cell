@@ -3,10 +3,11 @@
 Last updated: 2026-10-01
 
 Status: Maintained architecture reference. Delivery status and acceptance
-are tracked in [Backend Migration Plan](./migration-plan.md).
+are tracked in [Backend Migration Plan](./migration-plan.md). Project delivery
+order is tracked in the [Product Roadmap](../overview/roadmap.md).
 
 The initial analysis below predates later remediation. Current implementation
-status uses main at commit 4fadf8b (2026-05-25) and the DDD audit; it does not
+status uses main at commit c387877 (2026-10-01) and the DDD audit; it does not
 establish staging or production acceptance.
 
 Scope: Python backend (`agents/`, `services/`, `shared/`, `migrations/`,
@@ -401,11 +402,12 @@ fitness. The capability/runtime mapping matches
 
 ### 4.1 Overall Architecture
 
-Stay a **modular monolith** for the next 6–9 months. Improve internal seams
-until they are strong enough that a single agent runtime can be lifted out
-without coordinated migrations. Two services already justified for
-extraction (Dev, QA) become candidates only after Stages 0–3 of the
-roadmap land.
+Keep the default **modular monolith** until a selected runtime passes the
+service split pre-conditions and has an observed independent deployment need.
+Dev and QA remain candidates with code-level boundaries in place; migration,
+staging and recovery evidence still gate extraction. The Product Roadmap can
+deliver an accepted operator flow in the bundled topology while that evidence
+is prepared. Calendar estimates do not substitute for acceptance.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
@@ -638,9 +640,9 @@ Implementation choice (recommend committing to it in Stage 0):
 ## 5. Phased Migration Roadmap
 
 [Backend Migration Plan](./migration-plan.md) is the canonical six-stage
-execution plan. Its baseline, scope, dependencies and acceptance criteria
-apply here; this section summarizes status to avoid maintaining a second
-implementation checklist.
+backend execution plan; [Product Roadmap](../overview/roadmap.md) owns the
+project's outcome priorities. Their baseline, scope, dependencies and acceptance
+criteria apply here; this section summarizes rather than duplicates them.
 
 | Stage | Current status | Next action |
 |-------|----------------|-------------|
@@ -667,17 +669,21 @@ implementation checklist.
 
 ### 5.2 Remaining Delivery
 
-1. **P0 / S4.1–S4.3: deployment reliability.** Rehearse per-runtime migration
-   cutover, accept Dev or QA in staging, and complete the Sync split per
+1. **P0 / M0 / S5.4: first business outcome.** Validate create, assign, real
+   execution, QA/required approval, accepted artifact and close. Include
+   failure recovery, policy denial, durable cost/audit links and restart.
+2. **P1 / M1–M3: governed autonomy and measured improvement.** Prove atomic
+   execution ownership, scheduler recovery, permissions/budget enforcement,
+   executor conformance and an integrated approved evolution experiment.
+   Records and component tests do not establish whole-flow acceptance.
+3. **R0 / S4.1–S4.3: deployment acceptance.** Prepare per-runtime migration
+   cutover, accept Dev or QA in staging when justified, and complete the Sync split per
    [ADR-0009](../adr/0009-sync-sub-runtime-split.md). Each cutover needs its
    own pre-condition evidence, at least two weeks of realistic staging
    observations within declared SLOs, and replay/rollback rehearsal.
-2. **P1 / S5.4: task operation flow.** Validate create, assign, run, approval
-   when required, artifact inspection and close, including failed-run retry,
-   reassignment, policy denial and duplicate commands/events.
-3. **P2: production operations.** Follow the
-   [Product Model milestones](../overview/product-model.md#delivery-priorities-and-acceptance)
-   for scheduler ownership, permissions, alerts and audit policy.
+4. **P2 / M4: company reuse.** Follow the
+   [Product Roadmap](../overview/roadmap.md) for safe templates and scoped
+   knowledge after stable contracts and governance.
 
 Keep the modular deployment until each selected runtime satisfies the
 [Service Boundaries](./service-boundaries.md) pre-conditions. A source-level

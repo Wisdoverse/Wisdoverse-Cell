@@ -26,7 +26,9 @@ surfaces that currently exist.
 | Surface | Source of Truth | Notes |
 |---------|-----------------|-------|
 | Product contract | [SPEC](../SPEC.md) | Defines the control-plane goal and non-negotiable service boundaries |
-| Delivery roadmap | [Migration Plan](./architecture/migration-plan.md) | Six-stage implementation status, public evidence, P0/P1/P2 priorities and separate deployment acceptance |
+| Product roadmap | [Product Roadmap](./overview/roadmap.md) | Research-informed M0–M4 outcome priorities, dependencies, scorecard and separate R0 deployment acceptance |
+| Backend delivery plan | [Migration Plan](./architecture/migration-plan.md) | Six-stage architecture status and preserved migration/staging/recovery gates |
+| Public project research | [Public Project Landscape](./overview/public-project-landscape.md) | Eight source-pinned comparisons and their implications for Cell's goals |
 | Product vocabulary | [Product Model](./overview/product-model.md) | Defines goals, work items, agent roles, runs, decisions, artifacts, budgets, approvals, and audit trails |
 | Repository layout | [Project Layout](./overview/project-layout.md) | Maps source roots, current structure drift, cleanup phases, and ignored local-only paths |
 | System architecture | [Architecture Overview](./overview/architecture.md) | Maps architecture boundary rules, frontend, gateway, independently deployed agents, shared runtime, control-plane ledger, and adapters |
@@ -45,6 +47,8 @@ For onboarding, architecture, and shared terminology.
 | Document | Purpose |
 |----------|---------|
 | [Product Model](./overview/product-model.md) | Control-plane vocabulary, implemented operator surfaces and product milestones with acceptance criteria |
+| [Product Roadmap](./overview/roadmap.md) | Project delivery order: accepted outcomes, governed recurring work, executors, measured evolution and company reuse |
+| [Public Project Landscape](./overview/public-project-landscape.md) | Closest and adjacent public projects, fixed source revisions and limits of the comparison |
 | [Project Layout](./overview/project-layout.md) | Repository source roots, architecture cleanup roadmap, docs map, and local-only file policy |
 | [Architecture Overview](./overview/architecture.md) | Current system architecture, boundary rules, communication model, control-plane runtime, frontend slices, and deployment topology |
 | [Onboarding Guide](./overview/onboarding.md) | First 30 minutes, first day, first week |
@@ -106,7 +110,7 @@ Architecture Review Checklist before merge.
 | [Release Checklist](./architecture/release-checklist.md) | Pre-release sign-off across CI, contracts, data, observability, security, and operations |
 | [Rollback Checklist](./architecture/rollback-checklist.md) | Per-failure-class rollback playbook: code, configuration, data, events, frontend |
 | [Per-Runtime Migrations](./architecture/per-runtime-migrations.md) | Stage 4 pre-condition: cutover plan for splitting the Alembic surface per runtime |
-| [Migration Plan](./architecture/migration-plan.md) | Maintained six-stage roadmap: code status, deployment acceptance, priorities, ownership roles and exit evidence |
+| [Migration Plan](./architecture/migration-plan.md) | Backend sub-plan: six-stage code status, runtime cutover acceptance, ownership roles and exit evidence |
 | [Backend Target Architecture](./architecture/backend-target-architecture.md) | Architecture reference and reconciled delivery status |
 | [Backend Architecture Analysis](./architecture/backend-architecture-analysis.md) | Historical Phase 1 audit baseline with later gap reconciliations |
 | [Backend Evolution Plan](./architecture/backend-evolution-plan.md) | Maintained status reconciliation followed by historical modularization context |

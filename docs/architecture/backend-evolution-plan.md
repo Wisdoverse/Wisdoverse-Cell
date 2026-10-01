@@ -7,12 +7,13 @@ Status: Historical follow-up plan with a maintained status reconciliation in
 the active delivery checklist.
 
 [Backend Migration Plan](./migration-plan.md) is the canonical six-stage
-roadmap. [Product Model](../overview/product-model.md) tracks operator-flow
-and production-hardening milestones.
+backend roadmap. [Product Roadmap](../overview/roadmap.md) owns project
+delivery order; [Product Model](../overview/product-model.md) records the
+vocabulary and implemented operator surfaces.
 
 ## 0. Status Update
 
-This reconciliation uses main at commit 4fadf8b (2026-05-25), tracked code,
+This reconciliation uses main at commit c387877 (2026-10-01), tracked code,
 CI configuration and the DDD audit. It does not claim deployment acceptance
 or current production SLO performance.
 
@@ -27,13 +28,17 @@ or current production SLO performance.
 
 ### Next Priorities
 
-- **P0 / S4.1–S4.3**: prove per-runtime migration and independent staging
-  operation, then complete the Sync split under ADR-0009. Each runtime needs
-  dated observations and a rollback rehearsal.
-- **P1 / S5.4**: validate the task operation flow, including approval,
-  artifact inspection, retry, reassignment and duplicate-delivery behavior.
-- **P2**: production scheduler ownership, enforceable permissions, SLO alerts
-  and audit retention/export policy per the product milestones.
+- **P0 / M0 / S5.4**: prove the complete task/business flow with real
+  execution, accepted artifact, required approval, failure recovery and
+  durable goal/cost/audit links in the bundled topology.
+- **P1 / M1–M3**: verify atomic scheduler/work ownership, scopes and budget
+  policy, executor conformance, and a measured approved L1 evolution loop.
+- **R0 / S4.1–S4.3**: prepare per-runtime migration, independent staging and
+  the Sync split under ADR-0009. Preserve each runtime's dated observations,
+  replay and rollback requirements before accepting a cutover.
+- **P2 / M4**: safe company reuse and scoped knowledge after stable contracts
+  and governance. Details and [public research](../overview/public-project-landscape.md)
+  live in the Product Roadmap and its source survey.
 
 Stages 0–3 supply extraction prerequisites. Stage 5 may proceed alongside
 Stage 4; required quality checks pass before a cutover is accepted. Deliver

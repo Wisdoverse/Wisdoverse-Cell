@@ -123,8 +123,11 @@ item does not apply, write "n/a" with a one-line reason.
 - [ ] `docs/architecture/architecture-principles.md` is updated if a
       principle changes.
 - [ ] Sibling docs under `docs/architecture/` are reconciled.
-- [ ] Roadmap updates reconcile migration-plan, backend-target-architecture §5,
-      backend-evolution-plan §0 and product-model priorities.
+- [ ] Roadmap updates reconcile overview/roadmap project priorities,
+      migration-plan backend gates, backend-target-architecture §5,
+      backend-evolution-plan §0 and product-model. External comparisons cite
+      dated public source revisions and distinguish documented claims from
+      implementation or benchmark evidence.
 - [ ] Public documentation uses repository evidence and sanitized examples;
       personal contacts, credentials, internal deployment links, customer
       data and raw production logs are excluded.
