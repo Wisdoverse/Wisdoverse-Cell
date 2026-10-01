@@ -3351,7 +3351,11 @@ def test_control_plane_approval_api_delegates_to_use_case() -> None:
 
     assert "resolve_approval(" in route_source
     assert "apply_approval_resolution_to_linked_proposal" in route_source
-    assert "begin_next_transaction()" in route_source
+    # Approval and linked proposal must commit atomically in the same UOW.
+    assert "begin_next_transaction()" not in route_source
+    for function_name in ("approve", "reject"):
+        function_source = _function_source(route_source, function_name)
+        assert function_source.count("await uow.commit()") == 1
     assert "InvalidApprovalTransitionError" in route_source
     assert "class ApprovalResolutionPolicy" in domain_service_source
     assert "ControlPlaneDomainService" in domain_service_source

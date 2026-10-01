@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.control_plane.domain.execution_policy import ExecutionDenied
 from shared.control_plane.goal_store import SqlAlchemyControlPlaneGoalStore
 from shared.control_plane.models import (
     AuditEvent,
@@ -110,3 +111,26 @@ async def test_work_item_store_records_idempotent_audit_events(
 
     assert first.audit_event_id == second.audit_event_id
     assert len(list(result.scalars().all())) == 1
+
+
+@pytest.mark.asyncio
+async def test_work_item_store_requires_accepted_evidence_before_completion(
+    db_session: AsyncSession,
+) -> None:
+    store = SqlAlchemyControlPlaneWorkItemStore(db_session)
+    company = await store.create_company(
+        CompanyContext(company_id="cmp_work_item_unreviewed_close", name="Wisdoverse Cell")
+    )
+    work_item = await store.create_work_item(
+        WorkItem(company_id=company.company_id, title="Unreviewed output")
+    )
+
+    with pytest.raises(ExecutionDenied, match="accepted_artifact_required"):
+        await store.update_work_item_status(
+            work_item.work_item_id,
+            status=WorkItemStatus.COMPLETED.value,
+        )
+
+    unchanged = await store.get_work_item(work_item.work_item_id)
+    assert unchanged is not None
+    assert unchanged.status == WorkItemStatus.QUEUED.value

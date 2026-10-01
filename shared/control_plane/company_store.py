@@ -24,6 +24,19 @@ class SqlAlchemyControlPlaneCompanyStore(ControlPlaneCompanyStore):
         self._audits = SqlAlchemyControlPlaneAuditEventStore(session)
 
     async def create_company(self, company: CompanyContext) -> CompanyContext:
+        if (company.metadata or {}).get("template_import") is True:
+            from sqlalchemy.exc import IntegrityError
+
+            from .company_template_models import CompanyTemplateNameTable
+            from .company_template_use_cases import CompanyTemplateNameCollisionError
+
+            try:
+                async with self._session.begin_nested():
+                    self._session.add(CompanyTemplateNameTable(
+                        normalized_name=company.name.strip().casefold(), company_id=company.company_id))
+                    await self._session.flush()
+            except IntegrityError as exc:
+                raise CompanyTemplateNameCollisionError("company_template_name_collision") from exc
         row = CompanyContextTable(**model_values(company))
         self._session.add(row)
         await self._session.flush()

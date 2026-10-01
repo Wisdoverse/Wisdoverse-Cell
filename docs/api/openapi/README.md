@@ -1,6 +1,6 @@
 # Per-runtime OpenAPI Snapshots
 
-Last updated: 2026-05-18
+Last updated: 2026-10-01
 
 Status: Foundation. Stage 4 pre-condition per
 [`../../architecture/migration-plan.md`](../../architecture/migration-plan.md)
@@ -30,6 +30,8 @@ The script:
   `app.openapi()`.
 - Writes one JSON per runtime, canonicalised
   (`sort_keys=True`, two-space indent, trailing newline).
+- Gives multi-method Requirement Manager compatibility redirects stable,
+  unique operation IDs. Their HTTP paths and behavior are unchanged.
 
 No network or DB call is required.
 
@@ -41,17 +43,17 @@ No network or DB call is required.
 | PJM Agent | `pjm-agent-v1.json` |
 | Dev Agent | `dev-agent-v1.json` |
 | Requirement Manager | `requirement-manager-v1.json` |
+| Evolution capability | `evolution-module-v1.json` |
+| Control Plane operator API | `control-plane-v1.json` |
 
 Gateway services (`user_interaction`, `channel`), the orchestrator
-coordinator, and support capabilities (`sync`, `analysis`,
-`evolution`) are not yet covered. Add their entry points to
+coordinator, and support capabilities (`sync`, `analysis`) are not yet covered. Add their entry points to
 `scripts/generate_openapi_snapshots.py` `RUNTIMES` when those runtimes
 gain public HTTP routes.
 
 The control-plane API (`/api/v1/control-plane/*`) is documented in
 [`docs/guides/api-reference.md`](../../guides/api-reference.md)
-§Control Plane API; it is not split per-runtime because it is one
-operator surface.
+§Control Plane API; its separate snapshot records the single operator surface.
 
 ## When to Regenerate
 

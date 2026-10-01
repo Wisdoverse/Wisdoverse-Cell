@@ -184,7 +184,8 @@ class SkillOptimizer:
             skill_id=canonical_skill_id,
             control_version=control_version,
             candidate_version=candidate.version,
-            traffic_pct=10,
+            traffic_pct=0,
+            status="shadow",
         )
 
         # Reset counters
@@ -236,26 +237,7 @@ class SkillOptimizer:
         summary = aggregate.score_summary()
 
         if decision == "promote":
-            await repo.promote_skill(
-                aggregate.skill_id,
-                str(aggregate.candidate_version),
-            )
-            await repo.conclude_experiment(
-                experiment_id,
-                status=aggregate.status_for_decision(decision),
-            )
-            await self._memory.record_optimization(
-                aggregate.skill_id,
-                aggregate.candidate_version,
-                True,
-                {
-                    "reason": "experiment_promoted",
-                    "experiment_id": experiment_id,
-                    "control_mean": round(summary.control_mean, 4),
-                    "candidate_mean": round(summary.candidate_mean, 4),
-                },
-            )
-            return "promote"
+            return "promotion_pending"  # A distinct, bound operator approval owns activation.
 
         if decision == "rollback":
             await repo.conclude_experiment(

@@ -392,3 +392,14 @@ class EvolutionProposalTable(ControlPlaneBase):
     metadata_json: Mapped[dict] = mapped_column("metadata", JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_now, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_now)
+
+
+# Import mappings after the base ledger definitions to register one owned schema.
+from . import (  # noqa: E402,F401
+    company_template_models,
+    evolution_deployment_models,
+    evolution_evaluation_models,
+    execution_models,
+    knowledge_models,
+    outcome_models,
+)

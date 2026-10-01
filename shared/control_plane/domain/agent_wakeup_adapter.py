@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import shlex
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -86,10 +87,16 @@ class AgentWakeupAdapterConfig:
         return max(value, MIN_HEARTBEAT_INTERVAL_SECONDS)
 
     def http_timeout_seconds(self) -> float:
-        return min(float(self.config.get("timeout_sec", 30)), 120.0)
+        value = float(self.config.get("timeout_sec", 30))
+        if not math.isfinite(value) or value <= 0:
+            raise ValueError("invalid_executor_timeout")
+        return min(value, 120.0)
 
     def process_timeout_seconds(self, *, max_seconds: int) -> int:
-        return min(int(self.config.get("timeout_sec", 300)), max_seconds)
+        value = int(self.config.get("timeout_sec", 300))
+        if value <= 0:
+            raise ValueError("invalid_executor_timeout")
+        return min(value, max_seconds)
 
 
 __all__ = [

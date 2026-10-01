@@ -543,6 +543,35 @@ class LLMGateway:
         prompt = self._sanitize_prompt_payload(prompt)
         system_prompt = self._sanitize_prompt_payload(system_prompt)
         model = model or settings.default_model
+        from shared.evolution.config import evolution_settings
+        from shared.evolution.skill_execution_contract import (
+            SkillSelectionRequest,
+            current_evolution_trace,
+        )
+        from shared.evolution.skill_execution_gateway import HttpSkillExecutionGateway
+
+        execution_trace = current_evolution_trace.get()
+        selection = None
+        if evolution_settings.skill_execution_enabled and execution_trace is not None:
+            selection = await HttpSkillExecutionGateway().resolve(SkillSelectionRequest(
+                company_id=company_id or settings.control_plane_company_id,
+                agent_id=agent_id, skill_id=f"{agent_id}:{task_type.replace('_', '-')}",
+                trace_id=execution_trace.trace_id))
+            if selection is not None:
+                configuration = selection.configuration
+                parameters = configuration["parameters"]
+                if set(parameters) - {"temperature", "max_tokens"}:
+                    raise ValueError("unsupported_frozen_skill_parameters")
+                system_prompt = self._sanitize_prompt_payload(configuration["system_prompt"])
+                if configuration["few_shot_examples"]:
+                    system_prompt += "\nExamples:\n" + json.dumps(configuration["few_shot_examples"], ensure_ascii=False)
+                if configuration["output_format"]:
+                    system_prompt += "\nRequired output format: " + configuration["output_format"]
+                model = configuration["target_model"] or model
+                temperature = float(parameters.get("temperature", temperature))
+                max_tokens = int(parameters.get("max_tokens", max_tokens))
+                if not 0 <= temperature <= 2 or not 1 <= max_tokens <= 32768:
+                    raise ValueError("invalid_frozen_skill_parameters")
         start_time = time.time()
         run_context = get_current_run_context()
         resolved_company_id = company_id or (
@@ -587,10 +616,14 @@ class LLMGateway:
                 "system": [{"type": "text", "text": system_prompt or "You are a helpful assistant."}],
                 "messages": [{"role": "user", "content": prompt}],
             }
-            response = await self._call_with_recovery(
-                create_kwargs,
-                agent_id=agent_id,
-            )
+            if selection is not None and execution_trace is not None:
+                execution_trace.skill_used = selection.skill_id
+                execution_trace.skill_version = selection.version
+                execution_trace.skill_selections[selection.skill_id] = selection
+                response = await self._call_with_recovery(
+                    create_kwargs, agent_id=agent_id, allow_model_fallback=False)
+            else:
+                response = await self._call_with_recovery(create_kwargs, agent_id=agent_id)
             model = create_kwargs["model"]
 
             # Record success.
@@ -737,6 +770,7 @@ class LLMGateway:
         create_kwargs: dict,
         retry_config: LLMRetryConfig | None = None,
         agent_id: str = "unknown",
+        allow_model_fallback: bool = True,
     ) -> Any:
         """
         Category-aware retry loop replacing tenacity.
@@ -816,6 +850,7 @@ class LLMGateway:
             # Try fallback model if overloaded and not yet attempted.
             if (
                 category == LLMErrorCategory.OVERLOADED
+                and allow_model_fallback
                 and strategy.fallback_model
                 and not fallback_attempted
             ):

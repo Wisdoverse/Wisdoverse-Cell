@@ -21,6 +21,12 @@ identical to this main revision. See the
 for exact run references and coverage limits. Deployment acceptance remains
 pending.
 
+For the 2026-10-01 implementation snapshot across product milestones, see the
+[Product Roadmap engineering snapshot](../overview/roadmap.md#engineering-delivery-snapshot-2026-10-01)
+and [engineering receipt](../evidence/product-roadmap-engineering-2026-10-01.md).
+Operational boundaries are in the [product governance](../runbooks/product-governance.md)
+and [Control Plane metrics](../runbooks/control-plane-metrics.md) runbooks.
+
 **Implemented** means the capability is represented in the repository.
 **Accepted** requires dated verification for the target revision and environment.
 Code closure, a configured CI job, or a checklist alone does not establish
@@ -213,6 +219,11 @@ The synthetic engineering scope is complete. Production-copy validation,
 physical cutover preconditions, cutover scheduling, operator backup sign-off,
 staging observation and production acceptance remain pending; these are not
 inferred from the synthetic checks. See [candidate scope and ownership](./per-runtime-migrations.md#21-dev-s41-engineering-acceptance).
+
+Merge-status note: the S4.1 rehearsal work merged as PR #395 at
+`42b06d0c1a9de9f2878ead1b0b5c6d011979a0f4`. This records the merge of the
+S4.1 synthetic engineering scope only. It does not report a new S4.2 staging
+observation or change the Stage 4 exit criteria above.
 
 ## Acceptance Record
 

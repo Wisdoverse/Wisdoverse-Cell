@@ -14,8 +14,10 @@ from ..api_serialization import row_to_dict, serialize_value
 from ..audit_timeline_use_cases import (
     build_work_item_activity as build_work_item_activity_from_store,
 )
+from ..domain.execution_policy import ExecutionDenied
 from ..domain.work_item import InvalidWorkItemTransitionError
 from ..models import WorkItem, WorkItemPriority, WorkItemStatus
+from ..operator_auth import OperatorPrincipal, require_operator
 from ..store_factory import ControlPlaneStores
 from ..unit_of_work import ControlPlaneUnitOfWork
 from ..work_item_execution_use_cases import (
@@ -95,6 +97,7 @@ class WorkItemRunRequest(BaseModel):
     input: dict[str, Any] = Field(default_factory=dict)
     actor_id: str = Field(default="api", min_length=1, max_length=128)
     trace_id: str | None = Field(default=None, max_length=96)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
 
     @field_validator("company_id", "agent_id", "trace_id", mode="before")
     @classmethod
@@ -112,6 +115,14 @@ class WorkItemRunRequest(BaseModel):
 
 class WorkItemRetryRequest(WorkItemRunRequest):
     pass
+
+
+class WorkItemAcceptanceRequest(BaseModel):
+    company_id: str | None = None
+    artifact_id: str = Field(min_length=1, max_length=48)
+    actor_id: str = Field(default="api", min_length=1, max_length=128)
+    verdict: str = Field(pattern="^(accepted|rejected)$")
+    reason: str = Field(min_length=1, max_length=4000)
 
 
 class WorkItemReassignRequest(BaseModel):
@@ -219,6 +230,8 @@ def create_work_item_router(
         stores = uow.stores
         store = stores.work_items
         company_id = resolve_company(body.company_id)
+        if body.status == WorkItemStatus.COMPLETED:
+            raise_control_plane_api_error(status_code=409, detail="accepted_artifact_required")
         try:
             row = await create_work_item_with_audit(
                 store,
@@ -243,6 +256,8 @@ def create_work_item_router(
             raise_control_plane_api_error(status_code=400, detail="goal_not_found")
         except WorkItemDependencyNotFoundError:
             raise_control_plane_api_error(status_code=400, detail="dependency_not_found")
+        if any(key in body.metadata for key in ("accepted_artifact_id", "acceptance_id")):
+            raise_control_plane_api_error(status_code=400, detail="reserved_work_item_metadata")
         await uow.commit()
         return row_to_dict(row)
 
@@ -290,6 +305,8 @@ def create_work_item_router(
                 status_code=400,
                 detail="invalid_work_item_transition",
             )
+        except ExecutionDenied as exc:
+            raise_control_plane_api_error(status_code=exc.status_code, detail=exc.reason)
         await uow.commit()
         return row_to_dict(row)
 
@@ -310,6 +327,7 @@ def create_work_item_router(
                 input_payload=body.input,
                 actor_id=body.actor_id,
                 trace_id=body.trace_id,
+                idempotency_key=body.idempotency_key or f"work:{work_item_id}:initial",
             )
         except WorkItemNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
@@ -355,6 +373,7 @@ def create_work_item_router(
                 input_payload=body.input,
                 actor_id=body.actor_id,
                 trace_id=body.trace_id,
+                idempotency_key=body.idempotency_key or f"work:{work_item_id}:retry:{body.trace_id or 'default'}",
             )
         except WorkItemNotFoundError:
             raise_control_plane_api_error(status_code=404, detail="work_item_not_found")
@@ -412,6 +431,22 @@ def create_work_item_router(
         await uow.commit()
         return row_to_dict(row)
 
+    @router.post("/work-items/{work_item_id}/accept")
+    async def accept_work_item_route(
+        work_item_id: str, body: WorkItemAcceptanceRequest,
+        uow: ControlPlaneUnitOfWork = Depends(get_uow),
+        principal: OperatorPrincipal = Depends(require_operator),
+    ):
+        try:
+            result = await uow.stores.outcomes.review(
+                company_id=resolve_company(body.company_id), work_item_id=work_item_id,
+                artifact_id=body.artifact_id, actor_id=principal.actor_id,
+                verdict=body.verdict, reason=body.reason)
+        except ExecutionDenied as exc:
+            raise_control_plane_api_error(status_code=exc.status_code, detail=exc.reason)
+        await uow.commit()
+        return result
+
     @router.post("/work-items/{work_item_id}/block")
     async def block_work_item_route(
         work_item_id: str,
@@ -462,6 +497,8 @@ def create_work_item_router(
                 status_code=400,
                 detail="invalid_work_item_transition",
             )
+        except ExecutionDenied as exc:
+            raise_control_plane_api_error(status_code=exc.status_code, detail=exc.reason)
         await uow.commit()
         return row_to_dict(row)
 

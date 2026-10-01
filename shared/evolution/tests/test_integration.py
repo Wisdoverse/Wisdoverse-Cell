@@ -266,16 +266,20 @@ class TestFullEvolutionCycle:
             "Expected at least one LLM call for self-reflection"
         )
 
-        # ── 9. Verify experiment created in DB ────────────────────────────────
+        # ── 9. Verify the candidate starts in shadow, with no live traffic ────
         async with db_session_factory() as session:
             repo = EvolutionRepository(session)
             experiment = await repo.get_active_experiment("test-agent", skill_id)
-            assert experiment is not None, (
-                "Expected a running experiment in DB after optimization cycle"
+            candidate_experiment = await repo.get_experiment_by_id(
+                f"exp-test-agent-{skill_id}-v2"
             )
-            assert experiment.skill_id == skill_id
-            assert experiment.traffic_pct == 10
-            assert experiment.status == "running"
+            assert experiment is None, "Shadow experiments must not be live-routable."
+            assert candidate_experiment is not None, (
+                "Expected a persisted shadow experiment after optimization cycle"
+            )
+            assert candidate_experiment.skill_id == skill_id
+            assert candidate_experiment.traffic_pct == 0
+            assert candidate_experiment.status == "shadow"
 
         # ── 10. Verify candidate skill saved in DB ────────────────────────────
         async with db_session_factory() as session:

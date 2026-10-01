@@ -51,6 +51,32 @@ repository's existing explicit advisory policy.
 | Architecture | [DDD audit](../architecture/ddd-compliance-audit.md#2-executive-summary) records 22/22 code-level remediation closures | Runtime-specific migration cutover and deployment acceptance |
 | Portability | Compose and environment templates | Safe company-template export/import; organizational knowledge lifecycle |
 
+## Engineering Delivery Snapshot (2026-10-01)
+
+This snapshot describes implemented repository surfaces, not completed
+milestones. The [engineering receipt](../evidence/product-roadmap-engineering-2026-10-01.md)
+maps implementation sources and records completed local validation and open milestone acceptance.
+The [product governance runbook](../runbooks/product-governance.md) and
+[Control Plane metrics runbook](../runbooks/control-plane-metrics.md) describe
+operator policy and metrics operations.
+
+| Area | Implemented foundation as of this snapshot | Acceptance remains open |
+|------|--------------------------------------------|-------------------------|
+| M0 — report and first outcome | First-success CLI creates a synthetic report through a real local-process boundary; work-item acceptance is linked to the latest run and artifact hash. | Complete business-flow acceptance, real accepted outcome and QA/review evidence; native four-runtime delivery is not established. |
+| M1 — ownership and policy | Execution ownership leases/reservations, scoped operator authorization, approval binding, conservative unknown-cost settlement, and an opt-in HTTP heartbeat worker are implemented. | Observed recurring work, recovery behavior on the selected runtime, and target-environment operational evidence. |
+| M2 — executor boundary | HTTP and gated local-process adapters have bounded execution paths; remote HTTP allowlist defaults empty. | Native four-runtime conformance and a stable executor handoff are missing; live model/provider and platform pilot evidence remains open. |
+| M3 — governed evolution | Fixed-case evaluation and signed release commands support approval-gated shadow/canary/promotion/rollback transitions. | Measured live model/provider evolution and verified rollback under target runtime conditions. No live-evolution acceptance is claimed. |
+| M4 — company reuse | Secret-scrubbed company template export/import and artifact-backed knowledge provenance, role ACL, versioning, expiry and deletion are implemented; imported roles remain paused. | Accepted template round trip and knowledge lifecycle/retention acceptance. |
+| Frontend architecture | Operator surfaces use Feature-Sliced Design organization. | Product-flow acceptance across the required operator states remains open. |
+| R0 — deployment | Readiness checker and deployment gates are implemented; Dev S4.1 synthetic engineering evidence passed. PR #395 merged at `42b06d0c1a9de9f2878ead1b0b5c6d011979a0f4` for that S4.1 work. | At least 14 days of target staging observation, cloud/deployment acceptance, replay and rollback evidence, and operator sign-off. This is not an S4.2 acceptance claim. |
+| Retention | Redacted, company-scoped audit export is limited to a 90-day query window. | Physical retention/purge policy and its enforcement remain pending. |
+
+The snapshot does not establish a live model/provider pilot, production
+readiness, cloud acceptance, or a completed milestone. S4.1 synthetic
+engineering acceptance remains distinct from S4.2's two-week staging gate;
+see the [migration plan](../architecture/migration-plan.md#s41-engineering-evidence--2026-10-01)
+for its original evidence and unchanged exit criteria.
+
 ## Delivery Order
 
 | Priority / milestone | Outcome | Dependencies | Responsible role | Exit evidence |

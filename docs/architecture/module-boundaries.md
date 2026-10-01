@@ -1,6 +1,6 @@
 # Module Boundaries
 
-Last updated: 2026-05-22
+Last updated: 2026-10-01
 
 Status: Foundation document.
 
@@ -51,20 +51,32 @@ When you add a new context, you must add a row to this document **and** to
   glossary lives in [`shared/control_plane/README.md`](../../shared/control_plane/README.md).
 - Business objects: `Company`, `Goal`, `AgentRole`, `WorkItem`, `AgentRun`,
   `Decision`, `ApprovalRequest`, `BudgetPolicy`, `BudgetUsage`, `Artifact`,
-  `AuditEvent`, `EvolutionProposal`, `AgentPromptConfig`, and stateless
+  `AuditEvent`, `EvolutionProposal`, `AgentPromptConfig`, company-template
+  names, artifact-backed knowledge references and tombstones, execution
+  leases/reservations, outcome acceptances, evolution evaluation reports and
+  Control Plane release snapshots, and stateless
   `ControlPlaneDomainService` policies for cross-aggregate rules.
 - Owned data: `control_plane_*` tables, including
-  `control_plane_event_outbox` for aggregate-raised domain events.
+  `control_plane_event_outbox` for aggregate-raised domain events. The eight
+  product-governance tables added in the current migration remain Control
+  Plane-owned; Evolution runtime release state is stored separately in its
+  two `evolution_skill_*` tables.
 - Exposed capabilities: `/api/v1/control-plane/*`, `/agent/request` wakeups,
   run-evidence APIs, budget enforcement, approval gates, and durable
   domain-event outbox staging.
 - Outbound dependencies: runtime agents (writes runs, artifacts, audit);
-  LLM Gateway (budget usage); gateways (approvals consumption).
+  LLM Gateway (budget usage); gateways (approvals consumption); Evolution
+  runtime through its signed HTTP release receiver.
 - Boundary clarity: high (single owner); internal SQL ownership is now behind
   per-aggregate stores. The retired `repository.py` facade no longer exists;
   callers use store ports/factory adapters.
 - Split fitness: must remain central. Do not extract.
 - Context-map relationships: Open-Host Service to every runtime agent via `/api/v1/control-plane/*` and `/agent/request`. Published Language on `AgentRun`, `ApprovalRequest`, `BudgetPolicy`, `Artifact`, `AuditEvent` Pydantic records, `control_plane_event_outbox` integration-event rows, `ControlPlaneMetadata` JSON payload vocabulary, the `ControlPlaneStateMachine` lifecycle contract, and `ControlPlaneDomainService` policy naming for cross-aggregate rules. No upstream context (root authority).
+
+The new `services/orchestration/control_plane_worker` profile is an HTTP-only
+scheduler client. It calls the Control Plane heartbeat endpoint with operator
+credentials; it has no ORM, migration, or table ownership. Its Compose profile
+is opt-in and remains off by default.
 
 ### 2.2 Requirement Management
 

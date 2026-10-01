@@ -1,5 +1,12 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
 
+function apiPath(path: string): string {
+  if (path === "/control-plane" || path.startsWith("/control-plane/")) {
+    return `/api/operator${path}`;
+  }
+  return `${API_BASE}${path}`;
+}
+
 class ApiClientError extends Error {
   constructor(
     public readonly status: number,
@@ -11,7 +18,7 @@ class ApiClientError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE}${path}`;
+  const url = apiPath(path);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
 

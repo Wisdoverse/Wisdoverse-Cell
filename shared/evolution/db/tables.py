@@ -261,3 +261,6 @@ class EvolutionCollaborationPatternTable(EvolutionBase):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+
+# Import mappings so EvolutionBase.metadata.create_all includes the release ledger.
+from . import release_tables as _release_tables  # noqa: E402,F401

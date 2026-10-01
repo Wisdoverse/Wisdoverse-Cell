@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 
 import {
-  useControlPlaneWorkbench,
   type ControlPlaneAgentRun,
   type ControlPlaneApproval,
   type ControlPlaneArtifact,
@@ -33,7 +32,6 @@ import {
   type ControlPlaneEvolutionProposal,
   type ControlPlaneGoal,
   type ControlPlaneTimelineItem,
-  type ControlPlaneWorkbenchState,
   type ControlPlaneWorkItem,
   type BudgetPeriod,
   type BudgetPolicyStatus,
@@ -41,6 +39,10 @@ import {
   type WorkItemPriority,
   type WorkItemStatus,
 } from "@/entities/control-plane";
+import { useControlPlaneWorkbench, type ControlPlaneWorkbenchState } from "@/features/control-plane-operations";
+import { EvolutionEvaluationReleasePanel } from "@/features/evolution-operations";
+import { ExecutionControlsPanel } from "@/features/execution-controls";
+import { OperatingMetricsPanel } from "./operating-metrics-panel";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -142,7 +144,6 @@ const workItemStatuses: WorkItemStatus[] = [
   "running",
   "blocked",
   "awaiting_approval",
-  "completed",
   "failed",
   "cancelled",
 ];
@@ -478,11 +479,22 @@ function UpdateWorkItemDialog({ workbench }: { workbench: Workbench }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedWorkItem) return;
-    await workbench.updateWorkItemStatus(selectedWorkItem.work_item_id, {
-      status,
-      owner_agent_id: ownerAgentId.trim() || undefined,
-      owner_user_id: selectedWorkItem.owner_user_id ?? undefined,
-    });
+    if (ownerAgentId.trim() !== (selectedWorkItem.owner_agent_id ?? "")) {
+      await workbench.reassignWorkItem(selectedWorkItem.work_item_id, {
+        company_id: selectedWorkItem.company_id,
+        owner_agent_id: ownerAgentId.trim() || undefined,
+        owner_user_id: selectedWorkItem.owner_user_id ?? undefined,
+        actor_id: "human:operator",
+      });
+    }
+    if (status !== selectedWorkItem.status) {
+      await workbench.updateWorkItemStatus(selectedWorkItem.work_item_id, {
+        company_id: selectedWorkItem.company_id,
+        status,
+        owner_agent_id: ownerAgentId.trim() || undefined,
+        owner_user_id: selectedWorkItem.owner_user_id ?? undefined,
+      });
+    }
     setOpen(false);
   }
 
@@ -1133,6 +1145,41 @@ function WorkQueue({ workbench }: { workbench: Workbench }) {
   );
 }
 
+function WorkItemActions({ workbench }: { workbench: Workbench }) {
+  const t = useTranslations("controlPlane");
+  const [reason, setReason] = useState("");
+  const item = workbench.selectedWorkItem;
+  if (!item) return null;
+  const busy = workbench.workItemAction === item.work_item_id;
+  const acceptedArtifactId = item.metadata.accepted_artifact_id;
+  const canClose = typeof acceptedArtifactId === "string" && acceptedArtifactId.length > 0;
+  const approvedForItem = workbench.approvals.some(
+    (approval) => approval.work_item_id === item.work_item_id && approval.status === "approved" &&
+      approval.source_agent_id === item.owner_agent_id,
+  );
+  const approvedExecutionKey = workbench.approvals.find(
+    (approval) => approval.work_item_id === item.work_item_id && approval.status === "approved" &&
+      approval.source_agent_id === item.owner_agent_id &&
+      typeof approval.metadata.execution_key === "string" && approval.metadata.execution_key.length > 0,
+  )?.metadata.execution_key as string | undefined;
+  const canRun = item.status === "ready" || item.status === "queued" || (item.status === "awaiting_approval" && Boolean(approvedExecutionKey));
+  const canRetry = item.status === "failed";
+
+  return (
+    <div className="mt-3 space-y-2 rounded-lg border p-3">
+      {workbench.workItemError && <p role="alert" className="text-sm text-destructive">{workbench.workItemError}</p>}
+      {workbench.activeRun?.metadata?.adapter_type === "builtin" && <p className="text-xs text-muted-foreground">{t("builtinRecordedOnly")}</p>}
+      <div className="flex flex-wrap gap-2">
+        {(canRun || canRetry) && <Button size="sm" disabled={busy} onClick={() => void (canRetry ? workbench.retryWorkItem(item.work_item_id, { company_id: item.company_id, actor_id: "human:operator" }) : workbench.runWorkItem(item.work_item_id, { company_id: item.company_id, actor_id: "human:operator" }, approvedExecutionKey)).catch(() => undefined)}>{busy ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}{canRetry ? t("retryWork") : t("runWork")}</Button>}
+        {item.status !== "blocked" && item.status !== "completed" && <Button variant="outline" size="sm" disabled={busy || !reason.trim()} onClick={() => void workbench.blockWorkItem(item.work_item_id, { company_id: item.company_id, reason: reason.trim(), actor_id: "human:operator" }).then(() => setReason("")).catch(() => undefined)}>{t("blockWork")}</Button>}
+        {canClose && item.status !== "completed" && <Button variant="outline" size="sm" disabled={busy} onClick={() => void workbench.closeWorkItem(item.work_item_id, { company_id: item.company_id, actor_id: "human:operator", reason: t("acceptedArtifactCloseReason") }).catch(() => undefined)}><Check className="size-4" />{t("closeWork")}</Button>}
+      </div>
+      {item.status !== "blocked" && item.status !== "completed" && <Input aria-label={t("actionReason")} value={reason} onChange={(event) => setReason(event.target.value)} placeholder={t("blockReasonPlaceholder")} />}
+      {item.status === "awaiting_approval" && <p className="text-sm text-amber-700">{approvedExecutionKey ? t("approvedExecutionBound") : approvedForItem ? t("approvedExecutionKeyMissing") : t("approvalRequiredState")}</p>}
+    </div>
+  );
+}
+
 function EvidencePanel({ workbench }: { workbench: Workbench }) {
   const t = useTranslations("controlPlane");
   const locale = useLocale();
@@ -1160,6 +1207,10 @@ function EvidencePanel({ workbench }: { workbench: Workbench }) {
           {workbench.activeRun && <StatusBadge value={workbench.activeRun.status} />}
         </div>
       </div>
+
+      {workbench.activeRun && (
+        <ExecutionControlsPanel run={workbench.activeRun} onRefresh={workbench.refresh} />
+      )}
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <TabsList className="h-9 rounded-lg bg-zinc-100/80 dark:bg-white/10">
@@ -1192,7 +1243,7 @@ function EvidencePanel({ workbench }: { workbench: Workbench }) {
       </TabsContent>
 
       <TabsContent value="artifacts" className="mt-4">
-        <ArtifactList artifacts={workbench.artifacts} locale={locale} />
+        <ArtifactList artifacts={workbench.artifacts} locale={locale} workbench={workbench} />
       </TabsContent>
     </Tabs>
   );
@@ -1471,11 +1522,15 @@ function ApprovalItem({
 function ArtifactList({
   artifacts,
   locale,
+  workbench,
 }: {
   artifacts: ControlPlaneArtifact[];
   locale: string;
+  workbench: Workbench;
 }) {
   const t = useTranslations("controlPlane");
+  const [reason, setReason] = useState("");
+  const [artifactId, setArtifactId] = useState("");
 
   if (artifacts.length === 0) {
     return <EmptyState message={t("noArtifacts")} />;
@@ -1484,11 +1539,11 @@ function ArtifactList({
   return (
     <div className="space-y-2">
       {artifacts.map((artifact) => (
-        <a
+        <div
           key={artifact.artifact_id}
-          href={artifact.uri}
           className="block rounded-lg border border-zinc-200/80 bg-white/75 px-3 py-3 shadow-[0_1px_1px_rgba(15,23,42,0.03)] transition hover:border-zinc-300 hover:bg-white dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.06]"
         >
+          <a href={artifact.uri} target="_blank" rel="noreferrer" className="block">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="truncate text-[13px] font-semibold leading-5">
@@ -1504,7 +1559,15 @@ function ArtifactList({
             <span>{artifact.created_by_agent_id ?? artifact.artifact_id}</span>
             <span>{formatDate(artifact.created_at, locale)}</span>
           </div>
-        </a>
+          </a>
+          {artifact.work_item_id === workbench.selectedWorkItem?.work_item_id && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Input aria-label={t("reviewReason")} value={artifactId === artifact.artifact_id ? reason : ""} onChange={(event) => { setArtifactId(artifact.artifact_id); setReason(event.target.value); }} placeholder={t("reviewReasonRequired")} />
+              <Button size="sm" disabled={!reason.trim() || workbench.workItemAction === artifact.work_item_id} onClick={() => void workbench.acceptWorkItemArtifact(artifact.work_item_id!, { company_id: artifact.company_id, artifact_id: artifact.artifact_id, actor_id: "human:operator", verdict: "accepted", reason: reason.trim() }).then(() => setReason("")).catch(() => undefined)}>{t("acceptArtifact")}</Button>
+              <Button size="sm" variant="outline" disabled={!reason.trim() || workbench.workItemAction === artifact.work_item_id} onClick={() => void workbench.acceptWorkItemArtifact(artifact.work_item_id!, { company_id: artifact.company_id, artifact_id: artifact.artifact_id, actor_id: "human:operator", verdict: "rejected", reason: reason.trim() }).then(() => setReason("")).catch(() => undefined)}>{t("rejectArtifact")}</Button>
+            </div>
+          )}
+        </div>
       ))}
     </div>
   );
@@ -1594,6 +1657,7 @@ function EvolutionProposalItem({
           {t("updated")}: {formatDate(proposal.updated_at, locale)}
         </div>
       </div>
+      <EvolutionEvaluationReleasePanel proposal={proposal} />
     </div>
   );
 }
@@ -1700,6 +1764,8 @@ export function ControlPlaneWorkbenchPage() {
 
         {workbench.error && <WorkbenchError onRetry={workbench.refresh} />}
 
+        <OperatingMetricsPanel companyId={workbench.selectedWorkItem?.company_id ?? workbench.selectedGoal?.company_id} />
+
         <BudgetPolicyPanel workbench={workbench} />
 
         <EvolutionProposalPanel workbench={workbench} />
@@ -1724,6 +1790,7 @@ export function ControlPlaneWorkbenchPage() {
             }
           >
             <WorkQueue workbench={workbench} />
+            <WorkItemActions workbench={workbench} />
           </ColumnShell>
 
           <ColumnShell title={t("evidence")} icon={FileText}>

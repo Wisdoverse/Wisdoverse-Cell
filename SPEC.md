@@ -382,6 +382,75 @@ Requirements:
 - Callers SHOULD preserve `trace_id` through headers or request payloads.
 - Direct Python object calls across agent services are prohibited.
 
+### 7.1 Control Plane API Contracts
+
+The Control Plane HTTP API is mounted under `/api/v1/control-plane`. Requests
+that read or mutate a company resource MUST carry an authenticated operator
+principal whose server-configured company scope includes the resolved company
+and whose action scope authorizes the operation. Request bodies MUST NOT be
+used as the source of actor identity or authorization. Operator token material
+is configured server-side as token SHA-256 digests; raw tokens MUST NOT be
+persisted in operator configuration or logs. The development board principal
+is a development-only override and is not a production identity mechanism.
+
+Cross-company access MUST fail closed. Company identifiers in query/path/body
+must be resolved and checked against the principal before data is returned or
+changed. An empty `CONTROL_PLANE_HTTP_ADAPTER_ALLOWLIST` disables outbound HTTP
+execution by default; enabling an adapter requires an explicit exact allowlist.
+
+The implemented route contracts include:
+
+| Route | Contract |
+|-------|----------|
+| `POST /work-items/{work_item_id}/accept` | Accepts a successful run's linked artifact with a non-empty artifact hash and explicit reviewer reason. The accepted hash and run are recorded; acceptance is valid only for the latest run. |
+| `GET /companies/{company_id}/template`, `POST /company-templates/import` | Exports portable company structure with secret scrubbing and imports roles paused for explicit review. |
+| `POST /knowledge`, `POST /knowledge/{knowledge_id}/publish`, `GET /knowledge/{knowledge_id}`, `DELETE /knowledge/{knowledge_id}` | Operates on a same-company artifact URI reference only. Provenance is immutable; publication is versioned; reads require owner or granted reader-role access; deletion creates an inaccessible tombstone. |
+| `GET /audit-export` | Requires `audit:export`, exact company scope, and an explicit time range within the 90-day export window. Returns redacted, paginated audit snapshots, not unredacted records. Physical data retention/purge is a separate pending policy. |
+| `POST /evolution-proposals/{proposal_id}/evaluations`, `GET /evolution-proposals/{proposal_id}/evaluations` | Creates and reads fixed-case comparative evaluation evidence. |
+| `POST /evolution-proposals/{proposal_id}/release`, `POST /evolution-proposals/{proposal_id}/release/reconcile`, `POST /evolution-proposals/{proposal_id}/release/recover` | Processes signed release commands for shadow/canary/promotion/rollback, reconciles known acknowledgements, and explicitly recovers only expired commands after authoritative receiver `404`. Non-shadow transitions require an approved decision matching the release snapshot. |
+| `POST /api/v1/evolution/skill-executions/resolve`, `POST /api/v1/evolution/skill-executions/results` | Internal-key-protected task-time resolution and evidence recording for a frozen signed skill selection. |
+
+Knowledge records MUST contain references and metadata, not copied source
+content or raw secrets. Expired and deleted records are inaccessible. A reader
+grant identifies company-local roles; same-company membership alone is not
+read permission. Audit exports are sanitized before serialization and MUST
+preserve stable identifiers and hashes needed for linkage while redacting
+secret-bearing fields and credential patterns.
+
+Execution governance MUST bind approvals to the intended execution inputs and
+consume them once. Budgets reserve the declared maximum before dispatch. If
+measured cost is unavailable after a failed or uncertain attempt, the system
+charges the reservation conservatively. An uncertain HTTP side effect MUST NOT
+be automatically retried; recovery requires operator review. Scheduler polling
+retries do not authorize replay of an uncertain adapter execution.
+
+Self-evolution release controls require signed commands. Comparative evidence
+uses fixed cases with a minimum of 50 samples per arm; this is a protocol
+threshold, not evidence of live-runtime performance or a claim that production
+evolution is accepted. R0 readiness evidence is a prerequisite for cutover
+review only; a checker result MUST NOT be represented as deployment or cutover
+approval.
+
+Task-time skill execution is disabled by default through
+`EVOLUTION_SKILL_EXECUTION_ENABLED=false`. When enabled for a traced task, the
+LLM gateway asks the Evolution runtime for the actual active/canary candidate
+configuration using `agent_id:task_type.replace("_", "-")`. The returned
+frozen selection includes prompt, target model and supported parameters, a
+configuration hash, version, expiry and HMAC signature. Resolve occurs before
+budget estimation/reservation and provider dispatch. A selected version
+disables model fallback for that request. Post-execution evidence is task-local
+and records the actually selected version; Evolution-owned persistence
+deduplicates duplicate observations. Unrouted tasks do not produce live
+canary scores. This instrumentation does not establish live provider
+observations or M3 acceptance.
+
+For release recovery, reconciliation reads a prior acknowledgement and does
+not resubmit when delivery is unknown. The explicit recovery operation may
+replace a command only after expiry plus a definitive receiver `404`; transport
+or server uncertainty is not proof of non-application. Recovery checks command
+ID/payload ownership with compare-and-swap and revalidates snapshot-bound
+approval for non-shadow commands.
+
 ## 8. Configuration and Secret Contract
 
 Configuration is environment-driven and documented by `.env.example`.

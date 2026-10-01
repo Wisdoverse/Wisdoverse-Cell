@@ -8,7 +8,7 @@ pydantic-settings.
 from functools import lru_cache
 from typing import Literal, Optional
 
-from pydantic import SecretStr, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -124,6 +124,10 @@ class Settings(BaseSettings):
     control_plane_tool_budget_period: Literal["daily", "monthly", "quarterly", "total"] = "daily"
     control_plane_local_adapter_enabled: bool = False
     control_plane_local_adapter_allowlist: str = ""
+    control_plane_http_adapter_allowlist: str = ""
+    control_plane_operators_json: str = Field(default="", repr=False)
+    evolution_deployment_signing_key: SecretStr = SecretStr("")
+    evolution_runtime_url: str = "http://evolution-module:8016"
 
     @property
     def control_plane_local_adapter_allowlist_entries(self) -> set[str]:

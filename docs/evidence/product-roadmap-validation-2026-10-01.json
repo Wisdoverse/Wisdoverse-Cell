@@ -1,0 +1,1138 @@
+{
+  "format_version": "1.0",
+  "verified_at": "2026-10-01T11:21:40.790335+00:00",
+  "evidence_scope": "local_synthetic_engineering_validation",
+  "all_roadmap_goals_accepted": false,
+  "source": {
+    "base_commit": "42b06d0c1a9de9f2878ead1b0b5c6d011979a0f4",
+    "worktree_dirty_at_validation": true,
+    "fingerprint_format": "SHA-256 of UTF-8 canonical JSON (sort_keys=True, separators=(comma, colon)) of sorted path/sha256 pairs; null means deleted",
+    "excluded_paths": [
+      "docs/evidence/** (receipts excluded to avoid self-reference)"
+    ],
+    "inputs_sha256": "4eab6df603e9e15517b5af263eec9006205abb66c9c350a6d17eb3157aad04f5",
+    "inputs": [
+      {
+        "path": ".env.example",
+        "sha256": "8c3647e45d45d47ace979e1a8d0a554c357f7fc1cdbcb287141b19051a9ca05e"
+      },
+      {
+        "path": ".github/workflows/ci.yml",
+        "sha256": "f10087c75c3525b605b505bd6a65a22202fb24ecca54779141a2fcfbd8b72ce5"
+      },
+      {
+        "path": "AGENTS.md",
+        "sha256": "70e330a834f71d0e0c51626c0dd6d76221df57ceb185727f5cde6a2e674c75e9"
+      },
+      {
+        "path": "Makefile",
+        "sha256": "783c27e375161ef7905930ed4631d868958baa542cf9464f514bbb0fba189a53"
+      },
+      {
+        "path": "SPEC.md",
+        "sha256": "c7e0d59559010887748b5f6b57435aa17703f9c501329b2dec88404e8f00c154"
+      },
+      {
+        "path": "docker/compose/docker-compose.app.yml",
+        "sha256": "f88257f9cd5599b712e58ee40c6b758c560ae43c821e2ddfa3b993b443ac84b2"
+      },
+      {
+        "path": "docker/compose/docker-compose.control-plane-worker.yml",
+        "sha256": "bc4cd65d6fa63c2a52116b5df9ea9d8db3694217557fb39b8a340deba4384707"
+      },
+      {
+        "path": "docker/prometheus/rules/control-plane-alerts.yml",
+        "sha256": "5becae8e3d3f31995f387ee265de18011d2e2eeba1659635b7c5a3665e8c8f78"
+      },
+      {
+        "path": "docs/INDEX.md",
+        "sha256": "22d025ab3fbda49ef6b0e63722554e5723374f44ec8494c37dcfbe297a7b09b9"
+      },
+      {
+        "path": "docs/api/openapi/README.md",
+        "sha256": "b1bc8eba505d87d9c4630348663498e5765411e9f6b1ac41cba92d763f06aa86"
+      },
+      {
+        "path": "docs/api/openapi/control-plane-v1.json",
+        "sha256": "30d6a1223d3ceee85acf068ee8ae4dc6adcbe83cca7f0cac2743bf8a1d125fc5"
+      },
+      {
+        "path": "docs/api/openapi/dev-agent-v1.json",
+        "sha256": "d239672bf9f517b0cf2f9e82c02e859b07fffbd98000478ed41cd91bf3216bc2"
+      },
+      {
+        "path": "docs/api/openapi/evolution-module-v1.json",
+        "sha256": "bf9451d7306863cfc5c0c22bdc02084d6517b31b166a8f4c1ce5324019779671"
+      },
+      {
+        "path": "docs/api/openapi/pjm-agent-v1.json",
+        "sha256": "415a57407bd018046e07da460563e38803bbcbb230419e77a382db5380d18937"
+      },
+      {
+        "path": "docs/api/openapi/qa-agent-v1.json",
+        "sha256": "7c74fcb79f00051bd52f67fbfa337b7975708bc373058d9f4e71bce34158475d"
+      },
+      {
+        "path": "docs/api/openapi/requirement-manager-v1.json",
+        "sha256": "899187d8a70dd3011ff6f8683fdb529e19932fff5351cf681cc4f359b6dec946"
+      },
+      {
+        "path": "docs/architecture/architecture-review-checklist.md",
+        "sha256": "3fc1a464437e96321ae80b83c51ab1750ff4cf5b912f848c5a5c8b37478c9123"
+      },
+      {
+        "path": "docs/architecture/backend-evolution-plan.md",
+        "sha256": "0dad776513e6bfa9ffce6c4c0ec8250ea4ea16454beb50fc7d0a97bb59f1eaa7"
+      },
+      {
+        "path": "docs/architecture/backend-target-architecture.md",
+        "sha256": "53ea50b8cc8ce1001fd39a668aad4c696f3606eed22c6d41653366a63335b1dc"
+      },
+      {
+        "path": "docs/architecture/migration-plan.md",
+        "sha256": "9632ff30a7bfc5bbbc8d58a1595dacb9f5286b2321326806191f73d181a73d92"
+      },
+      {
+        "path": "docs/architecture/module-boundaries.md",
+        "sha256": "6b431c4953b71da7ca175b8dca04e0949e4c54fcf488f4a127be181262a26f33"
+      },
+      {
+        "path": "docs/examples/control-plane-prometheus-scrape.yml",
+        "sha256": "3063a8018e58f3a540127d151bf4a46b00759f313c2883d95b5a5025e3524041"
+      },
+      {
+        "path": "docs/guides/api-reference.md",
+        "sha256": "12d9b9f218e6e1bca3db1df419cdfd49ea578024746e755405a432310836be0e"
+      },
+      {
+        "path": "docs/guides/backend-boundaries.md",
+        "sha256": "ecb9176ff28fa74cc4411c5460a6c42048c6cfd5896fe2e2617218a16ae6aa88"
+      },
+      {
+        "path": "docs/guides/event-catalog.md",
+        "sha256": "412852781f6726f8ee2b9c4b62d19afcceb79898ed2d8e5f0c681012e6ed1599"
+      },
+      {
+        "path": "docs/guides/operations.md",
+        "sha256": "4b8a9e60452a4727e07f2ffbe101d79dc67b9c6166002c46b0c248e194edde81"
+      },
+      {
+        "path": "docs/overview/product-model.md",
+        "sha256": "f4fd1760bd558f82771d300cd9c01062fbc0bb84c72cc6bdc4ee8aab1181c05d"
+      },
+      {
+        "path": "docs/overview/roadmap.md",
+        "sha256": "4d914c5dd26bd1cf1f06cade3020ea10f62cda14da6693bf25c5e2a06abded49"
+      },
+      {
+        "path": "docs/runbooks/control-plane-metrics.md",
+        "sha256": "c71ecc92a8d7bafd6ae01ea2a598dec3279570f50b927c586c526f1f26422c65"
+      },
+      {
+        "path": "docs/runbooks/product-governance.md",
+        "sha256": "22cc7b0eed34c38ddd7f808fe4f39356b786aae152345491ec4017d7fe344f43"
+      },
+      {
+        "path": "frontend/e2e/control-plane-workflow.spec.ts",
+        "sha256": "b858d0fa86450b36ac7ed8cbd02856e116fb49818ba7ce92416a5fa11bffaadc"
+      },
+      {
+        "path": "frontend/e2e/helpers/auth.ts",
+        "sha256": "cc84c828bdd92fab18e61cb676dbe8d062f8c6e09e5bbd59657f0d19a6d7db0a"
+      },
+      {
+        "path": "frontend/src/app/[locale]/(app)/company/page.tsx",
+        "sha256": "81a4f88d2aadf7aa9e7ea73df5e3e15bf5c447de7a10771e9a8d53f8e80d80cb"
+      },
+      {
+        "path": "frontend/src/app/api/operator/control-plane/[...path]/route.test.ts",
+        "sha256": "94360570ea950ee36d417005f13e900f117700b9686456ab08b1232005c0313a"
+      },
+      {
+        "path": "frontend/src/app/api/operator/control-plane/[...path]/route.ts",
+        "sha256": "df335da15a20f9e56ac15065c880f4c3e32b8b851251ac1a8d89dc219b20ed27"
+      },
+      {
+        "path": "frontend/src/entities/control-plane/api/control-plane.test.ts",
+        "sha256": "a9ad34e94cdd92875206412e5bc43f7085fe14ea5f1564f7344b9a8f6050fded"
+      },
+      {
+        "path": "frontend/src/entities/control-plane/api/control-plane.ts",
+        "sha256": "5fe485578854445ea4de3b857bf3bd838232b5606537592af4c5fd43af31005f"
+      },
+      {
+        "path": "frontend/src/entities/control-plane/index.ts",
+        "sha256": "3244d9a92fd46327b663d5f4cf352bd23ec1368d5b627dd41df2d2ad43c5ba67"
+      },
+      {
+        "path": "frontend/src/entities/control-plane/model/types.ts",
+        "sha256": "bb99bc19abd93fa82d0849d5851671ecad104e777c0a8509a2df13a80c80eec7"
+      },
+      {
+        "path": "frontend/src/entities/control-plane/model/use-control-plane-queries.ts",
+        "sha256": "78e8462101b6fa6af50a224089ddf24445486371965e91a43461010dfe95952e"
+      },
+      {
+        "path": "frontend/src/entities/control-plane/model/use-control-plane-workbench.ts",
+        "sha256": null
+      },
+      {
+        "path": "frontend/src/features/agent-create/ui/agent-create-dialog.test.tsx",
+        "sha256": "3fe65c0c4655113167f3961037f88e1e690a8def6bdb75c473f36f9caf0fb955"
+      },
+      {
+        "path": "frontend/src/features/agent-create/ui/agent-create-dialog.tsx",
+        "sha256": "4a54446651a24c0ef2fa4382e520d0414f6d33e4c47b4f78c6f7ea3a729be560"
+      },
+      {
+        "path": "frontend/src/features/agent-edit/ui/agent-edit-dialog.test.tsx",
+        "sha256": "313dc6231ce298c4784e9310b581059492eaf24a984000078d95dcf1a45fd770"
+      },
+      {
+        "path": "frontend/src/features/agent-edit/ui/agent-edit-dialog.tsx",
+        "sha256": "7e92cff99426347aa102638adf9f8281556b9854a910e431b589b3aba64a8a88"
+      },
+      {
+        "path": "frontend/src/features/agent-execution-policy/index.ts",
+        "sha256": "29c9542ec60aca4b1c4b93e9b69e1ccbfc49d33cede162f902597b9ad8a0a0d4"
+      },
+      {
+        "path": "frontend/src/features/agent-execution-policy/ui/agent-execution-policy-fields.tsx",
+        "sha256": "2de1d266876e7e8bb7bfaa0c5bd9dbfb204da13b6243ec7d442fa1ff9e440592"
+      },
+      {
+        "path": "frontend/src/features/company-knowledge/api/company-knowledge.ts",
+        "sha256": "070bf6370385c953525cac8d20c57ae25cfc65f75f49c98e1a23ba02d5c09da6"
+      },
+      {
+        "path": "frontend/src/features/company-knowledge/index.ts",
+        "sha256": "ed908b6ac37b13fee6053d5c5ac18c8475b3f4180df237cba2f2ac0306d36138"
+      },
+      {
+        "path": "frontend/src/features/company-knowledge/ui/company-knowledge-panel.tsx",
+        "sha256": "c10f8bdd568452d9d84380fa84ae38fbb4b66fb1cd3a81da4499b9a6cbaf7529"
+      },
+      {
+        "path": "frontend/src/features/company-template-management/api/company-templates.ts",
+        "sha256": "0f928f1e236c71137350c0b9f34e0c29d8aedd81ab03bcda6a76a32eceb89a0f"
+      },
+      {
+        "path": "frontend/src/features/company-template-management/index.ts",
+        "sha256": "6ddd693d51269e0038f466a07d6d57a2e98e9eb48f4ca4b167d9f2ff30d6a36c"
+      },
+      {
+        "path": "frontend/src/features/company-template-management/ui/company-template-panel.test.tsx",
+        "sha256": "ff1086c0635304a9b203045d5a2a6e64969969f646e86a3a422a63592919a230"
+      },
+      {
+        "path": "frontend/src/features/company-template-management/ui/company-template-panel.tsx",
+        "sha256": "4d9461f889b50da6f4ba56cb0439d32743bafc60a5627931844c8c09d15d4e20"
+      },
+      {
+        "path": "frontend/src/features/control-plane-operations/index.ts",
+        "sha256": "49f876255c019eeb6a635d366b86d63923dc8e74bf493e3e90cd4e0ab643edf9"
+      },
+      {
+        "path": "frontend/src/features/control-plane-operations/model/idempotency-key.test.ts",
+        "sha256": "14ff614d0e75956f998c856a7c368e958ada445ac97fe9bd1f3c59d5452d4b5e"
+      },
+      {
+        "path": "frontend/src/features/control-plane-operations/model/use-control-plane-workbench.ts",
+        "sha256": "ecc4778f6f55b842d7b62ba28757aa5a79d5426b28b63ffb90846b52b6c2afe9"
+      },
+      {
+        "path": "frontend/src/features/evolution-operations/api/evolution-operations.test.ts",
+        "sha256": "dd59730c015deab4ae081442b87b43a178c65bb14a83ba7bb2847258edf535b8"
+      },
+      {
+        "path": "frontend/src/features/evolution-operations/api/evolution-operations.ts",
+        "sha256": "efd2612d6c3ddf3cee69e4bf0f0bc720bd2ec0aebbb3d41be71f29ad1bbbcc32"
+      },
+      {
+        "path": "frontend/src/features/evolution-operations/index.ts",
+        "sha256": "cf338999940d82cbd7eb660f52326bee444ba2da037b87583817e4c1eb249672"
+      },
+      {
+        "path": "frontend/src/features/evolution-operations/ui/evolution-evaluation-release-panel.test.tsx",
+        "sha256": "e04f5f9a73ba7843c06cb5fef6588fe560322d72d77c2a38a4b281773f02e69d"
+      },
+      {
+        "path": "frontend/src/features/evolution-operations/ui/evolution-evaluation-release-panel.tsx",
+        "sha256": "f641f3ceba285e3b41149ccbe541229e50ef0998a97ab5c2d24bad93379dc9cf"
+      },
+      {
+        "path": "frontend/src/features/execution-controls/api/execution-controls.ts",
+        "sha256": "cf098f252a24e67ed3e3a628ed303877e4d2d0a8d25646c5a1ef6e24528aab72"
+      },
+      {
+        "path": "frontend/src/features/execution-controls/index.ts",
+        "sha256": "03309c022fddcb2d06da385903877c071c09f227e4b027be8a117e1ae34ad6dd"
+      },
+      {
+        "path": "frontend/src/features/execution-controls/ui/execution-controls-panel.test.tsx",
+        "sha256": "95d961a585e9abc36425f1c610f6da9313287b7814a12d0775b852e671bd08cd"
+      },
+      {
+        "path": "frontend/src/features/execution-controls/ui/execution-controls-panel.tsx",
+        "sha256": "0cffb4b057cf4f0f710ec25d6283fddb9a0eb37e441b265395b2f096d7b37aa9"
+      },
+      {
+        "path": "frontend/src/lib/api/client.ts",
+        "sha256": "cd9a4fe05c1ab633e9e3e383d4905f989530f8967b71ecb1c3d814b53328037e"
+      },
+      {
+        "path": "frontend/src/messages/en.json",
+        "sha256": "a67596268497c083327ebf4a18e7a07ed3d9527ddf3c7e0c5c1679510eb16d40"
+      },
+      {
+        "path": "frontend/src/messages/ja.json",
+        "sha256": "661b56c100ce87782f1e541fd1848ef62360680a49c47d3ed91da2e126224156"
+      },
+      {
+        "path": "frontend/src/messages/zh.json",
+        "sha256": "191c0d9bcff5cb4b33e7a7e1e44b2c3e2ff8e7d2754152f78f5aa57ca1d91a52"
+      },
+      {
+        "path": "frontend/src/widgets/app-shell/ui/app-sidebar.tsx",
+        "sha256": "5d0677f579a13450316757610c162c6215cb6712ed058593b4525ec8cfb63f2a"
+      },
+      {
+        "path": "frontend/src/widgets/company-governance/index.ts",
+        "sha256": "4da7a7340c81f36628b401b9d6c6915f36f897e1cca7b81c1780fb09065f1ac4"
+      },
+      {
+        "path": "frontend/src/widgets/company-governance/ui/company-governance-page.tsx",
+        "sha256": "90c9ce1384f3da1ecff02fab5c9af62d2a20eca42e8f8b7bcc6a8970f9785219"
+      },
+      {
+        "path": "frontend/src/widgets/control-plane-workbench/ui/control-plane-workbench-page.test.tsx",
+        "sha256": "db88b03575e4f536e6141c9720543fc8bdc852870c79faa073ff883b3e08c0c5"
+      },
+      {
+        "path": "frontend/src/widgets/control-plane-workbench/ui/control-plane-workbench-page.tsx",
+        "sha256": "e184dbe2afd29efed090ed0d6771b529e91ada1d078cbab36cee4cc02e28c149"
+      },
+      {
+        "path": "frontend/src/widgets/control-plane-workbench/ui/operating-metrics-panel.test.tsx",
+        "sha256": "8f5efdea4abb8ead5edfef566e34aefbe39414dc6d5526d782b534111f94dfc0"
+      },
+      {
+        "path": "frontend/src/widgets/control-plane-workbench/ui/operating-metrics-panel.tsx",
+        "sha256": "b6bd513e3effdab50d3531bcaa4342ed91397431dfdddde38c521749196b7af5"
+      },
+      {
+        "path": "migrations/versions/20261001_product_governance.py",
+        "sha256": "f6126a0004511fe824098983da77ab5eac68dc9f0540abaa6e0c3bfe2f8bec0e"
+      },
+      {
+        "path": "pyproject.toml",
+        "sha256": "b872785b7cba784e62a83308d84667e906e72f198e4c82d808fb38b09d428782"
+      },
+      {
+        "path": "scripts/check_operational_readiness.py",
+        "sha256": "1820c26a63c9fc2b57b0b7e8f6882162edfeab18aee2d875b2ebc8fd124ae709"
+      },
+      {
+        "path": "scripts/first_success.py",
+        "sha256": "e891170bee2c7fcaee7da6db3d11a9647d005ab9b37bd3cefd7f6d3d9b3fe45b"
+      },
+      {
+        "path": "scripts/fixtures/operating_report.json",
+        "sha256": "9f8d963857a392e6650d904c69b9814bd93a1da9d7fb4b20de0f29b632ebb458"
+      },
+      {
+        "path": "scripts/generate_openapi_snapshots.py",
+        "sha256": "f3287fc8a75dedc91abaa222551e2dbb32c0e061e8dbe359855ad4cb25a735f1"
+      },
+      {
+        "path": "services/orchestration/control_plane_worker/__init__.py",
+        "sha256": "9cea2d1270a2df76e0ca1e4deb27312f5aed8c555c3385f3bdcdd66c7b2a4f68"
+      },
+      {
+        "path": "services/orchestration/control_plane_worker/main.py",
+        "sha256": "194b4dc886ae72462897957f0184a8b9b5e35a25d6819125b9e3864944ce185a"
+      },
+      {
+        "path": "shared/capabilities/evolution/app/main.py",
+        "sha256": "9713e2582f571deb65893452a1ddf637138023ea9df55845d268f0dd4dd24647"
+      },
+      {
+        "path": "shared/capabilities/evolution/app/release_routes.py",
+        "sha256": "a44d3e3e0bb566a8d824047d23f6576a83a4c5be95334df16d09d081ab6c2f7f"
+      },
+      {
+        "path": "shared/capabilities/evolution/app/skill_execution_routes.py",
+        "sha256": "ec45b147bfa68c24b7bd2ffd8f3a7840ad7983e2d1220f48315c39fb77232b85"
+      },
+      {
+        "path": "shared/capabilities/evolution/core/release_ports.py",
+        "sha256": "dd3bb6b0d08d550cb76280712a539b36bfda935c940993f0b0b9eecc233ab4da"
+      },
+      {
+        "path": "shared/capabilities/evolution/core/release_use_cases.py",
+        "sha256": "d9982856d6a14072c6d2139555938df1dee8489801c8d5346a294183ffb84119"
+      },
+      {
+        "path": "shared/capabilities/evolution/core/skill_execution.py",
+        "sha256": "3b90b4714461d5c8549dad01250fdb90c2924d8371a351867a9eef53313c459e"
+      },
+      {
+        "path": "shared/config.py",
+        "sha256": "7e4ed3e8183a714339276735aa997d9c2758d152f5ea648dd0c46e7dac564c18"
+      },
+      {
+        "path": "shared/control_plane/agent_operation_store.py",
+        "sha256": "a53ef7b33e035fa90caf6ca1f1fc56b803e76c00bf0eaf08ee99a76499179c2d"
+      },
+      {
+        "path": "shared/control_plane/agent_operation_use_cases.py",
+        "sha256": "d3e7931b683c6b1cd03e0170407a4ab0c76139f9955292318673d9f3e3d3cc5b"
+      },
+      {
+        "path": "shared/control_plane/agent_runner.py",
+        "sha256": "fbff593ec280125f76700c21a1802d0cabbf6d1e6954795fffcafc8079a54e0b"
+      },
+      {
+        "path": "shared/control_plane/api.py",
+        "sha256": "6407aeec2826a8419d64f98b90ce023a3fcd5a4258217480940c5f076c493fbc"
+      },
+      {
+        "path": "shared/control_plane/api_routes/approvals.py",
+        "sha256": "1533b4bb952cc7c3ec41f10ff0a7b3994626e5e1aabede8a13a463f221fd8db6"
+      },
+      {
+        "path": "shared/control_plane/api_routes/audit_export.py",
+        "sha256": "edaaab57f7537deea37cabc725dbf8906a7ab22c2abed893108bc161e9872fbc"
+      },
+      {
+        "path": "shared/control_plane/api_routes/company_templates.py",
+        "sha256": "ffb2f92c7ad852aeb43d9cc70f650b86ddc9af88aa2900a4d273e63404c211e6"
+      },
+      {
+        "path": "shared/control_plane/api_routes/evolution_evaluations.py",
+        "sha256": "cd926cb481a508682051f66333eed652040970eefd4cd7913f7ceca0059f03f6"
+      },
+      {
+        "path": "shared/control_plane/api_routes/evolution_releases.py",
+        "sha256": "b6e8d8f14fd3302c61ae7ccf2a9f48c1ac686940f7197e483b71f1b1f5545eae"
+      },
+      {
+        "path": "shared/control_plane/api_routes/executions.py",
+        "sha256": "ae29a153d9dd8486215a30ecea365aad4331d7f9fe1a79616727dd284de5b141"
+      },
+      {
+        "path": "shared/control_plane/api_routes/knowledge.py",
+        "sha256": "95fc41a5f49966d732685d06c2e994aa91e6bd6dcb9f2394c97cc320c0ea7784"
+      },
+      {
+        "path": "shared/control_plane/api_routes/operating_metrics.py",
+        "sha256": "0dd13bd998541eacf07c2b0939855cbedd4d308e53ad517235f4680c9e81b3eb"
+      },
+      {
+        "path": "shared/control_plane/api_routes/work_items.py",
+        "sha256": "13a9abd4e5640ba34a5f14742d8d36b4284c7ee6a408e5cb72c66a116a24c297"
+      },
+      {
+        "path": "shared/control_plane/approval_gate.py",
+        "sha256": "bed83a32722648e6824852422d38d3724686fb31bd99e14cb03c4c0aa1b78f52"
+      },
+      {
+        "path": "shared/control_plane/approval_store.py",
+        "sha256": "c5d643710d918627ab0abaf1947227215e2741b9934d4eec8d1c9b5208063c9c"
+      },
+      {
+        "path": "shared/control_plane/audit_event_store.py",
+        "sha256": "a31db103e82d4bf7a0eb301c42da0096746645f50f56e24b4a6f29410b6b182b"
+      },
+      {
+        "path": "shared/control_plane/audit_export_store.py",
+        "sha256": "d79832779124d9ec9b005cfcc1ac7f4166171d16e2de48e2f646350665ec286b"
+      },
+      {
+        "path": "shared/control_plane/company_store.py",
+        "sha256": "89dcbe1c672c461343416fd5f57895fa2802c9445b93926ca4d5ae65ed0ed687"
+      },
+      {
+        "path": "shared/control_plane/company_template_models.py",
+        "sha256": "08a442022e55db7915e2012a4feda2c087dea4d2252f98e1b3cf89730cd57b62"
+      },
+      {
+        "path": "shared/control_plane/company_template_ports.py",
+        "sha256": "81d0050fcaa75bb877fb93fbe660e5cb44de44bd50d5700a08e121b46f13ea60"
+      },
+      {
+        "path": "shared/control_plane/company_template_store.py",
+        "sha256": "775324a38c0508964102d8d8c87f148422e6575c2f2fcb8650c44fac64763cd4"
+      },
+      {
+        "path": "shared/control_plane/company_template_use_cases.py",
+        "sha256": "86bea09cdd7955a9e56011f2cdd059c5106e3fde7e7e9b03e05504f0b4d493c5"
+      },
+      {
+        "path": "shared/control_plane/domain/agent_wakeup_adapter.py",
+        "sha256": "b6f07694f8631d4aad61184a2012e939a947f548b963f04ec010ce82f284d79e"
+      },
+      {
+        "path": "shared/control_plane/domain/audit_retention.py",
+        "sha256": "2a9bc58d714a48c9df90ca720535b52137f1c03e30d2009e2c5bb5d65cb95609"
+      },
+      {
+        "path": "shared/control_plane/domain/company_template.py",
+        "sha256": "a001648aa38aac7f50ea98a7b6f90a290b1c58218ae877d68809318c91aef6e7"
+      },
+      {
+        "path": "shared/control_plane/domain/evolution_deployment.py",
+        "sha256": "62e4dfe87f7b5e1db16461a01547a7e9df2b1b90def76424e69dd522adbd9512"
+      },
+      {
+        "path": "shared/control_plane/domain/execution_policy.py",
+        "sha256": "a03cba5c6ac3565572d86ce632f884641369ba787b4db8f82666933a4c99c11a"
+      },
+      {
+        "path": "shared/control_plane/domain/executor_contract.py",
+        "sha256": "7476bc1f5fa22a2cfcbe8a47be6f79a9a0d4d751c37509a9dc52ceb0cec6d002"
+      },
+      {
+        "path": "shared/control_plane/domain/knowledge.py",
+        "sha256": "df80ebbf1e18a249cad2e0a66d445ce9575afd9af279c5e88241416d005c688f"
+      },
+      {
+        "path": "shared/control_plane/domain/lifecycle/agent_run_lifecycle.py",
+        "sha256": "94840377180eeef4583a4ab5c2c240fb1c1b65b3404a4bb5a8163593bb602abc"
+      },
+      {
+        "path": "shared/control_plane/domain/outcome_acceptance.py",
+        "sha256": "35d5e711282909e9c4f92105107460a5a8df46bbe1e679881c724fedeaf3c2a6"
+      },
+      {
+        "path": "shared/control_plane/domain/work_item.py",
+        "sha256": "5f22d28520391cfa15af19c3b19e97349f729451179f126a04f4ab88e44375ea"
+      },
+      {
+        "path": "shared/control_plane/evolution_deployment_gateway.py",
+        "sha256": "29848da3536bfb752f1357d2b7ea88e7f679748e68c8f057c919a101dd4170b5"
+      },
+      {
+        "path": "shared/control_plane/evolution_deployment_models.py",
+        "sha256": "fb092a40bf8636f1391fc62d279d8f7ddd92888d9c5cd0175e2105e3c9d92ff7"
+      },
+      {
+        "path": "shared/control_plane/evolution_deployment_ports.py",
+        "sha256": "0f2f469598f61aef30d8b447ef75c30e2cd92a517739b1ce9310db4a65952fe3"
+      },
+      {
+        "path": "shared/control_plane/evolution_deployment_store.py",
+        "sha256": "d951c2bf1010e17b8dd1fe2040faf7b620058f20eafe32887cf6b6f8cafe274b"
+      },
+      {
+        "path": "shared/control_plane/evolution_evaluation_models.py",
+        "sha256": "5e2c21117dd92519be9878b611a3d11fdab1bcd6b7d69c68acabedd517b9d32d"
+      },
+      {
+        "path": "shared/control_plane/evolution_evaluation_ports.py",
+        "sha256": "c0de17f63fd419a9486d65a2aab3317593a29eab318d4b1bde500ce34fc3f6e0"
+      },
+      {
+        "path": "shared/control_plane/evolution_evaluation_store.py",
+        "sha256": "7a985f4d0315012461a2b810f804cdf0dbd812ec9e4102ed0162c30ff2f345d9"
+      },
+      {
+        "path": "shared/control_plane/evolution_evaluation_use_cases.py",
+        "sha256": "f9cd99a1f5f14bb025f0f67ac8b45907b80622362860ae32b64d60721690e0a6"
+      },
+      {
+        "path": "shared/control_plane/execution_control_use_cases.py",
+        "sha256": "19240046f0cac201afd183d5c32503733d8f6aab115b7b05e6eec895d6220849"
+      },
+      {
+        "path": "shared/control_plane/execution_models.py",
+        "sha256": "ad07bc1322266a285fb636cf477196a388d698e1c2528943137e47151f4000a1"
+      },
+      {
+        "path": "shared/control_plane/execution_ports.py",
+        "sha256": "05aa618fe0a541968668f1a3305df3b97c0debf331ef2a389b91d8d1a93afb3b"
+      },
+      {
+        "path": "shared/control_plane/execution_store.py",
+        "sha256": "d0b1c7f581d79242f6bba685acfc3f86b9aa100d14808b2cb5c4f106209d05d3"
+      },
+      {
+        "path": "shared/control_plane/knowledge_models.py",
+        "sha256": "0435e993897e5f6b71235c606812aa40faefaa0b1024b9199e7ffb937c2a433b"
+      },
+      {
+        "path": "shared/control_plane/knowledge_ports.py",
+        "sha256": "659fd7e448e1daf871ee86dfee98e1983855cefa3854a2343844fa4df95afb15"
+      },
+      {
+        "path": "shared/control_plane/knowledge_store.py",
+        "sha256": "ccc5c724d303e92095f0732645b69cc6ab8aa3be764ab7a90975dd52dad7e10e"
+      },
+      {
+        "path": "shared/control_plane/knowledge_use_cases.py",
+        "sha256": "9f40bd69ae8fb7b9947760e6f73249a3debafaa0bd943a71f73c3d9dcc1de0bf"
+      },
+      {
+        "path": "shared/control_plane/operating_metrics_store.py",
+        "sha256": "5a72c40d3f08e6dc613596c7991ec4c8b0a849a4c3db91ecc62ee21a58b30524"
+      },
+      {
+        "path": "shared/control_plane/operator_auth.py",
+        "sha256": "49e8177dca9799d961845bd85f238b5025e7b41c7b8c01b774c11fd934525483"
+      },
+      {
+        "path": "shared/control_plane/outcome_models.py",
+        "sha256": "4c480a4319702dacc1515e750ea8e02783fe86b69887cb63f33ce6d5dbc84577"
+      },
+      {
+        "path": "shared/control_plane/outcome_store.py",
+        "sha256": "5c45349e33c74dfefba13ba038088e8cf49c86fd3423596b3a1859167f2ae7e5"
+      },
+      {
+        "path": "shared/control_plane/run_evidence.py",
+        "sha256": "5e36c858ae74e972e6e558ffd05bb339fbe787c1f16d5bbffc52cdbb2bee9eb9"
+      },
+      {
+        "path": "shared/control_plane/scheduler.py",
+        "sha256": "11cac2e5478c51479afb47a23f4297afbcc070b70faf45c4b8a2b96db014ebef"
+      },
+      {
+        "path": "shared/control_plane/store_factory.py",
+        "sha256": "13e67b1c17bc497f09e488ad3a30a3bd78b4617b574c49243144e292f7139318"
+      },
+      {
+        "path": "shared/control_plane/tables.py",
+        "sha256": "951c338cae3bdb460c4090c6b06e978b58de4336e8a4ccf861b5bb7b09766d6f"
+      },
+      {
+        "path": "shared/control_plane/tests/test_audit_retention.py",
+        "sha256": "aba1fad250d9af82fafda61c5ff046bd9d36f2b953501fae20c9520edb97c245"
+      },
+      {
+        "path": "shared/control_plane/tests/test_company_template.py",
+        "sha256": "42ede2f3c09fcae2f0a343f494f5729f53c78b21e0e0b391ad897d9d2b475649"
+      },
+      {
+        "path": "shared/control_plane/tests/test_execution_policy.py",
+        "sha256": "899c7b9964aca6d09f3e452df47968da98fac54be348c1f5739a65b98d56d784"
+      },
+      {
+        "path": "shared/control_plane/tests/test_knowledge_lifecycle.py",
+        "sha256": "a636bcad8b8cf758b27adecc8bb9dbe52dbc151925c251eab3bacabff2af8cb8"
+      },
+      {
+        "path": "shared/control_plane/work_item_execution_use_cases.py",
+        "sha256": "ca0564f98f26c875057f2be82a5caee3edcce4de5ada0ab1edd59e96f9c56db4"
+      },
+      {
+        "path": "shared/control_plane/work_item_store.py",
+        "sha256": "85c62825e509b9369f3dabcc3ed3b69028150c1c1958cd32c12fd801dd18e2a8"
+      },
+      {
+        "path": "shared/evolution/canary_router.py",
+        "sha256": "9c58e06a926df84078cb9744f86f626333f4fd5a7154c281ea01895901dc7ead"
+      },
+      {
+        "path": "shared/evolution/config.py",
+        "sha256": "7c5e8b80d6d522bd96c2243f975af7cd337de89ce8abebc33cc2002193d3ee29"
+      },
+      {
+        "path": "shared/evolution/db/release_store.py",
+        "sha256": "2135f134faae8649fec3bfd6280052074fee8336ffd3366d33fc4e7712617618"
+      },
+      {
+        "path": "shared/evolution/db/release_tables.py",
+        "sha256": "8e84929814ced998380db94f983538a8d2e042aedd46993e0cc15b172b7ba7e6"
+      },
+      {
+        "path": "shared/evolution/db/repository.py",
+        "sha256": "3fe2e22675c51a462672b83e81f6198711db69d48356b6d3d1cc2c86c0caea74"
+      },
+      {
+        "path": "shared/evolution/db/skill_execution_store.py",
+        "sha256": "eba2851d9f9836dfc5fc7dd3b0e35f58a0f6727213411f1e7aa2517252d8a277"
+      },
+      {
+        "path": "shared/evolution/db/tables.py",
+        "sha256": "358e58b2a28b309e7bf324bb3f1d7752181a0468eae7c9450800e7eb3b2d598e"
+      },
+      {
+        "path": "shared/evolution/domain/skill_release.py",
+        "sha256": "5895a9518652d1468a578726eaf1004759c160548e4fa8941eb3583f8817e9ff"
+      },
+      {
+        "path": "shared/evolution/evaluation_batch.py",
+        "sha256": "24dbff1d0a9ac1177a2be6d334d4940ecfd3761addc91ec5f46c35b81b527e76"
+      },
+      {
+        "path": "shared/evolution/evolution_guard.py",
+        "sha256": "429410a4490aa2685a315d9b45b0a45c787c020d58c1e4896cfcd72d559f3d78"
+      },
+      {
+        "path": "shared/evolution/evolved_agent.py",
+        "sha256": "e5a510ae77a3e51559503baf84a2da1eaa8a7aef8b7b893e763d9d44edd011da"
+      },
+      {
+        "path": "shared/evolution/release_contract.py",
+        "sha256": "52dbc8242277794a9ac8967bf1476c686af01fa57b784b8d3d838fd992a7e4e0"
+      },
+      {
+        "path": "shared/evolution/skill_execution_contract.py",
+        "sha256": "697a7c91a69a2a601aafb573ab4c2edfb7cb0e4b4b7c899150941206000214d7"
+      },
+      {
+        "path": "shared/evolution/skill_execution_gateway.py",
+        "sha256": "f12f61ab88e2a14d63c123a2bebb9d442e1b5a062888da695ea0b85ea81579ce"
+      },
+      {
+        "path": "shared/evolution/skill_optimizer.py",
+        "sha256": "6c2513472c66559fd55c75d74b7e6301d34aaf8568170d670f794f2533c023ad"
+      },
+      {
+        "path": "shared/evolution/tests/test_canary_router.py",
+        "sha256": "7ba613cc9da6353e8e97be0b74cf569655c25121d6f7449f99b279aec0346c1f"
+      },
+      {
+        "path": "shared/evolution/tests/test_evaluation_batch.py",
+        "sha256": "5ad29a42849fb03967343307ca4d8fff8933bd33dce7b2e2446bb9597817c9ca"
+      },
+      {
+        "path": "shared/evolution/tests/test_evolution_guard.py",
+        "sha256": "b415869aa7c12e2b2e59c7d5e17575620b4013396bb47f71b10ce1a8347fe62e"
+      },
+      {
+        "path": "shared/evolution/tests/test_evolved_agent.py",
+        "sha256": "3f44793e113fe75983f0e86451e51512d26adf411311f0a9ae93d256f416db1b"
+      },
+      {
+        "path": "shared/evolution/tests/test_integration.py",
+        "sha256": "a4760f296aaac5b5b444fbff156f063caf9d3a096a84cf38adc7a8f46eb02ebb"
+      },
+      {
+        "path": "shared/evolution/tests/test_release_routes.py",
+        "sha256": "43833918ee4519abceb5513b0e0ed7488cf57828969c622583e2f8f136dcdbc8"
+      },
+      {
+        "path": "shared/evolution/tests/test_repository.py",
+        "sha256": "ff46f22621b7607c577ffc2c9b6b4d8d9837757264c362b0b4c7c96b281ae987"
+      },
+      {
+        "path": "shared/evolution/tests/test_skill_execution.py",
+        "sha256": "9ccbc4c2701b9e0960cb719426d915e300d5150e1ee3265e4f215912857606bd"
+      },
+      {
+        "path": "shared/evolution/tests/test_skill_optimizer.py",
+        "sha256": "678f9925511ab35943537747d43032ead33a79925f8401b213c5d2fd285e2d93"
+      },
+      {
+        "path": "shared/evolution/tests/test_skill_release_postgres.py",
+        "sha256": "b612e9ee9038948ce27f8b35adb5fca2033d764d00dd957efa4b8c7d8843875a"
+      },
+      {
+        "path": "shared/evolution/tests/test_skill_release_store.py",
+        "sha256": "cddd48ed7a457885728f7ed25072069aafe120c61b10dc6797aad323381456a4"
+      },
+      {
+        "path": "shared/evolution/trace_collector.py",
+        "sha256": "174110780be38a552ec893bbdd7b0c5f1b477f563fc2b1f35f3d505a08fc2ed2"
+      },
+      {
+        "path": "shared/infra/llm_gateway.py",
+        "sha256": "5bd500b0bf716da15460b993eac9d75e84db36f48285c0b4241f0a5c82e05c94"
+      },
+      {
+        "path": "tests/control_plane/test_agent_runner_http.py",
+        "sha256": "6128a78f8cb055e5c55fe2678af954faaca33eef21d494ae28a7743e1bbdce60"
+      },
+      {
+        "path": "tests/control_plane/test_api.py",
+        "sha256": "5511a4f525271ce5d02399ba81e36d79981f0e522a24779e77b6d44ccbedb03c"
+      },
+      {
+        "path": "tests/control_plane/test_audit_export.py",
+        "sha256": "b80f593c242a9b7214cf14ee8f4bbf699e81a5487d6706cf9aa0e9368b74a00f"
+      },
+      {
+        "path": "tests/control_plane/test_company_template_routes.py",
+        "sha256": "1e0cb896a78d39be822e11de3233d7e927c0dd09f2c74ddf40ad211f6729d887"
+      },
+      {
+        "path": "tests/control_plane/test_e2e.py",
+        "sha256": "44beb55f24dcea647e3047b16afb2a9339fa5a529a80472369da24853d5d497c"
+      },
+      {
+        "path": "tests/control_plane/test_evolution_deployments.py",
+        "sha256": "24981b856196786b7b1277ee6215f51131453092dd10ab0416f21cc8c06a0b1d"
+      },
+      {
+        "path": "tests/control_plane/test_evolution_evaluations.py",
+        "sha256": "c91d5d2ea3c9c8e978a162910283a10024d8c67d4bc70b9e0d68589e022311c2"
+      },
+      {
+        "path": "tests/control_plane/test_execution_governance.py",
+        "sha256": "552df5ccf25b5bbc7905aa30494c7e31cbdfabe0062fcf662a139e5e74e9f8f0"
+      },
+      {
+        "path": "tests/control_plane/test_knowledge_routes.py",
+        "sha256": "1a0c998525372cc56fbb6cd089c5a3d28c7a526fd974ffbe0c4e3e270ac2dff7"
+      },
+      {
+        "path": "tests/control_plane/test_operating_metrics.py",
+        "sha256": "bf8879f0120c869ffa53746421ed998f0755d6da70b6e67a3a2e4f4dba7b2809"
+      },
+      {
+        "path": "tests/control_plane/test_operator_auth.py",
+        "sha256": "00172fb745b0a7e6370ee3217bac24de20c123430ca92897319f20d8421fd1a8"
+      },
+      {
+        "path": "tests/control_plane/test_outcome_acceptance.py",
+        "sha256": "b35b189908a66ce0370c1044263453f0f777124b9797c0cede27f9c8479850bc"
+      },
+      {
+        "path": "tests/control_plane/test_process_conformance.py",
+        "sha256": "1bdb0651d2623cbad9bcef56bdcf108b5690367e7c7bf4d7d1167c51d309fb6d"
+      },
+      {
+        "path": "tests/control_plane/test_work_item_store.py",
+        "sha256": "f880778b83093170c2ec5286bf403fd58154a961bc66f1f4b3a04d26096122a0"
+      },
+      {
+        "path": "tests/unit/test_architecture_boundaries.py",
+        "sha256": "c5cf3e99039b422a7608641df13c32c14375e6869d51c6fb46e9ab86a4ac791a"
+      },
+      {
+        "path": "tests/unit/test_control_plane_worker.py",
+        "sha256": "f15281355c620cadeaa0ac6e35883720d0a026840be0aee147cf3d4fcee3786e"
+      },
+      {
+        "path": "tests/unit/test_first_success.py",
+        "sha256": "a6ceca8b7d0575e10b8a0f41d32f851f2ef88cb895ede30595e0dac6877d00d4"
+      },
+      {
+        "path": "tests/unit/test_llm_skill_execution.py",
+        "sha256": "a972eed4f91a9d353839a09f97cb1d8687731de46292608d2a07cf3638feed4f"
+      },
+      {
+        "path": "tests/unit/test_operational_readiness.py",
+        "sha256": "17f15017eed941d81367a8e90379bab444e1bb64ecea58e02f021f08995f4091"
+      }
+    ]
+  },
+  "validation": {
+    "roadmap": {
+      "status": "passed",
+      "passed": 854,
+      "skipped": 0,
+      "duration_seconds": 54.45,
+      "real_postgresql_cases": 7,
+      "database_version": "18.6"
+    },
+    "public_regression": {
+      "status": "passed",
+      "passed": 679
+    },
+    "architecture": {
+      "status": "passed",
+      "passed": 236
+    },
+    "llm_gateway_regression": {
+      "status": "passed",
+      "passed": 15
+    },
+    "ruff": {
+      "status": "passed",
+      "scope": [
+        "agents",
+        "shared",
+        "tests",
+        "scripts",
+        "migrations"
+      ]
+    },
+    "strict_mypy": {
+      "status": "passed",
+      "source_files": 136,
+      "scope": "pyproject.toml tool.mypy.files; not repository-wide"
+    },
+    "frontend_vitest": {
+      "status": "passed",
+      "files": 29,
+      "passed": 132
+    },
+    "frontend_lint_fsd": {
+      "status": "passed"
+    },
+    "frontend_typescript": {
+      "status": "passed"
+    },
+    "frontend_production_build": {
+      "status": "passed",
+      "bundler": "webpack"
+    },
+    "frontend_playwright": {
+      "status": "passed",
+      "passed": 2,
+      "duration_seconds": 23.7,
+      "browser": "system Chromium",
+      "backend": "mocked"
+    },
+    "shared_migrations": {
+      "status": "passed",
+      "sequence": [
+        "upgrade head",
+        "downgrade base",
+        "upgrade head",
+        "PostgreSQL JSONB default insert probe"
+      ],
+      "database": "separate disposable database"
+    },
+    "compose_configuration": {
+      "status": "passed",
+      "deployment_performed": false
+    },
+    "openapi_snapshots": {
+      "status": "regenerated",
+      "runtime_and_control_plane_snapshots": 6
+    }
+  },
+  "synthetic_report": {
+    "workflow": {
+      "acceptance_id": "acc_41a1e015681a467485e4a95937443f55",
+      "accepted": true,
+      "agent_id": "first-success-operating-report",
+      "artifact_id": "art_01m3vhg08vm2h6bj1jsm7m4f05",
+      "budget_cost_usd": 0.0,
+      "budget_id": "bud_01m3ve2bq637k8evhqm22ygmsc",
+      "budget_usage_id": "busg_01m3vhg0843kezaqca10bkg0tt",
+      "closed": true,
+      "company_id": "cmp_roadmap_acceptance",
+      "goal_id": "goal_01m3vhfzztfkwqamnkq6knmtf4",
+      "note": "All report metrics are synthetic sample values, not company results.",
+      "operating_report": {
+        "metric_classification": "synthetic_sample",
+        "metrics": {
+          "at_risk_work_items": 2,
+          "net_operating_income_usd": 42000.0,
+          "open_work_items": 7,
+          "operating_expense_usd": 83000.0,
+          "recognized_revenue_usd": 125000.0
+        },
+        "period": "2026-Q3 sample"
+      },
+      "run_id": "run_01m3vhg02yew057db5xp1yyxjz",
+      "status": "completed",
+      "synthetic": true,
+      "timings": {
+        "output_time_seconds": 0.29428,
+        "setup_time_seconds": 0.212213
+      },
+      "work_item_id": "work_01m3vhg00rprj0kfkdxc5qx81v",
+      "workflow": "synthetic-report"
+    },
+    "artifact_hash": "16fec4bcb58fc3f546f5e0d613c5e637c5740e6b6faec26ffa8f64f3abaa455a",
+    "evidence": {
+      "schema_version": "1.0",
+      "run_id": "run_01m3vhg02yew057db5xp1yyxjz",
+      "company_id": "cmp_roadmap_acceptance",
+      "agent_id": "first-success-operating-report",
+      "status": "succeeded",
+      "trigger": "manual_wakeup",
+      "actor_type": "user",
+      "actor_id": "development:board",
+      "trace_id": null,
+      "goal_id": "goal_01m3vhfzztfkwqamnkq6knmtf4",
+      "work_item_id": "work_01m3vhg00rprj0kfkdxc5qx81v",
+      "adapter_type": "process",
+      "input_payload_hash": "57ba8d667af43c39cbde37b8f5994061d4ec237600201f13a17f7c51a7bbb3d0",
+      "output_payload_hash": "7bd22c456441ccdedcd0e4fa3f1c3e08b5d91441de010bc0b04d9c850b069206",
+      "events": {
+        "input_event_id": "evt_01m3vhg044y1rh8359tk75tefn",
+        "input_event_type": "agent.wakeup-requested",
+        "output_event_ids": [
+          "evt_01m3vhg08aps0vd0c5g650mvrb"
+        ],
+        "output_event_types": [
+          "agent.wakeup-completed"
+        ]
+      },
+      "approvals": [],
+      "budget_usage": [
+        "busg_01m3vhg0843kezaqca10bkg0tt"
+      ],
+      "audit_events": [
+        "aud_01m3vhg08gj1nb9b0ht37wza74",
+        "aud_01m3vhg049s5cb0whj0ygxb83x"
+      ],
+      "output_summary": "Synthetic operating report generated by the local fixture executor.",
+      "error_category": null,
+      "error_message": null
+    },
+    "usage": {
+      "usage": [
+        {
+          "usage_id": "busg_01m3vhg0843kezaqca10bkg0tt",
+          "company_id": "cmp_roadmap_acceptance",
+          "budget_id": "bud_01m3ve2bq637k8evhqm22ygmsc",
+          "cost_usd": 0.0,
+          "model": "executor",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "run_id": "run_01m3vhg02yew057db5xp1yyxjz",
+          "trace_id": null,
+          "metadata": {
+            "execution_id": "44d150492e70c4887dedb83cde0cdcf3cf24aafee29e23ef5017a21138a46674",
+            "failed_attempt": false,
+            "charged_ceiling": false
+          },
+          "created_at": "2026-10-01T10:52:20.612392Z"
+        }
+      ]
+    },
+    "metrics": {
+      "company_id": "cmp_roadmap_acceptance",
+      "as_of_utc": "2026-10-01T11:02:08.145425+00:00",
+      "export_policy": {
+        "retention_days": 90,
+        "applies_to": "exported metric snapshots; live metrics are queried on demand"
+      },
+      "runs": {
+        "total": 3,
+        "by_status": {
+          "succeeded": 3
+        },
+        "success_rate": 1.0,
+        "adapter_errors": 0
+      },
+      "queue_delay": {
+        "p95_seconds": 0.134101,
+        "sample_size": 3,
+        "sample_limit": 1000,
+        "sampled_work_items": 3,
+        "excluded_without_run": 0,
+        "source": "work_item.created_at to first associated agent_run.started_at"
+      },
+      "approvals": {
+        "pending": 0,
+        "oldest_pending_age_seconds": null
+      },
+      "costs": {
+        "accepted_outcome_count": 3,
+        "full_cost_usd_total": 0.0,
+        "full_cost_usd_per_accepted_outcome": 0.0,
+        "full_cost_basis": "sum per-run max(run cost, deduplicated usage) plus unattributed usage",
+        "run_reported_cost_usd_total": 0.0,
+        "deduplicated_budget_usage_usd_total": 0.0,
+        "failed_run_reported_cost_usd": 0.0,
+        "failed_run_budget_charges_usd": 0.0,
+        "charged_ceiling_usd_total": 0.0,
+        "charged_ceiling_charge_count": 2,
+        "estimated_ceiling_usd_total": 0.0,
+        "estimated_ceiling_usd_per_accepted_outcome": 0.0,
+        "estimated_execution_count": 3,
+        "unestimated_execution_count": 0,
+        "budget_usage_run_coverage": 3,
+        "run_cost_coverage": 0,
+        "unmetered_run_count": 0
+      },
+      "unresolved_execution_leases": {
+        "count": 0,
+        "oldest_age_seconds": null
+      },
+      "pending_outbox": {
+        "count": 17,
+        "oldest_age_seconds": 4180.353161
+      }
+    },
+    "prometheus_family_count": 7
+  },
+  "restart_replay": {
+    "company_id": "cmp_roadmap_acceptance",
+    "run_id": "run_01m3vghndddbw7vwywgfvypszj",
+    "work_item_id": "work_01m3vghnba0gsgye6dm179arts",
+    "artifact_id": "art_01m3vghnn2f9v2cvfbh1j3z9cr",
+    "acceptance_id": "acc_ede700a1b7974cffad274cd7e662fe74",
+    "accepted": true,
+    "closed": true,
+    "synthetic": true
+  },
+  "dev_migration_rehearsal": {
+    "candidate_revision": "20261001_dev_baseline",
+    "checks": {
+      "backup_created": "passed",
+      "backup_restore": "passed",
+      "destructive_downgrade_rejected": "passed",
+      "drift_rejected": "passed",
+      "failure_atomicity": "passed",
+      "fresh_round_trip": "passed",
+      "inherited_schema_parity": "passed",
+      "legacy_version_preserved": "passed",
+      "other_runtime_preserved": "passed",
+      "restored_tracking_round_trip": "passed",
+      "schema_cleanup": "passed",
+      "source_stable": "passed",
+      "stamp_rollback_restamp": "passed"
+    },
+    "duration_seconds": 1.541,
+    "evidence_scope": "synthetic_engineering_acceptance",
+    "format_version": "1.0",
+    "milestone": "S4.1",
+    "owned_tables": [
+      "dev_agent_tasks",
+      "dev_agent_workflow_logs",
+      "dev_agent_event_outbox"
+    ],
+    "phase": "complete",
+    "postgres_version": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "runtime": "dev-agent",
+    "source": {
+      "base_commit": "cb6e28f0700718e1a4339304f1b19df088e6d9c4",
+      "input_files": [
+        ".github/workflows/ci.yml",
+        "Makefile",
+        "agents/dev_agent/migrations/contracts.py",
+        "agents/dev_agent/migrations/env.py",
+        "agents/dev_agent/migrations/versions/20261001_dev_baseline.py",
+        "migrations/versions/20260504_runtime_tables.py",
+        "migrations/versions/20260512_dev_event_outbox.py",
+        "pyproject.toml",
+        "scripts/dev_migration_rehearsal.py",
+        "tests/integration/test_dev_migration_rehearsal.py",
+        "tests/unit/test_dev_migration_rehearsal.py"
+      ],
+      "inputs_sha256": "f32b40213dea9c18cac1491c46fd188942073307ad9e475e03ffcb5031b03786",
+      "worktree_dirty": true
+    },
+    "status": "passed",
+    "verified_at": "2026-10-01T10:58:09.778538+00:00"
+  },
+  "independent_review": {
+    "status": "completed_with_fixes",
+    "corrected": [
+      "unrouted canary scoring",
+      "zero-score inflation",
+      "duplicate trace accounting",
+      "expired-command recovery",
+      "stale ORM ownership checks",
+      "in-flight command expiry fencing",
+      "frontend internal authentication",
+      "frozen rollback baseline selection"
+    ],
+    "final_delta_review": "Luna read-only review found no concrete correctness issues in rollback selection, stale rollout precedence and AGENTS.md wording"
+  },
+  "acceptance_pending": [
+    "native Requirement Manager/PJM/Dev/QA executor and handoff contract plus real accepted delivery",
+    "live provider and external platform conformance",
+    "measured model-quality improvement",
+    "observed recurring-work pilot",
+    "physical audit purge and retention",
+    "deployment-specific template and knowledge reuse",
+    "R0 at least 14 days and 1000 matching staging requests, real restore/rollback evidence and owner sign-off"
+  ],
+  "limitations": [
+    "trusted local subprocess execution is not filesystem/network isolation for untrusted code",
+    "report figures are synthetic and timings exclude infrastructure setup",
+    "loopback acceptance app had no outbox dispatcher; metric snapshot includes pending outbox",
+    "no live distributed browser flow or production deployment is claimed",
+    "metrics scrape and alert delivery are configured but not deployed"
+  ]
+}

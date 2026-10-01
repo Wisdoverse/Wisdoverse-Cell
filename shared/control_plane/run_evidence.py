@@ -72,6 +72,8 @@ async def create_run_evidence_artifact(
         "goal_id": goal_id,
         "work_item_id": work_item_id,
         "adapter_type": adapter_type,
+        "input_payload_hash": hash_evidence(input_event or {}),
+        "output_payload_hash": hash_evidence({"output_events": output_events}),
         "events": {
             "input_event_id": (input_event or {}).get("event_id"),
             "input_event_type": (input_event or {}).get("event_type"),

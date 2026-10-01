@@ -6,9 +6,12 @@ from typing import Any, Optional
 from sqlalchemy import delete, desc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.config import settings
 from shared.evolution.domain import EvolutionExperiment as EvolutionExperimentAggregate
 from shared.schemas.event import Event
 
+from ..release_contract import skill_config_hash
+from .release_tables import EvolutionSkillRelease
 from .tables import (
     EvolutionEventOutbox,
     EvolutionExperiment,
@@ -98,6 +101,86 @@ class EvolutionRepository:
             .values(status="active", promoted_at=datetime.now(UTC))
         )
         await self.session.flush()
+
+    async def rollback_skill_if_current(
+        self,
+        skill_id: str,
+        expected_active_version: str,
+        baseline_version: str,
+        agent_id: str,
+    ) -> bool:
+        """Restore the frozen baseline iff the observed active version remains current.
+
+        Skill rows and the active release ledger are locked in deterministic
+        order. Governance releases additionally require matching company,
+        agent, versions, and frozen config hashes; their release and experiment
+        state is changed in the same transaction as the skill configs.
+        """
+        configs_result = await self.session.execute(
+            select(EvolutionSkillConfig)
+            .where(EvolutionSkillConfig.skill_id == skill_id)
+            .order_by(EvolutionSkillConfig.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        configs = list(configs_result.scalars().all())
+        active = next(
+            (row for row in configs
+             if row.version == str(expected_active_version) and row.status == "active"),
+            None,
+        )
+        baseline = next(
+            (row for row in configs
+             if row.version == str(baseline_version) and row.status == "retired"),
+            None,
+        )
+        if active is None or baseline is None:
+            return False
+
+        releases_result = await self.session.execute(
+            select(EvolutionSkillRelease)
+            .where(
+                EvolutionSkillRelease.skill_id == skill_id,
+                EvolutionSkillRelease.state == "active",
+            )
+            .order_by(EvolutionSkillRelease.deployment_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        active_releases = list(releases_result.scalars().all())
+        if len(active_releases) > 1:
+            return False
+        release = active_releases[0] if active_releases else None
+        if release is not None:
+            if (
+                release.company_id != settings.control_plane_company_id
+                or release.agent_id != agent_id
+                or release.baseline_version != int(baseline.version)
+                or release.candidate_version != int(active.version)
+                or skill_config_hash(baseline) != release.baseline_config_hash
+                or skill_config_hash(active) != release.candidate_config_hash
+            ):
+                return False
+
+        # Mutate both locked skill rows. No candidate is created or promoted.
+        active.status = "retired"
+        baseline.status = "active"
+        baseline.promoted_at = datetime.now(UTC)
+        if release is not None:
+            release.state = "rolled_back"
+            release.version += 1
+            if release.experiment_id:
+                experiment_result = await self.session.execute(
+                    select(EvolutionExperiment)
+                    .where(EvolutionExperiment.experiment_id == release.experiment_id)
+                    .with_for_update()
+                )
+                experiment = experiment_result.scalar_one_or_none()
+                if experiment is not None:
+                    experiment.status = "rolled_back"
+                    experiment.concluded_at = datetime.now(UTC)
+        await self.session.flush()
+        return True
 
     async def get_previous_active(
         self, skill_id: str
@@ -241,6 +324,7 @@ class EvolutionRepository:
         max_duration_hours: int = 72,
         success_metric: str = "success_rate",
         min_improvement: float = 0.05,
+        status: str = "running",
     ) -> EvolutionExperiment:
         """Create a new experiment row."""
         row = EvolutionExperiment(
@@ -258,6 +342,7 @@ class EvolutionRepository:
             ),
             control_results=[],
             candidate_results=[],
+            status=status,
         )
         await _maybe_await(self.session.add(row))
         await self.session.flush()
@@ -273,6 +358,9 @@ class EvolutionRepository:
             .where(EvolutionExperiment.agent_id == agent_id)
             .where(EvolutionExperiment.skill_id == skill_id)
             .where(EvolutionExperiment.status == "running")
+            .where(EvolutionExperiment.experiment_id.in_(select(EvolutionSkillRelease.experiment_id).where(
+                EvolutionSkillRelease.state == "canary",
+                EvolutionSkillRelease.company_id == settings.control_plane_company_id)))
             .limit(1)
         )
         return result.scalar_one_or_none()
@@ -305,6 +393,11 @@ class EvolutionRepository:
         )
         await self.session.flush()
 
+        if status == "rolled_back":
+            await self.session.execute(update(EvolutionSkillRelease).where(
+                EvolutionSkillRelease.experiment_id == experiment_id,
+                EvolutionSkillRelease.state == "canary").values(state="rolled_back"))
+
     async def add_experiment_result(
         self,
         experiment_id: str,
@@ -315,7 +408,7 @@ class EvolutionRepository:
         row = await self.session.execute(
             select(EvolutionExperiment).where(
                 EvolutionExperiment.experiment_id == experiment_id
-            )
+            ).with_for_update().execution_options(populate_existing=True)
         )
         experiment = row.scalar_one_or_none()
         if experiment is None:

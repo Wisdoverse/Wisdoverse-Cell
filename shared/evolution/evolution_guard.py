@@ -2,8 +2,8 @@
 Evolution Guard — auto-rollback + circuit breaker for degraded skills.
 
 The guard is called asynchronously after each handle_event in EvolvedAgent.
-It compares the current success rate against the active skill's baseline and
-rolls back to the previous version if degradation exceeds the threshold.
+It restores the frozen baseline when a predeclared regression threshold is
+crossed. This emergency circuit breaker never creates a new candidate.
 
 A Redis-backed circuit breaker prevents runaway rollbacks (max N per 24 h).
 """
@@ -106,8 +106,23 @@ class EvolutionGuard:
             )
             return False
 
-        # 7. Promote previous version (rollback).
-        await self._repo.promote_skill(skill_id, prev_skill.version)
+        # 7. CAS rollback only if the observed active version is still current.
+        # This is the predeclared regression circuit breaker: restore the
+        # frozen baseline, never create or promote a new candidate.
+        rolled_back = await self._repo.rollback_skill_if_current(
+            skill_id,
+            expected_active_version=active_skill.version,
+            baseline_version=prev_skill.version,
+            agent_id=agent_id,
+        )
+        if not rolled_back:
+            logger.info(
+                "evolution.guard.rollback_lost_ownership",
+                agent_id=agent_id,
+                skill_id=skill_id,
+                expected_active_version=active_skill.version,
+            )
+            return False
         logger.warning(
             "evolution.guard.rollback_triggered",
             agent_id=agent_id,

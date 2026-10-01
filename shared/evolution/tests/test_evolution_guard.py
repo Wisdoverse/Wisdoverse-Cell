@@ -49,7 +49,7 @@ def make_repo(
     repo.get_active_skill = AsyncMock(return_value=active_skill)
     repo.get_recent_traces = AsyncMock(return_value=traces or [])
     repo.calc_success_rate = AsyncMock(return_value=current_rate)
-    repo.promote_skill = AsyncMock(return_value=None)
+    repo.rollback_skill_if_current = AsyncMock(return_value=True)
     repo.get_previous_active = AsyncMock(return_value=prev_skill)
     return repo
 
@@ -87,7 +87,7 @@ class TestNoRollbackStable:
         result = await guard.check("pjm-agent", "decompose-task")
 
         assert result is False
-        repo.promote_skill.assert_not_called()
+        repo.rollback_skill_if_current.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_no_rollback_within_threshold(self):
@@ -102,7 +102,7 @@ class TestNoRollbackStable:
         result = await guard.check("pjm-agent", "decompose-task")
 
         assert result is False
-        repo.promote_skill.assert_not_called()
+        repo.rollback_skill_if_current.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_no_rollback_improved_performance(self):
@@ -116,7 +116,7 @@ class TestNoRollbackStable:
         result = await guard.check("pjm-agent", "decompose-task")
 
         assert result is False
-        repo.promote_skill.assert_not_called()
+        repo.rollback_skill_if_current.assert_not_called()
 
 
 # ── No-rollback: guard conditions not met ──────────────────────────────────
@@ -162,7 +162,7 @@ class TestNoRollbackGuardConditions:
         result = await guard.check("pjm-agent", "decompose-task")
 
         assert result is False
-        repo.promote_skill.assert_not_called()
+        repo.rollback_skill_if_current.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_no_rollback_exactly_min_samples_minus_one(self):
@@ -176,7 +176,7 @@ class TestNoRollbackGuardConditions:
         result = await guard.check("pjm-agent", "decompose-task")
 
         assert result is False
-        repo.promote_skill.assert_not_called()
+        repo.rollback_skill_if_current.assert_not_called()
 
 
 # ── Rollback triggered ─────────────────────────────────────────────────────
@@ -202,7 +202,9 @@ class TestRollbackTriggered:
         result = await guard.check("pjm-agent", "decompose-task")
 
         assert result is True
-        repo.promote_skill.assert_awaited_once_with("decompose-task", "1")
+        repo.rollback_skill_if_current.assert_awaited_once_with(
+            "decompose-task", expected_active_version="2", baseline_version="1", agent_id="pjm-agent"
+        )
 
     @pytest.mark.asyncio
     async def test_rollback_increments_redis_counter(self):
@@ -254,7 +256,7 @@ class TestRollbackTriggered:
         result = await guard.check("pjm-agent", "decompose-task")
 
         assert result is False
-        repo.promote_skill.assert_not_called()
+        repo.rollback_skill_if_current.assert_not_called()
 
 
 # ── Circuit breaker ────────────────────────────────────────────────────────
@@ -281,7 +283,7 @@ class TestCircuitBreaker:
         result = await guard.check("pjm-agent", "decompose-task")
 
         assert result is False
-        repo.promote_skill.assert_not_called()
+        repo.rollback_skill_if_current.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_circuit_breaker_sets_paused_flag(self):
@@ -319,7 +321,7 @@ class TestCircuitBreaker:
         result = await guard.check("pjm-agent", "decompose-task")
 
         assert result is True
-        repo.promote_skill.assert_awaited_once()
+        repo.rollback_skill_if_current.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_circuit_breaker_uses_agent_scoped_keys(self):
@@ -339,3 +341,26 @@ class TestCircuitBreaker:
 
         redis.incr.assert_awaited_once_with("evolution:rollback_count:chat-agent")
         redis.set.assert_awaited_once_with("evolution:paused:chat-agent", "true")
+
+
+class TestRollbackOwnership:
+    @pytest.mark.asyncio
+    async def test_guard_returns_false_when_active_version_changed_before_cas(self):
+        active = make_skill(success_rate=0.90, version="2")
+        previous = make_prev_skill("1")
+        repo = make_repo(
+            active_skill=active,
+            traces=make_traces(10),
+            current_rate=0.50,
+            prev_skill=previous,
+        )
+        repo.rollback_skill_if_current.return_value = False
+        guard = EvolutionGuard(repo=repo, redis=make_redis())
+
+        assert await guard.check("pjm-agent", "decompose-task") is False
+        repo.rollback_skill_if_current.assert_awaited_once_with(
+            "decompose-task",
+            expected_active_version="2",
+            baseline_version="1",
+            agent_id="pjm-agent",
+        )

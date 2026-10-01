@@ -5,6 +5,9 @@ import useSWR from "swr";
 
 import {
   approveControlPlaneApproval,
+  acceptControlPlaneWorkItemArtifact,
+  blockControlPlaneWorkItem,
+  closeControlPlaneWorkItem,
   createControlPlaneBudgetPolicy,
   createControlPlaneGoal,
   createControlPlaneWorkItem,
@@ -15,21 +18,24 @@ import {
   listControlPlaneBudgetUsage,
   listControlPlaneDecisions,
   listControlPlaneEvolutionProposals,
-  listControlPlaneGoals,
-  listControlPlaneRuns,
-  listControlPlaneWorkItems,
   rejectControlPlaneApproval,
+  reassignControlPlaneWorkItem,
+  retryControlPlaneWorkItem,
+  runControlPlaneWorkItem,
   updateControlPlaneBudgetPolicy,
   updateControlPlaneWorkItemStatus,
   type ControlPlaneBudgetPolicyCreateRequest,
   type ControlPlaneBudgetPolicyUpdateRequest,
   type ControlPlaneGoalCreateRequest,
-  type ControlPlaneGoalFilters,
   type ControlPlaneWorkItemCreateRequest,
-  type ControlPlaneRunFilters,
   type ControlPlaneWorkItemStatusUpdateRequest,
-  type ControlPlaneWorkItemFilters,
-} from "../api/control-plane";
+  type ControlPlaneWorkItemAcceptRequest,
+  type ControlPlaneWorkItemBlockRequest,
+  type ControlPlaneWorkItemCloseRequest,
+  type ControlPlaneWorkItemReassignRequest,
+  type ControlPlaneWorkItemRunRequest,
+} from "@/entities/control-plane";
+import { useControlPlaneGoals, useControlPlaneRuns, useControlPlaneWorkItems } from "@/entities/control-plane";
 import type {
   ControlPlaneAgentRun,
   ControlPlaneApprovalListResponse,
@@ -44,7 +50,7 @@ import type {
   ControlPlaneWorkItem,
   ControlPlaneWorkItemListResponse,
   WorkItemStatus,
-} from "./types";
+} from "@/entities/control-plane";
 
 const OPEN_WORK_STATUSES: WorkItemStatus[] = [
   "queued",
@@ -54,6 +60,16 @@ const OPEN_WORK_STATUSES: WorkItemStatus[] = [
   "awaiting_approval",
   "failed",
 ];
+
+export function withIdempotencyKey(
+  payload: ControlPlaneWorkItemRunRequest,
+  approvedExecutionKey?: string,
+): ControlPlaneWorkItemRunRequest {
+  return {
+    ...payload,
+    idempotency_key: payload.idempotency_key ?? approvedExecutionKey ?? globalThis.crypto.randomUUID(),
+  };
+}
 
 function isOpenWorkItem(workItem: ControlPlaneWorkItem): boolean {
   return OPEN_WORK_STATUSES.includes(workItem.status);
@@ -90,31 +106,6 @@ export function summarizeControlPlaneWorkbench(input: {
   };
 }
 
-export function useControlPlaneGoals(filters?: ControlPlaneGoalFilters) {
-  return useSWR<ControlPlaneGoalListResponse>(["control-plane-goals", filters], () =>
-    listControlPlaneGoals(filters),
-  );
-}
-
-export function useControlPlaneWorkItems(
-  filters?: ControlPlaneWorkItemFilters,
-) {
-  return useSWR<ControlPlaneWorkItemListResponse>(
-    ["control-plane-work-items", filters],
-    () => listControlPlaneWorkItems(filters),
-  );
-}
-
-export function useControlPlaneRuns(filters?: ControlPlaneRunFilters) {
-  const shouldFetch = Boolean(
-    filters?.goal_id || filters?.work_item_id || filters?.agent_id || filters?.trace_id,
-  );
-  return useSWR(
-    shouldFetch ? ["control-plane-runs", filters] : null,
-    () => listControlPlaneRuns(filters),
-  );
-}
-
 export function useControlPlaneWorkbench() {
   const [selectedGoalId, setSelectedGoalId] = useState<string>();
   const [selectedWorkItemId, setSelectedWorkItemId] = useState<string>();
@@ -123,6 +114,8 @@ export function useControlPlaneWorkbench() {
   const [goalActionId, setGoalActionId] = useState<string>();
   const [workItemActionId, setWorkItemActionId] = useState<string>();
   const [budgetPolicyActionId, setBudgetPolicyActionId] = useState<string>();
+  const [workItemError, setWorkItemError] = useState<string>();
+  const [workItemAction, setWorkItemAction] = useState<string>();
 
   const goalsQuery = useControlPlaneGoals({ limit: 100 });
   const goals = useMemo(() => goalsQuery.data?.goals ?? [], [goalsQuery.data]);
@@ -188,8 +181,8 @@ export function useControlPlaneWorkbench() {
   );
 
   const approvalsQuery = useSWR<ControlPlaneApprovalListResponse>(
-    activeRunId ? ["control-plane-approvals", activeRunId] : null,
-    () => listControlPlaneApprovals({ run_id: activeRunId, limit: 50 }),
+    activeWorkItemId ? ["control-plane-approvals", selectedWorkItem?.company_id, activeWorkItemId] : null,
+    () => listControlPlaneApprovals({ company_id: selectedWorkItem?.company_id, work_item_id: activeWorkItemId, limit: 50 }),
   );
 
   const budgetUsageQuery = useSWR<ControlPlaneBudgetUsageListResponse>(
@@ -347,6 +340,40 @@ export function useControlPlaneWorkbench() {
     [refreshAll],
   );
 
+  const withWorkItemAction = useCallback(async (id: string, action: () => Promise<unknown>) => {
+    setWorkItemAction(id);
+    setWorkItemError(undefined);
+    try {
+      await action();
+      await refreshAll();
+    } catch (error) {
+      setWorkItemError(error instanceof Error ? error.message : String(error));
+      throw error;
+    } finally {
+      setWorkItemAction(undefined);
+    }
+  }, [refreshAll]);
+
+  const runWorkItem = useCallback((id: string, payload: ControlPlaneWorkItemRunRequest, approvedExecutionKey?: string) => {
+    const request = withIdempotencyKey(payload, approvedExecutionKey);
+    return withWorkItemAction(id, () => runControlPlaneWorkItem(id, request));
+  }, [withWorkItemAction]);
+  const retryWorkItem = useCallback((id: string, payload: ControlPlaneWorkItemRunRequest) => {
+    const request = withIdempotencyKey(payload);
+    return withWorkItemAction(id, () => retryControlPlaneWorkItem(id, request));
+  }, [withWorkItemAction]);
+  const reassignWorkItem = useCallback((id: string, payload: ControlPlaneWorkItemReassignRequest) =>
+    withWorkItemAction(id, () => reassignControlPlaneWorkItem(id, payload)), [withWorkItemAction]);
+  const blockWorkItem = useCallback((id: string, payload: ControlPlaneWorkItemBlockRequest) =>
+    withWorkItemAction(id, () => blockControlPlaneWorkItem(id, payload)), [withWorkItemAction]);
+  const closeWorkItem = useCallback((id: string, payload: ControlPlaneWorkItemCloseRequest) =>
+    withWorkItemAction(id, () => closeControlPlaneWorkItem(id, payload)), [withWorkItemAction]);
+  const acceptWorkItemArtifact = useCallback((id: string, payload: ControlPlaneWorkItemAcceptRequest) =>
+    withWorkItemAction(id, async () => {
+      const result = await acceptControlPlaneWorkItemArtifact(id, payload);
+      setSelectedWorkItemId(result.work_item.work_item_id);
+    }), [withWorkItemAction]);
+
   const createBudgetPolicy = useCallback(
     async (payload: ControlPlaneBudgetPolicyCreateRequest) => {
       setBudgetPolicyActionId("create");
@@ -418,6 +445,14 @@ export function useControlPlaneWorkbench() {
     createGoal,
     createWorkItem,
     updateWorkItemStatus,
+    runWorkItem,
+    retryWorkItem,
+    reassignWorkItem,
+    blockWorkItem,
+    closeWorkItem,
+    acceptWorkItemArtifact,
+    workItemError,
+    workItemAction,
     createBudgetPolicy,
     updateBudgetPolicy,
     refresh,

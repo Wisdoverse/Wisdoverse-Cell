@@ -1,0 +1,82 @@
+# Low-cardinality alerts for aggregate Control Plane operating metrics.
+# The exporter that publishes these gauges must omit company, user, run, and
+# approval identifiers as labels. The JSON operating-metrics API is not scraped.
+groups:
+  - name: control_plane_operating_health
+    rules:
+      - alert: ControlPlanePendingApprovalsOld
+        expr: control_plane_pending_approval_oldest_age_seconds > 86400
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+          domain: control_plane
+        annotations:
+          summary: "A Control Plane approval has been pending for over 24 hours"
+          description: "The oldest pending approval age is {{ $value | humanizeDuration }}."
+
+      - alert: ControlPlaneExecutionRecoveryBacklog
+        expr: control_plane_unresolved_execution_leases > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: control_plane
+        annotations:
+          summary: "Control Plane has executions awaiting reconciliation"
+          description: "{{ $value }} unresolved execution lease(s) require operator review."
+
+      - alert: ControlPlaneOutboxBacklogOld
+        expr: control_plane_pending_outbox_oldest_age_seconds > 900
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          domain: control_plane
+        annotations:
+          summary: "Control Plane outbox delivery is delayed"
+          description: "The oldest pending outbox event age is {{ $value | humanizeDuration }}."
+
+      - alert: ControlPlaneAdapterErrors
+        expr: increase(control_plane_adapter_errors_total[10m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+          domain: control_plane
+        annotations:
+          summary: "Control Plane adapter failures were recorded"
+          description: "{{ $value }} adapter error(s) were recorded in the last 10 minutes."
+
+      - alert: ControlPlaneWorkQueueDelayHigh
+        expr: control_plane_work_queue_delay_p95_seconds > 600
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+          domain: control_plane
+        annotations:
+          summary: "Control Plane work queue delay p95 exceeds 10 minutes"
+          description: "The bounded queue delay sample p95 is {{ $value | humanizeDuration }}."
+
+      - alert: ControlPlaneRunSuccessRateLow
+        expr: control_plane_run_success_rate < 0.8
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+          domain: control_plane
+        annotations:
+          summary: "Control Plane run success rate is below 80%"
+          description: "The company-wide terminal-run success rate is {{ $value | humanizePercentage }}."
+
+      - alert: ControlPlaneAcceptedOutcomeCostHigh
+        expr: control_plane_full_cost_usd_per_accepted_outcome > 50
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+          domain: control_plane
+        annotations:
+          summary: "Full cost per accepted outcome exceeds $50"
+          description: "The company-wide full cost per current accepted work item is ${{ $value | printf \"%.2f\" }}."

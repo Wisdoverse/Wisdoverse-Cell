@@ -109,6 +109,18 @@ class ControlPlaneStores:
         return SqlAlchemyControlPlaneAuditEventStore(self._session)
 
     @property
+    def audit_export(self):
+        from .audit_export_store import SqlAlchemyAuditExportStore
+
+        return SqlAlchemyAuditExportStore(self._session)
+
+    @property
+    def operating_metrics(self):
+        from .operating_metrics_store import SqlAlchemyOperatingMetricsStore
+
+        return SqlAlchemyOperatingMetricsStore(self._session)
+
+    @property
     def audit_timeline(self) -> "SqlAlchemyControlPlaneAuditTimelineStore":
         from .audit_timeline_store import SqlAlchemyControlPlaneAuditTimelineStore
 
@@ -145,6 +157,36 @@ class ControlPlaneStores:
         from .prompt_config_store import SqlAlchemyControlPlanePromptConfigStore
 
         return SqlAlchemyControlPlanePromptConfigStore(self._session)
+
+    @property
+    def outcomes(self):
+        from .outcome_store import SqlAlchemyOutcomeStore
+
+        return SqlAlchemyOutcomeStore(self._session)
+
+    @property
+    def evolution_evaluations(self):
+        from .evolution_evaluation_store import SqlAlchemyControlPlaneEvolutionEvaluationStore
+
+        return SqlAlchemyControlPlaneEvolutionEvaluationStore(self._session)
+
+    @property
+    def knowledge(self):
+        from .knowledge_store import SqlAlchemyKnowledgeStore
+
+        return SqlAlchemyKnowledgeStore(self._session)
+
+    @property
+    def executions(self):
+        from .execution_store import SqlAlchemyExecutionGovernanceStore
+
+        return SqlAlchemyExecutionGovernanceStore(self._session)
+
+    @property
+    def evolution_deployments(self):
+        from .evolution_deployment_store import SqlAlchemyEvolutionDeploymentStore
+
+        return SqlAlchemyEvolutionDeploymentStore(self._session)
 
 
 __all__ = ["ControlPlaneStores"]

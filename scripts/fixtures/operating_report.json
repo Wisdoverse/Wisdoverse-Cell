@@ -1,0 +1,15 @@
+{
+  "dataset": "synthetic-first-success-sample-v1",
+  "synthetic": true,
+  "period": "2026-Q3 sample",
+  "metrics": {
+    "recognized_revenue_usd": 125000.0,
+    "operating_expense_usd": 83000.0,
+    "open_work_items": 7,
+    "at_risk_work_items": 2
+  },
+  "notes": [
+    "All amounts and counts are invented sample values.",
+    "This fixture is for workflow verification, not business reporting."
+  ]
+}

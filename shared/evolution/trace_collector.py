@@ -98,6 +98,7 @@ class TraceHandle:
         self._auto_score: Optional[float] = None
         self._human_rating: Optional[int] = None
         self._human_correction: Optional[str] = None
+        self.skill_selections: dict[str, Any] = {}
 
     # ── mutators ─────────────────────────────────────────────────────────────
 

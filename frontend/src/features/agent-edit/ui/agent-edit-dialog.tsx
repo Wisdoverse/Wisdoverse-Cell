@@ -16,6 +16,7 @@ import {
   type AgentMeta,
   type ControlPlaneAgentDefinition,
 } from "@/entities/agent";
+import { AgentExecutionPolicyFields } from "@/features/agent-execution-policy";
 import { Button } from "@/shared/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/collapsible";
 import {
@@ -115,6 +116,8 @@ function formFromAgent(agent: ControlPlaneAgentDefinition) {
     domain: agent.domain as AgentDomain,
     reportsTo: agent.reports_to_agent_id ?? "none",
     adapterType: agent.adapter_type,
+    permissions: lines(agent.permissions),
+    maxCostUsd: agent.adapter_config.max_cost_usd == null ? "" : String(agent.adapter_config.max_cost_usd),
     baseUrl: configString(agent.adapter_config, "base_url"),
     path: configString(agent.adapter_config, "path"),
     command: configString(agent.adapter_config, "command"),
@@ -166,6 +169,7 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
       ...(form.model.trim() ? { model: form.model.trim() } : {}),
       ...(form.cwd.trim() ? { cwd: form.cwd.trim() } : {}),
       ...(form.promptTemplate.trim() ? { prompt_template: form.promptTemplate.trim() } : {}),
+      ...(form.maxCostUsd.trim() ? { max_cost_usd: Number(form.maxCostUsd) } : {}),
     };
 
     try {
@@ -180,12 +184,12 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
         reports_to_agent_id: form.reportsTo === "none" ? null : form.reportsTo,
         adapter_type: form.adapterType,
         adapter_config: adapterConfig,
+        permissions: parseLines(form.permissions),
         context_sources: parseLines(form.contextSources),
         capabilities: parseLines(form.capabilities),
         responsibilities: parseLines(form.responsibilities),
         subscribed_events: parseLines(form.subscribedEvents),
         published_events: parseLines(form.publishedEvents),
-        permissions: agent.permissions,
         created_by: "frontend",
         metadata: agent.metadata,
       });
@@ -458,6 +462,13 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
                       </SelectContent>
                     </Select>
                   </div>
+                  <AgentExecutionPolicyFields
+                    adapterType={form.adapterType}
+                    permissions={form.permissions}
+                    maxCostUsd={form.maxCostUsd}
+                    onPermissionsChange={(permissions) => setForm((current) => ({ ...current, permissions }))}
+                    onMaxCostChange={(maxCostUsd) => setForm((current) => ({ ...current, maxCostUsd }))}
+                  />
                   <div className="space-y-2">
                     <Label htmlFor="edit-agent-model">{t("model")}</Label>
                     <Input

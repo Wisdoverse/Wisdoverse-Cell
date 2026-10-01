@@ -39,6 +39,7 @@ async def wake_agent_definition(
     trace_id: str | None = None,
     goal_id: str | None = None,
     work_item_id: str | None = None,
+    idempotency_key: str | None = None,
 ) -> AgentWakeupUseCaseResult:
     """Wake a persisted agent definition through its configured adapter."""
     agent = await store.get_agent_role(
@@ -55,6 +56,7 @@ async def wake_agent_definition(
         trace_id=trace_id,
         goal_id=goal_id,
         work_item_id=work_item_id,
+        idempotency_key=idempotency_key,
     )
     run_row = await store.get_agent_run(wakeup.run_id)
     return AgentWakeupUseCaseResult(

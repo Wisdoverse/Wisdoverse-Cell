@@ -85,6 +85,7 @@ async def test_goal_to_agent_run_to_artifact_timeline_e2e(
                 "agent_id": "ops-runner",
                 "display_name": "Ops Runner",
                 "adapter_type": "process",
+                "permissions": ["work.execute", "adapter:process", "tool:wakeup"],
                 "adapter_config": {
                     "command": [
                         sys.executable,
@@ -92,6 +93,7 @@ async def test_goal_to_agent_run_to_artifact_timeline_e2e(
                         "import json,sys; data=json.load(sys.stdin); print(data['work_item_id'])",
                     ],
                     "timeout_sec": 10,
+                    "max_cost_usd": 0,
                 },
                 "created_by": "human:board",
             },
@@ -104,6 +106,25 @@ async def test_goal_to_agent_run_to_artifact_timeline_e2e(
                 "actor_id": "human:board",
                 "trace_id": "trace-e2e",
                 "input": {"task": "produce handoff"},
+            },
+        )
+        accepted = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/accept",
+            json={
+                "company_id": "cmp_e2e",
+                "artifact_id": wake.json()["evidence_artifact_id"],
+                "actor_id": "human:board",
+                "verdict": "accepted",
+                "reason": "Reviewed the persisted process evidence.",
+            },
+        )
+        closed = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/close",
+            json={
+                "company_id": "cmp_e2e",
+                "status": "completed",
+                "actor_id": "human:board",
+                "reason": "The persisted process evidence was accepted.",
             },
         )
         run_id = wake.json()["run"]["run_id"]
@@ -157,13 +178,17 @@ async def test_goal_to_agent_run_to_artifact_timeline_e2e(
     assert work_item.status_code == 201
     assert agent.status_code == 201
     assert wake.status_code == 200
-    assert wake.json()["work_item"]["status"] == "completed"
+    assert wake.json()["work_item"]["status"] == "blocked"
     assert wake.json()["work_item"]["owner_agent_id"] == "ops-runner"
     assert wake.json()["run"]["status"] == "succeeded"
     assert wake.json()["run"]["goal_id"] == goal_id
     assert wake.json()["run"]["work_item_id"] == work_item_id
     assert wake.json()["output"]["stdout"].strip() == work_item_id
     assert wake.json()["evidence_artifact_id"] == auto_artifact["artifact_id"]
+    assert accepted.status_code == 200
+    assert accepted.json()["acceptance"]["verdict"] == "accepted"
+    assert closed.status_code == 200
+    assert closed.json()["status"] == "completed"
     assert auto_artifacts.status_code == 200
     assert auto_artifacts.json()["total"] == 1
     assert auto_artifact["artifact_type"] == "run_walkthrough"
@@ -226,6 +251,7 @@ async def test_failed_agent_run_still_writes_evidence_artifact(
                 "agent_id": "failing-runner",
                 "display_name": "Failing Runner",
                 "adapter_type": "process",
+                "permissions": ["work.execute", "adapter:process", "tool:wakeup"],
                 "adapter_config": {
                     "command": [
                         sys.executable,
@@ -233,6 +259,7 @@ async def test_failed_agent_run_still_writes_evidence_artifact(
                         "import sys; print('partial evidence'); sys.exit(7)",
                     ],
                     "timeout_sec": 10,
+                    "max_cost_usd": 0,
                 },
                 "created_by": "human:board",
             },

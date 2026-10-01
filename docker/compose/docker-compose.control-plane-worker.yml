@@ -1,0 +1,37 @@
+services:
+  control-plane-worker:
+    image: ${REGISTRY:-}wisdoverse/cell-agents:${VERSION:-latest}
+    command: ["python", "-m", "services.orchestration.control_plane_worker.main"]
+    container_name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}-control-plane-worker
+    profiles: ["control-plane-worker"]
+    restart: on-failure
+    stop_grace_period: 35s
+    user: "1000:1000"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777"
+    environment:
+      CONTROL_PLANE_BASE_URL: ${CONTROL_PLANE_BASE_URL:-http://ai-core:8000}
+      CONTROL_PLANE_COMPANY_ID: ${CONTROL_PLANE_COMPANY_ID:-cmp_wisdoverse_cell}
+      CONTROL_PLANE_WORKER_INTERVAL_SECONDS: ${CONTROL_PLANE_WORKER_INTERVAL_SECONDS:-60}
+      CONTROL_PLANE_WORKER_TIMEOUT_SECONDS: ${CONTROL_PLANE_WORKER_TIMEOUT_SECONDS:-30}
+      CONTROL_PLANE_WORKER_HEALTH_FILE: /tmp/control-plane-worker.health
+      CONTROL_PLANE_WORKER_INTERNAL_KEY: ${CONTROL_PLANE_WORKER_INTERNAL_KEY:-${INTERNAL_SERVICE_KEY:-}}
+      CONTROL_PLANE_WORKER_OPERATOR_TOKEN: ${CONTROL_PLANE_WORKER_OPERATOR_TOKEN:-}
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "python", "-m", "services.orchestration.control_plane_worker.main", "--check-health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 90s
+    mem_limit: 256m
+    cpus: 0.5
+
+networks:
+  backend:
+    name: ${COMPOSE_PROJECT_NAME:-wisdoverse-cell}_backend
+    external: true

@@ -1343,6 +1343,13 @@
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [
@@ -1406,7 +1413,7 @@
     "/api": {
       "delete": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api_get",
+        "operationId": "api_v1_redirect_delete_702acf7c08d3",
         "parameters": [
           {
             "in": "query",
@@ -1443,7 +1450,7 @@
       },
       "get": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api_get",
+        "operationId": "api_v1_redirect_get_702acf7c08d3",
         "parameters": [
           {
             "in": "query",
@@ -1480,7 +1487,7 @@
       },
       "patch": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api_get",
+        "operationId": "api_v1_redirect_patch_702acf7c08d3",
         "parameters": [
           {
             "in": "query",
@@ -1517,7 +1524,7 @@
       },
       "post": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api_get",
+        "operationId": "api_v1_redirect_post_702acf7c08d3",
         "parameters": [
           {
             "in": "query",
@@ -1554,7 +1561,7 @@
       },
       "put": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api_get",
+        "operationId": "api_v1_redirect_put_702acf7c08d3",
         "parameters": [
           {
             "in": "query",
@@ -1593,7 +1600,7 @@
     "/api/": {
       "delete": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api__get",
+        "operationId": "api_v1_redirect_delete_4d3a663efc0a",
         "parameters": [
           {
             "in": "query",
@@ -1630,7 +1637,7 @@
       },
       "get": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api__get",
+        "operationId": "api_v1_redirect_get_4d3a663efc0a",
         "parameters": [
           {
             "in": "query",
@@ -1667,7 +1674,7 @@
       },
       "patch": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api__get",
+        "operationId": "api_v1_redirect_patch_4d3a663efc0a",
         "parameters": [
           {
             "in": "query",
@@ -1704,7 +1711,7 @@
       },
       "post": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api__get",
+        "operationId": "api_v1_redirect_post_4d3a663efc0a",
         "parameters": [
           {
             "in": "query",
@@ -1741,7 +1748,7 @@
       },
       "put": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api__get",
+        "operationId": "api_v1_redirect_put_4d3a663efc0a",
         "parameters": [
           {
             "in": "query",
@@ -4215,7 +4222,7 @@
     "/api/{path}": {
       "delete": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api__path__get",
+        "operationId": "api_v1_redirect_delete_b9108f717c16",
         "parameters": [
           {
             "in": "path",
@@ -4251,7 +4258,7 @@
       },
       "get": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api__path__get",
+        "operationId": "api_v1_redirect_get_b9108f717c16",
         "parameters": [
           {
             "in": "path",
@@ -4287,7 +4294,7 @@
       },
       "patch": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api__path__get",
+        "operationId": "api_v1_redirect_patch_b9108f717c16",
         "parameters": [
           {
             "in": "path",
@@ -4323,7 +4330,7 @@
       },
       "post": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api__path__get",
+        "operationId": "api_v1_redirect_post_b9108f717c16",
         "parameters": [
           {
             "in": "path",
@@ -4359,7 +4366,7 @@
       },
       "put": {
         "description": "Redirect unversioned /api/* to /api/v1/* for backward compatibility.",
-        "operationId": "api_v1_redirect_api__path__get",
+        "operationId": "api_v1_redirect_put_b9108f717c16",
         "parameters": [
           {
             "in": "path",

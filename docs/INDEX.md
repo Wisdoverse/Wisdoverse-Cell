@@ -30,12 +30,15 @@ surfaces that currently exist.
 | Backend delivery plan | [Migration Plan](./architecture/migration-plan.md) | Six-stage architecture status and preserved migration/staging/recovery gates |
 | Public project research | [Public Project Landscape](./overview/public-project-landscape.md) | Eight source-pinned comparisons and their implications for Cell's goals |
 | Product vocabulary | [Product Model](./overview/product-model.md) | Defines goals, work items, agent roles, runs, decisions, artifacts, budgets, approvals, and audit trails |
+| Governance runbook | [Product Governance](./runbooks/product-governance.md) | Operator identity, company and knowledge access, execution recovery, evolution release gates, audit export, and R0 owner evidence |
+| Control Plane metrics runbook | [Control Plane Metrics](./runbooks/control-plane-metrics.md) | Opt-in authenticated Prometheus scrape, low-cardinality metrics, and alert-rule validation |
+| Engineering receipt | [Product Roadmap Engineering Receipt](./evidence/product-roadmap-engineering-2026-10-01.md) | Completed local validation, source fingerprints and explicitly open milestone acceptance |
 | Repository layout | [Project Layout](./overview/project-layout.md) | Maps source roots, current structure drift, cleanup phases, and ignored local-only paths |
 | System architecture | [Architecture Overview](./overview/architecture.md) | Maps architecture boundary rules, frontend, gateway, independently deployed agents, shared runtime, control-plane ledger, and adapters |
 | Backend boundaries | [Backend Boundaries](./guides/backend-boundaries.md) | Defines bounded contexts, table ownership, API/event/data contracts, and current backend governance gaps |
 | Operator API | [API Reference](./guides/api-reference.md#control-plane-api) | Documents `/api/v1/control-plane/*`, `/agent/request`, wakeups, scheduler ticks, approvals, budgets, and timelines |
 | Event contract | [Event Catalog](./guides/event-catalog.md#30-control-plane-domain) | Documents control-plane events and producer/consumer expectations |
-| Operations | [Operations Guide](./guides/operations.md#10-control-plane-operations) | Documents migrations, runtime switches, local-adapter fail-closed policy, heartbeat execution, and run evidence |
+| Operations | [Operations Guide](./guides/operations.md#10-control-plane-operations) | Documents migrations, runtime switches, local-adapter fail-closed policy, heartbeat execution, metrics, alerts, and run evidence |
 | Frontend workbench | [`frontend/src/app/[locale]/(app)/workflows/`](<../frontend/src/app/[locale]/(app)/workflows/>) | Operator entry point backed by Feature-Sliced Design slices under `entities/`, `features/`, and `widgets/` |
 
 ---

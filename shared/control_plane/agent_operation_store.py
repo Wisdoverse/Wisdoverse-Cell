@@ -31,6 +31,9 @@ class SqlAlchemyControlPlaneAgentOperationStore(ControlPlaneAgentOperationStore)
     """Session-scoped store for wakeup and heartbeat operations."""
 
     def __init__(self, session: AsyncSession):
+        from .execution_store import SqlAlchemyExecutionGovernanceStore
+
+        self.execution_governance = SqlAlchemyExecutionGovernanceStore(session)
         self._companies = SqlAlchemyControlPlaneCompanyStore(session)
         self._agents = SqlAlchemyControlPlaneAgentRegistryStore(session)
         self._agent_runs = SqlAlchemyControlPlaneAgentRunStore(session)

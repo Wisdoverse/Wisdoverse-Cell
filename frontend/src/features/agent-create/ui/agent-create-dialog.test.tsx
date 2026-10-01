@@ -27,5 +27,8 @@ describe("AgentCreateDialog", () => {
     expect(screen.getByLabelText("agentId")).toHaveValue("cto");
     expect(screen.getByLabelText("titleField")).toHaveValue("Chief Technology Officer");
     expect(screen.getByLabelText("contextSources")).toHaveValue("control_plane");
+    expect(document.getElementById("agent-execution-permissions")).toHaveValue("");
+    expect(document.getElementById("agent-execution-max-cost")).toBeRequired();
+    expect(screen.getByText("work.execute, adapter:http, tool:wakeup")).toBeInTheDocument();
   }, 15_000);
 });

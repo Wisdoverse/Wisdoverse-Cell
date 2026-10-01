@@ -25,6 +25,7 @@ class EvolutionSettings(BaseSettings):
     # Phase 2: auto-optimization, canary routing, semantic evaluation
     auto_optimize: bool = False
     canary_enabled: bool = False
+    skill_execution_enabled: bool = False
     evaluator_semantic_enabled: bool = False
 
     # Phase 3: collaboration patterns

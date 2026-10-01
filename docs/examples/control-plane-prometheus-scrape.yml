@@ -1,0 +1,22 @@
+# Optional scrape job for the authenticated Control Plane metrics endpoint.
+# Add this job under scrape_configs in a separately managed Prometheus config;
+# the default observability deployment does not enable this job.
+#
+# Change the target to an address reachable from Prometheus. The ai-core name
+# assumes Prometheus and the API share a Docker network.
+- job_name: control-plane-operating-metrics
+  scrape_interval: 30s
+  metrics_path: /api/v1/control-plane/operating-metrics/prometheus
+  params:
+    company_id:
+      - cmp_wisdoverse_cell
+  static_configs:
+    - targets:
+        - ai-core:8000
+  http_headers:
+    X-Internal-Key:
+      files:
+        - /run/secrets/control_plane_internal_key
+    X-Control-Plane-Operator-Token:
+      files:
+        - /run/secrets/control_plane_operator_token

@@ -18,16 +18,15 @@ before they reach production.
 Design notes:
 - Pure read of `app.openapi()`; no network or DB calls happen at
   schema generation time.
-- `CONTROL_PLANE_ENABLED=false` is forced so the optional
-  control-plane router does not bloat per-agent snapshots; the
-  control plane has its own ledger surface already documented in
-  `docs/guides/api-reference.md` §Control Plane API.
+- `CONTROL_PLANE_ENABLED=false` keeps the optional operator router out of
+  per-agent snapshots. A separate snapshot records the operator contract.
 - Output is canonicalised (`sort_keys=True`, 2-space indent, trailing
   newline) so diffs are stable across runs.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -44,6 +43,7 @@ RUNTIMES: tuple[tuple[str, str], ...] = (
     ("agents.pjm_agent.app.main", "pjm-agent"),
     ("agents.dev_agent.app.main", "dev-agent"),
     ("agents.requirement_manager.app.main", "requirement-manager"),
+    ("shared.capabilities.evolution.app.main", "evolution-module"),
 )
 
 OUTPUT_DIR = Path("docs/api/openapi")
@@ -53,6 +53,15 @@ def _generate(module_path: str, runtime: str, out_dir: Path) -> Path:
     module = import_module(module_path)
     app = module.app
     schema = app.openapi()
+    # The compatibility redirect handles multiple methods; FastAPI derives its
+    # ID from unordered method sets. Give those operations stable, unique IDs.
+    for path, operations in schema.get("paths", {}).items():
+        for method, operation in operations.items():
+            if isinstance(operation, dict) and operation.get("operationId", "").startswith(
+                "api_v1_redirect"
+            ):
+                suffix = hashlib.sha256(path.encode()).hexdigest()[:12]
+                operation["operationId"] = f"api_v1_redirect_{method}_{suffix}"
     out_path = out_dir / f"{runtime}-v1.json"
     out_path.write_text(
         json.dumps(schema, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
@@ -62,7 +71,7 @@ def _generate(module_path: str, runtime: str, out_dir: Path) -> Path:
 
 
 def main() -> int:
-    os.environ.setdefault("CONTROL_PLANE_ENABLED", "false")
+    os.environ["CONTROL_PLANE_ENABLED"] = "false"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     failures: list[str] = []
     for module_path, runtime in RUNTIMES:
@@ -72,6 +81,21 @@ def main() -> int:
         except Exception as exc:
             failures.append(f"{runtime}: {type(exc).__name__}: {exc}")
             print(f"FAIL {runtime}: {exc}", file=sys.stderr)
+    try:
+        from fastapi import FastAPI
+
+        from shared.control_plane.api import create_control_plane_router
+
+        operator_app = FastAPI(title="Wisdoverse Cell Control Plane", version="1.0")
+        operator_app.include_router(create_control_plane_router())
+        written = OUTPUT_DIR / "control-plane-v1.json"
+        written.write_text(
+            json.dumps(operator_app.openapi(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        print(f"wrote {written}", file=sys.stderr)
+    except Exception as exc:
+        failures.append(f"control-plane: {type(exc).__name__}: {exc}")
     if failures:
         print("\n".join(failures), file=sys.stderr)
         return 1
