@@ -10,6 +10,14 @@ The initial analysis below predates later remediation. Current implementation
 status uses main at commit c387877 (2026-10-01) and the DDD audit; it does not
 establish staging or production acceptance.
 
+For the 2026-10-01 product implementation snapshot across M0–M4 and R0, see
+the [Product Roadmap snapshot](../overview/roadmap.md#engineering-delivery-snapshot-2026-10-01),
+[engineering receipt](../evidence/product-roadmap-engineering-2026-10-01.md),
+[product governance runbook](../runbooks/product-governance.md), and
+[Control Plane metrics runbook](../runbooks/control-plane-metrics.md). Those
+surfaces distinguish implemented code from open operator and deployment
+acceptance.
+
 Scope: Python backend (`agents/`, `services/`, `shared/`, `migrations/`,
 backend tests). Rust gateway, frontend, Docker, and CI are referenced where
 they bound the design but are not redesigned here.

@@ -2,13 +2,13 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ControlPlaneWorkbenchState } from "@/entities/control-plane";
+import type { ControlPlaneWorkbenchState } from "@/features/control-plane-operations";
 import { ControlPlaneWorkbenchPage } from "./control-plane-workbench-page";
 
 const useControlPlaneWorkbenchMock = vi.fn<() => ControlPlaneWorkbenchState>();
 
-vi.mock("@/entities/control-plane", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/entities/control-plane")>();
+vi.mock("@/features/control-plane-operations", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/control-plane-operations")>();
   return {
     ...actual,
     useControlPlaneWorkbench: () => useControlPlaneWorkbenchMock(),
@@ -164,6 +164,14 @@ function buildWorkbenchState(): ControlPlaneWorkbenchState {
     createGoal: vi.fn().mockResolvedValue(undefined),
     createWorkItem: vi.fn().mockResolvedValue(undefined),
     updateWorkItemStatus: vi.fn().mockResolvedValue(undefined),
+    runWorkItem: vi.fn().mockResolvedValue(undefined),
+    retryWorkItem: vi.fn().mockResolvedValue(undefined),
+    reassignWorkItem: vi.fn().mockResolvedValue(undefined),
+    blockWorkItem: vi.fn().mockResolvedValue(undefined),
+    closeWorkItem: vi.fn().mockResolvedValue(undefined),
+    acceptWorkItemArtifact: vi.fn().mockResolvedValue(undefined),
+    workItemAction: undefined,
+    workItemError: undefined,
     createBudgetPolicy: vi.fn().mockResolvedValue(undefined),
     updateBudgetPolicy: vi.fn().mockResolvedValue(undefined),
     refresh: vi.fn(),
@@ -256,10 +264,83 @@ describe("ControlPlaneWorkbenchPage", () => {
     await user.type(screen.getByLabelText("ownerAgent"), "qa-agent");
     await user.click(screen.getByRole("button", { name: "save" }));
 
-    expect(state.updateWorkItemStatus).toHaveBeenCalledWith("work_alpha", {
-      status: "running",
+    expect(state.reassignWorkItem).toHaveBeenCalledWith("work_alpha", {
+      company_id: "company_1",
       owner_agent_id: "qa-agent",
       owner_user_id: undefined,
+      actor_id: "human:operator",
+    });
+  });
+
+  it("runs ready work and retries failed work with operator attribution", async () => {
+    const user = userEvent.setup();
+    const state = buildWorkbenchState();
+    state.selectedWorkItem!.status = "ready";
+    useControlPlaneWorkbenchMock.mockReturnValue(state);
+    render(<ControlPlaneWorkbenchPage />);
+    await user.click(screen.getByRole("button", { name: "runWork" }));
+    expect(state.runWorkItem).toHaveBeenCalledWith("work_alpha", { company_id: "company_1", actor_id: "human:operator" }, undefined);
+
+    state.selectedWorkItem!.status = "failed";
+    render(<ControlPlaneWorkbenchPage />);
+    await user.click(screen.getByRole("button", { name: "retryWork" }));
+    expect(state.retryWorkItem).toHaveBeenCalledWith("work_alpha", { company_id: "company_1", actor_id: "human:operator" });
+  });
+
+  it("requires an accepted artifact before showing close and surfaces action errors", () => {
+    const state = buildWorkbenchState();
+    state.workItemError = "approval_required";
+    useControlPlaneWorkbenchMock.mockReturnValue(state);
+    render(<ControlPlaneWorkbenchPage />);
+    expect(screen.getByRole("alert")).toHaveTextContent("approval_required");
+    expect(screen.queryByRole("button", { name: "closeWork" })).not.toBeInTheDocument();
+    state.selectedWorkItem!.metadata = { accepted_artifact_id: "artifact_alpha" };
+    useControlPlaneWorkbenchMock.mockReturnValue(state);
+    render(<ControlPlaneWorkbenchPage />);
+    expect(screen.getByRole("button", { name: "closeWork" })).toBeInTheDocument();
+  });
+
+  it("reuses the approved execution key when resubmitting an awaiting-approval item", async () => {
+    const user = userEvent.setup();
+    const state = buildWorkbenchState();
+    state.selectedWorkItem!.status = "awaiting_approval";
+    state.approvals[0].status = "pending";
+    useControlPlaneWorkbenchMock.mockReturnValue(state);
+    const { rerender } = render(<ControlPlaneWorkbenchPage />);
+    expect(screen.queryByRole("button", { name: "runWork" })).not.toBeInTheDocument();
+    state.approvals[0].status = "approved";
+    state.approvals[0].metadata = { execution_key: "approved-execution-key" };
+    rerender(<ControlPlaneWorkbenchPage />);
+    await user.click(screen.getByRole("button", { name: "runWork" }));
+    expect(state.runWorkItem).toHaveBeenCalledWith("work_alpha", { company_id: "company_1", actor_id: "human:operator" }, "approved-execution-key");
+  });
+
+  it("does not resubmit an approved item with a new key when its approval has no reusable execution key", () => {
+    const state = buildWorkbenchState();
+    state.selectedWorkItem!.status = "awaiting_approval";
+    state.approvals[0].status = "approved";
+    state.approvals[0].metadata = {};
+    useControlPlaneWorkbenchMock.mockReturnValue(state);
+    render(<ControlPlaneWorkbenchPage />);
+    expect(screen.queryByRole("button", { name: "runWork" })).not.toBeInTheDocument();
+    expect(screen.getByText("approvedExecutionKeyMissing")).toBeInTheDocument();
+    expect(state.runWorkItem).not.toHaveBeenCalled();
+  });
+
+  it("routes reassignment through the reassignment action", async () => {
+    const user = userEvent.setup();
+    const state = buildWorkbenchState();
+    useControlPlaneWorkbenchMock.mockReturnValue(state);
+    render(<ControlPlaneWorkbenchPage />);
+    await user.click(screen.getByRole("button", { name: "editWorkItem" }));
+    await user.clear(screen.getByLabelText("ownerAgent"));
+    await user.type(screen.getByLabelText("ownerAgent"), "qa-agent");
+    await user.click(screen.getByRole("button", { name: "save" }));
+    expect(state.reassignWorkItem).toHaveBeenCalledWith("work_alpha", {
+      company_id: "company_1",
+      owner_agent_id: "qa-agent",
+      owner_user_id: undefined,
+      actor_id: "human:operator",
     });
   });
 

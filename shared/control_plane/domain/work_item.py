@@ -109,6 +109,7 @@ VALID_TRANSITIONS: dict[WorkItemStatus, frozenset[WorkItemStatus]] = {
     WorkItemStatus.FAILED: frozenset(
         {
             WorkItemStatus.RUNNING,
+            WorkItemStatus.AWAITING_APPROVAL,
             WorkItemStatus.CANCELLED,
         }
     ),

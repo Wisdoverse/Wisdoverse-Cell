@@ -9,7 +9,40 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.config import settings
+from shared.evolution.db.release_tables import EvolutionSkillRelease
 from shared.evolution.db.repository import EvolutionRepository
+from shared.evolution.db.tables import EvolutionExperiment
+from shared.evolution.release_contract import skill_config_hash
+
+
+async def _approve_canary_ledger(
+    session: AsyncSession,
+    *,
+    experiment_id: str,
+    skill_id: str,
+    agent_id: str = "pjm-agent",
+    company_id: str | None = None,
+) -> None:
+    """Persist the same-company canary ledger required for live routing."""
+    session.add(
+        EvolutionSkillRelease(
+            deployment_id=experiment_id,
+            company_id=company_id or settings.control_plane_company_id,
+            proposal_id="proposal-test",
+            evaluation_report_id="evaluation-test",
+            evaluation_hash="a" * 64,
+            skill_id=skill_id,
+            agent_id=agent_id,
+            baseline_version=1,
+            candidate_version=2,
+            baseline_config_hash="b" * 64,
+            candidate_config_hash="c" * 64,
+            state="canary",
+            experiment_id=experiment_id,
+        )
+    )
+    await session.flush()
 
 # ── Skill Config Tests ─────────────────────────────────────────────────────
 
@@ -124,6 +157,91 @@ class TestSkillConfig:
         assert prev is not None
         assert prev.version == "1"
         assert prev.status == "retired"
+
+    @pytest.mark.asyncio
+    async def test_rollback_cas_updates_native_release_and_experiment(self, db_session: AsyncSession):
+        repo = EvolutionRepository(db_session)
+        baseline = await repo.save_skill_config(
+            skill_id="decompose-task", version="1", status="retired", system_prompt="v1"
+        )
+        candidate = await repo.save_skill_config(
+            skill_id="decompose-task", version="2", status="active", system_prompt="v2"
+        )
+        baseline.promoted_at = datetime.now(UTC) - timedelta(hours=1)
+        experiment = EvolutionExperiment(
+            experiment_id="rollback-exp", agent_id="pjm-agent", skill_id="decompose-task",
+            control_version=1, candidate_version=2, status="running",
+        )
+        db_session.add(experiment)
+        release = EvolutionSkillRelease(
+            deployment_id="rollback-release", company_id=settings.control_plane_company_id,
+            proposal_id="proposal-test", evaluation_report_id="evaluation-test",
+            evaluation_hash="a" * 64, skill_id="decompose-task", agent_id="pjm-agent",
+            baseline_version=1, candidate_version=2,
+            baseline_config_hash=skill_config_hash(baseline),
+            candidate_config_hash=skill_config_hash(candidate), state="active", version=4,
+            experiment_id="rollback-exp",
+        )
+        db_session.add(release)
+        await db_session.flush()
+
+        assert await repo.rollback_skill_if_current(
+            "decompose-task", "2", "1", "pjm-agent"
+        ) is True
+        await db_session.refresh(baseline)
+        await db_session.refresh(candidate)
+        await db_session.refresh(release)
+        await db_session.refresh(experiment)
+        assert (baseline.status, candidate.status) == ("active", "retired")
+        assert release.state == "rolled_back"
+        assert release.version == 5
+        assert experiment.status == "rolled_back"
+        assert experiment.concluded_at is not None
+
+    @pytest.mark.asyncio
+    async def test_rollback_cas_does_not_overwrite_later_active_release(self, db_session: AsyncSession):
+        repo = EvolutionRepository(db_session)
+        await repo.save_skill_config(
+            skill_id="decompose-task", version="1", status="retired", system_prompt="v1"
+        )
+        await repo.save_skill_config(
+            skill_id="decompose-task", version="2", status="retired", system_prompt="v2"
+        )
+        later = await repo.save_skill_config(
+            skill_id="decompose-task", version="3", status="active", system_prompt="v3"
+        )
+
+        assert await repo.rollback_skill_if_current(
+            "decompose-task", "2", "1", "pjm-agent"
+        ) is False
+        await db_session.refresh(later)
+        assert later.status == "active"
+
+    @pytest.mark.asyncio
+    async def test_rollback_cas_rejects_foreign_company_release(self, db_session: AsyncSession):
+        repo = EvolutionRepository(db_session)
+        baseline = await repo.save_skill_config(
+            skill_id="decompose-task", version="1", status="retired", system_prompt="v1"
+        )
+        candidate = await repo.save_skill_config(
+            skill_id="decompose-task", version="2", status="active", system_prompt="v2"
+        )
+        release = EvolutionSkillRelease(
+            deployment_id="foreign-release", company_id="foreign-company",
+            proposal_id="proposal-test", evaluation_report_id="evaluation-test",
+            evaluation_hash="a" * 64, skill_id="decompose-task", agent_id="pjm-agent",
+            baseline_version=1, candidate_version=2,
+            baseline_config_hash=skill_config_hash(baseline),
+            candidate_config_hash=skill_config_hash(candidate), state="active", version=1,
+        )
+        db_session.add(release)
+        await db_session.flush()
+
+        assert await repo.rollback_skill_if_current(
+            "decompose-task", "2", "1", "pjm-agent"
+        ) is False
+        await db_session.refresh(candidate)
+        assert candidate.status == "active"
 
     @pytest.mark.asyncio
     async def test_defaults(self, db_session: AsyncSession):
@@ -438,6 +556,11 @@ class TestExperimentRepo:
         assert row.control_results == []
         assert row.candidate_results == []
 
+        # A candidate experiment alone cannot receive traffic.
+        assert await repo.get_active_experiment("pjm-agent", "decompose-task") is None
+        await _approve_canary_ledger(
+            db_session, experiment_id="exp_001", skill_id="decompose-task"
+        )
         active = await repo.get_active_experiment("pjm-agent", "decompose-task")
         assert active is not None
         assert active.experiment_id == "exp_001"
@@ -465,8 +588,22 @@ class TestExperimentRepo:
     @pytest.mark.asyncio
     async def test_get_active_experiment_returns_none(self, db_session: AsyncSession):
         repo = EvolutionRepository(db_session)
+        await repo.save_experiment(
+            experiment_id="exp_wrong_company",
+            agent_id="pjm-agent",
+            skill_id="decompose-task",
+            control_version=1,
+            candidate_version=2,
+        )
+        await _approve_canary_ledger(
+            db_session,
+            experiment_id="exp_wrong_company",
+            skill_id="decompose-task",
+            company_id="cmp_another_company",
+        )
         active = await repo.get_active_experiment("nonexistent", "nonexistent")
         assert active is None
+        assert await repo.get_active_experiment("pjm-agent", "decompose-task") is None
 
     @pytest.mark.asyncio
     async def test_conclude_experiment(self, db_session: AsyncSession):
@@ -478,6 +615,9 @@ class TestExperimentRepo:
             skill_id="decompose-task",
             control_version=1,
             candidate_version=2,
+        )
+        await _approve_canary_ledger(
+            db_session, experiment_id="exp_002", skill_id="decompose-task"
         )
 
         now = datetime.now(UTC)
@@ -497,6 +637,9 @@ class TestExperimentRepo:
             skill_id="decompose-task",
             control_version=1,
             candidate_version=2,
+        )
+        await _approve_canary_ledger(
+            db_session, experiment_id="exp_003", skill_id="decompose-task"
         )
 
         await repo.add_experiment_result("exp_003", is_candidate=False, score=0.8)

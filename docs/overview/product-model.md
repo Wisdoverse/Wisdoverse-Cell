@@ -56,7 +56,8 @@ Cell applies that model to its own stack and company-operating thesis.
 | Budget Policy | Spend and model/tool routing constraint | `BudgetGuard`, `/api/v1/control-plane/budgets/policies`, LLM gateway usage records, tool registry cost estimates |
 | Activity Event | Immutable operational record | Control-plane audit events, `Event`, Redis Streams, trace IDs |
 | Artifact | Output produced by an agent | Control-plane artifacts, PRD, report, QA result, issue, code change |
-| Company Template | Portable operating model | Planned export/import with secret scrubbing |
+| Company Template | Portable operating model | Company-scoped export/import with secret scrubbing; imported roles begin paused |
+| Knowledge Record | Versioned reference to company knowledge | Artifact-backed URI, immutable provenance, explicit reader-role ACL, retention and tombstone |
 
 ---
 
@@ -86,9 +87,10 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 | Heartbeats | Runtime hooks, manual control-plane wakeup, authenticated `/agent/request`, scheduler tick endpoint | Production scheduler ownership and run retry policies |
 | Governance | Human approval callbacks, internal service auth, control-plane approval ledger | First-class pause, resume, terminate, and rollback controls |
 | Cost control | Tiered LLM routing, daily budgets, `BudgetGuard`, LLM/tool usage records | Per-goal forecasts and team-level budget planning |
-| Audit log | Immutable events, logs, traces, metrics, control-plane timeline | SLO dashboards and long-term audit retention policy |
-| Portability | Compose stack and environment templates | Export/import company templates with secret scrubbing |
-| Self-evolution | `shared/evolution/` and the evolution capability module | Governed improvement proposals with shadow mode and rollout history |
+| Audit log | Immutable events, logs, traces, metrics, control-plane timeline, redacted company-scoped export | SLO dashboards and physical retention/purge policy |
+| Portability | Compose stack and company template export/import with secret scrubbing and paused imported roles | Validate operator round trip and role semantics |
+| Knowledge | Artifact references with provenance, owner/role ACL, optimistic versions, expiry and delete tombstones | Acceptance evidence for retention and permission lifecycle |
+| Self-evolution | `shared/evolution/`, fixed-case comparative evaluations, signed release commands and approval-gated rollout states | Validate shadow/canary/promotion/rollback against live runtime behavior |
 
 ---
 
@@ -106,6 +108,9 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 | Cost controls | Operators can manage scoped budget policies and inspect usage evidence | [API Reference](../guides/api-reference.md#control-plane-api), [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
 | Evolution proposals | L1/L2/L3 self-evolution proposals are durable records with approval and rollout state; approval gates synchronize linked proposal state | [API Reference](../guides/api-reference.md#control-plane-api) |
 | Audit | Timeline combines run, budget, approval, artifact, and audit events by trace or run | [API Reference](../guides/api-reference.md#control-plane-api) |
+| Company portability | Company-scoped template export/import; imported runtime roles remain paused pending review | [Company template use cases](../../shared/control_plane/company_template_use_cases.py) |
+| Reusable knowledge | Artifact-backed references; same-company readers need owner or explicit role grant; delete leaves a tombstone | [Knowledge routes](../../shared/control_plane/api_routes/knowledge.py) |
+| Audit export | Redacted, exact-company and date-bounded paginated export; physical retention enforcement remains pending | [Audit export route](../../shared/control_plane/api_routes/audit_export.py) |
 
 ## Operator Experience Gap and Direction
 
@@ -176,3 +181,8 @@ operator-flow acceptance.
 Future proposals should build on the existing work-item commands and state
 which remaining milestone they complete, how it is verified, and what remains
 pending.
+
+For the current implementation evidence and operational boundaries, see the
+[engineering receipt](../evidence/product-roadmap-engineering-2026-10-01.md)
+and [product governance runbook](../runbooks/product-governance.md). Both keep
+completed local validation and explicitly open milestone acceptance.

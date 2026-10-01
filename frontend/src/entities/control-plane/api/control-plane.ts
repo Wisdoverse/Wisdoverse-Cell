@@ -9,6 +9,7 @@ import type {
   ControlPlaneDecisionListResponse,
   ControlPlaneEvolutionProposalListResponse,
   ControlPlaneGoalListResponse,
+  ControlPlaneOperatingMetrics,
   ControlPlaneRunListResponse,
   ControlPlaneTimelineResponse,
   ControlPlaneWorkItemListResponse,
@@ -72,6 +73,7 @@ export interface ControlPlaneWorkItemCreateRequest {
 }
 
 export interface ControlPlaneWorkItemStatusUpdateRequest {
+  company_id?: string;
   status: WorkItemStatus;
   owner_agent_id?: string;
   owner_user_id?: string;
@@ -147,6 +149,93 @@ export interface ControlPlaneApprovalActionRequest {
   resolved_by?: string;
 }
 
+export interface ControlPlaneWorkItemRunRequest {
+  company_id?: string;
+  agent_id?: string;
+  input?: Record<string, unknown>;
+  actor_id?: string;
+  trace_id?: string;
+  idempotency_key?: string;
+}
+
+export interface ControlPlaneWorkItemReassignRequest {
+  company_id?: string;
+  owner_agent_id?: string;
+  owner_user_id?: string;
+  actor_id?: string;
+  reason?: string;
+}
+
+export interface ControlPlaneWorkItemBlockRequest {
+  company_id?: string;
+  reason: string;
+  actor_id?: string;
+}
+
+export interface ControlPlaneWorkItemCloseRequest {
+  company_id?: string;
+  status?: WorkItemStatus;
+  actor_id?: string;
+  reason?: string;
+}
+
+export interface ControlPlaneWorkItemAcceptRequest {
+  company_id?: string;
+  artifact_id: string;
+  actor_id: string;
+  verdict: "accepted" | "rejected";
+  reason: string;
+}
+
+export interface ControlPlaneWorkItemRunResult {
+  work_item: ControlPlaneWorkItemListResponse["work_items"][number];
+  run: ControlPlaneRunListResponse["runs"][number] | { run_id: string };
+  output?: unknown;
+  evidence_artifact_id?: string | null;
+}
+
+export function runControlPlaneWorkItem(
+  workItemId: string,
+  payload: ControlPlaneWorkItemRunRequest,
+): Promise<ControlPlaneWorkItemRunResult> {
+  return apiClient.post(`/control-plane/work-items/${workItemId}/run`, payload);
+}
+
+export function retryControlPlaneWorkItem(
+  workItemId: string,
+  payload: ControlPlaneWorkItemRunRequest,
+): Promise<ControlPlaneWorkItemRunResult> {
+  return apiClient.post(`/control-plane/work-items/${workItemId}/retry`, payload);
+}
+
+export function reassignControlPlaneWorkItem(
+  workItemId: string,
+  payload: ControlPlaneWorkItemReassignRequest,
+): Promise<ControlPlaneWorkItemListResponse["work_items"][number]> {
+  return apiClient.post(`/control-plane/work-items/${workItemId}/reassign`, payload);
+}
+
+export function blockControlPlaneWorkItem(
+  workItemId: string,
+  payload: ControlPlaneWorkItemBlockRequest,
+): Promise<ControlPlaneWorkItemListResponse["work_items"][number]> {
+  return apiClient.post(`/control-plane/work-items/${workItemId}/block`, payload);
+}
+
+export function closeControlPlaneWorkItem(
+  workItemId: string,
+  payload: ControlPlaneWorkItemCloseRequest,
+): Promise<ControlPlaneWorkItemListResponse["work_items"][number]> {
+  return apiClient.post(`/control-plane/work-items/${workItemId}/close`, payload);
+}
+
+export function acceptControlPlaneWorkItemArtifact(
+  workItemId: string,
+  payload: ControlPlaneWorkItemAcceptRequest,
+): Promise<{ work_item: ControlPlaneWorkItemListResponse["work_items"][number]; acceptance: Record<string, unknown> }> {
+  return apiClient.post(`/control-plane/work-items/${workItemId}/accept`, payload);
+}
+
 export function listControlPlaneGoals(
   filters?: ControlPlaneGoalFilters,
 ): Promise<ControlPlaneGoalListResponse> {
@@ -187,9 +276,10 @@ export function updateControlPlaneWorkItemStatus(
   workItemId: string,
   payload: ControlPlaneWorkItemStatusUpdateRequest,
 ): Promise<ControlPlaneWorkItemListResponse["work_items"][number]> {
+  const { company_id, ...body } = payload;
   return apiClient.patch<ControlPlaneWorkItemListResponse["work_items"][number]>(
-    `/control-plane/work-items/${workItemId}/status`,
-    payload,
+    `/control-plane/work-items/${workItemId}/status${company_id ? `?company_id=${encodeURIComponent(company_id)}` : ""}`,
+    body,
   );
 }
 
@@ -199,6 +289,13 @@ export function listControlPlaneRuns(
   return apiClient.get<ControlPlaneRunListResponse>(
     "/control-plane/runs",
     filters,
+  );
+}
+
+export function getControlPlaneOperatingMetrics(companyId?: string): Promise<ControlPlaneOperatingMetrics> {
+  return apiClient.get<ControlPlaneOperatingMetrics>(
+    "/control-plane/operating-metrics",
+    companyId ? { company_id: companyId } : undefined,
   );
 }
 
@@ -232,8 +329,8 @@ export function listControlPlaneEvolutionProposals(
 export function listControlPlaneApprovals(
   filters?: Pick<
     ControlPlaneEvidenceFilters,
-    "status" | "run_id" | "trace_id" | "limit"
-  >,
+    "status" | "run_id" | "trace_id" | "work_item_id" | "limit"
+  > & { company_id?: string },
 ): Promise<ControlPlaneApprovalListResponse> {
   return apiClient.get<ControlPlaneApprovalListResponse>(
     "/control-plane/approvals",

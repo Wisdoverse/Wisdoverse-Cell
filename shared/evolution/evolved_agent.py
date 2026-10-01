@@ -15,6 +15,8 @@ from shared.schemas.event import Event
 from shared.utils.logger import get_logger
 
 from .config import evolution_settings
+from .skill_execution_contract import SkillExecutionResult, current_evolution_trace
+from .skill_execution_gateway import HttpSkillExecutionGateway
 from .trace_collector import TraceCollector, TraceHandle
 
 if TYPE_CHECKING:
@@ -72,11 +74,15 @@ class EvolvedAgent(BaseAgent):
                 return await self._agent.handle_event(event)
 
         # Sampling: skip tracing for a fraction of events
-        if random() > evolution_settings.trace_sampling_rate:
+        if (
+            not evolution_settings.skill_execution_enabled
+            and random() > evolution_settings.trace_sampling_rate
+        ):
             return await self._agent.handle_event(event)
 
         # Start trace
         trace = self._trace_collector.start(event)
+        token = current_evolution_trace.set(trace)
         try:
             results = await self._agent.handle_event(event)
             trace.record_success(results)
@@ -85,6 +91,7 @@ class EvolvedAgent(BaseAgent):
             trace.record_failure(exc)
             raise
         finally:
+            current_evolution_trace.reset(token)
             # Fire-and-forget: persist trace + Phase 2 hooks in background
             task = asyncio.create_task(self._post_execution(trace))
             self._background_tasks.add(task)
@@ -106,13 +113,38 @@ class EvolvedAgent(BaseAgent):
                 logger.warning("evaluator_scoring_failed", error=str(e))
 
         # 3. Record canary result (if experiment active)
-        if self._canary_router and evolution_settings.canary_enabled:
+        if evolution_settings.skill_execution_enabled:
+            for selection in trace.skill_selections.values():
+                try:
+                    await HttpSkillExecutionGateway().record(
+                        SkillExecutionResult(
+                            selection=selection,
+                            score=trace.auto_score
+                            if trace.auto_score is not None
+                            else (1.0 if trace.success else 0.0),
+                            success=bool(trace.success),
+                        )
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "skill_execution_evidence_failed",
+                        error_type=type(exc).__name__,
+                        trace_id=trace.trace_id,
+                    )
+        elif (
+            self._canary_router
+            and evolution_settings.canary_enabled
+            and trace.skill_used
+            and trace.skill_version is not None
+        ):
             try:
                 await self._canary_router.record_result(
                     self.agent_id,
                     trace.skill_used or "",
                     trace.trace_id,
-                    trace.auto_score or (1.0 if trace.success else 0.0),
+                    trace.auto_score
+                    if trace.auto_score is not None
+                    else (1.0 if trace.success else 0.0),
                 )
             except Exception as e:
                 logger.warning("canary_record_failed", error=str(e))
@@ -120,12 +152,8 @@ class EvolvedAgent(BaseAgent):
         # 4. Trigger optimization check (if configured)
         if self._skill_optimizer and evolution_settings.auto_optimize:
             try:
-                self._skill_optimizer.increment_execution(
-                    self.agent_id, trace.skill_used or ""
-                )
-                await self._skill_optimizer.maybe_optimize(
-                    self.agent_id, trace.skill_used or ""
-                )
+                self._skill_optimizer.increment_execution(self.agent_id, trace.skill_used or "")
+                await self._skill_optimizer.maybe_optimize(self.agent_id, trace.skill_used or "")
             except Exception as e:
                 logger.warning("auto_optimize_failed", error=str(e))
 
@@ -175,6 +203,11 @@ class EvolvedAgent(BaseAgent):
         await self._agent.startup()
 
     async def shutdown(self) -> None:
+        if self._background_tasks:
+            try:
+                await asyncio.wait_for(asyncio.gather(*self._background_tasks), timeout=15)
+            except TimeoutError:
+                logger.warning("evolution_evidence_shutdown_timeout", agent_id=self.agent_id)
         await self._agent.shutdown()
 
     async def health_check(self) -> dict[str, bool]:
@@ -186,9 +219,7 @@ class EvolvedAgent(BaseAgent):
     def get_a2a_skills(self) -> list[dict[str, Any]]:
         return self._agent.get_a2a_skills()
 
-    async def handle_a2a_task(
-        self, task_id: str, message: "Message"
-    ) -> dict[str, Any]:
+    async def handle_a2a_task(self, task_id: str, message: "Message") -> dict[str, Any]:
         return await self._agent.handle_a2a_task(task_id, message)
 
     def get_mcp_router(self) -> Any:

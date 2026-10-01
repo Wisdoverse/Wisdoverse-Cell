@@ -79,6 +79,7 @@ async def start_agent_wakeup_run(
     goal_id: str | None,
     work_item_id: str | None,
     trigger: str,
+    run_id: str | None = None,
 ) -> AgentWakeupRunRecord:
     """Create a running wakeup AgentRun and its start audit event."""
     trigger_event_id = generate_id(IDPrefix.EVENT)
@@ -91,6 +92,8 @@ async def start_agent_wakeup_run(
         work_item_id=work_item_id,
         trigger_event_id=trigger_event_id,
     )
+    if run_id is not None:
+        run_model.run_id = run_id
     input_event = {
         "event_id": trigger_event_id,
         "event_type": EventTypes.AGENT_WAKEUP_REQUESTED,
@@ -223,6 +226,7 @@ async def fail_agent_wakeup_run(
     trigger: str,
     error_category: str,
     error_message: str,
+    cancelled: bool = False,
 ) -> None:
     """Mark a wakeup run failed and create evidence."""
     completion_event = build_agent_wakeup_completion_event(
@@ -231,7 +235,7 @@ async def fail_agent_wakeup_run(
         trace_id=trace_id,
         goal_id=goal_id,
         work_item_id=work_item_id,
-        status="failed",
+        status="cancelled" if cancelled else "failed",
         output={},
         error_category=error_category,
         error_message=error_message,
@@ -239,11 +243,11 @@ async def fail_agent_wakeup_run(
     # Route through the AgentRun aggregate to enforce the FSM before
     # the persistence write (DDD-001 implementation).
     domain_events = await _validate_run_transition_via_aggregate(
-        store, run_id, AgentRunStatus.FAILED
+        store, run_id, AgentRunStatus.CANCELLED if cancelled else AgentRunStatus.FAILED
     )
     await store.update_agent_run_status(
         run_id,
-        AgentRunStatus.FAILED,
+        AgentRunStatus.CANCELLED if cancelled else AgentRunStatus.FAILED,
         error_category=error_category,
         error_message=error_message,
         last_successful_step="agent_definition_loaded",
@@ -292,7 +296,7 @@ async def fail_agent_wakeup_run(
         goal_id=goal_id,
         work_item_id=work_item_id,
         adapter_type=str(agent.adapter_type or "builtin"),
-        status="failed",
+        status="cancelled" if cancelled else "failed",
         input_event=input_event,
         output_events=[completion_event],
         output_summary=None,

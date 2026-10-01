@@ -1167,6 +1167,7 @@ async def test_control_plane_api_wakes_process_agent_definition(
                 "agent_id": "ops-runner",
                 "display_name": "Ops Runner",
                 "adapter_type": "process",
+                "permissions": ["work.execute", "adapter:process", "tool:wakeup"],
                 "adapter_config": {
                     "command": [
                         sys.executable,
@@ -1174,6 +1175,7 @@ async def test_control_plane_api_wakes_process_agent_definition(
                         "import json,sys; data=json.load(sys.stdin); print(data['agent_id'])",
                     ],
                     "timeout_sec": 10,
+                    "max_cost_usd": 0,
                 },
             },
         )
@@ -1259,6 +1261,7 @@ async def test_control_plane_api_runs_work_item_with_owner_agent(
                 "agent_id": "work-runner",
                 "display_name": "Work Runner",
                 "adapter_type": "process",
+                "permissions": ["work.execute", "adapter:process", "tool:wakeup"],
                 "adapter_config": {
                     "command": [
                         sys.executable,
@@ -1270,6 +1273,7 @@ async def test_control_plane_api_runs_work_item_with_owner_agent(
                         ),
                     ],
                     "timeout_sec": 10,
+                    "max_cost_usd": 0,
                 },
             },
         )
@@ -1282,6 +1286,25 @@ async def test_control_plane_api_runs_work_item_with_owner_agent(
                 "input": {"operator_note": "ship"},
             },
         )
+        accepted = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/accept",
+            json={
+                "company_id": "cmp_work_run",
+                "artifact_id": executed.json()["evidence_artifact_id"],
+                "actor_id": "human:qa",
+                "verdict": "accepted",
+                "reason": "The process returned the requested work item output.",
+            },
+        )
+        closed = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/close",
+            json={
+                "company_id": "cmp_work_run",
+                "status": "completed",
+                "actor_id": "human:qa",
+                "reason": "Accepted artifact is linked to the successful run.",
+            },
+        )
         runs = await client.get(
             "/api/v1/control-plane/runs",
             params={"company_id": "cmp_work_run", "agent_id": "work-runner"},
@@ -1292,12 +1315,16 @@ async def test_control_plane_api_runs_work_item_with_owner_agent(
         )
 
     assert executed.status_code == 200
-    assert executed.json()["work_item"]["status"] == "completed"
+    assert executed.json()["work_item"]["status"] == "blocked"
     assert executed.json()["work_item"]["owner_agent_id"] == "work-runner"
     assert executed.json()["run"]["status"] == "succeeded"
     assert executed.json()["run"]["goal_id"] == goal_id
     assert executed.json()["run"]["work_item_id"] == work_item_id
     assert executed.json()["output"]["stdout"].strip() == f"{work_item_id}|Execute API"
+    assert accepted.status_code == 200
+    assert accepted.json()["acceptance"]["verdict"] == "accepted"
+    assert closed.status_code == 200
+    assert closed.json()["status"] == "completed"
     assert runs.status_code == 200
     assert runs.json()["runs"][0]["input_event"]["payload"]["work_item_id"] == (work_item_id)
     assert audits.status_code == 200
@@ -1306,7 +1333,7 @@ async def test_control_plane_api_runs_work_item_with_owner_agent(
         for item in audits.json()["audit_events"]
         if item["action"] == EventTypes.WORK_ITEM_UPDATED
     ]
-    assert set(status_updates) == {"running", "completed"}
+    assert set(status_updates) == {"running", "blocked", "completed"}
 
 
 @pytest.mark.asyncio
@@ -1344,6 +1371,65 @@ async def test_control_plane_api_rejects_work_item_run_without_agent(
 
 
 @pytest.mark.asyncio
+async def test_control_plane_api_denies_external_execution_without_scopes(
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        "shared.control_plane.agent_runner.settings.control_plane_local_adapter_enabled",
+        True,
+    )
+    monkeypatch.setattr(
+        "shared.control_plane.agent_runner.settings.control_plane_local_adapter_allowlist",
+        "process:unscoped-runner",
+    )
+    app = FastAPI()
+    app.include_router(create_control_plane_router(session_provider=_session_provider(db_session)))
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        work_item = await client.post(
+            "/api/v1/control-plane/work-items",
+            json={
+                "company_id": "cmp_work_run_unscoped",
+                "title": "Do not dispatch without authority",
+                "owner_agent_id": "unscoped-runner",
+                "status": "ready",
+            },
+        )
+        work_item_id = work_item.json()["work_item_id"]
+        await client.post(
+            "/api/v1/control-plane/agents",
+            json={
+                "company_id": "cmp_work_run_unscoped",
+                "agent_id": "unscoped-runner",
+                "display_name": "Unscoped Runner",
+                "adapter_type": "process",
+                "adapter_config": {
+                    "command": [sys.executable, "-c", "print('must not run')"],
+                    "max_cost_usd": 0,
+                },
+            },
+        )
+        denied = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/run",
+            json={"company_id": "cmp_work_run_unscoped"},
+        )
+        fetched = await client.get(
+            f"/api/v1/control-plane/work-items/{work_item_id}",
+            params={"company_id": "cmp_work_run_unscoped"},
+        )
+        runs = await client.get(
+            "/api/v1/control-plane/runs",
+            params={"company_id": "cmp_work_run_unscoped", "agent_id": "unscoped-runner"},
+        )
+
+    assert denied.status_code == 403
+    assert denied.json()["detail"] == "execution_permission_denied"
+    assert fetched.json()["status"] == "ready"
+    assert runs.json()["runs"] == []
+
+
+@pytest.mark.asyncio
 async def test_control_plane_api_marks_work_item_failed_when_execution_fails(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -1374,7 +1460,11 @@ async def test_control_plane_api_marks_work_item_failed_when_execution_fails(
                 "agent_id": "local-runner",
                 "display_name": "Local Runner",
                 "adapter_type": "process",
-                "adapter_config": {"command": [sys.executable, "-c", "print('no')"]},
+                "permissions": ["work.execute", "adapter:process", "tool:wakeup"],
+                "adapter_config": {
+                    "command": [sys.executable, "-c", "print('no')"],
+                    "max_cost_usd": 0,
+                },
             },
         )
         executed = await client.post(
@@ -1442,6 +1532,7 @@ async def test_control_plane_api_manages_work_item_operations_and_activity(
                 "agent_id": "ops-runner",
                 "display_name": "Ops Runner",
                 "adapter_type": "process",
+                "permissions": ["work.execute", "adapter:process", "tool:wakeup"],
                 "adapter_config": {
                     "command": [
                         sys.executable,
@@ -1449,6 +1540,7 @@ async def test_control_plane_api_manages_work_item_operations_and_activity(
                         "import json,sys; data=json.load(sys.stdin); print(data['run_id'])",
                     ],
                     "timeout_sec": 10,
+                    "max_cost_usd": 0,
                 },
             },
         )
@@ -1479,6 +1571,16 @@ async def test_control_plane_api_manages_work_item_operations_and_activity(
                 "work_item_id": work_item_id,
                 "goal_id": goal_id,
                 "created_by_agent_id": "ops-runner",
+            },
+        )
+        accepted = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/accept",
+            json={
+                "company_id": "cmp_work_ops",
+                "artifact_id": executed.json()["evidence_artifact_id"],
+                "actor_id": "human:qa",
+                "verdict": "accepted",
+                "reason": "The real process completed and its evidence artifact is available.",
             },
         )
         await ControlPlaneStores(db_session).approvals.request_approval(
@@ -1536,6 +1638,8 @@ async def test_control_plane_api_manages_work_item_operations_and_activity(
     assert executed.status_code == 200
     assert decision.status_code == 201
     assert artifact.status_code == 201
+    assert accepted.status_code == 200
+    assert accepted.json()["acceptance"]["verdict"] == "accepted"
     assert reassigned.status_code == 200
     assert reassigned.json()["owner_agent_id"] == "qa-agent"
     assert blocked.status_code == 200
@@ -1600,6 +1704,7 @@ async def test_control_plane_api_retries_work_item_execution(
                 "agent_id": "retry-runner",
                 "display_name": "Retry Runner",
                 "adapter_type": "process",
+                "permissions": ["work.execute", "adapter:process", "tool:wakeup"],
                 "adapter_config": {
                     "command": [
                         sys.executable,
@@ -1610,6 +1715,7 @@ async def test_control_plane_api_retries_work_item_execution(
                         ),
                     ],
                     "timeout_sec": 10,
+                    "max_cost_usd": 0,
                 },
             },
         )
@@ -1656,11 +1762,26 @@ async def test_control_plane_api_rejects_invalid_work_item_operations(
             f"/api/v1/control-plane/work-items/{work_item_id}/close",
             json={"company_id": "cmp_work_ops_invalid", "status": "running"},
         )
+        unreviewed_close = await client.post(
+            f"/api/v1/control-plane/work-items/{work_item_id}/close",
+            json={
+                "company_id": "cmp_work_ops_invalid",
+                "status": "completed",
+                "reason": "Attempt without an accepted artifact",
+            },
+        )
+        fetched = await client.get(
+            f"/api/v1/control-plane/work-items/{work_item_id}",
+            params={"company_id": "cmp_work_ops_invalid"},
+        )
 
     assert missing_assignee.status_code == 400
     assert missing_assignee.json()["detail"] == "assignee_required"
     assert invalid_close.status_code == 400
     assert invalid_close.json()["detail"] == "invalid_close_status"
+    assert unreviewed_close.status_code == 409
+    assert unreviewed_close.json()["detail"] == "accepted_artifact_required"
+    assert fetched.json()["status"] == "queued"
 
 
 @pytest.mark.asyncio
@@ -1812,7 +1933,7 @@ async def test_control_plane_api_runs_due_heartbeat_scheduler(
     assert run["input_event"]["metadata"]["trace_id"] == run["trace_id"]
     assert run["output_events"][0]["metadata"]["trace_id"] == run["trace_id"]
     assert run["input_event"]["payload"]["input"]["trigger"] == "heartbeat"
-    assert run["input_event"]["payload"]["actor_id"] == "control-plane:scheduler"
+    assert run["input_event"]["payload"]["actor_id"] == "development:board"
     assert audits.status_code == 200
     audit_details = {item["action"]: item["detail"] for item in audits.json()["audit_events"]}
     assert audit_details[EventTypes.AGENT_RUN_STARTED]["trigger"] == ("scheduled_heartbeat")
@@ -1876,7 +1997,11 @@ async def test_control_plane_api_blocks_local_adapter_by_default(
                 "agent_id": "local-runner",
                 "display_name": "Local Runner",
                 "adapter_type": "process",
-                "adapter_config": {"command": [sys.executable, "-c", "print('no')"]},
+                "permissions": ["work.execute", "adapter:process", "tool:wakeup"],
+                "adapter_config": {
+                    "command": [sys.executable, "-c", "print('no')"],
+                    "max_cost_usd": 0,
+                },
             },
         )
         wake = await client.post(
@@ -1923,7 +2048,11 @@ async def test_control_plane_api_blocks_enabled_local_adapter_without_allowlist(
                 "agent_id": "local-runner",
                 "display_name": "Local Runner",
                 "adapter_type": "process",
-                "adapter_config": {"command": [sys.executable, "-c", "print('no')"]},
+                "permissions": ["work.execute", "adapter:process", "tool:wakeup"],
+                "adapter_config": {
+                    "command": [sys.executable, "-c", "print('no')"],
+                    "max_cost_usd": 0,
+                },
             },
         )
         wake = await client.post(

@@ -40,6 +40,7 @@ async def run_work_item_with_agent(
     input_payload: dict[str, Any] | None = None,
     actor_id: str = "api",
     trace_id: str | None = None,
+    idempotency_key: str | None = None,
 ) -> WorkItemExecutionResult:
     """Run a work item through its owner agent or an explicitly supplied agent."""
     work_item = await work_items.get_work_item(work_item_id)
@@ -49,16 +50,6 @@ async def run_work_item_with_agent(
     resolved_agent_id = (agent_id or work_item.owner_agent_id or "").strip()
     if not resolved_agent_id:
         raise WorkItemExecutionAgentRequiredError(work_item_id)
-
-    await update_work_item_status_with_audit(
-        work_items,
-        company_id=company_id,
-        work_item_id=work_item_id,
-        status=WorkItemStatus.RUNNING,
-        owner_agent_id=resolved_agent_id,
-        owner_user_id=None,
-        actor_id=actor_id,
-    )
 
     try:
         wakeup = await wake_agent_definition(
@@ -70,15 +61,18 @@ async def run_work_item_with_agent(
             trace_id=trace_id,
             goal_id=work_item.goal_id,
             work_item_id=work_item.work_item_id,
+            idempotency_key=idempotency_key,
         )
     except AgentDefinitionNotFoundError:
         raise
-    except AgentWakeupError:
+    except AgentWakeupError as exc:
+        if exc.error_category in {"execution_denied", "uncertain_effects"}:
+            raise
         await update_work_item_status_with_audit(
             work_items,
             company_id=company_id,
             work_item_id=work_item_id,
-            status=WorkItemStatus.FAILED,
+            status=WorkItemStatus.CANCELLED if exc.error_category == "cancelled" else WorkItemStatus.FAILED,
             owner_agent_id=resolved_agent_id,
             owner_user_id=None,
             actor_id=actor_id,
@@ -103,14 +97,11 @@ def _build_agent_input_payload(
     input_payload: dict[str, Any] | None,
 ) -> dict[str, Any]:
     payload = dict(input_payload or {})
-    payload.setdefault(
-        "work_item",
-        {
+    payload["work_item"] = {
             "work_item_id": work_item.work_item_id,
             "company_id": work_item.company_id,
             "title": work_item.title,
             "description": work_item.description,
-            "status": work_item.status,
             "priority": work_item.priority,
             "goal_id": work_item.goal_id,
             "owner_agent_id": work_item.owner_agent_id,
@@ -120,8 +111,7 @@ def _build_agent_input_payload(
             "dependencies": list(work_item.dependencies or []),
             "approval_required": work_item.approval_required,
             "metadata": dict(work_item.metadata or {}),
-        },
-    )
+        }
     return payload
 
 
@@ -130,6 +120,8 @@ def _work_item_status_from_run(
 ) -> WorkItemStatus:
     if result.run is None:
         return work_item_status_from_agent_run_status(None)
+    if result.run.status == "succeeded":
+        return WorkItemStatus.BLOCKED  # Output awaits explicit evidence acceptance.
     return work_item_status_from_agent_run_status(result.run.status)
 
 

@@ -1,6 +1,6 @@
 # Wisdoverse Cell Operations Guide
 
-Last updated: 2026-05-07
+Last updated: 2026-10-01
 
 This runbook describes local development, production-style Docker operation,
 health checks, scaling, observability, and control-plane runtime switches.
@@ -638,6 +638,8 @@ CONTROL_PLANE_LLM_BUDGET_ENFORCED=true
 CONTROL_PLANE_TOOL_BUDGET_ENFORCED=true
 CONTROL_PLANE_LOCAL_ADAPTER_ENABLED=false
 CONTROL_PLANE_LOCAL_ADAPTER_ALLOWLIST=
+CONTROL_PLANE_HTTP_ADAPTER_ALLOWLIST=
+CONTROL_PLANE_OPERATORS_JSON=<server-only-json-with-token-sha256-and-scopes>
 ```
 
 Production policy:
@@ -645,6 +647,13 @@ Production policy:
 - Keep `CONTROL_PLANE_LOCAL_ADAPTER_ENABLED=false`.
 - Use the `http` adapter to call deployed `create_agent_app()` services.
 - Require `X-Internal-Key` for control-plane service routes.
+- Configure `CONTROL_PLANE_OPERATORS_JSON` with token hashes, actor IDs,
+  company scopes, action scopes, and role IDs where needed. Never put raw
+  operator tokens in this JSON. Staging/production fails closed with a 503 if
+  operator authentication is not configured; caller-supplied `actor_id` is
+  never an identity claim.
+- Keep `CONTROL_PLANE_HTTP_ADAPTER_ALLOWLIST` empty until explicit outbound
+  destinations have been reviewed and allowlisted.
 - Record run, approval, artifact, budget, and audit evidence on the same trace.
 - Fail closed when an adapter is missing or not allowlisted.
 
@@ -728,6 +737,69 @@ EventBus failure visibility:
 - NATS deployments use JetStream redelivery and consumer stats instead of the
   Redis DLQ stream. Malformed NATS payload logs include payload length and a
   SHA-256 fingerprint, not raw event content.
+
+### 10.1 Scheduler Worker Profile
+
+The scheduler worker is an HTTP client of
+`POST /api/v1/control-plane/scheduler/heartbeats/run-once`; it owns no database
+connection or tables. It runs only when the `control-plane-worker` Compose
+profile is explicitly enabled. Its internal key and server-issued operator
+token are separate credentials. Configure worker interval and timeout within
+their supported bounds and monitor its health file/healthcheck. Worker polling
+retries do not replay uncertain HTTP adapter executions.
+
+### 10.2 Operating Metrics and Alerts
+
+The Control Plane exposes authenticated, company-scoped
+`GET /api/v1/control-plane/operating-metrics` JSON and
+`GET /api/v1/control-plane/operating-metrics/prometheus` text endpoints; both
+require `control-plane:read`. The Prometheus alert rules in
+`docker/prometheus/rules/control-plane-alerts.yml` cover old pending approvals,
+execution recovery backlog, old outbox backlog, adapter errors, queue delay,
+run success rate, and accepted-outcome cost. The assigned owner is the
+**platform** team. Review every alert's runbook and threshold before enabling
+it in a deployment. Export only low-cardinality aggregate metrics: company,
+user, run, and approval IDs must not become Prometheus labels. This rule file
+is an implementation surface, not proof that an alerting deployment is active.
+
+### 10.3 Governed Skill Execution and Recovery
+
+Skill execution instrumentation remains opt-in:
+
+```bash
+EVOLUTION_SKILL_EXECUTION_ENABLED=false
+```
+
+Keep it disabled until a deployment owner has reviewed the target runtime,
+signing-key distribution, provider policy, budgets, evaluation cases and
+rollback path. When enabled on a traced task, the LLM gateway requests a frozen
+selection from the Evolution service's internal-key-protected
+`POST /api/v1/evolution/skill-executions/resolve` endpoint. It maps the skill
+as `agent_id:task_type.replace("_", "-")`. The returned versioned prompt,
+model and supported generation parameters are configuration-hash-bound and
+HMAC-signed; resolution happens before budget estimation/reservation and
+provider dispatch. A selected frozen skill disables model fallback for that
+request. If no governed route is found, ordinary execution continues without
+a governed selection and no live canary score is recorded.
+
+After execution, a task-local trace records the skill ID and actual selected
+version. The Evolution owner records an evaluator score (or the existing
+success/failure fallback score) through
+`POST /api/v1/evolution/skill-executions/results`; owner-database checks
+deduplicate repeated observations for the same trace/version. This records
+instrumentation behavior only. Live provider observations and a validated
+model/provider/platform pilot remain pending.
+
+For a pending Control Plane release, `/release/reconcile` only looks up and
+records an existing native acknowledgement. It does not send another command.
+Use the explicit `/release/recover` operation only when the original command
+has expired and the native receiver returns authoritative `404`. If lookup
+finds the prior acknowledgement, persist that acknowledgement instead of
+replacing the command. Transport failure, timeout, 5xx, or any unknown result
+must leave the command pending for later reconciliation; it is not evidence
+that the receiver did not apply it. Recovery checks immutable command ID and
+payload hash ownership and requires a fresh valid snapshot-bound approval for
+non-shadow transitions before issuing a replacement.
 
 ## 11. Local E2E Verification
 

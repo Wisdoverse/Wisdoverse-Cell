@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -79,6 +80,8 @@ class ApprovalGate:
         existing = await self._store.get_approval(approval_identifier)
         if existing is None:
             raise ApprovalRequiredError(f"approval_not_found: {approval_id}")
+        if existing.expires_at and existing.expires_at.replace(tzinfo=UTC) <= datetime.now(UTC):
+            raise ApprovalRequiredError("approval_expired")
         aggregate = ApprovalRequestAggregate.from_record(existing)
         aggregate.transition_to(ApprovalStatus.APPROVED)
         domain_events = aggregate.pull_events()

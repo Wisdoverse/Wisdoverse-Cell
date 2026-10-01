@@ -12,8 +12,9 @@ export async function loginAsAdmin(page: Page, targetPath = "/en/dashboard") {
     await page.goto(`/en/login?callbackUrl=${encodeURIComponent(targetPath)}`);
     await page.waitForLoadState("domcontentloaded");
 
-    await expect(page.getByLabel("Username")).toBeEditable();
-    await page.getByLabel("Username").fill(username);
+    const usernameField = page.getByLabel(/username|work email/i);
+    await expect(usernameField).toBeEditable();
+    await usernameField.fill(username);
     await page.getByLabel("Password").fill(password);
 
     await Promise.all([

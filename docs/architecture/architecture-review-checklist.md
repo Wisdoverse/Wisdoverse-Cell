@@ -102,6 +102,8 @@ item does not apply, write "n/a" with a one-line reason.
 
 ## 8. Operations and Rollout
 
+- [ ] Cloud-native runtime changes preserve independent deployment, health/readiness,
+      graceful shutdown, external configuration/secrets and bounded failure handling.
 - [ ] Documented rollback path for any behavior change.
 - [ ] Production secrets and environment variables are unchanged
       (`architecture-principles.md` §3 rule 17).

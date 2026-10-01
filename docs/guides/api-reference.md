@@ -1,6 +1,6 @@
 # Wisdoverse Cell API Reference
 
-Last updated: 2026-05-20
+Last updated: 2026-10-01
 
 This page documents the current HTTP surface at a contract level. English is
 the primary language for API descriptions. Response examples may include
@@ -12,6 +12,7 @@ real integration contract.
 | Mechanism | Header or flow | Applies to |
 |-----------|----------------|------------|
 | Internal service key | `X-Internal-Key: <shared_secret>` | Agent-to-agent calls, control-plane routes, DSAR routes, detailed health/status routes |
+| Control Plane operator token | `X-Control-Plane-Operator-Token: <operator_token>` | Control Plane operator routes; server configuration stores SHA-256 token hashes, actor IDs, company scopes, action scopes, and optional role IDs |
 | Feishu/Lark signature | `X-Lark-Request-Timestamp`, `X-Lark-Request-Nonce`, `X-Lark-Signature` | Feishu webhook callbacks |
 | WeCom signature | WeCom webhook verification fields | WeCom webhook callbacks |
 | None | Not required | Basic liveness and readiness probes |
@@ -19,6 +20,12 @@ real integration contract.
 Internal key comparison must use constant-time comparison. Development
 environments may skip the check only when `internal_service_key` is not
 configured.
+
+Control Plane routes resolve operator identity from server-side configuration;
+request bodies cannot set the authenticated actor. Company and action scopes
+are checked against the resolved resource company. In production/staging,
+missing operator configuration returns `503 operator_auth_not_configured`.
+Development board access is a development-only fallback.
 
 Feishu webhook handlers must verify the raw request body before event dispatch,
 card action handling, or message processing when signature verification is
@@ -120,6 +127,7 @@ Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.
 | `POST` | `/work-items/{work_item_id}/reassign` | Change work-item ownership without changing lifecycle status |
 | `POST` | `/work-items/{work_item_id}/block` | Mark a work item blocked with a reason |
 | `POST` | `/work-items/{work_item_id}/close` | Close a work item as completed, failed, or cancelled |
+| `POST` | `/work-items/{work_item_id}/accept` | Record explicit reviewer acceptance/rejection of a linked artifact and latest run, with evidence hash and reason |
 | `GET` | `/decisions` | List decisions |
 | `POST` | `/decisions` | Create a decision |
 | `GET` | `/decisions/{decision_id}` | Read one decision |
@@ -151,9 +159,76 @@ Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.
 | `GET` | `/budgets/usage` | List budget usage records |
 | `GET` | `/audit-events` | List append-only audit events |
 | `GET` | `/timeline` | Merge audit, approval, and budget evidence |
+| `GET` | `/companies/{company_id}/template` | Export a portable company template with secret scrubbing |
+| `POST` | `/company-templates/import` | Import a template into a company; created runtime roles begin paused pending review |
+| `POST` | `/knowledge` | Register company knowledge as an existing same-company artifact URI reference |
+| `POST` | `/knowledge/{knowledge_id}/publish` | Publish or revise a knowledge reference using an expected version |
+| `GET` | `/knowledge/{knowledge_id}` | Read an unexpired record if caller is owner or has a granted company-local reader role |
+| `DELETE` | `/knowledge/{knowledge_id}` | Owner-only deletion that writes an immutable tombstone |
+| `GET` | `/audit-export` | Export redacted audit snapshots for an exact company and explicit range within the last 90 days; keyset pagination supports `after_id` and `limit` (maximum 500) |
+| `POST` | `/evolution-proposals/{proposal_id}/evaluations` | Create fixed-case comparative evaluation evidence |
+| `GET` | `/evolution-proposals/{proposal_id}/evaluations` | Read evaluation reports for a proposal |
+| `POST` | `/evolution-proposals/{proposal_id}/release` | Submit a signed release command through the native Evolution runtime; state changes are persisted only after acknowledgement |
+| `POST` | `/evolution-proposals/{proposal_id}/release/reconcile` | Look up and record an existing native acknowledgement; never resubmits a missing or uncertain command |
+| `POST` | `/evolution-proposals/{proposal_id}/release/recover` | Operator recovery for an expired pending command, only after authoritative receiver `404`; checks command ownership and revalidates required approval |
+| `GET` | `/operating-metrics?company_id=...` | Read company-scoped operating metrics with `control-plane:read` |
+| `GET` | `/operating-metrics/prometheus?company_id=...` | Render company-scoped Prometheus text exposition; omit high-cardinality identifiers as labels |
 
 Creation endpoints validate that referenced company, goal, work item, and run
 IDs belong to the same company context.
+
+The operator token is a separate server-owned identity mechanism from the
+internal service key. Missing operator configuration fails closed in staging
+and production. Clients MUST NOT send `actor_id` as an authorization claim;
+the authenticated principal supplies actor identity. Knowledge access also
+checks owner/role ACL after company scope authorization. Same-company access
+alone does not grant knowledge reads. Audit export provides a 90-day query
+window; this is not a physical storage-retention or purge guarantee.
+
+The evolution service exposes its native release receiver independently under
+`/api/v1/evolution`: `POST /skill-releases` accepts signed deployment and
+transition commands, `GET /skill-release-commands/{command_id}` retrieves the
+immutable command acknowledgement, `GET /skill-releases/{deployment_id}`
+reads release state, and `GET /skill-configs/{skill_id}/versions/{version}`
+reads a versioned skill configuration. Control Plane release/reconcile
+endpoints call this receiver over HTTP; they do not access Evolution-owned
+tables.
+
+### Governed skill execution
+
+The optional task-time selection endpoints use the same `/api/v1/evolution`
+prefix and require `X-Internal-Key`:
+
+| Method | Path | Contract |
+|--------|------|----------|
+| `POST` | `/skill-executions/resolve` | Accepts frozen `company_id`, `agent_id`, `skill_id`, and task `trace_id`; returns the selected release configuration with deployment/experiment IDs, version, SHA-256 configuration hash, expiry, and HMAC signature. Returns `404` when there is no governed active/canary selection. |
+| `POST` | `/skill-executions/results` | Accepts a frozen selection plus bounded score and success result; verifies selection signature/hash and records task-local evidence against the selected version. |
+
+The feature is opt-in through `EVOLUTION_SKILL_EXECUTION_ENABLED`, default
+`false`. During a traced agent task, the LLM gateway maps its requested skill
+as `agent_id:task_type.replace("_", "-")`. It resolves the frozen prompt,
+target model and supported parameters before budget estimation/reservation and
+before calling a provider. When a governed selection is returned, model
+fallback is disabled for that call so observations remain attributable to the
+selected version. An unrouted task continues without a governed selection and
+does not produce a live canary score.
+
+Implementation boundaries: [`skill_execution_contract.py`](../../shared/evolution/skill_execution_contract.py),
+[`skill_execution_routes.py`](../../shared/capabilities/evolution/app/skill_execution_routes.py),
+[`skill_execution_store.py`](../../shared/evolution/db/skill_execution_store.py), and
+[`llm_gateway.py`](../../shared/infra/llm_gateway.py).
+
+Release reconciliation only accepts an existing receiver acknowledgement; it
+does not resubmit a missing or uncertain command. The explicit `/release/recover`
+path can replace a command only after it has expired and the native receiver
+definitively returns `404`. A receiver acknowledgement is recorded instead of
+replaced when lookup finds the prior command. Transport errors, server errors,
+or other unknown outcomes do not authorize resubmission. Recovery compares the
+persisted command ID and payload hash under owner locks, and rechecks the
+snapshot-bound approval required for non-shadow actions.
+The Control Plane implementation is in
+[`evolution_releases.py`](../../shared/control_plane/api_routes/evolution_releases.py)
+and [`evolution_deployment_store.py`](../../shared/control_plane/evolution_deployment_store.py).
 
 Budget policy endpoints enforce one active policy per
 `company_id + scope + scope_id + period`. Company-scoped policies must not set

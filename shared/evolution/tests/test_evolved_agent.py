@@ -17,6 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from shared.evolution.evolved_agent import EvolvedAgent
+from shared.evolution.skill_execution_contract import current_evolution_trace
 from shared.schemas.agent import BaseAgent
 from shared.schemas.event import Event
 
@@ -54,6 +55,15 @@ class FailingAgent(BaseAgent):
 
     async def handle_request(self, request: dict) -> dict:
         return {}
+
+
+class SkillUsingAgent(FakeAgent):
+    async def handle_event(self, event: Event) -> list[Event]:
+        trace = current_evolution_trace.get()
+        assert trace is not None
+        trace.skill_used = "test-agent:review"
+        trace.skill_version = 1
+        return await super().handle_event(event)
 
 
 def make_event() -> Event:
@@ -296,8 +306,9 @@ class TestEvolvedAgentPhase2:
         mock_settings.trace_sampling_rate = 1.0
         mock_settings.auto_optimize = True
         mock_settings.canary_enabled = True
+        mock_settings.skill_execution_enabled = False
 
-        agent = FakeAgent()
+        agent = SkillUsingAgent()
         evaluator = make_evaluator(score=0.75)
         canary = make_canary_router()
         evolved = EvolvedAgent(agent, evaluator=evaluator, canary_router=canary)
@@ -310,6 +321,54 @@ class TestEvolvedAgentPhase2:
         # Verify score from evaluator was passed
         call_args = canary.record_result.call_args
         assert call_args[0][3] == 0.75  # score arg
+
+    @pytest.mark.asyncio
+    @patch("shared.evolution.evolved_agent.evolution_settings")
+    async def test_canary_preserves_zero_score_for_observed_skill(self, mock_settings):
+        mock_settings.trace_sampling_rate = 1.0
+        mock_settings.auto_optimize = True
+        mock_settings.canary_enabled = True
+        mock_settings.skill_execution_enabled = False
+
+        agent = SkillUsingAgent()
+        evaluator = make_evaluator(score=0.0)
+        canary = make_canary_router()
+        evolved = EvolvedAgent(agent, evaluator=evaluator, canary_router=canary)
+
+        await evolved.handle_event(make_event())
+        await asyncio.sleep(0.1)
+
+        canary.record_result.assert_awaited_once()
+        assert canary.record_result.call_args.args[3] == 0.0
+
+    @pytest.mark.asyncio
+    @patch("shared.evolution.evolved_agent.evolution_settings")
+    async def test_legacy_canary_ignores_unrouted_trace(self, mock_settings):
+        mock_settings.trace_sampling_rate = 1.0
+        mock_settings.auto_optimize = True
+        mock_settings.canary_enabled = True
+        mock_settings.skill_execution_enabled = False
+
+        canary = make_canary_router()
+        evolved = EvolvedAgent(FakeAgent(), evaluator=make_evaluator(), canary_router=canary)
+        await evolved.handle_event(make_event())
+        await asyncio.sleep(0.1)
+        canary.record_result.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("shared.evolution.evolved_agent.evolution_settings")
+    async def test_skill_execution_forces_trace_context_when_sampling_is_zero(
+        self, mock_settings
+    ):
+        mock_settings.trace_sampling_rate = 0.0
+        mock_settings.skill_execution_enabled = True
+        mock_settings.auto_optimize = False
+        mock_settings.canary_enabled = False
+
+        evolved = EvolvedAgent(SkillUsingAgent())
+        results = await evolved.handle_event(make_event())
+        assert len(results) == 1
+        assert results[0].event_type == "test.completed"
 
     @pytest.mark.asyncio
     @patch("shared.evolution.evolved_agent.evolution_settings")

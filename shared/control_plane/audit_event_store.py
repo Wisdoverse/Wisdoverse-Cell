@@ -12,6 +12,7 @@ from .domain_event_outbox import (
 from .domain_records import audit_event_record
 from .event_outbox_store import SqlAlchemyControlPlaneEventOutboxStore
 from .models import AuditEvent
+from .operator_auth import current_operator
 from .store_utils import model_values
 from .tables import AuditEventTable
 
@@ -23,6 +24,9 @@ class SqlAlchemyControlPlaneAuditEventStore:
         self._session = session
 
     async def append_audit_event(self, event: AuditEvent) -> AuditEvent:
+        principal = current_operator()
+        if principal is not None and event.actor_type in {"user", "operator"}:
+            event = event.model_copy(update={"actor_id": principal.actor_id})
         aggregate = AuditEventAggregate.for_append(event)
         event = aggregate.record
 

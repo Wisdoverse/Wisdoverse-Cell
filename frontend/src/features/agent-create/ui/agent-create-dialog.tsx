@@ -16,6 +16,7 @@ import {
   type AgentKind,
   type AgentMeta,
 } from "@/entities/agent";
+import { AgentExecutionPolicyFields } from "@/features/agent-execution-policy";
 import { Button } from "@/shared/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/collapsible";
 import {
@@ -130,6 +131,8 @@ export function AgentCreateDialog({ availableAgents, onCreated }: AgentCreateDia
     domain: "engineering" as AgentDomain,
     reportsTo: "none",
     adapterType: "http",
+    permissions: "",
+    maxCostUsd: "",
     baseUrl: "",
     path: "/agent/request",
     command: "",
@@ -161,6 +164,8 @@ export function AgentCreateDialog({ availableAgents, onCreated }: AgentCreateDia
       domain: "engineering",
       reportsTo: "none",
       adapterType: "http",
+      permissions: "",
+      maxCostUsd: "",
       baseUrl: "",
       path: "/agent/request",
       command: "",
@@ -187,6 +192,7 @@ export function AgentCreateDialog({ availableAgents, onCreated }: AgentCreateDia
       ...(form.model.trim() ? { model: form.model.trim() } : {}),
       ...(form.cwd.trim() ? { cwd: form.cwd.trim() } : {}),
       ...(form.promptTemplate.trim() ? { prompt_template: form.promptTemplate.trim() } : {}),
+      ...(form.maxCostUsd.trim() ? { max_cost_usd: Number(form.maxCostUsd) } : {}),
     };
 
     try {
@@ -201,6 +207,7 @@ export function AgentCreateDialog({ availableAgents, onCreated }: AgentCreateDia
         reports_to_agent_id: form.reportsTo === "none" ? null : form.reportsTo,
         adapter_type: form.adapterType,
         adapter_config: adapterConfig,
+        permissions: parseLines(form.permissions),
         context_sources: parseLines(form.contextSources),
         capabilities: parseLines(form.capabilities),
         responsibilities: parseLines(form.responsibilities),
@@ -524,6 +531,13 @@ export function AgentCreateDialog({ availableAgents, onCreated }: AgentCreateDia
                       </SelectContent>
                     </Select>
                   </div>
+                  <AgentExecutionPolicyFields
+                    adapterType={form.adapterType}
+                    permissions={form.permissions}
+                    maxCostUsd={form.maxCostUsd}
+                    onPermissionsChange={(permissions) => setForm((current) => ({ ...current, permissions }))}
+                    onMaxCostChange={(maxCostUsd) => setForm((current) => ({ ...current, maxCostUsd }))}
+                  />
                   <div className="space-y-2">
                     <Label htmlFor="agent-model">{t("model")}</Label>
                     <Input

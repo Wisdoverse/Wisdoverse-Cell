@@ -76,6 +76,9 @@ describe("AgentEditDialog", () => {
     expect(screen.getByLabelText("agentId")).toHaveValue("cto");
     expect(screen.getByLabelText("titleField")).toHaveValue("Chief Technology Officer");
     expect(screen.getByLabelText("baseUrl")).toHaveValue("https://agents.internal");
+    expect(document.getElementById("agent-execution-permissions")).toHaveValue("");
+    expect(document.getElementById("agent-execution-max-cost")).toBeRequired();
+    expect(screen.getByText("budgetRequirement")).toBeInTheDocument();
   });
 
   it("shows built-in runtime agent roles as selectable labels", async () => {

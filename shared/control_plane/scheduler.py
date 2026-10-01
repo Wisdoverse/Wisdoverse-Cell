@@ -88,12 +88,14 @@ class ControlPlaneHeartbeatScheduler:
                     agent,
                     input_payload={
                         "trigger": "heartbeat",
-                        "scheduled_at": checked_at.isoformat(),
+                        "scheduled_at": datetime.fromtimestamp(
+                            int(checked_at.timestamp()) // interval_seconds * interval_seconds, UTC).isoformat(),
                         "heartbeat_interval_seconds": interval_seconds,
                     },
                     actor_id=_SCHEDULER_ACTOR_ID,
                     trace_id=f"trace_{generate_ulid().lower()}",
                     trigger="scheduled_heartbeat",
+                    idempotency_key=f"heartbeat:{agent.agent_id}:{int(checked_at.timestamp()) // interval_seconds}",
                 )
             except AgentWakeupError as exc:
                 results.append(

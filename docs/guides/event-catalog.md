@@ -1,6 +1,6 @@
 # Wisdoverse Cell Event Catalog
 
-Last updated: 2026-05-23
+Last updated: 2026-10-01
 
 This catalog documents event names, producers, consumers, and payload
 expectations. English is the primary documentation language. Event names remain
@@ -107,6 +107,16 @@ without coupling runtime packages.
 Aggregate-raised Control Plane events are first recorded in the audit ledger
 and staged in `control_plane_event_outbox`; dispatcher delivery must preserve
 the `audit_event_id` as correlation evidence.
+
+Recent execution, knowledge, outcome-acceptance, and release transitions add
+action-specific `AuditEvent` records (for example `execution.*`,
+`knowledge.published` / `knowledge.revised` / `knowledge.deleted`,
+`outcome.accepted` / `outcome.rejected`, and `evolution.release_requested` /
+`evolution.release_applied`). Those records use the audit ledger only; they do
+not introduce new EventBus event types or new outbox payload schemas. Existing
+typed `WorkItemStatusChanged` and `EvolutionRolloutStatusChanged` aggregate
+events continue through the established audit mapping and
+`control_plane_event_outbox` contract, unchanged.
 
 | Event type | Producer | Consumer | Purpose |
 |------------|----------|----------|---------|

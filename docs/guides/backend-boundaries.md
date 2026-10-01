@@ -1,6 +1,6 @@
 # Backend Boundaries and Data Ownership
 
-Last updated: 2026-05-23
+Last updated: 2026-10-01
 
 This guide is the backend boundary contract for the current modular-monolith
 stage. Wisdoverse Cell is not a traditional DDD monolith and is not yet a fully
@@ -19,7 +19,9 @@ stable before any additional service extraction.
    interaction records.
 4. `shared/control_plane/` owns durable operating-company records: companies,
    goals, work items, agent roles, agent runs, approvals, budgets, artifacts,
-   decisions, audit events, and evolution proposals.
+   decisions, audit events, evolution proposals, company-template names,
+   knowledge references/tombstones, execution leases/reservations, outcome
+   acceptances, evaluation reports, and Control Plane evolution deployments.
 5. Cross-boundary writes go through HTTP/RPC/application methods or EventBus
    events. Do not mutate another boundary's table directly.
 6. Cross-boundary reads should use API/RPC, events, or explicit read-only
@@ -59,6 +61,7 @@ stable before any additional service extraction.
 | Tables | Owner boundary | Write contract | Read contract |
 |--------|----------------|----------------|---------------|
 | `control_plane_companies`, `control_plane_goals`, `control_plane_agent_roles`, `control_plane_agent_prompt_configs`, `control_plane_work_items`, `control_plane_agent_runs`, `control_plane_decisions`, `control_plane_approval_requests`, `control_plane_artifacts`, `control_plane_budget_policies`, `control_plane_budget_usage`, `control_plane_audit_events`, `control_plane_event_outbox`, `control_plane_evolution_proposals` | Control Plane / Governance | `shared/control_plane` repository/API only | Control-plane API, Control Plane event outbox dispatcher, or explicit read-only reporting path |
+| `control_plane_company_template_names`, `control_plane_knowledge`, `control_plane_knowledge_tombstones`, `control_plane_execution_leases`, `control_plane_execution_reservations`, `control_plane_outcome_acceptances`, `control_plane_evolution_evaluations`, `control_plane_evolution_deployments` | Control Plane / Governance | Control Plane domain/use-case ports and SQL adapters only; same-session audit writes where required | Company-scoped Control Plane APIs or explicit read-only reporting path |
 | `meetings`, `requirements`, `open_questions`, `feedback_records`, `llm_usage`, `chat_messages`, `requirement_event_outbox` | Requirement | Requirement Manager application services and repositories | Requirement API, gRPC requirement service, EventBus events, or requirement read models |
 | `pjm_agent_alert_logs`, `pjm_agent_config_cache`, `pjm_agent_decomposition_records`, `pjm_agent_event_outbox` | Planning / PJM | PJM agent application services and repositories | PJM API/events or reporting projections |
 | `dev_agent_tasks`, `dev_agent_workflow_logs`, `dev_agent_event_outbox` | Delivery / Dev | Dev agent application services and repositories | Dev API/events or reporting projections |
@@ -69,6 +72,7 @@ stable before any additional service extraction.
 | `coordinator_event_outbox` | Coordination / Orchestration | Coordinator runtime only | Coordinator events and operator replay tooling |
 | `analysis_agent_report_logs`, `analysis_agent_event_outbox` | Analytics / Reporting | Analysis capability only | Analysis API/report endpoints and analysis events |
 | `evolution_event_outbox`, `evolution_traces`, `evolution_skill_configs`, `evolution_reflections`, `evolution_experiments`, `evolution_memory`, `evolution_collaboration_patterns` | Evolution | Evolution capability and evolution stores only | Evolution API/control-plane proposal views and evolution events |
+| `evolution_skill_releases`, `evolution_skill_release_commands` | Evolution runtime | Evolution release domain and persistence adapter only; Control Plane sends signed HTTP commands and does not write these tables | Evolution API acknowledgement and release lookup routes only |
 | `users`, `identity_event_outbox` | Identity / User | Identity/user service path only; stage aggregate-raised identity events in the local transaction | User lookup APIs, inbound messaging user service, or identity event outbox dispatcher only |
 
 ## 4. API and Event Contracts
@@ -83,6 +87,12 @@ stable before any additional service extraction.
 - Application services own use-case orchestration, transaction boundaries,
   idempotency, feedback learning, external side effects, and EventBus
   publication.
+- LLM skill selection crosses from `shared/infra` to the Evolution runtime
+  through the internal-key-protected `/api/v1/evolution/skill-executions/*`
+  HTTP contract. The frozen selection is signed and configuration-hash-bound;
+  Control Plane release/recovery remains an HTTP caller of the runtime that
+  owns Evolution release state. Do not add cross-context ORM mappings or table
+  writes for this path.
 - Event names, producers, consumers, and payload expectations live in
   `docs/guides/event-catalog.md`.
 - New EventBus events require a payload model in `shared/schemas/event_payloads.py`
@@ -101,6 +111,11 @@ stable before any additional service extraction.
   read/write cutover evidence.
 - Cross-service direct database access is not an acceptable service extraction
   strategy. Use API/RPC, EventBus events, or read-only projections.
+- ORM mappings stay within their owning bounded context. Control Plane adapters
+  do not map or write `evolution_skill_releases` or
+  `evolution_skill_release_commands`; the Control Plane owns its separate
+  `control_plane_evolution_*` evaluation and release-snapshot records and calls
+  the native Evolution HTTP receiver.
 - Distributed transactions are out of scope for the current architecture.
   Prefer one local transaction plus an outbox/projection workflow when a use
   case needs database writes and cross-boundary notification.

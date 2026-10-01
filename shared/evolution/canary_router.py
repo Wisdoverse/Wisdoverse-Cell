@@ -177,17 +177,7 @@ class CanaryRouter:
         summary = aggregate.score_summary(min_samples_override=min_samples)
 
         if decision == "promote":
-            await repo.conclude_experiment(
-                aggregate.experiment_id,
-                status=aggregate.status_for_decision(decision),
-            )
-            logger.info(
-                "experiment_promoted",
-                experiment_id=aggregate.experiment_id,
-                control_mean=round(summary.control_mean, 4),
-                candidate_mean=round(summary.candidate_mean, 4),
-            )
-            return "promote"
+            return "promotion_pending"  # Keep the live canary until approved activation.
 
         if decision == "rollback":
             await repo.conclude_experiment(

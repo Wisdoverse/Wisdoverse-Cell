@@ -624,8 +624,8 @@ class TestCheckExperiment:
         repo.conclude_experiment.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_promotes_candidate_when_min_improvement_is_met(self):
-        """Winning candidates are promoted and the experiment is closed."""
+    async def test_winning_candidate_waits_for_explicit_release_approval(self):
+        """A winning canary is reported pending; optimizer never activates it."""
         experiment = MagicMock()
         experiment.experiment_id = "exp-123"
         experiment.status = "running"
@@ -647,12 +647,10 @@ class TestCheckExperiment:
         optimizer = build_optimizer(repo=repo, memory=memory)
         result = await optimizer.check_experiment("exp-123")
 
-        assert result == "promote"
-        repo.promote_skill.assert_awaited_once_with("decompose-task", "2")
-        repo.conclude_experiment.assert_awaited_once_with(
-            "exp-123", status="promoted"
-        )
-        memory.record_optimization.assert_awaited_once()
+        assert result == "promotion_pending"
+        repo.promote_skill.assert_not_called()
+        repo.conclude_experiment.assert_not_called()
+        memory.record_optimization.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_rolls_back_candidate_when_degradation_exceeds_threshold(self):

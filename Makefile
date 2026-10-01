@@ -1,6 +1,6 @@
 # Wisdoverse Cell - Makefile
 
-.PHONY: all proto proto-python setup test test-public test-unit test-unit-full test-integration test-e2e test-python-full install dev openapi-snapshots migration-test typecheck python-dependency-audit split-deploy-dev split-deploy-qa split-deploy-pjm split-deploy-requirement
+.PHONY: all proto proto-python setup test test-public test-unit test-unit-full test-integration test-roadmap test-e2e test-python-full install dev openapi-snapshots migration-test typecheck python-dependency-audit split-deploy-dev split-deploy-qa split-deploy-pjm split-deploy-requirement
 
 PYTEST ?= python -m pytest
 DEV_MIGRATION_REHEARSAL_REPORT ?= .artifacts/s41-dev-postgresql.json
@@ -68,6 +68,15 @@ PYTEST_INTEGRATION_PATHS = \
 	agents/*/tests/integration \
 	shared/messaging/outbound/tests/integration
 
+PYTEST_ROADMAP_PATHS = \
+	shared/control_plane/tests \
+	tests/control_plane \
+	shared/evolution/tests \
+	tests/unit/test_operational_readiness.py \
+	tests/unit/test_control_plane_worker.py \
+	tests/unit/test_first_success.py \
+	tests/unit/test_llm_skill_execution.py
+
 PYTEST_E2E_PATHS = \
 	tests/e2e \
 	agents/requirement_manager/tests/e2e
@@ -120,6 +129,9 @@ test-unit-full:
 
 test-integration:
 	$(PYTEST) -q $(PYTEST_INTEGRATION_PATHS)
+
+test-roadmap:
+	$(PYTEST) -q $(PYTEST_ROADMAP_PATHS)
 
 test-e2e:
 	$(PYTEST) -q $(PYTEST_E2E_PATHS)

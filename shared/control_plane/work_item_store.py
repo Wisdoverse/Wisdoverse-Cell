@@ -1,4 +1,5 @@
 """SQLAlchemy adapter for control-plane work-item persistence."""
+
 from __future__ import annotations
 
 from sqlalchemy import or_, select
@@ -11,7 +12,7 @@ from .domain_records import work_item_record
 from .goal_store import SqlAlchemyControlPlaneGoalStore
 from .models import AuditEvent, CompanyContext, Goal, WorkItem
 from .store_utils import model_values, now_utc
-from .tables import WorkItemTable
+from .tables import CompanyContextTable, WorkItemTable
 from .work_item_ports import ControlPlaneWorkItemStore
 
 
@@ -96,6 +97,40 @@ class SqlAlchemyControlPlaneWorkItemStore(ControlPlaneWorkItemStore):
         row = await self._get_work_item_row(work_item_id)
         if row is None:
             return None
+        # Serialize review/close/reassignment with execution claims in the same
+        # company-first lock order, then refresh any identity-map snapshot.
+        await self._session.scalar(
+            select(CompanyContextTable)
+            .where(CompanyContextTable.company_id == row.company_id)
+            .with_for_update()
+        )
+        row = await self._session.scalar(
+            select(WorkItemTable)
+            .where(WorkItemTable.work_item_id == work_item_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if row is None:
+            return None
+        from .domain.execution_policy import ExecutionDenied
+        from .execution_models import ExecutionLeaseTable
+
+        active = await self._session.scalar(
+            select(ExecutionLeaseTable.execution_id).where(
+                ExecutionLeaseTable.company_id == row.company_id,
+                ExecutionLeaseTable.resource_id == f"work:{work_item_id}",
+                ExecutionLeaseTable.state.in_(["running", "recovery_required"]),
+            )
+        )
+        if active is not None:
+            raise ExecutionDenied("execution_control_or_recovery_required", 409)
+        from .domain.work_item import WorkItem as WorkItemAggregate
+
+        WorkItemAggregate.from_record(work_item_record(row)).transition_to(status)
+        if status == "completed":
+            from .outcome_store import SqlAlchemyOutcomeStore
+
+            await SqlAlchemyOutcomeStore(self._session).require_accepted(row)
         row.status = status
         if owner_agent_id is not None:
             row.owner_agent_id = owner_agent_id

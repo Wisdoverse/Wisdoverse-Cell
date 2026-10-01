@@ -137,6 +137,46 @@ export interface ControlPlaneRunListResponse {
   runs: ControlPlaneAgentRun[];
 }
 
+export interface ControlPlaneOperatingMetrics {
+  company_id: string;
+  as_of_utc: string;
+  export_policy: { retention_days: number; applies_to: string };
+  runs: {
+    total: number;
+    by_status: Record<string, number>;
+    success_rate: number | null;
+    adapter_errors: number;
+  };
+  queue_delay: {
+    p95_seconds: number | null;
+    sample_size: number;
+    sample_limit: number;
+    sampled_work_items: number;
+    excluded_without_run: number;
+    source: string;
+  };
+  approvals: { pending: number; oldest_pending_age_seconds: number | null };
+  costs: {
+    accepted_outcome_count: number;
+    full_cost_usd_total: number;
+    full_cost_usd_per_accepted_outcome: number | null;
+    full_cost_basis: string;
+    run_reported_cost_usd_total: number;
+    deduplicated_budget_usage_usd_total: number;
+    failed_run_reported_cost_usd: number;
+    failed_run_budget_charges_usd: number;
+    estimated_ceiling_usd_total: number;
+    estimated_ceiling_usd_per_accepted_outcome: number | null;
+    estimated_execution_count: number;
+    unestimated_execution_count: number;
+    budget_usage_run_coverage: number;
+    run_cost_coverage: number;
+    unmetered_run_count: number;
+  };
+  unresolved_execution_leases: { count: number; oldest_age_seconds: number | null };
+  pending_outbox: { count: number; oldest_age_seconds: number | null };
+}
+
 export interface ControlPlaneDecision {
   decision_id: string;
   company_id: string;

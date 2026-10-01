@@ -96,6 +96,7 @@ Wisdoverse Cell uses Control Plane Architecture at repository level.
 
 Backend architecture:
 
+- DDD is mandatory: explicit bounded contexts, domain invariants and data ownership
 - Agent Service Boundary for runtime isolation
 - Strategic DDD for domain vocabulary and bounded contexts
 - Clean Architecture inside each agent service
@@ -105,6 +106,13 @@ Backend architecture:
 Frontend architecture:
 
 - Strict Feature-Sliced Design
+
+Microservices and cloud-native delivery are mandatory. Preserve independently
+deployable runtime boundaries and communicate through versioned HTTP contracts
+or events. Services must expose health/readiness checks, support graceful
+shutdown, load configuration and secrets externally, and provide observable,
+bounded failure handling. Deployment changes must document rollout and rollback.
+These requirements apply to every roadmap implementation and architecture review.
 
 Agent role model:
 

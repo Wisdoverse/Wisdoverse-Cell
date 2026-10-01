@@ -15,6 +15,8 @@ from shared.middleware.internal_auth import verify_internal_key
 from ..core.api_use_cases import EvolutionApiUseCase
 from ..service.agent import agent
 from .plugins import EvolutionOutboxDispatcherPlugin
+from .release_routes import router as release_router
+from .skill_execution_routes import router as skill_execution_router
 
 # ── Custom routes ────────────────────────────────────────────────────────────
 
@@ -39,7 +41,11 @@ app = create_agent_app(
     agent,
     title="Evolution Module",
     description="Evolution capability for global trace analysis and architecture recommendations.",
-    routers=[(router, [Depends(verify_internal_key)])],
+    routers=[
+        (router, [Depends(verify_internal_key)]),
+        (release_router, [Depends(verify_internal_key)]),
+        (skill_execution_router, [Depends(verify_internal_key)]),
+    ],
     plugins=[
         InfraHealthPlugin(db_manager=db_manager),
         EvolutionOutboxDispatcherPlugin(),

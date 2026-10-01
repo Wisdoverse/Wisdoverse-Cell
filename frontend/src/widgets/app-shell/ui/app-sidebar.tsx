@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Settings,
   Workflow,
+  BriefcaseBusiness,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -53,6 +54,7 @@ const navGroups: NavGroup[] = [
     labelKey: "workflows",
     items: [
       { key: "controlPlane", href: "/workflows", icon: Workflow },
+      { key: "companyGovernance", href: "/company", icon: BriefcaseBusiness },
       { key: "approvals", href: "/approvals", icon: CircleCheck },
     ],
   },

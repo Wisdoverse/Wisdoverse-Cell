@@ -8,6 +8,7 @@ from shared.core.identifiers import ApprovalRequestId, CompanyId
 
 from .approval_ports import ControlPlaneApprovalStore
 from .company_store import SqlAlchemyControlPlaneCompanyStore
+from .domain.approval_request import InvalidApprovalTransitionError
 from .domain_records import approval_request_record
 from .models import ApprovalRequest, ApprovalStatus, AuditEvent
 from .store_utils import model_values, now_utc
@@ -34,11 +35,12 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
         row = await self._get_approval_row(approval_id)
         return approval_request_record(row) if row is not None else None
 
-    async def _get_approval_row(self, approval_id: ApprovalRequestId) -> ApprovalRequestTable | None:
+    async def _get_approval_row(self, approval_id: ApprovalRequestId, *, lock: bool = False) -> ApprovalRequestTable | None:
+        query = select(ApprovalRequestTable).where(ApprovalRequestTable.approval_id == approval_id)
+        if lock:
+            query = query.with_for_update().execution_options(populate_existing=True)
         result = await self._session.execute(
-            select(ApprovalRequestTable).where(
-                ApprovalRequestTable.approval_id == approval_id
-            )
+            query
         )
         return result.scalar_one_or_none()
 
@@ -75,9 +77,11 @@ class SqlAlchemyControlPlaneApprovalStore(ControlPlaneApprovalStore):
         status: ApprovalStatus | str,
         resolved_by: str,
     ) -> ApprovalRequest | None:
-        row = await self._get_approval_row(approval_id)
+        row = await self._get_approval_row(approval_id, lock=True)
         if row is None:
             return None
+        if row.status != "pending":
+            raise InvalidApprovalTransitionError("approval_already_resolved")
         status_value = status.value if isinstance(status, ApprovalStatus) else status
         row.status = status_value
         row.resolved_by = resolved_by

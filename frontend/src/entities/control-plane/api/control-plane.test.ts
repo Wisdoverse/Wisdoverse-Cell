@@ -5,8 +5,10 @@ import {
   createControlPlaneGoal,
   createControlPlaneBudgetPolicy,
   createControlPlaneWorkItem,
+  getControlPlaneOperatingMetrics,
   getControlPlaneTimeline,
   listControlPlaneArtifacts,
+  listControlPlaneApprovals,
   listControlPlaneBudgetPolicies,
   listControlPlaneBudgetUsage,
   listControlPlaneEvolutionProposals,
@@ -39,6 +41,11 @@ describe("control-plane API client", () => {
     postMock.mockResolvedValue({});
   });
 
+  it("queries operating metrics by company using the typed metrics path", async () => {
+    await getControlPlaneOperatingMetrics("company_1");
+    expect(getMock).toHaveBeenCalledWith("/control-plane/operating-metrics", { company_id: "company_1" });
+  });
+
   it("uses the shared control-plane goal/work/run paths", async () => {
     await listControlPlaneGoals({ status: "active", limit: 20 });
     await createControlPlaneGoal({
@@ -54,6 +61,7 @@ describe("control-plane API client", () => {
       created_by: "human:operator",
     });
     await updateControlPlaneWorkItemStatus("work_1", {
+      company_id: "company_1",
       status: "running",
       owner_agent_id: "dev-agent",
       actor_id: "human:operator",
@@ -80,7 +88,7 @@ describe("control-plane API client", () => {
       created_by: "human:operator",
     });
     expect(patchMock).toHaveBeenCalledWith(
-      "/control-plane/work-items/work_1/status",
+      "/control-plane/work-items/work_1/status?company_id=company_1",
       {
         status: "running",
         owner_agent_id: "dev-agent",
@@ -129,6 +137,11 @@ describe("control-plane API client", () => {
     );
   });
 
+  it("fetches approvals by work item so approvals without a run ID remain visible", async () => {
+    await listControlPlaneApprovals({ company_id: "company_1", work_item_id: "work_1", limit: 50 });
+    expect(getMock).toHaveBeenCalledWith("/control-plane/approvals", { company_id: "company_1", work_item_id: "work_1", limit: 50 });
+  });
+
   it("uses durable approval action endpoints", async () => {
     const { approveControlPlaneApproval, rejectControlPlaneApproval } =
       await import("./control-plane");
@@ -150,6 +163,40 @@ describe("control-plane API client", () => {
       "/control-plane/approvals/approval_2/reject",
       { resolved_by: "human:operator" },
     );
+  });
+
+  it("uses work-item execution, recovery, governance, and acceptance routes", async () => {
+    const api = await import("./control-plane");
+    const runPayload = { company_id: "company_1", agent_id: "qa-agent", actor_id: "human:operator", idempotency_key: "0e4d7b94-498c-41f5-8cc5-8c1c2c31a2d9" };
+    await api.runControlPlaneWorkItem("work_1", runPayload);
+    await api.retryControlPlaneWorkItem("work_1", runPayload);
+    await api.reassignControlPlaneWorkItem("work_1", {
+      company_id: "company_1", owner_agent_id: "qa-agent", actor_id: "human:operator", reason: "QA handoff",
+    });
+    await api.blockControlPlaneWorkItem("work_1", {
+      company_id: "company_1", actor_id: "human:operator", reason: "Needs clarification",
+    });
+    await api.acceptControlPlaneWorkItemArtifact("work_1", {
+      company_id: "company_1", artifact_id: "artifact_1", actor_id: "human:operator", verdict: "accepted", reason: "QA passed",
+    });
+    await api.closeControlPlaneWorkItem("work_1", {
+      company_id: "company_1", actor_id: "human:operator", reason: "Accepted artifact",
+    });
+
+    expect(postMock).toHaveBeenNthCalledWith(1, "/control-plane/work-items/work_1/run", runPayload);
+    expect(postMock).toHaveBeenNthCalledWith(2, "/control-plane/work-items/work_1/retry", runPayload);
+    expect(postMock).toHaveBeenNthCalledWith(3, "/control-plane/work-items/work_1/reassign", {
+      company_id: "company_1", owner_agent_id: "qa-agent", actor_id: "human:operator", reason: "QA handoff",
+    });
+    expect(postMock).toHaveBeenNthCalledWith(4, "/control-plane/work-items/work_1/block", {
+      company_id: "company_1", actor_id: "human:operator", reason: "Needs clarification",
+    });
+    expect(postMock).toHaveBeenNthCalledWith(5, "/control-plane/work-items/work_1/accept", {
+      company_id: "company_1", artifact_id: "artifact_1", actor_id: "human:operator", verdict: "accepted", reason: "QA passed",
+    });
+    expect(postMock).toHaveBeenNthCalledWith(6, "/control-plane/work-items/work_1/close", {
+      company_id: "company_1", actor_id: "human:operator", reason: "Accepted artifact",
+    });
   });
 
   it("uses first-class budget policy management paths", async () => {

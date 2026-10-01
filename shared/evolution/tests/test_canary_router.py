@@ -7,8 +7,12 @@ import hashlib
 from unittest.mock import AsyncMock
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.config import settings
 from shared.evolution.canary_router import CanaryRouter
+from shared.evolution.db.release_tables import EvolutionSkillRelease
+from shared.evolution.db.repository import EvolutionRepository
 
 
 def _make_bucket(trace_id: str) -> int:
@@ -116,6 +120,7 @@ class TestResolveSkillVersionWithExperiment:
         )
 
         assert version == 1  # control
+
 
     @pytest.mark.asyncio
     async def test_routing_is_deterministic_same_trace_id_always_same_version(self):
@@ -258,3 +263,84 @@ class TestRecordResult:
             assert is_candidate_recorded is True
         else:  # control
             assert is_candidate_recorded is False
+
+
+class TestCanaryDecision:
+    @pytest.mark.asyncio
+    async def test_winning_canary_waits_for_explicit_release_approval(self):
+        experiment = _make_experiment()
+        experiment.status = "running"
+        experiment.control_results = [0.8] * 10
+        experiment.candidate_results = [0.9] * 10
+        experiment.min_samples = 10
+        experiment.min_improvement = 0.05
+
+        repo = AsyncMock()
+        repo.get_active_experiment.return_value = experiment
+        router = CanaryRouter(repo=repo)
+
+        result = await router.check_experiment(
+            "pjm-agent", "summarize", min_samples=10
+        )
+
+        assert result == "promotion_pending"
+        repo.promote_skill.assert_not_called()
+        repo.conclude_experiment.assert_not_called()
+
+
+class TestPersistedCanaryRouting:
+    """Only an approved, same-company release ledger makes a canary routable."""
+
+    @pytest.mark.asyncio
+    async def test_shadow_is_not_routed_until_approved_canary_ledger_exists(
+        self, db_session: AsyncSession
+    ):
+        repo = EvolutionRepository(db_session)
+        await repo.save_skill_config(
+            skill_id="summarize", version="1", status="active", system_prompt="Baseline"
+        )
+        await repo.save_skill_config(
+            skill_id="summarize", version="2", status="candidate", system_prompt="Candidate"
+        )
+        await repo.save_experiment(
+            experiment_id="approved-canary",
+            agent_id="pjm-agent",
+            skill_id="summarize",
+            control_version=1,
+            candidate_version=2,
+            traffic_pct=10,
+            status="running",
+        )
+        router = CanaryRouter(repo=repo)
+        trace_id = next(
+            f"approved-trace-{number}"
+            for number in range(10_000)
+            if _make_bucket(f"approved-trace-{number}") < 10
+        )
+
+        assert await router.resolve_skill_version(
+            "pjm-agent", "summarize", trace_id
+        ) == "1"
+
+        db_session.add(
+            EvolutionSkillRelease(
+                deployment_id="approved-canary",
+                company_id=settings.control_plane_company_id,
+                proposal_id="proposal-approved",
+                evaluation_report_id="evaluation-approved",
+                evaluation_hash="a" * 64,
+                skill_id="summarize",
+                agent_id="pjm-agent",
+                baseline_version=1,
+                candidate_version=2,
+                baseline_config_hash="b" * 64,
+                candidate_config_hash="c" * 64,
+                state="canary",
+                experiment_id="approved-canary",
+            )
+        )
+        await db_session.flush()
+
+        assert await router.resolve_skill_version(
+            "pjm-agent", "summarize", trace_id
+        ) == 2

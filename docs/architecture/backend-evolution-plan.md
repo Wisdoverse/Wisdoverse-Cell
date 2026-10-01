@@ -17,6 +17,18 @@ This reconciliation uses main at commit c387877 (2026-10-01), tracked code,
 CI configuration and the DDD audit. It does not claim deployment acceptance
 or current production SLO performance.
 
+The [2026-10-01 Product Roadmap engineering snapshot](../overview/roadmap.md#engineering-delivery-snapshot-2026-10-01)
+and [engineering receipt](../evidence/product-roadmap-engineering-2026-10-01.md)
+now track implemented M0 report, M1 execution ownership/policy and opt-in
+worker, M2 bounded adapter paths, M3 signed release controls, M4 template and
+knowledge lifecycle, and FSD operator surfaces. These are code foundations;
+business-flow acceptance, native four-runtime conformance and stable handoff,
+live model/provider and platform pilot, observed recurring work, physical
+retention, and R0 staging/cloud acceptance remain open. See the
+[product governance](../runbooks/product-governance.md) and
+[Control Plane metrics](../runbooks/control-plane-metrics.md) runbooks for
+operator boundaries.
+
 | Stage | Current status | Evidence and remaining work |
 |-------|----------------|-----------------------------|
 | 0. Architecture docs and standards | Implemented | Foundation docs, index and review checklists |
