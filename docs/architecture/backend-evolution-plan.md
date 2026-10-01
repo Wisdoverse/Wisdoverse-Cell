@@ -1,77 +1,73 @@
 # Backend Evolution Follow-Up Plan
 
-Last updated: 2026-05-22 (DDD compliance audit reconciled)
+Last updated: 2026-10-01
 
-Status: Forward-looking plan. The plan below was originally drafted after
-PR #121 modularized service boundaries. Since then, Stages 0–3 of the
-migration plan have landed on `main` (see §0 Status Update). The remaining
-sections describe what came next at the time of writing and now serve as
-historical context for the work that has been completed.
+Status: Historical follow-up plan with a maintained status reconciliation in
+§0. Sections 1 onward preserve the earlier modularization plan and are not
+the active delivery checklist.
 
-The canonical six-stage roadmap is in
-[`migration-plan.md`](./migration-plan.md). When the two documents
-disagree, the migration plan wins.
-
----
+[Backend Migration Plan](./migration-plan.md) is the canonical six-stage
+roadmap. [Product Model](../overview/product-model.md) tracks operator-flow
+and production-hardening milestones.
 
 ## 0. Status Update
 
-Execution cadence from 2026-05-21: backend refactoring should proceed in
-cohesive architecture capability slices rather than small mechanical moves.
-Each PR should close or materially reduce one named boundary problem across a
-whole runtime, route family, capability, or cross-cutting contract. Good
-candidate slices include explicit unit-of-work adoption for one runtime,
-complete contract tests for one boundary, one observable runtime path, or one
-bounded capability split. Avoid PRs that only move a single helper unless that
-helper is blocking a larger architectural cutover.
+This reconciliation uses main at commit 4fadf8b (2026-05-25), tracked code,
+CI configuration and the DDD audit. It does not claim deployment acceptance
+or current production SLO performance.
 
-The original plan's "Recommended Next Phases" (A–H) and Stage roadmap have
-substantially landed. As of 2026-05-18:
+| Stage | Current status | Evidence and remaining work |
+|-------|----------------|-----------------------------|
+| 0. Architecture docs and standards | Implemented | Foundation docs, index and review checklists |
+| 1. Code structure cleanup | Implemented | Per-surface routers, canonical paths, store/UoW boundaries and architecture tests |
+| 2. Domain modeling | Implemented for the audited scope | [DDD audit](./ddd-compliance-audit.md#2-executive-summary) records 22/22 remediation rows closed at code-architecture level |
+| 3. Data ownership and boundaries | Implemented at code level | Analysis projections, internal Identity write owner and PII-safe outbox, Chat Agent ownership and gateway HTTP boundary; public Identity API remains a future extraction prerequisite |
+| 4. Service boundary evolution | Partial; acceptance pending | Physical per-runtime migration cutover, Sync deployment split, staging parity, replay and rollback evidence |
+| 5. Engineering quality | Partial; continuous | Mypy and migration round-trip CI are configured; remaining work is coverage expansion, route contracts and demonstrated operating gates |
 
-| Stage | Status | Key PRs |
-|-------|--------|---------|
-| 0. Architecture docs + standards | ✓ landed | #124 (10 foundation docs), #142, #146, #147, #149, #154 |
-| 1. Code structure cleanup | ✓ landed | #125 (use-case logger), #126 (lifecycle → domain/), #127, #128, #129 (outbox metrics on all 10 runtimes), #131, #134 (ControlPlaneStores), #135, #136 (40 routes migrated), #143 (ORM leak fix), #144 (boundary tests), #145 (PR template), #150, #151, #152, #153 |
-| 2. Domain modeling | ✓ landed | #131 (pjm + qa domain seed), #137 (Decomposition aggregate), #138 (Task aggregate), #139 (Requirement aggregate), #140 (AcceptanceVerdict value object), #141 (AgentRunLifecycle aggregate) |
-| 3. Data ownership + boundaries | ✓ landed at the design layer | #142 (Identity boundary doc), #143 (ApprovalGate ORM leak fix), #144 (cross-runtime ORM boundary tests), #154 (per-runtime migration cutover plan) |
-| 4. Service boundary evolution | partial | Pre-conditions: #1 ✓ (outbox in #126/#129 + replay in #146 + idempotency in #149), #2 ✓ (cutover plan in #154), #3 ✓ (OpenAPI snapshots in #148); #4 (non-prod deployment) requires operator coordination and is out of scope for documentation work |
-| 5. Engineering quality | partial | Items 4 (test) ✓, 6 (deps Dependabot) ✓, 7 (security cso) ✓, 8 (release checklist) ✓ #147, 9 (rollback) ✓ #147, 10 (incident runbook) ✓ #146, plus new event-catalog tests #153 and PR template gate #145. Items 3 (mypy / pyright) and 5 (CI Alembic up/down workflow) remain — both require new tooling or CI workflow changes outside the scope of this plan |
+### Next Priorities
 
-Closed Phase 1 audit gaps:
+- **P0 / S4.1–S4.3**: prove per-runtime migration and independent staging
+  operation, then complete the Sync split under ADR-0009. Each runtime needs
+  dated observations and a rollback rehearsal.
+- **P1 / S5.4**: validate the task operation flow, including approval,
+  artifact inspection, retry, reassignment and duplicate-delivery behavior.
+- **P2**: production scheduler ownership, enforceable permissions, SLO alerts
+  and audit retention/export policy per the product milestones.
 
-| Phase 1 audit ID | Status |
-|------------------|--------|
-| H1 / P0-2 (single Alembic dir) | Design closure #154; physical cutover deferred |
-| H2 / P0-1 (repository compatibility facade) | Closed: per-aggregate stores now own control-plane SQL, non-facade tests use store factory / ports, and the retired `repository.py` facade plus its compatibility tests have been deleted. |
-| H3 / P2-6 (implicit transaction boundary) | Partially closed: Control Plane command routes, Dev Agent event/request use cases, QA acceptance execution, and PJM decomposition transactions now use explicit unit-of-work boundaries with `commit()` and rollback cleanup. Per-runtime adoption remains for other agent/capability use cases that span multiple aggregates or outboxes. |
-| H5 / P1-3 (ORM leak into business logic) | Closed for Control Plane: routes #135/#136, ApprovalGate #143, application/use-case returns, and low-level store ports now expose domain records across company, goal, work item, agent role, agent prompt config, agent run, approval, decision, artifact, budget, audit timeline, and evolution proposal surfaces. ORM rows remain infrastructure-private inside store adapters. |
-| H6 / P0-3 (no outbox metrics) | ✓ #128 + #129 (all 10 runtimes); shared cross-cutting metrics are now owned by `shared.observability.metrics` with `shared.infra.metrics` kept as a compatibility shim |
-| P0-4 (optional tracing) | Runtime tracing now installs a provider in non-production even without an exporter; production settings fail closed without `OTEL_ENDPOINT` or `OTEL_EXPORTER_OTLP_ENDPOINT` |
-| H8 / P1-4 (no contract tests) | ✓ event-catalog tests #153 |
-| H9 / P1-5 (no Identity boundary) | Closed at design layer #142 |
-| M1 (large Control Plane api.py) | Closed: Control Plane HTTP handlers now live under `shared/control_plane/api_routes/`; `shared/control_plane/api.py` is the session/UOW provider and router composition entrypoint. |
-| M2 (no domain layer) | Closed — every runtime has `core/domain/` with aggregate/value object |
-| M5 (Analysis source-table drift) | Documented; no current drift, no projection layer needed yet |
-| M6 (non-uniform error envelope) | Structured runtime envelope landed at the `create_agent_app()` boundary; base consumer contract tests now cover auth, HTTPException, validation, and unexpected failures. Route-specific consumer tests remain incremental. |
+Stages 0–3 supply extraction prerequisites. Stage 5 may proceed alongside
+Stage 4; required quality checks pass before a cutover is accepted. Deliver
+cohesive boundary or operator-flow changes rather than mechanical moves.
 
-Stage 4 pre-condition #4 (non-prod deployment) and Stage 5 items 3, 5
-require infrastructure or tooling decisions outside the scope of
-documentation/code-organization work. The rest of this document is kept
-verbatim as historical context.
+### Phase 1 Gap Reconciliation
 
----
+| Phase 1 gap | Current disposition |
+|-------------|---------------------|
+| H1 / P0-2: single Alembic directory | Cutover design exists; physical per-runtime migration adoption remains pending |
+| H2 / P0-1: repository facade | Retired; per-aggregate stores own Control Plane persistence |
+| H3 / P2-6: implicit transaction boundaries | Closed for the tracked code-architecture scope; UoW and transaction policies are represented in the DDD audit |
+| H5 / P1-3: ORM leakage | Domain records cross store/application boundaries; ORM rows stay inside adapters |
+| H6 / P0-3: missing outbox metrics | Metrics and collectors exist; staging dashboards and threshold tuning still require evidence |
+| P0-4: optional tracing | Runtime provider/fail-closed production configuration implemented; verify exporter delivery on rollout |
+| H8 / P1-4: contract tests | Shared envelope/event contracts exist; route-specific provider/consumer coverage remains incremental |
+| H9 / P1-5: Identity boundary | Internal write owner and outbox implemented; public API remains a future extraction prerequisite |
+| M1: large Control Plane API | Per-surface routers implemented; composition remains in the API module |
+| M2: implicit domain layer | Tracked DDD code-level remediation closed |
+| M5: Analysis source-table drift | Projection ports/tables and updater implemented; verify freshness/backfill on rollout |
+| M6: error envelope | Runtime envelope and base consumer tests implemented; deepen route-level contracts |
 
-## 1. Current PR Scope
+The earlier statement that type checking and migration CI remain unimplemented
+is superseded: PRs #160 and #161 configured those gates. A shared-chain round
+trip does not prove per-runtime cutover readiness, and scoped Mypy does not
+establish repository-wide type coverage.
 
-PR #121 captures one architecture slice. It does not finalize the backend
-architecture target.
+### Public Evidence
 
-This plan is consistent with the architecture constitution in
-[`AGENTS.md`](../../AGENTS.md), [`SPEC.md`](../../SPEC.md),
-[`docs/overview/architecture.md`](../overview/architecture.md), and
-[`docs/guides/backend-boundaries.md`](../guides/backend-boundaries.md). When
-those documents change, this plan must be reconciled rather than the other way
-around.
+Publish source/PR references, role-based responsibility and sanitized
+acceptance summaries. Keep private deployment links, personal contacts,
+credentials, customer data and raw production logs outside this repository.
+Actual assignments and release dates are recorded when delivery work is
+scheduled; this reconciliation does not invent them.
 
 ---
 

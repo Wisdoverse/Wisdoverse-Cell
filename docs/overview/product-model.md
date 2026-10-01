@@ -1,5 +1,11 @@
 # Wisdoverse Cell Product Model
 
+Last updated: 2026-10-01
+
+Delivery baseline: main at commit 4fadf8b (2026-05-25). Implemented surfaces
+are repository evidence; deployment acceptance remains tracked separately in
+the [Backend Migration Plan](../architecture/migration-plan.md).
+
 Wisdoverse Cell should be understood as an AI-native company control plane. The codebase already contains agent services, a gateway, shared runtime infrastructure, event contracts, and operational integrations; the public product model connects those pieces into a clear operating system for company work.
 
 The core product thesis is category clarity: agent companies need goals, org
@@ -88,8 +94,9 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 | Surface | Current State | Primary Docs |
 |---------|---------------|--------------|
 | Company context | `/api/v1/control-plane/companies` exposes durable company name, mission, metadata, and audit evidence | [API Reference](../guides/api-reference.md#control-plane-api) |
+| Operator home | The command center highlights task focus, approvals, fleet state, and recent activity | [Home widget](../../frontend/src/widgets/home/ui/home-page-widget.tsx) |
 | Workbench | `/[locale]/workflows` uses Feature-Sliced Design slices for goals, agents, approvals, budgets, runs, and timeline evidence | [API Reference](../guides/api-reference.md#control-plane-api), [Operations](../guides/operations.md#10-control-plane-operations) |
-| Agent creation | Operators can create `AgentRole` records with kind, interaction mode, context sources, reporting line, adapter type/config, capabilities, responsibilities, subscribed/published events, permissions, and status | [API Reference](../guides/api-reference.md#post-apiv1control-planeagents) |
+| Agent creation | Operators can create `AgentRole` records with kind, interaction mode, context sources, reporting line, adapter type/config, capabilities, responsibilities, subscribed/published events, permissions, and status | [API Reference](../guides/api-reference.md#control-plane-api) |
 | Work item operations | `/api/v1/control-plane/work-items/{work_item_id}/activity`, `/run`, `/retry`, `/reassign`, `/block`, and `/close` make the work item the default operator command center | [API Reference](../guides/api-reference.md#control-plane-api), [Operations](../guides/operations.md#10-control-plane-operations) |
 | Agent execution | Internal manual wakeup and heartbeat ticks create normal `AgentRun` records through the adapter registry | [Operations](../guides/operations.md#10-control-plane-operations) |
 | Governance | Approval and budget gates append durable evidence before or during sensitive execution | [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
@@ -99,23 +106,22 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 
 ## Operator Experience Gap and Direction
 
-The current product foundation is strong on durable control-plane objects, but
-the operator experience still exposes too many implementation concepts. External
-benchmarks show that the next improvement should be task-first rather than
-agent-first.
+The home command center and work-item-scoped run, retry, reassign, block,
+close and activity contracts are implemented. The next delivery should prove
+that operators can complete a task and recover from failure across those
+surfaces.
 
-Do not name or link the external benchmark product in public product copy or
-operator-facing docs. Keep the benchmark as an internal reference only.
+| Existing foundation | Next product outcome |
+|---------------------|----------------------|
+| Home task focus, pending approvals and activity | Make the next actionable task or decision clear and validate navigation to its working surface |
+| Work-item commands and activity evidence | Validate create, assign, run, approve when required, inspect artifact and close as one flow |
+| Durable runs, artifacts, decisions and audit records | Connect output, cost, status and the next action to the same work item |
+| Retry, reassign and block commands | Demonstrate failed-run recovery, clear policy denial and safe handling of duplicate commands |
+| Agent roles, budget policies and execution defaults | Introduce a synthetic first-success template once the core flow is accepted |
 
-| Gap | Product Direction |
-|-----|-------------------|
-| Work starts from several separate primitives: goal, work item, agent, run, artifact, and timeline. | Make the work item the default operator command center: create, assign, run, inspect evidence, retry, and close from one place. The backend now exposes those primary commands as work-item-scoped contracts. |
-| Manual execution historically required choosing an agent wakeup path. | Prefer `/api/v1/control-plane/work-items/{work_item_id}/run` for operator flows; keep direct agent wakeups as an internal service action. |
-| Runtime output is technically complete but hard to scan. | Show a compact run card with status, owner, input summary, output summary, evidence artifact, trace, and next action. |
-| Errors are adapter/API shaped. | Translate adapter failures, policy blocks, missing owners, and approval requirements into stable operator actions such as assign owner, request approval, retry, or inspect evidence. |
-| The next step after a run is not obvious. | First-class retry, reassign, block, and close commands now exist; split work, decision creation, and artifact attachment can build on the same command-center model. |
-| Evidence exists across timeline, audit, run, and artifact views. | Keep the ledger model, but project it into the work-item activity feed for the UI. |
-| Setup and first success require too much domain knowledge. | Provide templates that create a goal, work item, owner agent, budget policy, and execution defaults together. |
+Acceptance covers the backend contract and the operator surface together,
+including empty, loading, permission-denied, approval-required, timed-out and
+failed-run states.
 
 ---
 
@@ -131,28 +137,34 @@ operator-facing docs. Keep the benchmark as an internal reference only.
 
 ---
 
+## Delivery Priorities and Acceptance
+
+Responsible roles describe the needed ownership; individual assignment and
+release dates remain open. Public progress contains sanitized examples,
+repository references and acceptance outcomes. Personal contacts, internal
+deployment links, credentials, customer data and raw production logs are
+excluded.
+
+| Priority | Milestone | Responsible role | Dependency | Acceptance |
+|----------|-----------|------------------|------------|------------|
+| P0 | Deployment reliability | Runtime maintainer + release operator | Stage 3 code boundaries and runtime-specific migration readiness | [Roadmap S4.1–S4.3](../architecture/migration-plan.md#next-delivery-priorities): migration rehearsal, at least two weeks of staging observation, replay and rollback |
+| P1 | Task operation flow | Product maintainer + QA maintainer | Existing commands, operator home and workbench | Create → assign → run → approve when required → inspect artifact → close; retry and reassignment after failure; policy denial and duplicate-delivery handling; durable state after restart |
+| P2 | Production heartbeat ownership | Runtime maintainer + operator | Accepted task flow and idempotent run creation | A designated scheduler with timeout, retry/backoff and concurrency policy; repeated ticks and restarts do not duplicate the same due execution |
+| P2 | Fine-grained permissions | Control Plane maintainer | Defined operator and role scopes | Enforced checks for agent creation, run commands, budget changes and approval resolution; allow/deny behavior covered by contracts and UI states |
+| P2 | Operational SLOs | Operator + runtime maintainer | Staging measurements and declared targets | Dashboards and tested alerts for run success, queue latency, approval age, budget burn, adapter failures and event lag; recorded ownership and runbooks |
+| P2 | Audit retention and export | Control Plane maintainer + operator | Declared retention/redaction policy | Policy enforced for run logs, artifacts, approvals and budget records; authorized export and redaction verified with synthetic data |
+| Later | Richer board controls | Product maintainer + runtime maintainer | Accepted task flow, permissions and stable execution lifecycle | Pause, resume, terminate and rollback behavior defined per supported adapter; evidence retained and invalid actions rejected |
+| Later | Company templates | Product maintainer | Stable object contracts, permissions and audit policy | Synthetic company round trip preserves org/goals/roles/routines/skills; export scrubs secrets, contacts and environment-specific identifiers |
+
+The P0 deployment and P1 task-flow work may be prepared in parallel. Each
+milestone retains its own acceptance criteria. Scheduled heartbeat ownership,
+fine-grained permissions and long-term audit policy remain planned capabilities,
+even though their underlying records and endpoints exist.
+
 ## Remaining Product Hardening
 
-1. **Deployment-grade scheduler ownership.**
-   Move heartbeat ticks from an operator endpoint to a production-owned scheduler
-   with retry, timeout, and idempotency policy.
-
-2. **Fine-grained permissions.**
-   Extend role records into enforceable policy checks for agent creation,
-   wakeups, budget changes, and approval resolution.
-
-3. **Operational SLOs.**
-   Add dashboards and alerts for run success rate, queue latency, approval age,
-   budget burn, adapter failures, and event lag.
-
-4. **Richer board controls.**
-   Expand approve/reject into pause, resume, terminate, retry, rollback, and
-   policy override flows.
-
-5. **Company templates.**
-   Export and import org structure, goals, agent roles, routines, and skills
-   while scrubbing secrets.
-
-6. **Long-term audit retention.**
-   Define retention, redaction, and export policy for run logs, artifacts,
-   approvals, and budget records.
+Use the milestone table above as the active product backlog. Code architecture
+closure does not close production operations or operator-flow acceptance.
+Future proposals should build on the existing work-item commands and state
+which remaining milestone they complete, how it is verified, and what remains
+pending.
