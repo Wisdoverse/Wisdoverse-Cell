@@ -92,6 +92,8 @@ async def require_operator(request: Request) -> OperatorPrincipal:
 
 
 def _action(method: str, path: str) -> str:
+    if path.endswith("/retention"):
+        return "audit:retention"
     if method in {"GET", "HEAD"}:
         if path.endswith("/audit-export"):
             return "audit:export"

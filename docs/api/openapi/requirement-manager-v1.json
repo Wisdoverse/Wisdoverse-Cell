@@ -388,6 +388,200 @@
         "title": "DeleteRequirementResponse",
         "type": "object"
       },
+      "DeliveryHandoffCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "company_id": {
+            "maxLength": 48,
+            "minLength": 1,
+            "title": "Company Id",
+            "type": "string"
+          },
+          "goal_id": {
+            "maxLength": 48,
+            "minLength": 1,
+            "title": "Goal Id",
+            "type": "string"
+          },
+          "project_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "project_name": {
+            "default": "",
+            "maxLength": 256,
+            "title": "Project Name",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "requirement_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Requirement Hash",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "work_item_id": {
+            "maxLength": 48,
+            "minLength": 1,
+            "title": "Work Item Id",
+            "type": "string"
+          },
+          "wp_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Wp Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "company_id",
+          "project_id",
+          "wp_id",
+          "goal_id",
+          "work_item_id",
+          "requirement_hash",
+          "reason"
+        ],
+        "title": "DeliveryHandoffCommand",
+        "type": "object"
+      },
+      "DeliveryHandoffReceipt": {
+        "additionalProperties": false,
+        "properties": {
+          "command_hash": {
+            "title": "Command Hash",
+            "type": "string"
+          },
+          "company_id": {
+            "title": "Company Id",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          },
+          "goal_id": {
+            "title": "Goal Id",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "requirement_hash": {
+            "title": "Requirement Hash",
+            "type": "string"
+          },
+          "requirement_id": {
+            "title": "Requirement Id",
+            "type": "string"
+          },
+          "review_reason": {
+            "title": "Review Reason",
+            "type": "string"
+          },
+          "reviewed_by": {
+            "title": "Reviewed By",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "status": {
+            "const": "queued_for_decomposition",
+            "default": "queued_for_decomposition",
+            "title": "Status",
+            "type": "string"
+          },
+          "work_item_id": {
+            "title": "Work Item Id",
+            "type": "string"
+          },
+          "wp_id": {
+            "title": "Wp Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requirement_id",
+          "company_id",
+          "event_id",
+          "command_hash",
+          "requirement_hash",
+          "project_id",
+          "wp_id",
+          "goal_id",
+          "work_item_id",
+          "reviewed_by",
+          "review_reason"
+        ],
+        "title": "DeliveryHandoffReceipt",
+        "type": "object"
+      },
+      "DeliveryReviewSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "company_id": {
+            "title": "Company Id",
+            "type": "string"
+          },
+          "confirmed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed By"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "requirement_hash": {
+            "title": "Requirement Hash",
+            "type": "string"
+          },
+          "requirement_id": {
+            "title": "Requirement Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requirement_id",
+          "company_id",
+          "title",
+          "description",
+          "status",
+          "confirmed_by",
+          "requirement_hash"
+        ],
+        "title": "DeliveryReviewSnapshot",
+        "type": "object"
+      },
       "EnhancedStatsResponse": {
         "description": "Enhanced statistics response with trends.",
         "properties": {
@@ -4173,6 +4367,132 @@
         "summary": "Get Requirement Context",
         "tags": [
           "requirements"
+        ]
+      }
+    },
+    "/api/v1/requirements/{requirement_id}/delivery-handoff": {
+      "post": {
+        "operationId": "queue_delivery_handoff_api_v1_requirements__requirement_id__delivery_handoff_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "maxLength": 32,
+              "minLength": 1,
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Trace-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Trace-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryHandoffCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryHandoffReceipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Queue Delivery Handoff",
+        "tags": [
+          "delivery-handoff"
+        ]
+      }
+    },
+    "/api/v1/requirements/{requirement_id}/delivery-review": {
+      "get": {
+        "operationId": "review_delivery_handoff_api_v1_requirements__requirement_id__delivery_review_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "maxLength": 32,
+              "minLength": 1,
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryReviewSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Delivery Handoff",
+        "tags": [
+          "delivery-handoff"
         ]
       }
     },

@@ -32,10 +32,11 @@ Prefer past-tense actions for facts that already happened. Use command-like
 actions only when the event intentionally requests work, such as `sync.trigger`.
 
 The native executor is a synchronous HTTP request/receipt boundary, not an
-EventBus protocol. Its addition defines no new bus events. The existing
-Requirement Manager → OpenProject/PJM handoff mapping remains open; a
-`requirement.confirmed` event is not currently consumed by PJM as a
-decomposition request.
+EventBus protocol. Its addition defines no new bus events. Requirement Manager now has a default-off reviewed mapping to existing
+OpenProject project/work-package IDs, emitting the existing
+`sync.task-needs-decompose` through its local outbox. A `requirement.confirmed`
+event alone is not consumed by PJM as a decomposition request. Live platform
+execution and accepted business delivery remain separate verification.
 
 ## 2. Active Event Overview
 
@@ -56,7 +57,7 @@ decomposition request.
 | `sync.failed` | sync capability | Event observers | Synchronization failed |
 | `sync.trigger` | chat agent or scheduler/API | sync capability | User or scheduler requested sync |
 | `sync.progress-updated` | sync capability | Event observers, analysis | Feishu Bitable progress was pushed back to OpenProject |
-| `sync.task-needs-decompose` | sync capability or PJM retry path | project management | Synced work item needs decomposition |
+| `sync.task-needs-decompose` | sync capability, reviewed requirement handoff, or PJM retry path | project management | Existing work package needs decomposition |
 | `report.daily-generated` | analysis capability | Event observers | Daily report generated |
 | `report.weekly-generated` | analysis capability | Event observers | Weekly report generated |
 | `analysis.risk-detected` | analysis capability | project management | Project risk detected |
@@ -545,7 +546,7 @@ Per-event domain idempotency keys (target contract):
 | `requirement.rejected` | `requirement_id` | Same as above |
 | `requirement.updated` | `requirement_id` + `change_set_hash` | Skip if hash already recorded |
 | `sync.completed` | `sync_run_id` | Skip if a sync row exists with that id |
-| `sync.task-needs-decompose` | `work_item_id` | Trigger only if no decomposition row exists for `(work_item_id, status=pending)` |
+| `sync.task-needs-decompose` | `wp_id` | PJM skips already-active decomposition records; RM handoff additionally persists one immutable mapping per requirement and company/project/wp |
 | `pm.decompose-completed` | `wp_id` | Aggregate `Decomposition.transition_to(...)` rejects illegal moves |
 | `pm.decomposition-failed` | `wp_id` | Same |
 | `pm.tasks-ready-for-dev` | `task_id` per task | Dev agent skips if task row exists |
@@ -676,3 +677,24 @@ services. Wire producers only through HTTP or EventBus boundaries.
 
 When implementing a new producer for these events, update this catalog, add
 payload tests, and include migration notes if consumer behavior changes.
+
+## Reviewed delivery lineage (additive version 1.0)
+
+The reviewed Requirement Manager producer adds optional `company_id`,
+`requirement_id`, `requirement_hash`, `goal_id` and `work_item_id` to
+`SyncTaskNeedsDecomposePayload`; legacy Sync/PJM producers remain valid. The
+stable RM event ID derives from the requirement ID and frozen command hash;
+receipt and outbox insertion are one owner-local transaction. The trusted
+operator review fixes the existing external project/wp IDs; no platform write
+occurs at this boundary. Consumers use `wp_id` for the decomposition lifecycle,
+not the optional Control Plane work-item ID.
+
+PJM rejects a supplied foreign company before invoking the decomposition engine.
+For reviewed requirements it retains `delivery_context` in the decomposition
+result, includes that context in snapshot-bound approval, and forwards it in
+`pm.tasks-ready-for-dev`. A persistence error aborts before a success event or
+approval card. The same `metadata.trace_id` continues into Dev's durable local
+workflow-log metadata; it is excluded from AgentForge workflow payloads. On
+restart, Dev recovers that trace for QA requests, MR notifications and final
+success/failure events. QA already propagates the incoming trace to acceptance
+events. Trace linkage does not authorize automatic acceptance of a Goal.

@@ -19,15 +19,24 @@ or current production SLO performance.
 
 The [2026-10-01 Product Roadmap engineering snapshot](../overview/roadmap.md#engineering-delivery-snapshot-2026-10-01)
 and [engineering receipt](../evidence/product-roadmap-engineering-2026-10-01.md)
-now track implemented M0 report, M1 execution ownership/policy and opt-in
-worker, M2 bounded adapter paths, M3 signed release controls, M4 template and
-knowledge lifecycle, and FSD operator surfaces. Subsequent native M2 work adds
-four owner-local durable ledgers; synthetic four-runtime handler conformance
-and PostgreSQL replay/concurrency are verified in the [native executor
-engineering receipt](../evidence/native-executor-engineering-2026-10-01.md).
-Business-flow acceptance, Requirement-to-OpenProject/PJM mapping, live
-provider/platform pilots, observed recurring work, physical retention, and R0
-staging/cloud acceptance remain open. See the
+track implemented M0 report, M1 execution ownership/policy and opt-in worker,
+M2 bounded adapter paths, M3 signed release controls, M4 template and knowledge
+lifecycle, and FSD operator surfaces. Subsequent native M2 work adds four
+owner-local durable ledgers; synthetic four-runtime handler conformance and
+PostgreSQL replay/concurrency are verified in the [native executor engineering
+receipt](../evidence/native-executor-engineering-2026-10-01.md).
+
+Additional isolated PostgreSQL acceptance covers one company reuse round trip,
+one guarded L1 evolution loop over 50 fixed paired cases, two recurring-work
+cases, seven Control Plane audit/knowledge-retention cases, and one Requirement Manager handoff case.
+One real-browser test covers a synthetic create/reassign/run/review/close path
+through the authenticated operator proxy and verifies persisted evidence.
+These are synthetic/injected checks, not live provider/platform/model/QA or
+business pilots. The handoff mapping and physical-retention mechanisms have
+engineering acceptance, while live provider/platform pilots, native runtime
+receipt-ledger retention, an observed recurring-work pilot, operational
+Control Plane retention/recovery sign-off, QA-agent business-flow acceptance,
+and R0 staging/cloud acceptance remain open. See the
 [product governance](../runbooks/product-governance.md) and
 [Control Plane metrics](../runbooks/control-plane-metrics.md) runbooks for
 operator boundaries.
@@ -43,16 +52,18 @@ operator boundaries.
 
 ### Next Priorities
 
-- **P0 / M0 / S5.4**: prove the complete task/business flow with real
-  execution, accepted artifact, required approval, failure recovery and
-  durable goal/cost/audit links in the bundled topology.
-- **P1 / M1–M3**: verify atomic scheduler/work ownership, scopes and budget
-  policy, executor conformance, and a measured approved L1 evolution loop.
+- **P0 / M0 / S5.4**: extend the synthetic real-browser create-to-close case
+  to the Requirement Manager→PJM→Dev→QA business flow, QA/required approval,
+  failure/retry/restart and selected-runtime evidence.
+- **P1 / M1–M3**: move from synthetic recurring, governance and 50-pair
+  evolution checks to an observed recurring pilot and measured approved L1
+  model/provider experiment under target runtime conditions.
 - **R0 / S4.1–S4.3**: prepare per-runtime migration, independent staging and
   the Sync split under ADR-0009. Preserve each runtime's dated observations,
   replay and rollback requirements before accepting a cutover.
-- **P2 / M4**: safe company reuse and scoped knowledge after stable contracts
-  and governance. Details and [public research](../overview/public-project-landscape.md)
+- **P2 / M4**: validate broader company reuse and scoped knowledge lifecycle
+  in the chosen target environment after stable contracts and governance.
+  Details and [public research](../overview/public-project-landscape.md)
   live in the Product Roadmap and its source survey.
 
 Stages 0–3 supply extraction prerequisites. Stage 5 may proceed alongside

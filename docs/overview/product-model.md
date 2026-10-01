@@ -87,10 +87,10 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 | Heartbeats | Runtime hooks, manual control-plane wakeup, authenticated `/agent/request`, scheduler tick endpoint | Production scheduler ownership and run retry policies |
 | Governance | Human approval callbacks, internal service auth, control-plane approval ledger | First-class pause, resume, terminate, and rollback controls |
 | Cost control | Tiered LLM routing, daily budgets, `BudgetGuard`, LLM/tool usage records | Per-goal forecasts and team-level budget planning |
-| Audit log | Immutable events, logs, traces, metrics, control-plane timeline, redacted company-scoped export | SLO dashboards and physical retention/purge policy |
-| Portability | Compose stack and company template export/import with secret scrubbing and paused imported roles | Validate operator round trip and role semantics |
-| Knowledge | Artifact references with provenance, owner/role ACL, optimistic versions, expiry and delete tombstones | Acceptance evidence for retention and permission lifecycle |
-| Self-evolution | `shared/evolution/`, fixed-case comparative evaluations, signed release commands and approval-gated rollout states | Validate shadow/canary/promotion/rollback against live runtime behavior |
+| Audit log | Immutable events, logs, traces, metrics, control-plane timeline, redacted company-scoped export, and default-off physical audit/knowledge retention with minimum 90-day age and bounded batches | Operational purge, restore, and retention sign-off; cleanup does not erase WAL or backup copies. Native runtime receipt-ledger retention is separate and pending |
+| Portability | Compose stack and company template export/import with secret scrubbing and paused imported roles; one isolated PostgreSQL synthetic round trip accepted | Broader company reuse and role semantics across target environments |
+| Knowledge | Artifact references with provenance, owner/role ACL, optimistic versions, expiry and delete tombstones; covered by one synthetic reuse acceptance | Target-environment retention and permission lifecycle acceptance |
+| Self-evolution | `shared/evolution/`, fixed-case comparative evaluations, signed release commands and approval-gated rollout states; one synthetic 50-pair L1 loop with regression rollback accepted | Measured shadow/canary/promotion/rollback against live runtime behavior |
 
 ---
 
@@ -103,21 +103,24 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 | Workbench | `/[locale]/workflows` uses Feature-Sliced Design slices for goals, agents, approvals, budgets, runs, and timeline evidence | [API Reference](../guides/api-reference.md#control-plane-api), [Operations](../guides/operations.md#10-control-plane-operations) |
 | Agent creation | Operators can create `AgentRole` records with kind, interaction mode, context sources, reporting line, adapter type/config, capabilities, responsibilities, subscribed/published events, permissions, and status | [API Reference](../guides/api-reference.md#control-plane-api) |
 | Work item operations | `/api/v1/control-plane/work-items/{work_item_id}/activity`, `/run`, `/retry`, `/reassign`, `/block`, and `/close` make the work item the default operator command center | [API Reference](../guides/api-reference.md#control-plane-api), [Operations](../guides/operations.md#10-control-plane-operations) |
-| Agent execution | Manual wakeup and heartbeat ticks create `AgentRun` records. A default-off versioned native HTTP receiver dispatches allowlisted actions in four runtimes with owner-local durable receipts; synthetic four-runtime handler conformance and PostgreSQL replay/concurrency are verified. | [API Reference](../guides/api-reference.md#native-executor-api), [Native Executor Runbook](../runbooks/native-executor.md), [engineering evidence](../evidence/native-executor-engineering-2026-10-01.md) |
+| Agent execution | Manual wakeup and heartbeat ticks create `AgentRun` records. A default-off versioned native HTTP receiver dispatches allowlisted actions in four runtimes with owner-local durable receipts; synthetic four-runtime handler conformance and PostgreSQL replay/concurrency are verified. A separate synthetic browser acceptance uses a restricted local process and reads run/artifact/cost links through the real operator proxy. | [API Reference](../guides/api-reference.md#native-executor-api), [Native Executor Runbook](../runbooks/native-executor.md), [engineering evidence](../evidence/native-executor-engineering-2026-10-01.md), [browser acceptance](../../frontend/e2e/control-plane-real-api.spec.ts) |
 | Governance | Approval and budget gates append durable evidence before or during sensitive execution | [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
 | Cost controls | Operators can manage scoped budget policies and inspect usage evidence | [API Reference](../guides/api-reference.md#control-plane-api), [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
 | Evolution proposals | L1/L2/L3 self-evolution proposals are durable records with approval and rollout state; approval gates synchronize linked proposal state | [API Reference](../guides/api-reference.md#control-plane-api) |
 | Audit | Timeline combines run, budget, approval, artifact, and audit events by trace or run | [API Reference](../guides/api-reference.md#control-plane-api) |
-| Company portability | Company-scoped template export/import; imported runtime roles remain paused pending review | [Company template use cases](../../shared/control_plane/company_template_use_cases.py) |
+| Company portability | Company-scoped template export/import; imported runtime roles remain paused pending review; one PostgreSQL synthetic round trip and knowledge lifecycle acceptance | [Company template use cases](../../shared/control_plane/company_template_use_cases.py), [acceptance case](../../tests/integration/test_company_reuse_acceptance.py) |
 | Reusable knowledge | Artifact-backed references; same-company readers need owner or explicit role grant; delete leaves a tombstone | [Knowledge routes](../../shared/control_plane/api_routes/knowledge.py) |
-| Audit export | Redacted, exact-company and date-bounded paginated export; physical retention enforcement remains pending | [Audit export route](../../shared/control_plane/api_routes/audit_export.py) |
+| Audit export and retention | Redacted, exact-company and date-bounded paginated export; default-off 90-day physical retention is bounded to 1,000-row batches and preserves pending/pinned evidence with compact tombstones | [Audit export route](../../shared/control_plane/api_routes/audit_export.py), [retention route](../../shared/control_plane/api_routes/retention.py), [seven PostgreSQL cases](../../tests/integration/test_physical_retention.py) |
 
 ## Operator Experience Gap and Direction
 
 The home command center and work-item-scoped run, retry, reassign, block,
-close and activity contracts are implemented. The next delivery should prove
-that operators can complete a task and recover from failure across those
-surfaces.
+close and activity contracts are implemented. One real-browser case now
+completes create, assignment, real backend execution, artifact inspection,
+acceptance and closure through the authenticated operator proxy, with persisted
+goal/work/run/artifact/cost/audit links. Its company and local-process output
+are synthetic; it does not prove the native QA or four-runtime business path,
+failure/restart recovery, or a live provider/platform flow.
 
 | Existing foundation | Next product outcome |
 |---------------------|----------------------|
@@ -156,26 +159,30 @@ links, credentials, customer data and raw production logs.
 
 | Priority | Milestone | Responsible role | Dependency | Acceptance |
 |----------|-----------|------------------|------------|------------|
-| P0 / M0 | First repeatable business outcome | Product maintainer + runtime maintainer + QA | Existing commands, surfaces and execution gates | Real execution, QA/required approval, accepted artifact and goal-linked cost/audit evidence; failure and restart cases |
-| P1 / M1 | Reliable recurring work and governance | Control Plane maintainer + operator | M0 and explicit scope/lifecycle policy | Atomic task ownership, scheduler recovery, enforced permissions, approval binding, concurrent budget policy, observability and audit retention |
-| P1 / M2 | Executor and integration conformance | Runtime/integration maintainer + QA | M0; M1 before broader execution access | Certify existing HTTP/local execution and a scoped integration handoff before adding an executor/protocol |
-| P1 / M3 | Measured self-evolution | Evolution maintainer + QA + approving role | M0 evaluation baseline and M1 controls | Connect proposal, comparative evidence, approved L1 experiment, promotion/rejection and verified rollback |
-| P2 / M4 | Company reuse and knowledge | Product maintainer + Control Plane maintainer | Stable contracts, M1 permissions and retention | Synthetic template round trip with secret scrubbing; permission/provenance/retention tests for reusable knowledge |
-| Release gate / R0 | Deployment acceptance | Runtime maintainer + release operator | Applicable product milestones and runtime-specific migration readiness | [S4.1–S4.3](../architecture/migration-plan.md#next-delivery-priorities) where extracting: migration rehearsal, two-week staging observation, replay and rollback; keep the bundled topology until split gates pass |
+| P0 / M0 | First repeatable business outcome | Product maintainer + runtime maintainer + QA | Existing commands, surfaces and execution gates | One synthetic real-browser create-to-close case is verified; still require the native business path, QA/required approval, failure and restart cases, and target runtime evidence |
+| P1 / M1 | Reliable recurring work and governance | Control Plane maintainer + operator | M0 and explicit scope/lifecycle policy | Two synthetic PostgreSQL cases cover recurring claims/restart and governance denial; observed pilot, selected-runtime recovery and operational evidence remain open |
+| P1 / M2 | Executor and integration conformance | Runtime/integration maintainer + QA | M0; M1 before broader execution access | Native receiver conformance is synthetic; one default-off Requirement Manager handoff test verifies existing OpenProject IDs and Control Plane links through read-only HTTP, with atomic mapping/outbox. Live platform write/sync and PJM/Dev/QA delivery remain open |
+| P1 / M3 | Measured self-evolution | Evolution maintainer + QA + approving role | M0 evaluation baseline and M1 controls | One PostgreSQL loop exercises 50 fixed paired synthetic cases and L1 rollback; live model/provider measurement remains open |
+| P2 / M4 | Company reuse and knowledge | Product maintainer + Control Plane maintainer | Stable contracts, M1 permissions and retention | One synthetic PostgreSQL template and knowledge lifecycle round trip passed; broader target-environment reuse and retention acceptance remain open |
+| Release gate / R0 | Deployment acceptance | Runtime maintainer + release operator | Applicable product milestones and runtime-specific migration readiness | [S4.1–S4.3](../architecture/migration-plan.md#next-delivery-priorities) where extracting: migration rehearsal, at least 14 days and 1,000 matching staging requests, replay and rollback; keep the bundled topology until split gates pass |
 
-Dev S4.1 synthetic PostgreSQL engineering acceptance is complete
+Seven PostgreSQL tests now cover the default-off audit/knowledge retention path;
+native runtime receipt-ledger retention still needs its own policy and
+acceptance. Dev S4.1 synthetic PostgreSQL engineering acceptance is complete
 ([evidence](../architecture/evidence/dev-migration-s41.md)); physical cutover
-and deployment acceptance remain pending.
+and deployment acceptance remain pending. S4.1 remains rehearsal-only; no
+production per-runtime split has been accepted.
 
 R0 preparation and the M0 task-flow work may proceed in parallel. Production
 promotion remains gated; service extraction is not a prerequisite for a
-trusted-development operator flow. Scheduled ownership, integrated evolution,
-Requirement-to-OpenProject/PJM business handoff, live provider/platform pilots,
-physical ledger retention, and template export/import remain pending
-acceptance. Native executor handler conformance is verified only at the
-synthetic engineering boundary; a receipt does not mean a delivery outcome was
-accepted. S4.1's historical three-table cutover proof does not cover the
-additional native executor ledger.
+trusted-development operator flow. Recurring-work pilot, live model/provider
+measurement, live provider/platform integration, QA-agent delivery, operational
+retention/purge sign-off, and R0 remain pending. The handoff test verifies a
+default-off mapping and outbox only; the real-browser test verifies one
+synthetic restricted-process outcome. Native executor handler conformance
+remains at the synthetic engineering boundary; a receipt does not mean a
+four-runtime delivery outcome was accepted. S4.1's historical three-table
+cutover proof does not cover the additional native executor ledger.
 
 ## Remaining Product Hardening
 

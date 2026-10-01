@@ -7,13 +7,18 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import HTTPException
 
+from agents.pjm_agent.core.config import PJMCoreConfig
 from agents.pjm_agent.core.decompose import DecomposeError
+from agents.pjm_agent.core.decomposition_approval_workflow import (
+    DecompositionApprovalWorkflow,
+)
 from agents.pjm_agent.core.decomposition_orchestrator import (
     DecompositionOrchestrator,
 )
 from agents.pjm_agent.core.decomposition_request_workflow import (
     DecompositionRequestWorkflow,
 )
+from agents.pjm_agent.models.schemas import WBSResult
 from shared.api import ApiErrorCode
 from shared.schemas.event import Event, EventTypes
 
@@ -141,6 +146,118 @@ def _decomposition_store(transaction):
     store = MagicMock()
     store.transaction.return_value = _TransactionContext(transaction)
     return store
+
+
+class _MutableDecompositionTransaction:
+    def __init__(self, *, fail_create: bool = False):
+        self.record = None
+        self.fail_create = fail_create
+        self.staged_events = []
+        self.completed = False
+
+    async def get_by_wp_id(self, _wp_id):
+        return self.record
+
+    async def create(self, *, wp_id, project_id, decompose_result, assignee_id=None):
+        if self.fail_create:
+            raise RuntimeError("synthetic decomposition persistence failure")
+        self.record = SimpleNamespace(
+            wp_id=wp_id,
+            project_id=project_id,
+            decompose_result=decompose_result,
+            assignee_id=assignee_id,
+            status="pending",
+        )
+        return self.record
+
+    async def update_status(self, _wp_id, status, approved_by=None):
+        self.record.status = status
+        if approved_by is not None:
+            self.record.approved_by = approved_by
+        return True
+
+    async def delete_by_wp_id(self, _wp_id):
+        self.record = None
+        return True
+
+    async def stage_event(self, event):
+        self.staged_events.append(event)
+
+    async def commit(self):
+        self.completed = True
+
+    async def rollback(self):
+        self.completed = True
+
+
+def _mutable_decomposition_store(transaction):
+    store = MagicMock()
+    store.transaction.return_value = _TransactionContext(transaction)
+    return store
+
+
+def _delivery_event(*, company_id="cmp_pjm_delivery", trace_id="trace-rm-pjm"):
+    return Event.create(
+        event_type=EventTypes.SYNC_TASK_NEEDS_DECOMPOSE,
+        source_agent="requirement-manager",
+        payload={
+            "company_id": company_id,
+            "requirement_id": "req_synthetic_001",
+            "requirement_hash": "a" * 64,
+            "goal_id": "goal_synthetic_001",
+            "work_item_id": "work_synthetic_001",
+            "wp_id": 321,
+            "project_id": 654,
+            "subject": "Deliver reviewed export",
+            "description": "Preserve the reviewed requirement context.",
+            "wp_type": "Feature",
+            "project_name": "Synthetic project",
+        },
+        trace_id=trace_id,
+    )
+
+
+def _request_workflow(*, store, decompose_service, create_event_fn, messenger=None):
+    card_renderer = MagicMock()
+    card_renderer.build_decomposition_approval_card.return_value = {"card": "synthetic"}
+    return DecompositionRequestWorkflow(
+        decomposition_store=store,
+        decompose_service=decompose_service,
+        push_service=MagicMock(),
+        approval_gate=SimpleNamespace(
+            enforced=True,
+            request_approval=AsyncMock(return_value=None),
+        ),
+        create_event_fn=create_event_fn,
+        config=PJMCoreConfig.from_values(
+            company_id="cmp_pjm_delivery",
+            decompose_notify_open_id="ou_synthetic_reviewer",
+        ),
+        messenger=messenger,
+        card_renderer=card_renderer,
+    ), card_renderer
+
+
+def _wbs_result():
+    return WBSResult(
+        summary="Reviewed export delivery",
+        subtasks=[
+            {
+                "subject": "Implement export",
+                "estimated_days": 2,
+                "children": [{"subject": "Add endpoint", "estimated_hours": 4}],
+            }
+        ],
+    )
+
+
+def _create_event(event_type, payload, trace_id=None):
+    return Event.create(
+        event_type=event_type,
+        source_agent="pjm-agent",
+        payload=payload,
+        trace_id=trace_id,
+    )
 
 
 @pytest.mark.asyncio
@@ -297,6 +414,108 @@ async def test_handle_decompose_failure_persists_error_code():
         "error_code": "pm.decomposition_failed",
     }
     repo.update_status.assert_awaited_once_with(123, "failed")
+
+
+@pytest.mark.asyncio
+async def test_delivery_company_mismatch_is_rejected_before_decomposition():
+    store = MagicMock()
+    decompose_service = MagicMock()
+    decompose_service.decompose = AsyncMock()
+    workflow, _ = _request_workflow(
+        store=store,
+        decompose_service=decompose_service,
+        create_event_fn=MagicMock(),
+    )
+
+    with pytest.raises(ValueError, match="delivery_handoff_company_mismatch"):
+        await workflow.handle_decompose(_delivery_event(company_id="cmp_unexpected_company"))
+
+    decompose_service.decompose.assert_not_awaited()
+    store.transaction.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delivery_context_and_trace_survive_persistence_and_approved_dev_handoff():
+    transaction = _MutableDecompositionTransaction()
+    store = _mutable_decomposition_store(transaction)
+    decompose_service = MagicMock()
+    decompose_service.decompose = AsyncMock(return_value=_wbs_result())
+    messenger = MagicMock()
+    messenger.send_card = AsyncMock()
+    request_workflow, card_renderer = _request_workflow(
+        store=store,
+        decompose_service=decompose_service,
+        create_event_fn=_create_event,
+        messenger=messenger,
+    )
+
+    inbound_event = _delivery_event()
+    request_events = await request_workflow.handle_decompose(inbound_event)
+
+    persisted_context = transaction.record.decompose_result["delivery_context"]
+    assert persisted_context == {
+        "company_id": "cmp_pjm_delivery",
+        "requirement_id": "req_synthetic_001",
+        "requirement_hash": "a" * 64,
+        "goal_id": "goal_synthetic_001",
+        "work_item_id": "work_synthetic_001",
+        "trace_id": "trace-rm-pjm",
+        "handoff_event_id": inbound_event.event_id,
+    }
+    assert transaction.record.status == "pending"
+    assert len(request_events) == 1
+    assert request_events[0].event_type == EventTypes.PM_DECOMPOSE_COMPLETED
+    assert request_events[0].metadata.trace_id == "trace-rm-pjm"
+    messenger.send_card.assert_awaited_once()
+    card_renderer.build_decomposition_approval_card.assert_called_once()
+
+    approval_gate = MagicMock()
+    approval_gate.approve_for_sensitive_action = AsyncMock()
+    op_writer = MagicMock()
+    op_writer.write_wbs = AsyncMock(return_value={"created": True})
+    approval = DecompositionApprovalWorkflow(
+        decomposition_store=store,
+        approval_gate=approval_gate,
+        op_writer=op_writer,
+        push_service=MagicMock(),
+        create_event_fn=_create_event,
+    )
+
+    approved = await approval.approve_decomposition(321, approved_by="human:pm")
+
+    dev_event = next(
+        staged.event
+        for staged in approved.staged_events
+        if staged.event.event_type == EventTypes.PM_TASKS_READY_FOR_DEV
+    )
+    assert dev_event.metadata.trace_id == "trace-rm-pjm"
+    assert dev_event.payload["delivery_context"] == persisted_context
+    assert dev_event.payload["tasks"][0]["title"] == "Add endpoint"
+    assert op_writer.write_wbs.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_delivery_persistence_failure_prevents_approval_card_and_success_event():
+    transaction = _MutableDecompositionTransaction(fail_create=True)
+    store = _mutable_decomposition_store(transaction)
+    decompose_service = MagicMock()
+    decompose_service.decompose = AsyncMock(return_value=_wbs_result())
+    messenger = MagicMock()
+    messenger.send_card = AsyncMock()
+    create_event_fn = MagicMock()
+    workflow, card_renderer = _request_workflow(
+        store=store,
+        decompose_service=decompose_service,
+        create_event_fn=create_event_fn,
+        messenger=messenger,
+    )
+
+    with pytest.raises(RuntimeError, match="synthetic decomposition persistence failure"):
+        await workflow.handle_decompose(_delivery_event())
+
+    create_event_fn.assert_not_called()
+    messenger.send_card.assert_not_awaited()
+    card_renderer.build_decomposition_approval_card.assert_not_called()
 
 
 @pytest.mark.asyncio

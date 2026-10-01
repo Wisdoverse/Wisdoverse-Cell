@@ -118,6 +118,21 @@ jobs:
           if any(case.find('failure') is not None or case.find('error') is not None for case in cases):
               sys.exit('Native PostgreSQL receiver ownership failed')
           PYTEST_GATE
+      - name: Roadmap PostgreSQL acceptance must run
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://wisdoverse_cell:wisdoverse_cell@127.0.0.1:5433/wisdoverse_cell_migration_test
+        run: |
+          python -m pytest -q tests/integration/test_company_reuse_acceptance.py tests/integration/test_evolution_loop_acceptance.py tests/integration/test_recurring_work_acceptance.py tests/integration/test_physical_retention.py tests/integration/test_requirement_delivery_handoff.py --junitxml=/tmp/roadmap-acceptance.xml
+          python - <<'PYTEST_GATE'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          cases = ET.parse('/tmp/roadmap-acceptance.xml').findall('.//testcase')
+          if len(cases) != 12 or any(case.find('skipped') is not None for case in cases):
+              sys.exit('Roadmap PostgreSQL acceptance was skipped or not collected')
+          if any(case.find('failure') is not None or case.find('error') is not None for case in cases):
+              sys.exit('Roadmap PostgreSQL acceptance failed')
+          PYTEST_GATE
       - name: Migration round-trip
         env:
           TEST_DATABASE_URL: postgresql+asyncpg://wisdoverse_cell:wisdoverse_cell@127.0.0.1:5433/wisdoverse_cell_migration_test
@@ -189,6 +204,20 @@ jobs:
   frontend:
     name: Frontend lint, tests, audit
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: browser_acceptance
+          POSTGRES_PASSWORD: synthetic_browser_acceptance
+          POSTGRES_DB: browser_acceptance
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U browser_acceptance"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: frontend
@@ -204,3 +233,57 @@ jobs:
       - run: npm test
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run build
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install browser acceptance dependencies
+        run: |
+          pip install -r ../requirements.txt
+          npx playwright install --with-deps chromium
+      - name: Mocked workflow browser contracts
+        run: npm run test:e2e -- e2e/control-plane-workflow.spec.ts --reporter=line
+      - name: Real PostgreSQL operator browser acceptance
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://browser_acceptance:synthetic_browser_acceptance@127.0.0.1:5434/browser_acceptance
+          CONTROL_PLANE_API_BASE_URL: http://127.0.0.1:8101/api/v1
+          CONTROL_PLANE_OPERATOR_TOKEN: synthetic-browser-operator
+          CONTROL_PLANE_INTERNAL_KEY: synthetic-browser-internal
+          AUTH_SECRET: synthetic-browser-auth-secret
+          NEXTAUTH_URL: http://localhost:3200
+          REAL_CONTROL_PLANE_E2E: "1"
+          PLAYWRIGHT_BASE_URL: http://localhost:3200
+          PLAYWRIGHT_SKIP_WEB_SERVER: "1"
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE: /tmp/roadmap-browser.xml
+        run: |
+          PYTHONPATH=.. python ../scripts/roadmap_acceptance_server.py > /tmp/roadmap-browser-api.log 2>&1 &
+          api_pid=$!
+          npm run dev -- --hostname localhost --port 3200 > /tmp/roadmap-browser-next.log 2>&1 &
+          next_pid=$!
+          trap 'kill -INT "$api_pid"; kill "$next_pid"; wait "$api_pid" || true; wait "$next_pid" || true' EXIT
+          python - <<'PYTEST_READY'
+          import time
+          import urllib.request
+
+          for url in ('http://127.0.0.1:8101/health', 'http://localhost:3200'):
+              for attempt in range(60):
+                  try:
+                      with urllib.request.urlopen(url, timeout=1) as response:
+                          if response.status == 200:
+                              break
+                  except (OSError, TimeoutError):
+                      time.sleep(1)
+              else:
+                  raise SystemExit(f'Browser acceptance fixture unavailable: {url}')
+          PYTEST_READY
+          npm run test:e2e -- e2e/control-plane-real-api.spec.ts --reporter=line,junit
+          python - <<'PYTEST_GATE'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          cases = ET.parse('/tmp/roadmap-browser.xml').findall('.//testcase')
+          if len(cases) != 1 or any(case.find('skipped') is not None for case in cases):
+              sys.exit('Real operator browser acceptance was skipped or not collected')
+          if any(case.find('failure') is not None or case.find('error') is not None for case in cases):
+              sys.exit('Real operator browser acceptance failed')
+          PYTEST_GATE

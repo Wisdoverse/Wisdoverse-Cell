@@ -21,7 +21,8 @@ stable before any additional service extraction.
    goals, work items, agent roles, agent runs, approvals, budgets, artifacts,
    decisions, audit events, evolution proposals, company-template names,
    knowledge references/tombstones, execution leases/reservations, outcome
-   acceptances, evaluation reports, and Control Plane evolution deployments.
+   acceptances, evaluation reports, Control Plane evolution deployments,
+   audit-retention tombstones, and physical-retention run receipts.
 5. Cross-boundary writes go through HTTP/RPC/application methods or EventBus
    events. Do not mutate another boundary's table directly.
 6. Cross-boundary reads should use API/RPC, events, or explicit read-only
@@ -61,8 +62,8 @@ stable before any additional service extraction.
 | Tables | Owner boundary | Write contract | Read contract |
 |--------|----------------|----------------|---------------|
 | `control_plane_companies`, `control_plane_goals`, `control_plane_agent_roles`, `control_plane_agent_prompt_configs`, `control_plane_work_items`, `control_plane_agent_runs`, `control_plane_decisions`, `control_plane_approval_requests`, `control_plane_artifacts`, `control_plane_budget_policies`, `control_plane_budget_usage`, `control_plane_audit_events`, `control_plane_event_outbox`, `control_plane_evolution_proposals` | Control Plane / Governance | `shared/control_plane` repository/API only | Control-plane API, Control Plane event outbox dispatcher, or explicit read-only reporting path |
-| `control_plane_company_template_names`, `control_plane_knowledge`, `control_plane_knowledge_tombstones`, `control_plane_execution_leases`, `control_plane_execution_reservations`, `control_plane_outcome_acceptances`, `control_plane_evolution_evaluations`, `control_plane_evolution_deployments` | Control Plane / Governance | Control Plane domain/use-case ports and SQL adapters only; same-session audit writes where required | Company-scoped Control Plane APIs or explicit read-only reporting path |
-| `meetings`, `requirements`, `open_questions`, `feedback_records`, `llm_usage`, `chat_messages`, `requirement_event_outbox` | Requirement | Requirement Manager application services and repositories | Requirement API, gRPC requirement service, EventBus events, or requirement read models |
+| `control_plane_company_template_names`, `control_plane_knowledge`, `control_plane_knowledge_tombstones`, `control_plane_execution_leases`, `control_plane_execution_reservations`, `control_plane_outcome_acceptances`, `control_plane_evolution_evaluations`, `control_plane_evolution_deployments`, `control_plane_audit_retention_tombstones`, `control_plane_retention_runs` | Control Plane / Governance | Control Plane domain/use-case ports and SQL adapters only; same-session audit writes where required | Company-scoped Control Plane APIs or explicit read-only reporting path |
+| `meetings`, `requirements`, `open_questions`, `feedback_records`, `llm_usage`, `chat_messages`, `requirement_event_outbox`, `requirement_delivery_handoffs` | Requirement | Requirement Manager application services and repositories | Requirement API, gRPC requirement service, EventBus events, or requirement read models |
 | `requirement_manager_executor_requests` | Requirement | Requirement Manager runtime injects its own primary session and table into the shared native-executor SQL adapter | Internal version 1.0 executor request/receipt HTTP endpoints on the Requirement Manager runtime |
 | `pjm_agent_alert_logs`, `pjm_agent_config_cache`, `pjm_agent_decomposition_records`, `pjm_agent_event_outbox` | Planning / PJM | PJM agent application services and repositories | PJM API/events or reporting projections |
 | `pjm_executor_requests` | Planning / PJM | PJM runtime injects its own primary session and table into the shared native-executor SQL adapter | Internal version 1.0 executor request/receipt HTTP endpoints on the PJM runtime |
@@ -111,6 +112,27 @@ stable before any additional service extraction.
   or table access. A `recorded` receipt reports request execution and response
   persistence; it does not establish business-outcome acceptance or completed
   end-to-end delivery.
+- Requirement-to-Control-Plane delivery handoff is an additive, default-off
+  HTTP contract. The Control Plane verifies the target company, goal, and work
+  item before accepting a handoff. The caller supplies an explicit mapping to
+  an existing OpenProject project and work package; the handoff does not create
+  OpenProject objects automatically and does not access Requirement Manager or
+  OpenProject ORM tables across their owners. Requirement Manager owns the
+  durable handoff receipt and its `(company_id, project_id, wp_id)` uniqueness
+  rule; Control Plane owns its own validation and audit evidence.
+- Physical retention is an explicitly enabled Control Plane operation. Audit
+  retention has a minimum 90-day age and a maximum 1,000-row batch. Cleanup is
+  company-scoped and serialized on the Control Plane company row. It preserves
+  pending outbox deliveries and audit events pinned by artifact
+  `metadata.evidence.audit_events`; eligible published outbox rows may be
+  removed with their purged audit event. Compact audit tombstones retain
+  hashed idempotency keys and replay receipts permanently, preventing a
+  duplicate append from recreating a purged event or outbox message. Expired
+  knowledge pointers are physically removed only after permanent knowledge
+  tombstones are written; source artifacts remain owned and retained by their
+  artifact lifecycle. Database retention does not remove copies already held
+  in WAL, backups, or external exports; those follow their own retention and
+  recovery policies.
 - `AgentRuntime` must route events returned by `handle_event()` through an
   agent-level `publish_event_via_outbox(event)` hook when the runtime boundary
   owns a durable outbox; direct EventBus publish is a legacy fallback only.
@@ -140,6 +162,10 @@ stable before any additional service extraction.
   ledger or certify the other runtimes. Any deployment that enables a native
   executor must include its ledger in separate backup, restore, cutover, and
   rollback evidence.
+- Requirement delivery handoff and Control Plane physical retention remain in
+  the shared migration chain. Their addition does not promote any runtime from
+  candidate status; per-runtime migrations and service extraction remain
+  subject to the existing runtime-specific gates.
 
 ## 6. Current Known Gaps
 

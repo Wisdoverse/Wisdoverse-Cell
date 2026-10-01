@@ -43,7 +43,7 @@ repository's existing explicit advisory policy.
 
 | Area | Implemented foundation | Acceptance still needed |
 |------|------------------------|-------------------------|
-| Company operating model | Goals, roles, work items, runs, approvals, budgets, artifacts and audit records; [operator surfaces](./product-model.md#current-operator-surfaces) | One complete operator/business flow with durable outcome evidence |
+| Company operating model | Goals, roles, work items, runs, approvals, budgets, artifacts and audit records; one synthetic PostgreSQL-backed browser flow persists linked outcome evidence; [operator surfaces](./product-model.md#current-operator-surfaces) | Native Requirement Manager→PJM→Dev→QA business delivery and live business acceptance remain open |
 | Execution | [Registry](../../shared/control_plane/adapter_registry.py) and [runner](../../shared/control_plane/agent_runner.py): HTTP execution and gated local process paths; the native receiver adds owner-local durable receipts for four runtimes | Synthetic native-handler conformance and PostgreSQL replay/concurrency are verified; live provider/platform conformance and safe lifecycle acceptance remain open. `builtin` recording alone does not deliver a task. |
 | Scheduling and recovery | Due-once [heartbeat scheduler](../../shared/control_plane/scheduler.py), per-runtime outboxes and selected deduplication paths | Production scheduler ownership, atomic claims/leases, safe restart and replay across the selected work path |
 | Governance | Approval commands/gates, budget policies/usage, internal authentication and local-adapter restrictions | Enforced operator/tool scopes, approval-to-action binding and concurrent budget behavior on every supported execution path |
@@ -62,20 +62,34 @@ operator policy and metrics operations.
 
 | Area | Implemented foundation as of this snapshot | Acceptance remains open |
 |------|--------------------------------------------|-------------------------|
-| M0 — report and first outcome | First-success CLI creates a synthetic report through a real local-process boundary; work-item acceptance is linked to the latest run and artifact hash. | Complete business-flow acceptance, real accepted outcome and QA/review evidence; native four-runtime delivery is not established. |
-| M1 — ownership and policy | Execution ownership leases/reservations, scoped operator authorization, approval binding, conservative unknown-cost settlement, and an opt-in HTTP heartbeat worker are implemented. | Observed recurring work, recovery behavior on the selected runtime, and target-environment operational evidence. |
-| M2 — executor boundary | The default-off native HTTP receiver has versioned contracts, four owner-local durable ledgers, and bounded dispatch; synthetic four-runtime handler conformance and PostgreSQL replay/concurrency are verified. | Requirement-to-OpenProject/PJM business mapping, live provider/platform pilots, physical ledger retention and R0 deployment acceptance remain open. See the [native executor engineering receipt](../evidence/native-executor-engineering-2026-10-01.md) and the [runbook](../runbooks/native-executor.md). |
-| M3 — governed evolution | Fixed-case evaluation and signed release commands support approval-gated shadow/canary/promotion/rollback transitions. | Measured live model/provider evolution and verified rollback under target runtime conditions. No live-evolution acceptance is claimed. |
-| M4 — company reuse | Secret-scrubbed company template export/import and artifact-backed knowledge provenance, role ACL, versioning, expiry and deletion are implemented; imported roles remain paused. | Accepted template round trip and knowledge lifecycle/retention acceptance. |
-| Frontend architecture | Operator surfaces use Feature-Sliced Design organization. | Product-flow acceptance across the required operator states remains open. |
-| R0 — deployment | Readiness checker and deployment gates are implemented; Dev S4.1 synthetic engineering evidence passed. PR #395 merged at `42b06d0c1a9de9f2878ead1b0b5c6d011979a0f4` for that S4.1 work. | At least 14 days of target staging observation, cloud/deployment acceptance, replay and rollback evidence, and operator sign-off. This is not an S4.2 acceptance claim. |
-| Retention | Redacted, company-scoped audit export is limited to a 90-day query window. | Physical retention/purge policy and its enforcement remain pending. |
+| M0 — report and first outcome | First-success CLI creates a synthetic report through a real local-process boundary. One real-browser run against an isolated PostgreSQL-backed Control Plane completed visible create, reassign, execute, inspect, accept, and close; linked run, artifact, cost usage and acceptance audit records were read back through the operator proxy. | This verifies one synthetic operator outcome, not the Requirement Manager→PJM→Dev→QA business path, a QA-agent verdict, a provider/platform pilot, or a business pilot. Native four-runtime delivery and failure/restart browser acceptance remain open. |
+| M1 — ownership and policy | Execution ownership leases/reservations, scoped operator authorization, approval binding, conservative unknown-cost settlement, and an opt-in HTTP heartbeat worker are implemented. Two isolated PostgreSQL acceptance cases cover competing recurring claims/restart and governance denials. | An observed recurring-work pilot, recovery on a selected deployed runtime, and target-environment operational evidence remain open; the two cases are synthetic/injected engineering checks. |
+| M2 — executor boundary | The default-off native HTTP receiver has versioned contracts, four owner-local durable ledgers and bounded dispatch; synthetic four-runtime handler conformance and PostgreSQL replay/concurrency are verified. One PostgreSQL Requirement Manager handoff case verifies confirmed-requirement mapping to existing OpenProject project/work-package IDs and Control Plane company/goal/work links through read-only HTTP checks, with an atomic local mapping/outbox. | The handoff is a default-off synthetic contract test: it queues an event and does not write to a live OpenProject instance or establish PJM/Dev/QA delivery. Live provider/platform pilots, physical retention of the four native receipt ledgers, and R0 deployment acceptance remain open. Separate Control Plane audit/knowledge retention is covered below. The native receiver's [engineering receipt](../evidence/native-executor-engineering-2026-10-01.md) and [runbook](../runbooks/native-executor.md) document its boundary. |
+| M3 — governed evolution | Fixed-case evaluation and signed release commands support approval-gated shadow/canary/promotion/rollback. One isolated PostgreSQL acceptance loop exercises 50 fixed paired synthetic cases and a guarded L1 proposal/release/regression rollback. | No model/provider call or live quality measurement is included. Live model/provider evolution and rollback under target runtime conditions remain open. |
+| M4 — company reuse | Secret-scrubbed company template export/import and artifact-backed knowledge provenance, role ACL, versioning, expiry and deletion are implemented. One isolated PostgreSQL synthetic acceptance covers redacted round-trip, paused imported permissions and knowledge lifecycle. | Broader organization/product reuse acceptance and target-environment retention operations remain open. |
+| Frontend architecture | Operator surfaces use Feature-Sliced Design. One real-browser test now drives the isolated synthetic backend through the operator proxy and verifies linked persisted evidence. | The browser case does not cover QA-agent acceptance, external integrations, retries, restart, or a business pilot. |
+| R0 — deployment | Readiness checker and deployment gates are implemented; Dev S4.1 synthetic engineering evidence passed. PR #395 merged at `42b06d0c1a9de9f2878ead1b0b5c6d011979a0f4` for that S4.1 work. | At least 14 days and 1,000 matching requests in target staging, cloud/deployment acceptance, replay and rollback evidence, and operator sign-off remain required. This is not an S4.2 or production-split acceptance claim. |
+| Retention | Redacted, company-scoped audit export has a 90-day query window. Seven isolated PostgreSQL acceptance cases cover default-off preview/apply, bounded batches, replay, pending and artifact-pinned audit preservation, compact tombstones and knowledge expiry. | The policy defaults off, enforces a minimum 90-day age and caps batches at 1,000. It does not erase WAL or backup copies; operational retention/purge sign-off remains pending. Native runtime-ledger retention is separate and remains open. |
 
-The snapshot does not establish a live model/provider pilot, production
-readiness, cloud acceptance, or a completed milestone. S4.1 synthetic
-engineering acceptance remains distinct from S4.2's two-week staging gate;
+This delivery closure is frozen in the [new engineering receipt](../evidence/roadmap-delivery-closure-2026-10-01.md); it records PostgreSQL, browser and schema checks separately from live acceptance. The [delivery and retention runbook](../runbooks/roadmap-delivery-retention.md) defines rollout, replay and rollback.
+
+The PostgreSQL cases use isolated disposable schemas and synthetic/injected
+fixtures; the browser case uses a synthetic company and restricted local
+process through the real HTTP proxy. They do not establish live provider,
+platform, model-quality, QA-agent, recurring-work or business-pilot evidence.
+The snapshot does not establish production readiness, cloud acceptance, or a
+completed milestone. S4.1 synthetic engineering acceptance remains distinct
+from S4.2's staging gate;
 see the [migration plan](../architecture/migration-plan.md#s41-engineering-evidence--2026-10-01)
 for its original evidence and unchanged exit criteria.
+
+Additional PostgreSQL acceptance sources are [company reuse](../../tests/integration/test_company_reuse_acceptance.py)
+(1 case), [L1 evolution](../../tests/integration/test_evolution_loop_acceptance.py)
+(1 loop with 50 fixed paired cases), [recurring work](../../tests/integration/test_recurring_work_acceptance.py)
+(2 cases), [physical retention](../../tests/integration/test_physical_retention.py)
+(7 cases), and [Requirement Manager delivery handoff](../../tests/integration/test_requirement_delivery_handoff.py)
+(1 case). The [real-browser operator case](../../frontend/e2e/control-plane-real-api.spec.ts)
+adds one synthetic full-stack create-to-close flow.
 
 ## Delivery Order
 
@@ -122,9 +136,15 @@ company operations as well as software delivery.
 - Provide a minimal first-success guide and synthetic company/work fixtures.
   Record setup time and time to accepted output separately. A fixture is not
   general company-template export/import.
+- One isolated real-browser case now completes create → assign → real backend
+  run → inspect artifact → accept with a reason → close, and reads linked
+  goal, work-item, run, artifact, cost and acceptance-audit records back
+  through the operator proxy. The company and local-process output are
+  synthetic; this is not the Requirement Manager → PJM → Dev → QA flow.
 - Complete create → assign → real run → required review/approval → inspect
-  artifact → close through the operator surface. Persist goal, work-item,
-  role, run, artifact, decision and cost links across restart.
+  artifact → close through the operator surface on the target business path.
+  Persist goal, work-item, role, run, artifact, review and cost links across
+  restart; obtain QA-agent evidence and verify the required approval states.
 - Keep execution in a reviewed HTTP runtime or restricted test workspace.
   Verify applicable auth, approval, budget and local-adapter gates on the
   selected path. A denied action must not launch work; richer permission
@@ -166,23 +186,35 @@ check or whole-system idempotency from one component's unique key.
 
 ## M2 — Executor and Integration Conformance
 
-The native receiver now supplies a stable versioned HTTP boundary for the
+The native receiver supplies a stable versioned HTTP boundary for the
 Requirement Manager, PJM, Dev, and QA runtimes. Its contract is default-off,
 company-scoped, idempotent by run ID and backed by owner-local durable
 receipts. Synthetic handler conformance across all four runtimes and
-PostgreSQL replay/concurrency behavior have been verified; see the [pending
-engineering evidence record](../evidence/native-executor-engineering-2026-10-01.md)
+PostgreSQL replay/concurrency behavior are verified; see the [native executor
+engineering receipt](../evidence/native-executor-engineering-2026-10-01.md)
 and [native executor runbook](../runbooks/native-executor.md). A `recorded`
 receipt is not accepted delivery. No new bus events were introduced.
 
-The business mapping from confirmed Requirement to OpenProject work package
-and PJM decomposition is still missing. Live provider/platform pilots and
-physical retention/recovery evidence remain open, so this engineering work
-does not complete M2 acceptance or R0 deployment acceptance.
+The Requirement Manager now has a default-off handoff from a confirmed
+requirement to selected existing OpenProject project/work-package IDs and
+verified Control Plane company/goal/work links. It verifies Control Plane
+context through read-only HTTP requests and atomically persists its mapping,
+receipt and pending outbox entry. One isolated PostgreSQL case covers
+concurrent replay, mismatch/denial paths and persisted outbox state; it does
+not write to OpenProject or establish PJM decomposition, Dev execution, QA
+acceptance or a live platform pilot. See
+[handoff acceptance](../../tests/integration/test_requirement_delivery_handoff.py).
 
-The native receiver engineering boundary is implemented and synthetically
-verified. M2 acceptance still requires the scoped integration handoff and
-target-environment evidence described above. Certify the existing `http` and
+Physical retention now has a default-off, company-scoped path with a minimum
+90-day cutoff, batches capped at 1,000, pending-event and artifact-evidence
+pins, and compact replay tombstones. Seven isolated PostgreSQL cases cover its
+preview/apply, batching and replay behavior. The path does not erase WAL or
+backup copies, and operational retention/recovery sign-off remains open.
+Live provider/platform pilots and R0 deployment acceptance also remain open.
+
+The native receiver engineering boundary and one scoped handoff are implemented
+and synthetically verified. M2 acceptance still requires target-environment
+evidence described above. Certify the existing `http` and
 selected gated local-process paths for any release that relies on them.
 Codex/Claude registry entries do not establish dedicated or production-tested
 integrations. Test workspace/secret isolation, policy checks, artifact
@@ -250,9 +282,10 @@ remains on the backlog; another project's topology does not justify it.
 
 R0 records target revision, declared SLOs, observed dates, supported adapters,
 secrets/auth configuration, migration ownership, recovery drills and release
-sign-off. Extracted runtimes retain the required minimum two-week realistic
-staging observation and tested compatibility fallback. A CI image build or
-shared-chain migration round trip cannot close that acceptance.
+sign-off. Extracted runtimes require at least 14 days and 1,000 matching
+requests in realistic target staging, plus tested compatibility fallback. A
+CI image build or shared-chain migration round trip cannot close that
+acceptance.
 
 ## Outcome Scorecard
 

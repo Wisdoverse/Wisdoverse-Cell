@@ -7,6 +7,26 @@ import { ControlPlaneWorkbenchPage } from "./control-plane-workbench-page";
 
 const useControlPlaneWorkbenchMock = vi.fn<() => ControlPlaneWorkbenchState>();
 
+vi.mock("@/entities/control-plane", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/entities/control-plane")>();
+  return {
+    ...actual,
+    useControlPlaneOperatingMetrics: vi.fn(() => ({
+      data: undefined,
+      error: undefined,
+      isLoading: false,
+    })),
+  };
+});
+
+vi.mock("@/features/evolution-operations/api/evolution-operations", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/evolution-operations/api/evolution-operations")>();
+  return {
+    ...actual,
+    listEvolutionEvaluations: vi.fn().mockResolvedValue({ evaluations: [] }),
+  };
+});
+
 vi.mock("@/features/control-plane-operations", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/features/control-plane-operations")>();
   return {

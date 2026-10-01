@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .domain.audit_event import AuditEvent as AuditEventAggregate
+from .domain.physical_retention import idempotency_digest
 from .domain_event_outbox import (
     audit_event_carries_domain_event,
     outbox_event_from_audit_event,
@@ -13,6 +14,7 @@ from .domain_records import audit_event_record
 from .event_outbox_store import SqlAlchemyControlPlaneEventOutboxStore
 from .models import AuditEvent
 from .operator_auth import current_operator
+from .retention_models import AuditRetentionTombstoneTable
 from .store_utils import model_values
 from .tables import AuditEventTable
 
@@ -31,11 +33,18 @@ class SqlAlchemyControlPlaneAuditEventStore:
         event = aggregate.record
 
         if event.idempotency_key:
+            compact = await self._get_retained_audit(event.company_id, event.idempotency_key)
+            if compact is not None:
+                return compact
             existing = await self._get_audit_by_idempotency(
                 event.company_id, event.idempotency_key
             )
             if existing is not None:
                 return audit_event_record(existing)
+            # A purge may have committed while the SELECT waited on its row lock.
+            compact = await self._get_retained_audit(event.company_id, event.idempotency_key)
+            if compact is not None:
+                return compact
 
         row = AuditEventTable(**model_values(event))
         self._session.add(row)
@@ -80,6 +89,14 @@ class SqlAlchemyControlPlaneAuditEventStore:
             select(AuditEventTable).where(
                 AuditEventTable.company_id == company_id,
                 AuditEventTable.idempotency_key == idempotency_key,
-            )
+            ).with_for_update()
         )
         return result.scalar_one_or_none()
+
+    async def _get_retained_audit(self, company_id: str, key: str) -> AuditEvent | None:
+        row = await self._session.scalar(select(AuditRetentionTombstoneTable).where(
+            AuditRetentionTombstoneTable.company_id == company_id,
+            AuditRetentionTombstoneTable.idempotency_hash == idempotency_digest(company_id, key)))
+        if row is None:
+            return None
+        return AuditEvent.model_validate(row.receipt).model_copy(update={"idempotency_key": key})

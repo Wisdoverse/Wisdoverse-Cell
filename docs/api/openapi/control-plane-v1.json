@@ -1711,6 +1711,96 @@
         "title": "KnowledgeReviseRequest",
         "type": "object"
       },
+      "RetentionCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_size": {
+            "default": 100,
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "company_id": {
+            "maxLength": 48,
+            "minLength": 1,
+            "title": "Company Id",
+            "type": "string"
+          },
+          "dry_run": {
+            "default": true,
+            "title": "Dry Run",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "company_id"
+        ],
+        "title": "RetentionCommand",
+        "type": "object"
+      },
+      "RetentionReceipt": {
+        "additionalProperties": false,
+        "properties": {
+          "audit_cutoff": {
+            "format": "date-time",
+            "title": "Audit Cutoff",
+            "type": "string"
+          },
+          "company_id": {
+            "title": "Company Id",
+            "type": "string"
+          },
+          "dry_run": {
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "eligible_audit_events": {
+            "title": "Eligible Audit Events",
+            "type": "integer"
+          },
+          "expired_knowledge": {
+            "title": "Expired Knowledge",
+            "type": "integer"
+          },
+          "minimal_replay_receipts_retained": {
+            "const": true,
+            "default": true,
+            "title": "Minimal Replay Receipts Retained",
+            "type": "boolean"
+          },
+          "purged_audit_events": {
+            "title": "Purged Audit Events",
+            "type": "integer"
+          },
+          "purged_knowledge": {
+            "title": "Purged Knowledge",
+            "type": "integer"
+          },
+          "purged_published_outbox_events": {
+            "title": "Purged Published Outbox Events",
+            "type": "integer"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company_id",
+          "dry_run",
+          "audit_cutoff",
+          "eligible_audit_events",
+          "purged_audit_events",
+          "purged_published_outbox_events",
+          "expired_knowledge",
+          "purged_knowledge"
+        ],
+        "title": "RetentionReceipt",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -5633,6 +5723,65 @@
           }
         },
         "summary": "Get Operating Metrics Prometheus",
+        "tags": [
+          "control-plane"
+        ]
+      }
+    },
+    "/api/v1/control-plane/retention": {
+      "post": {
+        "operationId": "apply_retention_api_v1_control_plane_retention_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetentionCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionReceipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Retention",
         "tags": [
           "control-plane"
         ]

@@ -140,6 +140,7 @@ async def test_process_single_task_persists_input_and_delegates_to_executor() ->
     )
     first_log = log_repo.create_log.await_args_list[0].kwargs
     assert first_log["workflow_json"]["task_input"]["wp_id"] == 123
+    assert first_log["workflow_json"]["metadata"]["trace_id"] == "trace-dev"
     executor.execute_workflow.assert_awaited_once()
 
 
@@ -168,6 +169,8 @@ async def test_plan_and_execute_injects_project_routes_tools_and_preserves_trace
     stored_workflow = log_repo.create_log.await_args.kwargs["workflow_json"]
     assert stored_workflow["nodes"][0]["config"]["projectId"] == "wisdoverse-cell"
     assert stored_workflow["nodes"][0]["config"]["cliTool"] == "codex"
+    assert stored_workflow["metadata"]["trace_id"] == "trace-dev"
+    assert "metadata" not in submitted_plan.model_dump()
 
 
 @pytest.mark.asyncio
@@ -194,6 +197,7 @@ async def test_high_risk_plan_records_approval_and_does_not_execute() -> None:
     assert result == []
     stored_workflow = log_repo.create_log.await_args.kwargs["workflow_json"]
     assert stored_workflow["control_plane_approval_id"] == "appr_high"
+    assert "metadata" not in stored_workflow
     repo.update_status.assert_any_await("dev-123", "awaiting_approval")
     executor.execute_workflow.assert_not_awaited()
 

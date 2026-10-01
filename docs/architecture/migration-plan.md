@@ -34,9 +34,14 @@ verified in the [native executor engineering receipt](../evidence/native-executo
 This is a separate addition to the migration scope. Dev S4.1's historical
 three-table recovery proof remains valid for its original scope and does not
 cover these ledgers. An enabled deployment must include each ledger in its
-backup, restore, cutover, and rollback plan. Physical retention, the
-Requirement-to-OpenProject/PJM business mapping, live platform/provider pilots,
-and R0 staging/cloud acceptance remain open. See the [native executor
+backup, restore, cutover, and rollback plan. Seven PostgreSQL tests cover the
+separate default-off Control Plane audit/knowledge retention policy; native
+runtime receipt-ledger retention and operational purge/recovery acceptance
+remain open. One synthetic Requirement Manager handoff case verifies selected
+OpenProject IDs and Control Plane company/goal/work links through read-only
+HTTP context checks and an atomic mapping/outbox; live platform writes and
+PJM/Dev/QA delivery acceptance remain open. R0 staging/cloud acceptance also
+remains open. See the [native executor
 runbook](../runbooks/native-executor.md).
 
 **Implemented** means the capability is represented in the repository.
@@ -68,11 +73,11 @@ in its authorized system.
 
 | Priority / item | Deliverable | Responsible role | Dependency | Exit evidence |
 |-----------------|-------------|------------------|------------|---------------|
-| P0 / M0 / S5.4 | Validate the task operation flow and its boundary contracts | Product maintainer + runtime maintainer + QA | Existing work-item commands, operator surfaces and execution gates | Create → assign → real run → QA/required approval → accepted artifact → close; failure/recovery and durable goal/cost/audit links |
+| P0 / M0 / S5.4 | Validate the task operation flow and its boundary contracts | Product maintainer + runtime maintainer + QA | Existing work-item commands, operator surfaces and execution gates | A synthetic browser create/assign/run/review/close flow now verifies real persisted links; still require Requirement Manager→PJM→Dev→QA delivery, QA/required approval, failure/recovery and restart acceptance |
 | P1 / M1–M3 | Reliable scheduling, policy enforcement, executor conformance and integrated evolution | Relevant runtime/product maintainer + operator | M0 evidence; M1 gates before wider execution or live experiments | [Product milestone criteria](../overview/roadmap.md#delivery-order); route/event contracts, fault cases and comparative evaluation |
 | R0 / S4.1 | Rehearse per-runtime migration cutover for Dev, or QA if its readiness evidence is stronger | Runtime maintainer + release operator | Stage 3 code boundaries; [physical cutover pre-conditions](./per-runtime-migrations.md#3-pre-conditions) | Dev synthetic PostgreSQL engineering scope passed: schema/ownership parity, backup-loss-restore, tracking rollback/restamp, failure guards and source-fingerprinted evidence; production-copy validation and operational cutover sign-off remain pending |
-| R0 / S4.2 | Accept one independent runtime in staging when extraction is justified | Release operator + runtime maintainer | S4.1; contracts, outbox, replay, idempotency and dashboards ready | At least two weeks of realistic staging load within declared SLOs; successful replay and rollback |
-| R0 / S4.3 | Complete the planned Sync deployment split under ADR-0009 when its gates pass | Sync maintainer + release operator | Per-side migration readiness, projection compatibility, baseline observations | Dual-write parity, per-side dispatcher verification, two-week staging observation and tested compatibility fallback |
+| R0 / S4.2 | Accept one independent runtime in staging when extraction is justified | Release operator + runtime maintainer | S4.1; contracts, outbox, replay, idempotency and dashboards ready | At least 14 days and 1,000 matching requests of realistic staging load within declared SLOs; successful replay and rollback |
+| R0 / S4.3 | Complete the planned Sync deployment split under ADR-0009 when its gates pass | Sync maintainer + release operator | Per-side migration readiness, projection compatibility, baseline observations | Dual-write parity, per-side dispatcher verification, at least 14 days and 1,000 matching staging requests, and tested compatibility fallback |
 
 M0 moves first in project delivery order; it can be accepted in the bundled,
 trusted-development topology. R0 preparation proceeds alongside it and still
@@ -161,7 +166,7 @@ waive any migration, staging or rollback gate.
 - **Verification**:
   - Evidence all [service split pre-conditions](./service-boundaries.md#1-default-posture)
     and runtime-specific ADR pre-conditions.
-  - Record at least two weeks of realistic staging load after cutover, with
+  - Record at least 14 days and 1,000 matching realistic staging requests after cutover, with
     declared request latency/error, outbox age, DLQ, projection freshness and
     LLM-cost thresholds. Record thresholds and observation dates before acceptance.
   - Rehearse worker recovery, duplicate events, replay and rollback; confirm

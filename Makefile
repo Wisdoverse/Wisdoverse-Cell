@@ -78,7 +78,14 @@ PYTEST_ROADMAP_PATHS = \
 	tests/unit/test_llm_skill_execution.py \
 	tests/integration/test_native_executor_contract.py \
 	tests/integration/test_native_executor_postgres.py \
-	tests/unit/test_native_executor_migration.py
+	tests/unit/test_native_executor_migration.py \
+	tests/unit/test_delivery_handoff.py \
+	tests/unit/test_delivery_retention_migration.py \
+	tests/integration/test_company_reuse_acceptance.py \
+	tests/integration/test_evolution_loop_acceptance.py \
+	tests/integration/test_recurring_work_acceptance.py \
+	tests/integration/test_physical_retention.py \
+	tests/integration/test_requirement_delivery_handoff.py
 
 PYTEST_E2E_PATHS = \
 	tests/e2e \

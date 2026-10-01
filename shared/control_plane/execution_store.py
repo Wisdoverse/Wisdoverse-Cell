@@ -514,6 +514,14 @@ class SqlAlchemyExecutionGovernanceStore:
                     },
                 )
             )
+        run = await self._session.scalar(
+            select(AgentRunTable).where(AgentRunTable.run_id == ticket.run_id,
+                AgentRunTable.company_id == lease.company_id).with_for_update()
+        )
+        if run is None:
+            raise ExecutionDenied("execution_run_not_found")
+        run.cost_usd = float(cost_usd)
+        run.metadata_json = {**(run.metadata_json or {}), "cost_is_estimate": estimated}
         lease.state = "failed" if failed else "succeeded"
         await self._session.flush()
 
