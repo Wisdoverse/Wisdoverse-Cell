@@ -1,2 +1,2 @@
 # Service-specific runtime dependency for the evolution capability image.
-litellm==1.83.14
+litellm==1.96.2

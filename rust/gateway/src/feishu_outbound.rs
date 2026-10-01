@@ -330,13 +330,7 @@ fn truncate(value: &str, max_chars: usize) -> String {
 }
 
 fn priority_label(value: &str) -> &str {
-    match value {
-        "P0" => "P0",
-        "P1" => "P1",
-        "P2" => "P2",
-        "P3" => "P3",
-        _ => value,
-    }
+    value
 }
 
 fn category_label(value: &str) -> &str {
