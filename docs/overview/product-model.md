@@ -103,7 +103,7 @@ Wisdoverse Cell should make this flow visible in the product surface. The user s
 | Workbench | `/[locale]/workflows` uses Feature-Sliced Design slices for goals, agents, approvals, budgets, runs, and timeline evidence | [API Reference](../guides/api-reference.md#control-plane-api), [Operations](../guides/operations.md#10-control-plane-operations) |
 | Agent creation | Operators can create `AgentRole` records with kind, interaction mode, context sources, reporting line, adapter type/config, capabilities, responsibilities, subscribed/published events, permissions, and status | [API Reference](../guides/api-reference.md#control-plane-api) |
 | Work item operations | `/api/v1/control-plane/work-items/{work_item_id}/activity`, `/run`, `/retry`, `/reassign`, `/block`, and `/close` make the work item the default operator command center | [API Reference](../guides/api-reference.md#control-plane-api), [Operations](../guides/operations.md#10-control-plane-operations) |
-| Agent execution | Manual wakeup and heartbeat ticks create `AgentRun` records. HTTP and gated local-process paths execute work; `builtin` records a wakeup, and Codex/Claude entries share the local-process path. Real executor conformance remains pending. | [Operations](../guides/operations.md#10-control-plane-operations), [runner](../../shared/control_plane/agent_runner.py) |
+| Agent execution | Manual wakeup and heartbeat ticks create `AgentRun` records. A default-off versioned native HTTP receiver dispatches allowlisted actions in four runtimes with owner-local durable receipts; synthetic four-runtime handler conformance and PostgreSQL replay/concurrency are verified. | [API Reference](../guides/api-reference.md#native-executor-api), [Native Executor Runbook](../runbooks/native-executor.md), [engineering evidence](../evidence/native-executor-engineering-2026-10-01.md) |
 | Governance | Approval and budget gates append durable evidence before or during sensitive execution | [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
 | Cost controls | Operators can manage scoped budget policies and inspect usage evidence | [API Reference](../guides/api-reference.md#control-plane-api), [Event Catalog](../guides/event-catalog.md#30-control-plane-domain) |
 | Evolution proposals | L1/L2/L3 self-evolution proposals are durable records with approval and rollout state; approval gates synchronize linked proposal state | [API Reference](../guides/api-reference.md#control-plane-api) |
@@ -170,8 +170,12 @@ and deployment acceptance remain pending.
 R0 preparation and the M0 task-flow work may proceed in parallel. Production
 promotion remains gated; service extraction is not a prerequisite for a
 trusted-development operator flow. Scheduled ownership, integrated evolution,
-executor conformance and template export/import remain pending acceptance,
-even though component records, endpoints and tests exist.
+Requirement-to-OpenProject/PJM business handoff, live provider/platform pilots,
+physical ledger retention, and template export/import remain pending
+acceptance. Native executor handler conformance is verified only at the
+synthetic engineering boundary; a receipt does not mean a delivery outcome was
+accepted. S4.1's historical three-table cutover proof does not cover the
+additional native executor ledger.
 
 ## Remaining Product Hardening
 

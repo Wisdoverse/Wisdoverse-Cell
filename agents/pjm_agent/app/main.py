@@ -15,6 +15,7 @@ from shared.utils.logger import get_logger
 from ..api.pm import router as pm_router
 from ..core.scheduler_use_cases import PJMSchedulerUseCase
 from ..db.database import db_manager
+from ..db.executor_ledger import EXECUTOR_ACTIONS, executor_ledger
 from ..service.agent import agent as _raw_agent
 from .plugins import PJMOutboxDispatcherPlugin
 
@@ -43,6 +44,8 @@ app = create_agent_app(
         InfraHealthPlugin(db_manager=db_manager),
         PJMOutboxDispatcherPlugin(),
     ],
+    native_executor_ledger=executor_ledger,
+    native_executor_actions=EXECUTOR_ACTIONS,
     control_plane_enabled=settings.control_plane_enabled,
     control_plane_company_id=settings.control_plane_company_id,
     on_startup=lambda rt: _start_scheduler(rt),

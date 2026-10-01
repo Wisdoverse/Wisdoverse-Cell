@@ -63,9 +63,13 @@ stable before any additional service extraction.
 | `control_plane_companies`, `control_plane_goals`, `control_plane_agent_roles`, `control_plane_agent_prompt_configs`, `control_plane_work_items`, `control_plane_agent_runs`, `control_plane_decisions`, `control_plane_approval_requests`, `control_plane_artifacts`, `control_plane_budget_policies`, `control_plane_budget_usage`, `control_plane_audit_events`, `control_plane_event_outbox`, `control_plane_evolution_proposals` | Control Plane / Governance | `shared/control_plane` repository/API only | Control-plane API, Control Plane event outbox dispatcher, or explicit read-only reporting path |
 | `control_plane_company_template_names`, `control_plane_knowledge`, `control_plane_knowledge_tombstones`, `control_plane_execution_leases`, `control_plane_execution_reservations`, `control_plane_outcome_acceptances`, `control_plane_evolution_evaluations`, `control_plane_evolution_deployments` | Control Plane / Governance | Control Plane domain/use-case ports and SQL adapters only; same-session audit writes where required | Company-scoped Control Plane APIs or explicit read-only reporting path |
 | `meetings`, `requirements`, `open_questions`, `feedback_records`, `llm_usage`, `chat_messages`, `requirement_event_outbox` | Requirement | Requirement Manager application services and repositories | Requirement API, gRPC requirement service, EventBus events, or requirement read models |
+| `requirement_manager_executor_requests` | Requirement | Requirement Manager runtime injects its own primary session and table into the shared native-executor SQL adapter | Internal version 1.0 executor request/receipt HTTP endpoints on the Requirement Manager runtime |
 | `pjm_agent_alert_logs`, `pjm_agent_config_cache`, `pjm_agent_decomposition_records`, `pjm_agent_event_outbox` | Planning / PJM | PJM agent application services and repositories | PJM API/events or reporting projections |
+| `pjm_executor_requests` | Planning / PJM | PJM runtime injects its own primary session and table into the shared native-executor SQL adapter | Internal version 1.0 executor request/receipt HTTP endpoints on the PJM runtime |
 | `dev_agent_tasks`, `dev_agent_workflow_logs`, `dev_agent_event_outbox` | Delivery / Dev | Dev agent application services and repositories | Dev API/events or reporting projections |
+| `dev_agent_executor_requests` | Delivery / Dev | Dev runtime injects its own primary session and table into the shared native-executor SQL adapter | Internal version 1.0 executor request/receipt HTTP endpoints on the Dev runtime |
 | `qa_acceptance_runs`, `qa_acceptance_results`, `qa_agent_event_outbox` | Quality / QA | QA agent application services and repositories | QA API/events or reporting projections |
+| `qa_executor_requests` | Quality / QA | QA runtime injects its own primary session and table into the shared native-executor SQL adapter | Internal version 1.0 executor request/receipt HTTP endpoints on the QA runtime |
 | `sync_agent_mappings`, `sync_agent_subtask_mappings`, `sync_agent_logs`, `sync_agent_locks`, `sync_agent_event_outbox` | Sync / Integration Projection | Sync capability only | Sync API/status endpoints or explicit projection reads |
 | `chat_agent_conversation_histories`, `chat_agent_card_operations`, `chat_agent_daily_progress`, `chat_agent_event_outbox` | Chat Agent | Chat-agent application services and repositories | Chat-agent API/events or analytics projection |
 | `channel_gateway_event_outbox` | Channel Gateway | Channel gateway only | Gateway API/events or analytics projection |
@@ -99,6 +103,14 @@ stable before any additional service extraction.
   and a row in the Event Catalog.
 - Cross-boundary commands must include an idempotency strategy before they are
   used for retries or async delivery.
+- Native executor version 1.0 requests and receipts are an additive internal
+  HTTP contract, disabled by default. Each receiving runtime owns and injects
+  its own executor request ledger table and primary database session;
+  `shared/infra/native_executor_store.py` is a reusable SQL adapter only. The
+  wire contract passes JSON DTOs and receipts, never cross-runtime ORM objects
+  or table access. A `recorded` receipt reports request execution and response
+  persistence; it does not establish business-outcome acceptance or completed
+  end-to-end delivery.
 - `AgentRuntime` must route events returned by `handle_event()` through an
   agent-level `publish_event_via_outbox(event)` hook when the runtime boundary
   owns a durable outbox; direct EventBus publish is a legacy fallback only.
@@ -122,6 +134,12 @@ stable before any additional service extraction.
 - Auxiliary stores such as Milvus are not sources of truth. Their cleanup is
   best-effort unless a use case explicitly requires a blocking consistency
   guarantee.
+- Native executor ledgers are additional owner-local recovery state. Dev S4.1
+  engineering acceptance covered its historical three-table migration and
+  restore scope only; it did not cover the later `dev_agent_executor_requests`
+  ledger or certify the other runtimes. Any deployment that enables a native
+  executor must include its ledger in separate backup, restore, cutover, and
+  rollback evidence.
 
 ## 6. Current Known Gaps
 

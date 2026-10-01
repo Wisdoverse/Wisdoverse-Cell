@@ -451,6 +451,35 @@ or server uncertainty is not proof of non-application. Recovery checks command
 ID/payload ownership with compare-and-swap and revalidates snapshot-bound
 approval for non-shadow commands.
 
+### 7.2 Native Executor Contract
+
+The optional native executor receiver is disabled by default through
+`NATIVE_EXECUTOR_ENABLED=false`. It is mounted independently by the Requirement
+Manager, PJM, Dev, and QA runtimes and stores receipts in a ledger owned by that
+runtime. It MUST verify the request company against the configured owner,
+require `Idempotency-Key` to equal `run_id`, and bind replay to a hash of the
+complete versioned request. An identical completed request replays its stored
+receipt. Reusing a run ID with different request content MUST fail closed. A
+running or uncertain receipt MUST NOT automatically redispatch business work.
+
+Version 1.0 requests use the `ExecutorRequest` DTO: `schema_version`,
+`company_id`, `action`, `agent_id`, `run_id`, optional `trace_id`, `goal_id`,
+and `work_item_id`, JSON-object `input`, and finite non-negative
+`max_cost_usd`. The runtime translates `input.action` for the `wakeup` action
+into its allowlisted native request action. Responses use `ExecutorResponse`;
+`cost_is_estimate=true` identifies the returned reserved ceiling as an estimate,
+not measured spend. A `recorded` response is an execution receipt and MUST NOT
+be treated as accepted software delivery or a business outcome.
+
+`POST /api/v1/executor/requests` and `POST /agent/request` use this contract
+only when `X-Executor-Contract: 1.0` is explicitly supplied. Calls to the
+legacy `/agent/request` boundary without that header retain the existing
+request behavior. The versioned endpoints require `X-Internal-Key`; requests
+and responses are bounded to 1,000,000 bytes and execution uses a bounded,
+configured timeout. `GET /api/v1/executor/requests/{run_id}` provides an
+owner-company-scoped receipt lookup. See the [API reference](docs/guides/api-reference.md#native-executor-api)
+and [native executor runbook](docs/runbooks/native-executor.md).
+
 ## 8. Configuration and Secret Contract
 
 Configuration is environment-driven and documented by `.env.example`.

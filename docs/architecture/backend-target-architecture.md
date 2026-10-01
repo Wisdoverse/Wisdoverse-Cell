@@ -663,6 +663,15 @@ criteria apply here; this section summarizes rather than duplicates them.
 
 ### 5.1 Delivered Foundation
 
+The native executor adds a default-off, versioned HTTP receiver to the four
+business runtimes. Each runtime owns its request/receipt ledger; synthetic
+handler conformance and PostgreSQL replay/concurrency are verified. This is
+bounded receiver engineering, not a complete Requirement-to-PJM business
+handoff or live integration pilot. See the [API contract](../guides/api-reference.md#native-executor-api),
+[runbook](../runbooks/native-executor.md), and [engineering evidence](../evidence/native-executor-engineering-2026-10-01.md).
+Any enabled deployment must include its receipt ledger in backup and cutover
+scope; Dev S4.1's earlier three-table proof does not cover this added state.
+
 - Control Plane HTTP handlers are per-surface routers with store/UoW
   boundaries, domain lifecycle rules and architecture tests.
 - Analysis report/milestone reads use projections; Identity has a single

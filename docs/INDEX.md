@@ -32,6 +32,8 @@ surfaces that currently exist.
 | Product vocabulary | [Product Model](./overview/product-model.md) | Defines goals, work items, agent roles, runs, decisions, artifacts, budgets, approvals, and audit trails |
 | Governance runbook | [Product Governance](./runbooks/product-governance.md) | Operator identity, company and knowledge access, execution recovery, evolution release gates, audit export, and R0 owner evidence |
 | Control Plane metrics runbook | [Control Plane Metrics](./runbooks/control-plane-metrics.md) | Opt-in authenticated Prometheus scrape, low-cardinality metrics, and alert-rule validation |
+| Native executor runbook | [Native Executor](./runbooks/native-executor.md) | Default-off owner-local HTTP receiver, durable receipts, replay/reconciliation, and rollback |
+| Native executor evidence | [Native Executor Engineering Receipt](./evidence/native-executor-engineering-2026-10-01.md) | Synthetic four-runtime handler conformance and PostgreSQL replay/concurrency evidence; no live provider or platform pilot claim |
 | Engineering receipt | [Product Roadmap Engineering Receipt](./evidence/product-roadmap-engineering-2026-10-01.md) | Completed local validation, source fingerprints and explicitly open milestone acceptance |
 | Repository layout | [Project Layout](./overview/project-layout.md) | Maps source roots, current structure drift, cleanup phases, and ignored local-only paths |
 | System architecture | [Architecture Overview](./overview/architecture.md) | Maps architecture boundary rules, frontend, gateway, independently deployed agents, shared runtime, control-plane ledger, and adapters |

@@ -27,6 +27,18 @@ and [engineering receipt](../evidence/product-roadmap-engineering-2026-10-01.md)
 Operational boundaries are in the [product governance](../runbooks/product-governance.md)
 and [Control Plane metrics](../runbooks/control-plane-metrics.md) runbooks.
 
+The subsequent native executor implementation adds one durable request ledger
+to each of Requirement Manager, PJM, Dev, and QA. Synthetic handler
+conformance across the four runtimes and PostgreSQL replay/concurrency are
+verified in the [native executor engineering receipt](../evidence/native-executor-engineering-2026-10-01.md).
+This is a separate addition to the migration scope. Dev S4.1's historical
+three-table recovery proof remains valid for its original scope and does not
+cover these ledgers. An enabled deployment must include each ledger in its
+backup, restore, cutover, and rollback plan. Physical retention, the
+Requirement-to-OpenProject/PJM business mapping, live platform/provider pilots,
+and R0 staging/cloud acceptance remain open. See the [native executor
+runbook](../runbooks/native-executor.md).
+
 **Implemented** means the capability is represented in the repository.
 **Accepted** requires dated verification for the target revision and environment.
 Code closure, a configured CI job, or a checklist alone does not establish

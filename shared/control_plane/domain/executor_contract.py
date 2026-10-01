@@ -2,26 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-from .execution_policy import bounded_cost
-
-
-class ExecutorResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    schema_version: Literal["1.0"]
-    status: Literal["succeeded", "failed", "accepted", "recorded"]
-    summary: str = Field(max_length=20000)
-    cost_usd: float = Field(ge=0)
-    output: dict[str, Any] = Field(default_factory=dict)
-    artifact_references: list[str] = Field(default_factory=list, max_length=100)
-
-    @field_validator("cost_usd")
-    @classmethod
-    def _cost(cls, value: float) -> float:
-        return float(bounded_cost(value))
+from shared.protocols.executor import ExecutorResponse as ExecutorResponse
 
 
 def executor_capabilities(adapter_type: str) -> dict[str, Any]:

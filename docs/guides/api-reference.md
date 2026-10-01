@@ -103,6 +103,59 @@ Common status codes:
 | `502` | Upstream service error |
 | `503` | Service not ready |
 
+### Native Executor API
+
+The optional native executor receiver is available on Requirement Manager,
+PJM, Dev, and QA services. It is disabled by default with
+`NATIVE_EXECUTOR_ENABLED=false`. Each runtime writes receipts only to its own
+database ledger and accepts only its configured owning company.
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/v1/executor/capabilities` | Internal key | Reports runtime/company identity, enabled state, action allowlist, timeout, and fixed request/response limits |
+| `POST` | `/api/v1/executor/requests` | Internal key | Executes one versioned native request and returns a durable receipt |
+| `GET` | `/api/v1/executor/requests/{run_id}?company_id=...` | Internal key | Reads the receipt for a run owned by the requested company |
+
+The version 1.0 request DTO is strict and contains `schema_version`,
+`company_id`, `action`, `agent_id`, `run_id`, nullable `trace_id`, `goal_id`,
+and `work_item_id`, JSON-object `input`, and bounded finite `max_cost_usd`.
+Send `X-Executor-Contract: 1.0`, `X-Internal-Key`, and
+`Idempotency-Key: {run_id}`. If `X-Trace-ID` is sent, it must match the body.
+For `action: "wakeup"`, the runtime translates `input.action` to an
+allowlisted native action. The action allowlists and operator behavior are
+documented in the [native executor runbook](../runbooks/native-executor.md).
+The runtime binds each run ID to the company and hash of the complete request:
+an identical completed request replays its receipt, while a changed payload or
+company fails closed. A `running` or `uncertain` receipt is never automatically
+redispatched.
+
+Responses use the strict `ExecutorResponse` DTO:
+
+```json
+{
+  "schema_version": "1.0",
+  "status": "recorded",
+  "summary": "Native request recorded; business outcome acceptance is separate.",
+  "cost_usd": 2.0,
+  "cost_is_estimate": true,
+  "output": {"native_result": {}, "executor_receipt": {}},
+  "artifact_references": []
+}
+```
+
+Here `cost_usd` is the reserved `max_cost_usd` ceiling, marked as an estimate;
+actual usage is not metered by this receipt. `recorded` confirms only that the
+native request returned and its receipt was stored. It does not mean QA,
+review, or software delivery has been accepted. Input and output are capped at
+1,000,000 bytes; the execution timeout defaults to 90 seconds and is
+configurable from 1 to 110 seconds. A timed-out or otherwise uncertain intent
+is not automatically redispatched. Reconcile it through the receipt endpoint
+and the owning runtime.
+
+The same adapter is available through `POST /agent/request` only when the
+caller explicitly sends `X-Executor-Contract: 1.0`. Without that header, the
+legacy generic request behavior is preserved.
+
 ## Control Plane API
 
 Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.

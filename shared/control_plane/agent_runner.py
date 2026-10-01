@@ -159,12 +159,15 @@ class ControlPlaneAgentRunner:
                 work_item_id=work_item_id,
             )
             if ticket is not None and self._governance is not None:
+                estimated = "cost_usd" not in output or output.get("cost_is_estimate") is True
                 cost = bounded_cost(output.get("cost_usd", ticket.ceiling_usd))
+                if estimated:
+                    cost = max(cost, ticket.ceiling_usd)
                 await self._governance.settle(
                     ticket,
                     cost_usd=cost,
                     failed=cost > ticket.ceiling_usd,
-                    estimated="cost_usd" not in output,
+                    estimated=estimated,
                 )
                 settled = True
                 if cost > ticket.ceiling_usd:
@@ -250,6 +253,7 @@ class ControlPlaneAgentRunner:
 
         request = {
             "schema_version": "1.0",
+            "company_id": agent.company_id,
             "action": adapter_config.action(),
             "agent_id": agent.agent_id,
             "run_id": run_id,
@@ -319,7 +323,8 @@ class ControlPlaneAgentRunner:
         timeout = adapter_config.http_timeout_seconds()
         headers = {}
         headers["Idempotency-Key"] = str(request["run_id"])
-        headers["X-Executor-Contract"] = "1.0"
+        if adapter_config.config.get("contract_version") == "1.0":
+            headers["X-Executor-Contract"] = "1.0"
         if settings.internal_service_key:
             headers["X-Internal-Key"] = settings.internal_service_key
         if request.get("trace_id"):
@@ -372,6 +377,7 @@ class ControlPlaneAgentRunner:
                 "status": "ok" if result.status == "succeeded" else "recorded",
                 "adapter": "http",
                 "cost_usd": result.cost_usd,
+                "cost_is_estimate": result.cost_is_estimate,
                 "summary": result.summary,
                 "response": result.output,
                 "artifact_references": result.artifact_references,
@@ -512,6 +518,7 @@ class ControlPlaneAgentRunner:
                 "status": "ok" if result.status == "succeeded" else "recorded",
                 "adapter": "process",
                 "cost_usd": result.cost_usd,
+                "cost_is_estimate": result.cost_is_estimate,
                 "summary": result.summary,
                 "response": result.output,
                 "artifact_references": result.artifact_references,

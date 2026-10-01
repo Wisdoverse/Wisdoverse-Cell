@@ -125,6 +125,8 @@ class Settings(BaseSettings):
     control_plane_local_adapter_enabled: bool = False
     control_plane_local_adapter_allowlist: str = ""
     control_plane_http_adapter_allowlist: str = ""
+    native_executor_enabled: bool = False
+    native_executor_timeout_seconds: int = Field(default=90, ge=1, le=110)
     control_plane_operators_json: str = Field(default="", repr=False)
     evolution_deployment_signing_key: SecretStr = SecretStr("")
     evolution_runtime_url: str = "http://evolution-module:8016"
