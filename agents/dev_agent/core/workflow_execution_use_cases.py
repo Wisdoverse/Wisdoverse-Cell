@@ -177,7 +177,10 @@ class DevWorkflowExecutionUseCase:
         task_id = DevTaskId(str(task_record.id))
         await log_repo.create_log(
             task_id=task_id,
-            workflow_json={"task_input": sanitized.model_dump()},
+            workflow_json={
+                "task_input": sanitized.model_dump(),
+                **({"metadata": {"trace_id": trace_id}} if trace_id else {}),
+            },
         )
 
         active_count = await repo.count_active_workflows()
@@ -243,6 +246,8 @@ class DevWorkflowExecutionUseCase:
             node.config["cliTool"] = tool
 
         plan_json = plan.model_dump()
+        if trace_id:
+            plan_json["metadata"] = {"trace_id": trace_id}
         requires_approval = self._workflow_policy.requires_workflow_approval(risk)
         if requires_approval:
             approval_id = await self.request_workflow_approval(

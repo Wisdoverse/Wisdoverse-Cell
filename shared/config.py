@@ -125,6 +125,10 @@ class Settings(BaseSettings):
     control_plane_local_adapter_enabled: bool = False
     control_plane_local_adapter_allowlist: str = ""
     control_plane_http_adapter_allowlist: str = ""
+    control_plane_retention_enabled: bool = False
+    control_plane_audit_retention_days: int = Field(default=90, ge=90, le=3650)
+    delivery_handoff_enabled: bool = False
+    delivery_context_base_url: str = ""
     native_executor_enabled: bool = False
     native_executor_timeout_seconds: int = Field(default=90, ge=1, le=110)
     control_plane_operators_json: str = Field(default="", repr=False)

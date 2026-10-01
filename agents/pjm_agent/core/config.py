@@ -20,6 +20,7 @@ def _parse_csv(value: str | Iterable[str] | None) -> tuple[str, ...]:
 class PJMCoreConfig:
     """Settings PJM core services can consume without importing global config."""
 
+    company_id: str = "cmp_wisdoverse_cell"
     decompose_model: str = "claude-opus-4-20250514"
     feishu_report_chat_id: str = ""
     decompose_notify_open_id: str = ""
@@ -34,6 +35,7 @@ class PJMCoreConfig:
     def from_values(
         cls,
         *,
+        company_id: str = "cmp_wisdoverse_cell",
         decompose_model: str | None = "claude-opus-4-20250514",
         feishu_report_chat_id: str | None = "",
         decompose_notify_open_id: str | None = "",
@@ -45,6 +47,7 @@ class PJMCoreConfig:
         feishu_pm_task_table_id: str | None = "",
     ) -> "PJMCoreConfig":
         return cls(
+            company_id=company_id,
             decompose_model=decompose_model or "claude-sonnet-4-20250514",
             feishu_report_chat_id=feishu_report_chat_id or "",
             decompose_notify_open_id=decompose_notify_open_id or "",

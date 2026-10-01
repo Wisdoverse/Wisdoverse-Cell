@@ -692,11 +692,32 @@ validation, physical cutover preconditions, scheduling, operator backup
 sign-off, staging observation and production acceptance remain pending. See
 [the evidence record](./evidence/dev-migration-s41.md) and [migration plan](./migration-plan.md#s41-engineering-evidence--2026-10-01).
 
+Subsequent synthetic acceptance adds one Requirement Manager handoff case:
+confirmed requirement data maps to selected existing OpenProject IDs and
+company/goal/work IDs after read-only Control Plane HTTP verification; the
+mapping, receipt and pending outbox event commit atomically. It does not issue
+an OpenProject write or establish PJM/Dev/QA delivery. Seven isolated
+PostgreSQL cases verify the Control Plane audit/knowledge retention path: a
+default-off 90-day-minimum policy, batches of at most 1,000, pending/pinned
+evidence preservation and replay tombstones. The policy does not erase WAL or
+backup copies; operational purge and recovery acceptance remain pending.
+Native runtime receipt-ledger retention remains a separate open item.
+
+One isolated PostgreSQL L1 evolution loop covers 50 fixed paired synthetic
+cases and regression rollback without a model/provider call. One separate
+real-browser case executes a synthetic restricted local-process task through
+the actual operator proxy and reads back linked work, run, artifact, cost and
+acceptance evidence. These checks do not establish live model quality, live
+provider/platform behavior, QA-agent delivery, recurring-work pilot results,
+or a production-like operator flow.
+
 ### 5.2 Remaining Delivery
 
-1. **P0 / M0 / S5.4: first business outcome.** Validate create, assign, real
-   execution, QA/required approval, accepted artifact and close. Include
-   failure recovery, policy denial, durable cost/audit links and restart.
+1. **P0 / M0 / S5.4: first business outcome.** A synthetic real-browser case
+   now verifies create, assign, real backend execution, artifact inspection,
+   acceptance and close with persisted cost/audit links. Still validate the
+   Requirement Manager→PJM→Dev→QA path, QA/required approval, failure recovery,
+   policy denial and restart against a selected runtime.
 2. **P1 / M1–M3: governed autonomy and measured improvement.** Prove atomic
    execution ownership, scheduler recovery, permissions/budget enforcement,
    executor conformance and an integrated approved evolution experiment.
@@ -704,8 +725,8 @@ sign-off, staging observation and production acceptance remain pending. See
 3. **R0 / S4.1–S4.3: deployment acceptance.** Prepare per-runtime migration
    cutover, accept Dev or QA in staging when justified, and complete the Sync split per
    [ADR-0009](../adr/0009-sync-sub-runtime-split.md). Each cutover needs its
-   own pre-condition evidence, at least two weeks of realistic staging
-   observations within declared SLOs, and replay/rollback rehearsal.
+   own pre-condition evidence, at least 14 days and 1,000 matching requests in
+   realistic staging within declared SLOs, and replay/rollback rehearsal.
 4. **P2 / M4: company reuse.** Follow the
    [Product Roadmap](../overview/roadmap.md) for safe templates and scoped
    knowledge after stable contracts and governance.

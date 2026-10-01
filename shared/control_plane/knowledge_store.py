@@ -14,7 +14,7 @@ from .domain.knowledge import KnowledgeRecord, KnowledgeTombstone
 from .knowledge_models import KnowledgeTable, KnowledgeTombstoneTable
 from .knowledge_ports import KnowledgeStore
 from .models import Artifact, AuditEvent
-from .tables import AgentRoleTable, ArtifactTable
+from .tables import AgentRoleTable, ArtifactTable, CompanyContextTable
 
 
 class SqlAlchemyKnowledgeStore(KnowledgeStore):
@@ -70,6 +70,14 @@ class SqlAlchemyKnowledgeStore(KnowledgeStore):
         return _record(row) if row is not None else None
 
     async def create_knowledge(self, record: KnowledgeRecord) -> KnowledgeRecord:
+        # Serialize creation with retention before checking permanent deletion.
+        await self._session.scalar(
+            select(CompanyContextTable)
+            .where(CompanyContextTable.company_id == record.company_id)
+            .with_for_update()
+        )
+        if await self._session.get(KnowledgeTombstoneTable, record.knowledge_id) is not None:
+            raise ValueError("knowledge_id_permanently_deleted")
         row = KnowledgeTable(**record.model_dump())
         self._session.add(row)
         await self._session.flush()

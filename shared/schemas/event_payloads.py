@@ -768,6 +768,11 @@ class SyncTaskNeedsDecomposePayload(BaseModel):
     project_name: str = ""
     assignee: str = ""
     assignee_id: int | None = None
+    company_id: str | None = None
+    requirement_id: str | None = None
+    requirement_hash: str | None = None
+    goal_id: str | None = None
+    work_item_id: str | None = None
 
 
 class PMDecomposeCompletedPayload(BaseModel):

@@ -336,9 +336,11 @@ class DecompositionApprovalWorkflow:
         return Event.create(
             event_type=EventTypes.PM_TASKS_READY_FOR_DEV,
             source_agent="pjm-agent",
+            trace_id=wbs_result.get("delivery_context", {}).get("trace_id"),
             payload={
                 "wp_id": wp_id,
                 "tasks": dev_tasks,
+                "delivery_context": wbs_result.get("delivery_context", {}),
             },
         )
 

@@ -28,6 +28,8 @@ class WorkflowPlan(BaseModel):
     name: str = Field(..., min_length=1)
     description: str = ""
     nodes: list[WorkflowNode] = Field(..., min_length=1)
+    # Local workflow-log context. Excluded from the AgentForge wire model.
+    metadata: dict[str, str] = Field(default_factory=dict, exclude=True)
 
 
 class ToolRule(BaseModel):

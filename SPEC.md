@@ -405,7 +405,7 @@ The implemented route contracts include:
 | `POST /work-items/{work_item_id}/accept` | Accepts a successful run's linked artifact with a non-empty artifact hash and explicit reviewer reason. The accepted hash and run are recorded; acceptance is valid only for the latest run. |
 | `GET /companies/{company_id}/template`, `POST /company-templates/import` | Exports portable company structure with secret scrubbing and imports roles paused for explicit review. |
 | `POST /knowledge`, `POST /knowledge/{knowledge_id}/publish`, `GET /knowledge/{knowledge_id}`, `DELETE /knowledge/{knowledge_id}` | Operates on a same-company artifact URI reference only. Provenance is immutable; publication is versioned; reads require owner or granted reader-role access; deletion creates an inaccessible tombstone. |
-| `GET /audit-export` | Requires `audit:export`, exact company scope, and an explicit time range within the 90-day export window. Returns redacted, paginated audit snapshots, not unredacted records. Physical data retention/purge is a separate pending policy. |
+| `GET /audit-export` | Requires `audit:export`, exact company scope, and an explicit time range within the 90-day export window. Returns redacted, paginated audit snapshots, not unredacted records. Physical audit/knowledge cleanup is an explicit default-off contract; WAL/backup erasure remains an operational policy. |
 | `POST /evolution-proposals/{proposal_id}/evaluations`, `GET /evolution-proposals/{proposal_id}/evaluations` | Creates and reads fixed-case comparative evaluation evidence. |
 | `POST /evolution-proposals/{proposal_id}/release`, `POST /evolution-proposals/{proposal_id}/release/reconcile`, `POST /evolution-proposals/{proposal_id}/release/recover` | Processes signed release commands for shadow/canary/promotion/rollback, reconciles known acknowledgements, and explicitly recovers only expired commands after authoritative receiver `404`. Non-shadow transitions require an approved decision matching the release snapshot. |
 | `POST /api/v1/evolution/skill-executions/resolve`, `POST /api/v1/evolution/skill-executions/results` | Internal-key-protected task-time resolution and evidence recording for a frozen signed skill selection. |
@@ -450,6 +450,37 @@ replace a command only after expiry plus a definitive receiver `404`; transport
 or server uncertainty is not proof of non-application. Recovery checks command
 ID/payload ownership with compare-and-swap and revalidates snapshot-bound
 approval for non-shadow commands.
+
+### Reviewed requirement delivery and physical retention
+
+Requirement Manager owns `requirement_delivery_handoffs`. With
+`DELIVERY_HANDOFF_ENABLED=true` and `DELIVERY_CONTEXT_BASE_URL` configured,
+`GET /api/v1/requirements/{id}/delivery-review` returns a frozen content hash;
+`POST /api/v1/requirements/{id}/delivery-handoff` requires a confirmed snapshot,
+trusted operator `work:execute` scope, a review reason, matching company/goal/work
+context, and `Idempotency-Key: requirement-delivery:{id}`. The reviewed mapping
+names existing OpenProject project/work-package IDs. It does not create external
+projects. Read-only Control Plane verification forwards the operator token and
+configured service key, uses 10-second HTTP timeouts, and does not retry. An
+immutable receipt and `sync.task-needs-decompose` event commit in one local
+transaction; one company/project/work-package can map to only one requirement.
+PJM retains the additive context through approval, and Dev persists trace context
+in its own workflow log for QA and final task events. Queuing is not acceptance
+of the delivered business outcome.
+
+`POST /api/v1/control-plane/retention` requires company-scoped `audit:retention`.
+The default is `dry_run=true`; application requires
+`CONTROL_PLANE_RETENTION_ENABLED=true` and an immutable, at most 48-character
+idempotency key. Server policy retains audit detail for at least 90 days;
+`CONTROL_PLANE_AUDIT_RETENTION_DAYS` may extend it up to 3,650 days. Each batch
+inspects at most 1,000 audit rows and 1,000 knowledge pointers. Pending outbox
+messages and artifact-pinned audit evidence prevent removal. The same transaction
+removes eligible detail and published outbox payloads, stores compact permanent
+hashed-key replay receipts, and removes expired/deleted knowledge pointers with
+permanent tombstones. Source artifacts remain. This is logical-table cleanup;
+PostgreSQL MVCC, WAL and backups require their own erasure/retention procedures.
+Native executor receipt ledgers have a separate policy. See the
+[rollout and rollback runbook](docs/runbooks/roadmap-delivery-retention.md).
 
 ### 7.2 Native Executor Contract
 

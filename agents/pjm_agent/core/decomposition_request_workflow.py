@@ -86,6 +86,8 @@ class DecompositionRequestWorkflow:
     async def handle_decompose(self, event: Event) -> list[Event]:
         """Handle a SYNC_TASK_NEEDS_DECOMPOSE event."""
         payload = DecomposePayload.model_validate(event.payload)
+        if payload.company_id is not None and payload.company_id != self._config.company_id:
+            raise ValueError("delivery_handoff_company_mismatch")
         wp_id = WorkPackageId(payload.wp_id)
         project_id = OpenProjectProjectId(payload.project_id)
         subject = payload.subject
@@ -152,6 +154,13 @@ class DecompositionRequestWorkflow:
             )
 
         result_dict = result.model_dump()
+        if payload.requirement_id is not None:
+            result_dict["delivery_context"] = {
+                "company_id": payload.company_id, "requirement_id": payload.requirement_id,
+                "requirement_hash": payload.requirement_hash, "goal_id": payload.goal_id,
+                "work_item_id": payload.work_item_id, "trace_id": trace_id,
+                "handoff_event_id": event.event_id,
+            }
         approval_id = await self.request_decomposition_approval(
             wp_id=wp_id,
             project_id=project_id,
@@ -171,7 +180,8 @@ class DecompositionRequestWorkflow:
                 )
                 await decomposition.commit()
         except Exception as exc:
-            logger.error("decompose_save_failed", wp_id=wp_id, error=str(exc))
+            logger.error("decompose_save_failed", wp_id=wp_id, error_type=type(exc).__name__)
+            raise
 
         story_count = len(result.subtasks)
         task_count = sum(len(story.children) for story in result.subtasks)

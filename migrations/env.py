@@ -39,6 +39,9 @@ from agents.qa_agent.models import (  # noqa: F401
     QAEventOutbox,
 )
 from agents.qa_agent.models.base import Base as QAAgentBase
+from agents.requirement_manager.db.delivery_handoff import (
+    RequirementDeliveryHandoffTable,  # noqa: F401
+)
 from agents.requirement_manager.db.executor_ledger import executor_table as RequirementExecutorTable
 from agents.requirement_manager.models import (  # noqa: F401
     ChatMessage,
@@ -69,6 +72,10 @@ from shared.capabilities.sync.models import (  # noqa: F401
 )
 from shared.capabilities.sync.models.base import Base as SyncBase
 from shared.config import settings
+from shared.control_plane.retention_models import (  # noqa: F401
+    AuditRetentionTombstoneTable,
+    RetentionRunTable,
+)
 from shared.control_plane.tables import control_plane_metadata
 from shared.db.base import Base as SharedBase
 from shared.evolution.db.tables import evolution_metadata

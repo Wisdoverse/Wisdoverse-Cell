@@ -10,6 +10,7 @@ from ..core.config import PJMCoreConfig
 def build_pjm_core_config() -> PJMCoreConfig:
     """Build explicit PJM core config from process settings at the service edge."""
     return PJMCoreConfig.from_values(
+        company_id=app_settings.control_plane_company_id,
         decompose_model=app_settings.decompose_model,
         feishu_report_chat_id=app_settings.feishu_report_chat_id,
         decompose_notify_open_id=app_settings.decompose_notify_open_id,

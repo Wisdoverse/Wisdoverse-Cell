@@ -24,6 +24,7 @@ from .api_routes.executions import create_execution_router
 from .api_routes.goals import create_goal_router
 from .api_routes.knowledge import create_knowledge_router
 from .api_routes.operating_metrics import create_operating_metrics_router
+from .api_routes.retention import create_retention_router
 from .api_routes.runs import create_run_router
 from .api_routes.work_items import create_work_item_router
 from .database import control_plane_db_manager
@@ -94,6 +95,7 @@ def create_control_plane_router(
 
     router.include_router(create_company_template_router(get_uow=get_uow))
     router.include_router(create_audit_export_router(get_stores=get_stores))
+    router.include_router(create_retention_router(get_uow=get_uow))
     router.include_router(create_operating_metrics_router(get_store=get_operating_metrics_store))
     router.include_router(create_execution_router(get_uow=get_uow))
     router.include_router(create_evolution_release_router(get_uow=get_uow))

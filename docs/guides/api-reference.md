@@ -103,6 +103,28 @@ Common status codes:
 | `502` | Upstream service error |
 | `503` | Service not ready |
 
+### Reviewed requirement delivery API
+
+These Requirement Manager endpoints are disabled by default:
+
+| Method | Path | Contract |
+|--------|------|----------|
+| `GET` | `/api/v1/requirements/{id}/delivery-review` | Requires operator `work:execute` for the configured company; returns title, description, status, confirmer and SHA-256 `requirement_hash` for review. |
+| `POST` | `/api/v1/requirements/{id}/delivery-handoff` | Requires the reviewed hash, `company_id`, positive `project_id`/`wp_id`, `goal_id`, `work_item_id`, a review `reason`, and optional `project_name`. `schema_version` is `1.0`; extra fields are rejected. |
+
+POST uses `Idempotency-Key: requirement-delivery:{id}` and optional
+`X-Trace-ID` (at most 64 characters). The server binds reviewer identity to the
+operator principal, verifies company/goal/work over authenticated Control Plane
+HTTP, and commits its receipt and decomposition outbox together. Repeating the
+same body returns the saved receipt; changing the body or assigning another
+requirement to the same company/project/work-package returns `409`.
+Unconfirmed or changed snapshots also return `409`; missing requirements return
+`404`; disabled configuration returns `503`. Responses use the standard error
+envelope. The receipt includes `reviewed_by`, `review_reason`, `event_id`, linked
+IDs and `status=queued_for_decomposition`. Existing OpenProject identifiers are
+reviewed inputs; this API does not verify or create objects on that platform.
+See [operations](../runbooks/roadmap-delivery-retention.md).
+
 ### Native Executor API
 
 The optional native executor receiver is available on Requirement Manager,
@@ -219,6 +241,7 @@ Mounted at `/api/v1/control-plane` when `CONTROL_PLANE_ENABLED=true`.
 | `GET` | `/knowledge/{knowledge_id}` | Read an unexpired record if caller is owner or has a granted company-local reader role |
 | `DELETE` | `/knowledge/{knowledge_id}` | Owner-only deletion that writes an immutable tombstone |
 | `GET` | `/audit-export` | Export redacted audit snapshots for an exact company and explicit range within the last 90 days; keyset pagination supports `after_id` and `limit` (maximum 500) |
+| `POST` | `/retention` | Preview or explicitly apply bounded audit/knowledge cleanup; requires `audit:retention`, exact company, and an idempotency key for apply |
 | `POST` | `/evolution-proposals/{proposal_id}/evaluations` | Create fixed-case comparative evaluation evidence |
 | `GET` | `/evolution-proposals/{proposal_id}/evaluations` | Read evaluation reports for a proposal |
 | `POST` | `/evolution-proposals/{proposal_id}/release` | Submit a signed release command through the native Evolution runtime; state changes are persisted only after acknowledgement |
@@ -236,7 +259,13 @@ and production. Clients MUST NOT send `actor_id` as an authorization claim;
 the authenticated principal supplies actor identity. Knowledge access also
 checks owner/role ACL after company scope authorization. Same-company access
 alone does not grant knowledge reads. Audit export provides a 90-day query
-window; this is not a physical storage-retention or purge guarantee.
+window. Physical audit/knowledge retention is separately disabled by default.
+`POST /retention` accepts `{company_id, batch_size, dry_run}` with `batch_size`
+1–1,000 and `dry_run=true` by default. Apply requires the configured feature flag
+and a 1–48-character `Idempotency-Key`; changed bodies conflict, identical bodies
+return the original receipt. It preserves pending messages and pinned evidence;
+compact dedupe receipts and knowledge tombstones remain permanently. It does not
+erase source artifacts, WAL or backups.
 
 The evolution service exposes its native release receiver independently under
 `/api/v1/evolution`: `POST /skill-releases` accepts signed deployment and

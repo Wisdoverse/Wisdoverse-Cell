@@ -1,0 +1,129 @@
+{
+  "schema_version": "1.0",
+  "verification_date": "2026-10-01",
+  "base_revision": "b585e849206c8a836449b2f26d745ab1d3a0a4a5",
+  "source_fingerprint_sha256": "571b5692c078d4461f190e125fc35e89e8df0089cf00248826ffc9261cf5ab25",
+  "files_sha256": {
+    ".env.example": "2ae7ff7ac97c39ece1cae942ef4f322c409431438a31d036be0b7b7d7720d58e",
+    ".github/workflows/ci.yml": "cc7313518da0c51209dd544c767c9414348739a3408161c249574556dc59d379",
+    "Makefile": "25dcbb9fa1eea0183494c7db60fba766f224c810aee279541b3f41b94e473056",
+    "SPEC.md": "c0a12c5b793749a014df26cf9c3b0afe921d4be213c02396b8dece6c610b3e42",
+    "agents/dev_agent/core/result_collector.py": "f1f190a5ece86ab2b118523283ffaa94369c65b1cd05495cc80015865636c3be",
+    "agents/dev_agent/core/workflow_execution_use_cases.py": "1b32e0b397eb50b1d2fd2b74b8bb4d858525044dbba757e3c7e6463036f85ce3",
+    "agents/dev_agent/models/schemas.py": "a86be25f1e983fab00c687b1022ec2c6543a7edc395ed92a73fe5a53778c2dfd",
+    "agents/dev_agent/tests/unit/test_result_collector.py": "88473de594f1df10f96f9cc97cc26124121de05fee8c509b033deaec724d9960",
+    "agents/dev_agent/tests/unit/test_workflow_execution_use_cases.py": "30bfad59b7dd0cd6155c1533aae3fdf97e2ace6bc8c81a08f851671e46f2af0c",
+    "agents/pjm_agent/core/config.py": "9bf6c69920b990f25fc0b1119d9c6fb350cea1f99df742182a226196e6e985bf",
+    "agents/pjm_agent/core/decomposition_approval_workflow.py": "5a18fc9014b8bf9274a64b5944fd738f84b969c96038d19d86651e5ffafcebc0",
+    "agents/pjm_agent/core/decomposition_request_workflow.py": "54223629a478872403fcb15ed3a458ae02c93a6da5121f83b0055df9b639d237",
+    "agents/pjm_agent/models/schemas.py": "1343e79acfa178fa4feabaac665fa0709e563de33b0fb08d2bb7b2f51753d7d6",
+    "agents/pjm_agent/service/config_factory.py": "20f41af533e7a564892e47341db57df2fda3b7a1b9815e21a44c1c3a34141b61",
+    "agents/pjm_agent/tests/test_decomposition_approval.py": "35c664a6d1686edf3043a90171fabe93868b2bbdbbe4992bbdbdf688ac5e67e2",
+    "agents/requirement_manager/adapters/delivery_context.py": "abda9259e72fd9bea345cb8428eb5dabbeea863a6eab4a0c4236706ba107c3d8",
+    "agents/requirement_manager/api/delivery_handoff.py": "a7a306ab0baff043da1c2d61be948646d37559cd9a34afb16fa8838a349f646b",
+    "agents/requirement_manager/app/main.py": "15cef83f00279a023fe8064206047dbd866383aae4498b8129971bcd4d80aa56",
+    "agents/requirement_manager/core/delivery_handoff.py": "e61a7ef8ead8ecb3b68b04bf5cafcb2f252f5d49f8c1f5d280cf30cd03b3cb53",
+    "agents/requirement_manager/core/domain/delivery_handoff.py": "3ee8c2b00037c12d3e9c751651978a938b661682f41378c1d5bd9f38c66a97a8",
+    "agents/requirement_manager/db/delivery_handoff.py": "600d15da998ce4eb11a021bb18b4e6b41e54a0a045fd701f2622da2236e4acd6",
+    "docker/compose/docker-compose.app.yml": "b599457d4c4371d83a083a0ca7e117b7c951b8207c303c90ed487ee198b3ae9c",
+    "docs/INDEX.md": "3166e149cd9fd175b532f2176c3d2bdbe07119a64f51efbe92a07a7011c2c3bb",
+    "docs/api/openapi/control-plane-v1.json": "4fd94c1174d522806ef743e31ccabfd764105a409e3c47b140472b9f61803ad4",
+    "docs/api/openapi/requirement-manager-v1.json": "ac8c3192d9d07cd4d67e7f05462add5a710aa154b69ca24fb906cdb949ab2515",
+    "docs/architecture/backend-evolution-plan.md": "77c7deba839a0d925559dec48a20be395849320c05d41920d61cba9214ea467e",
+    "docs/architecture/backend-target-architecture.md": "0f1cb270e7e21790b0e4dc85323f15e0774e7ab455e382dedf083618fc4b333e",
+    "docs/architecture/migration-plan.md": "ca2632caceec3dfbb1ba3bd85c79260e9cd124db9fd22841b0bc954e34bb20a0",
+    "docs/architecture/module-boundaries.md": "fbb0bbada8de80fbd6180e592e92d51264631e6dd5d200a9e25ee008120a42ed",
+    "docs/guides/api-reference.md": "6d55b8ae2eb80a0904d7823798d8b46ce0a60d9b31abf57a7aac92abfc1ec013",
+    "docs/guides/backend-boundaries.md": "24df5d8f5f1f43c9e36e62dacd33385d1c7e435065eff623bd055d42bbcf57fa",
+    "docs/guides/event-catalog.md": "f6763f4c8581a10d3f61caa524737bc942603cc82594e282ad8476614070278c",
+    "docs/overview/product-model.md": "add389c35cc7153f8fe59fe8fea7c74b40f38de8443ef30d6e16d402a3b67207",
+    "docs/overview/roadmap.md": "c0a2f1cc0b397c18c8c9646bd6961d92b361fb8ab133ac432dc6c06e0be7c2cc",
+    "docs/runbooks/roadmap-delivery-retention.md": "933bc5d7b3fb064e612dd1a1fa7832f65863df7da918667acb3bd4ca92a6e887",
+    "frontend/e2e/README.md": "08ae79607fd473f2f947888f7486800980b300721a74372f425bd0ebe3c12d10",
+    "frontend/e2e/control-plane-real-api.spec.ts": "d3026515f5e929eb14a958ade6a4267ffc091df072c365f59e2237663d4fdb9a",
+    "frontend/e2e/control-plane-workflow.spec.ts": "6923cc9b569768432216e1b7ec69adfcabf4a84a89be60274c9697a509ebb90d",
+    "frontend/src/widgets/control-plane-workbench/ui/control-plane-workbench-page.test.tsx": "64b70a037b003f623d34bf44a042ffcd86ce25c0386c2f965d4629976f807fb2",
+    "migrations/env.py": "c1368976fc078ae864475ccd05dda101f61c89a44d6f209a96836f37db28df97",
+    "migrations/versions/20261001_delivery_retention.py": "1ffe2ef9b110133667ebe188f01fe3949905ffff7a115f4951af7b1a0678dc34",
+    "pyproject.toml": "f923d9452103250bc48fcc2451215a9f8f771336f691fe3af484f4c256454fb5",
+    "scripts/roadmap_acceptance_server.py": "fab09266507fd3bd93cdd77110bc845a515ac31ee8c8d5a006599b6bbb054bea",
+    "shared/config.py": "1cfe2a55ec547992ac850592420a9bd946e0ba30f3b638d8d1a24b313e9eac1c",
+    "shared/control_plane/api.py": "cae33ccbb8669ba630a36312b840579206bc09fb340b97b8ddc169952cc1db9e",
+    "shared/control_plane/api_routes/retention.py": "e67b79a4fe52dde11b88bb8f3b77fb1229b7e581b46d1cd67b863106e591ef3d",
+    "shared/control_plane/audit_event_store.py": "8c8f12b49b623bdb38c1474ef7c857ea9a79f552a600f66d318b2904a5fddd99",
+    "shared/control_plane/domain/physical_retention.py": "ace29aa4afbb86af6b93f07b9bd28b2f75f1f01fb431d780e9db1e57616a46f5",
+    "shared/control_plane/execution_store.py": "5138e85d76c0363afc1a674b663a2b9e5e6d282e81d2b130c4908c1748f88d60",
+    "shared/control_plane/knowledge_store.py": "1ddfd6ee6aa9e328adeb4af63707eb54ee049f7db277aea86ecba858a600d0c5",
+    "shared/control_plane/operator_auth.py": "df11eecd2dad3ffa6c7384290795eb5240e041a499665d6428731cd202239972",
+    "shared/control_plane/retention_models.py": "2b04dc48444422d9bd032716c504b3b28b5f9a141eda0dbbee72f1568b495672",
+    "shared/control_plane/retention_store.py": "9472d8914178dcfe3a0c9a359ac3d797cb7d45cd10e94f1f5628cd6be49e0e9c",
+    "shared/control_plane/retention_use_cases.py": "4ed80cdd24c72b92811de74e7c6a2dba18566ea1df6a44ddea95c91a2c018c78",
+    "shared/control_plane/store_factory.py": "e7ab0d6238007e8199de0b6a02ad5e65d13c18320c9474a91da0f335e5663e47",
+    "shared/schemas/event_payloads.py": "f0ee04b563ba6bb6e93983d3bd55fc3c213a0e7681aed056459a9707436a153b",
+    "tests/integration/test_company_reuse_acceptance.py": "0ebc345a0f4d493e86ae0a511793e6df7f5a624ccce3a83689e10ace3b143b61",
+    "tests/integration/test_evolution_loop_acceptance.py": "819c55dbf4ad85067404989639b7aeb03c068dcfcff27890a92c9675fc06ad6d",
+    "tests/integration/test_physical_retention.py": "b48320115e47042f97b66c47e9a8544341791d896e0b9587e91f5ec543e1390d",
+    "tests/integration/test_recurring_work_acceptance.py": "6fb177e480417f583f0636fdfaf7a3f3bcf5f240a855af1c51c3d6db45d60fcf",
+    "tests/integration/test_requirement_delivery_handoff.py": "eb583fd3f28f80edae38d0ba062ebb2bab7df4636da06f607637ee74bfe90839",
+    "tests/unit/test_delivery_handoff.py": "8c714bc2f0719f91f44de62d9b472c94682b6c2026a9bb0e1b8aedd5ffbf9429",
+    "tests/unit/test_delivery_retention_migration.py": "b0a5f516d9a2e0cf2676a860bd0a094101469dad3e1a6a0651329c083868c174"
+  },
+  "scope": "engineering and synthetic integrated acceptance; live roadmap deployment acceptance remains open",
+  "local_checks": {
+    "roadmap": {
+      "passed": 917,
+      "skipped": 0
+    },
+    "new_postgres_gate": {
+      "passed": 12,
+      "skipped": 0
+    },
+    "public_regression": {
+      "passed": 679
+    },
+    "architecture_error_migration": {
+      "passed": 252
+    },
+    "dev_unit": {
+      "passed": 181
+    },
+    "pjm_unit": {
+      "passed": 159
+    },
+    "pjm_decomposition": {
+      "passed": 14
+    },
+    "frontend_unit": {
+      "passed": 132,
+      "files": 29
+    },
+    "mocked_browser": {
+      "passed": 7
+    },
+    "real_api_browser": {
+      "passed": 1,
+      "internal_auth_enforced": true
+    },
+    "mypy": {
+      "source_files": 151
+    },
+    "alembic_postgres_round_trip": "passed",
+    "frontend_build": "webpack passed locally; default Turbopack retained in CI",
+    "compose_config": "passed"
+  },
+  "required_remote_gates": [
+    "six CI jobs",
+    "four CodeQL jobs",
+    "twelve new PostgreSQL cases with no skips",
+    "one real API browser case with no skips"
+  ],
+  "open_acceptance": [
+    "live provider/platform pilots and full business delivery",
+    "observed recurring work pilot",
+    "approved live model/provider improvement and rollback",
+    "broader company/knowledge reuse",
+    "retention/restore operational sign-off and native executor ledger policy",
+    "per-runtime migration cutover and Sync deployment split",
+    "R0 >=14 continuous days, >=1000 actual matching requests and owner sign-off"
+  ]
+}

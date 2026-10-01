@@ -50,6 +50,11 @@ class ChatPMQueryPayload(BaseModel):
 class DecomposePayload(BaseModel):
     """Payload for sync.task-needs-decompose events."""
 
+    company_id: str | None = None
+    requirement_id: str | None = None
+    requirement_hash: str | None = None
+    goal_id: str | None = None
+    work_item_id: str | None = None
     wp_id: int
     project_id: int
     subject: str = ""

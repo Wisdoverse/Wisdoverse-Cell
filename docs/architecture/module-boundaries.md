@@ -57,13 +57,20 @@ When you add a new context, you must add a row to this document **and** to
   Control Plane release snapshots, and stateless
   `ControlPlaneDomainService` policies for cross-aggregate rules.
 - Owned data: `control_plane_*` tables, including
-  `control_plane_event_outbox` for aggregate-raised domain events. The eight
-  product-governance tables added in the current migration remain Control
-  Plane-owned; Evolution runtime release state is stored separately in its
-  two `evolution_skill_*` tables.
+  `control_plane_event_outbox` for aggregate-raised domain events,
+  `control_plane_audit_retention_tombstones` for compact audit dedupe/replay
+  evidence, and `control_plane_retention_runs` for idempotent operator receipts.
+  Product-governance and retention tables remain Control Plane-owned; Evolution
+  runtime release state is stored separately in its two `evolution_skill_*`
+  tables.
 - Exposed capabilities: `/api/v1/control-plane/*`, `/agent/request` wakeups,
   run-evidence APIs, budget enforcement, approval gates, and durable
-  domain-event outbox staging.
+  domain-event outbox staging. Physical retention is explicitly enabled,
+  company-scoped, serialized on the company row, limited to 1,000 rows per
+  batch, and enforces a minimum 90-day audit age. It leaves pending outbox
+  events and artifact-pinned audit rows in place, records permanent compact
+  hashed idempotency receipts, and tombstones expired knowledge pointers before
+  removing them; source artifacts remain in their existing lifecycle.
 - Outbound dependencies: runtime agents (writes runs, artifacts, audit);
   LLM Gateway (budget usage); gateways (approvals consumption); Evolution
   runtime through its signed HTTP release receiver.
@@ -87,12 +94,20 @@ is opt-in and remains off by default.
   `FeedbackRecord`, `ChatMessage`, `LlmUsage`.
 - Owned data: `meetings`, `requirements`, `open_questions`,
   `feedback_records`, `llm_usage`, `chat_messages`,
-  `requirement_event_outbox`, `requirement_manager_executor_requests` (native
-  executor request/receipt ledger).
+  `requirement_event_outbox`, `requirement_delivery_handoffs`,
+  `requirement_manager_executor_requests` (native executor request/receipt
+  ledger).
 - Exposed capabilities: requirement REST API, gRPC (`HealthCheck` and
   related), `requirement.*` events, Feishu card flow.
 - Outbound dependencies: LLM Gateway, Feishu integration, Control Plane.
 - Boundary clarity: high.
+- Requirement delivery handoff is a default-off HTTP contract. The Control
+  Plane validates the company, goal, and work-item references; the operator
+  supplies an explicit mapping to an existing OpenProject project and work
+  package. This handoff never creates those external objects automatically or
+  crosses the context boundary through ORM/table access. The Requirement
+  Manager owns durable handoff receipts and enforces uniqueness for one
+  company/project/work-package mapping.
 - The version 1.0 native executor HTTP request/receipt contract is additive and
   disabled by default. Requirement Manager injects its own primary session and
   ledger table; `shared/infra/native_executor_store.py` supplies only the
@@ -353,6 +368,10 @@ is opt-in and remains off by default.
    external touchpoint. See
    [`ddd-compliance-audit.md`](./ddd-compliance-audit.md) DDD-016 for the
    current open violation.
+9. The Requirement Manager delivery handoff and Control Plane retention
+   records do not promote any existing runtime boundary to an extracted
+   service. Runtime migrations remain candidates until their own migration,
+   deployment, recovery, and compatibility gates pass.
 
 ---
 

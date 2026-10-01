@@ -71,6 +71,90 @@ async def test_result_collector_uses_injected_gitlab_project_id_for_qa_event():
 
 
 @pytest.mark.asyncio
+async def test_completion_recovers_trace_from_persisted_workflow_log():
+    task = SimpleNamespace(
+        id="dev-traced",
+        wp_id=123,
+        task_title="Dev Agent task",
+        risk_level="MEDIUM",
+    )
+    repo = AsyncMock()
+    repo.update_status = AsyncMock(return_value=True)
+    log_repo = AsyncMock()
+    log_repo.get_by_task_id = AsyncMock(
+        return_value=SimpleNamespace(
+            workflow_json={"metadata": {"trace_id": "trace-from-pjm"}}
+        )
+    )
+    gitlab = AsyncMock()
+    gitlab.check_existing_mr = AsyncMock(return_value=None)
+    gitlab.create_mr = AsyncMock(return_value={"iid": 17, "web_url": "https://mr/17"})
+    scanner = AsyncMock()
+    scanner.scan = AsyncMock(return_value=MagicMock(passed=True, issues=[]))
+    notifier = AsyncMock()
+    collector = ResultCollector(
+        repo=repo,
+        log_repo=log_repo,
+        gitlab=gitlab,
+        notifier=notifier,
+        security_scanner=scanner,
+    )
+
+    events = await collector.handle_completion(task, {"status": "completed"})
+
+    by_type = {event.event_type: event for event in events}
+    for event_type in (EventTypes.QA_RUN_REQUESTED, EventTypes.DEV_MR_CREATED):
+        assert by_type[event_type].metadata.trace_id == "trace-from-pjm"
+    log_repo.get_by_task_id.assert_awaited_once_with("dev-traced")
+
+
+@pytest.mark.asyncio
+async def test_qa_result_recover_trace_for_completed_and_failed_events():
+    log_repo = AsyncMock()
+    log_repo.get_by_task_id = AsyncMock(
+        return_value=SimpleNamespace(
+            workflow_json={"metadata": {"trace_id": "trace-from-pjm"}}
+        )
+    )
+    notifier = AsyncMock()
+    repo = AsyncMock()
+    repo.update_status = AsyncMock(return_value=True)
+    collector = ResultCollector(
+        repo=repo,
+        log_repo=log_repo,
+        gitlab=AsyncMock(),
+        notifier=notifier,
+    )
+
+    completed = await collector.handle_qa_result(
+        SimpleNamespace(
+            id="dev-completed",
+            wp_id=123,
+            mr_url="https://mr/17",
+            retry_count=0,
+            created_at=None,
+        ),
+        {"summary": {"l0_gate": "PASS"}},
+    )
+    failed = await collector.handle_qa_result(
+        SimpleNamespace(
+            id="dev-failed",
+            wp_id=124,
+            mr_url="https://mr/18",
+            retry_count=1,
+            created_at=None,
+        ),
+        {"summary": {"l0_gate": "FAIL"}},
+    )
+
+    assert completed[0].event_type == EventTypes.DEV_TASK_COMPLETED
+    assert completed[0].metadata.trace_id == "trace-from-pjm"
+    assert failed[0].event_type == EventTypes.DEV_TASK_FAILED
+    assert failed[0].metadata.trace_id == "trace-from-pjm"
+    assert log_repo.get_by_task_id.await_count == 2
+
+
+@pytest.mark.asyncio
 async def test_result_collector_uses_shared_qa_gate_contract_for_retry():
     task = SimpleNamespace(
         id="dev-1",

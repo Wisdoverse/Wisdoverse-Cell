@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from .evolution_proposal_store import SqlAlchemyControlPlaneEvolutionProposalStore
     from .goal_store import SqlAlchemyControlPlaneGoalStore
     from .prompt_config_store import SqlAlchemyControlPlanePromptConfigStore
+    from .retention_store import SqlAlchemyRetentionStore
     from .work_item_store import SqlAlchemyControlPlaneWorkItemStore
 
 
@@ -53,6 +54,12 @@ class ControlPlaneStores:
 
     def __init__(self, session: "AsyncSession") -> None:
         self._session = session
+
+    @property
+    def retention(self) -> "SqlAlchemyRetentionStore":
+        from .retention_store import SqlAlchemyRetentionStore
+
+        return SqlAlchemyRetentionStore(self._session)
 
     @property
     def companies(self) -> "SqlAlchemyControlPlaneCompanyStore":

@@ -32,6 +32,8 @@ surfaces that currently exist.
 | Product vocabulary | [Product Model](./overview/product-model.md) | Defines goals, work items, agent roles, runs, decisions, artifacts, budgets, approvals, and audit trails |
 | Governance runbook | [Product Governance](./runbooks/product-governance.md) | Operator identity, company and knowledge access, execution recovery, evolution release gates, audit export, and R0 owner evidence |
 | Control Plane metrics runbook | [Control Plane Metrics](./runbooks/control-plane-metrics.md) | Opt-in authenticated Prometheus scrape, low-cardinality metrics, and alert-rule validation |
+| Reviewed delivery and retention | [Runbook](./runbooks/roadmap-delivery-retention.md) | Default-off reviewed requirement mapping, physical audit/knowledge cleanup, replay safeguards and schema rollback |
+| Roadmap closure evidence | [Delivery Closure Receipt](./evidence/roadmap-delivery-closure-2026-10-01.md) | Real PostgreSQL integrated fixtures and authenticated browser proof; live pilots and staging acceptance remain open |
 | Native executor runbook | [Native Executor](./runbooks/native-executor.md) | Default-off owner-local HTTP receiver, durable receipts, replay/reconciliation, and rollback |
 | Native executor evidence | [Native Executor Engineering Receipt](./evidence/native-executor-engineering-2026-10-01.md) | Synthetic four-runtime handler conformance and PostgreSQL replay/concurrency evidence; no live provider or platform pilot claim |
 | Engineering receipt | [Product Roadmap Engineering Receipt](./evidence/product-roadmap-engineering-2026-10-01.md) | Completed local validation, source fingerprints and explicitly open milestone acceptance |

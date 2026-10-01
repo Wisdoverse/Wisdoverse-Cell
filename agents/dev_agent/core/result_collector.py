@@ -65,6 +65,7 @@ class ResultCollector:
         events: list[Event] = []
         task_id = DevTaskId(str(task.id))
         wp_id = WorkPackageId(int(task.wp_id))
+        trace_id = await self._workflow_trace_id(task_id)
 
         await self._repo.update_status(task_id, SECURITY_SCANNING)
         workspace_path = self._resolve_workspace_path(workflow_status)
@@ -125,6 +126,7 @@ class ResultCollector:
         qa_event = Event.create(
             event_type=EventTypes.QA_RUN_REQUESTED,
             source_agent="dev-agent",
+            trace_id=trace_id,
             payload={
                 "agent_name": self._infer_agent_name(task),
                 "level": "all",
@@ -139,6 +141,7 @@ class ResultCollector:
         mr_event = Event.create(
             event_type=EventTypes.DEV_MR_CREATED,
             source_agent="dev-agent",
+            trace_id=trace_id,
             payload={
                 "mr_url": mr_url,
                 "wp_id": wp_id,
@@ -163,6 +166,7 @@ class ResultCollector:
         summary = qa_payload.get("summary", {})
         task_id = DevTaskId(str(task.id))
         passed = is_qa_acceptance_passed(summary)
+        trace_id = await self._workflow_trace_id(task_id)
 
         if passed:
             await self._repo.update_status(task_id, COMPLETED)
@@ -179,6 +183,7 @@ class ResultCollector:
                 Event.create(
                     event_type=EventTypes.DEV_TASK_COMPLETED,
                     source_agent="dev-agent",
+                    trace_id=trace_id,
                     payload={
                         "wp_id": task.wp_id,
                         "mr_url": task.mr_url or "",
@@ -225,6 +230,7 @@ class ResultCollector:
                 Event.create(
                     event_type=EventTypes.DEV_TASK_FAILED,
                     source_agent="dev-agent",
+                    trace_id=trace_id,
                     payload={
                         "wp_id": task.wp_id,
                         "error": "QA failed after retry",
@@ -235,6 +241,21 @@ class ResultCollector:
             )
 
         return events
+
+    async def _workflow_trace_id(self, task_id: DevTaskId) -> str | None:
+        """Recover the inbound trace from the durable workflow log after restart."""
+        get_log = getattr(self._log_repo, "get_by_task_id", None)
+        if not callable(get_log):
+            return None
+        workflow_log = await get_log(task_id)
+        workflow_json = getattr(workflow_log, "workflow_json", None)
+        if not isinstance(workflow_json, dict):
+            return None
+        metadata = workflow_json.get("metadata")
+        if not isinstance(metadata, dict):
+            return None
+        trace_id = metadata.get("trace_id")
+        return trace_id if isinstance(trace_id, str) and trace_id else None
 
     def _resolve_workspace_path(self, workflow_status: dict) -> str:
         """Resolve the AgentForge workspace path from a status response."""

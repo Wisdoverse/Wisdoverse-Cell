@@ -20,6 +20,7 @@ from ..api import (
     requirements_router,
     webui_router,
 )
+from ..api.delivery_handoff import router as delivery_handoff_router
 from ..db.database import db_manager
 from ..db.executor_ledger import EXECUTOR_ACTIONS, executor_ledger
 from ..db.vector_store import vector_store
@@ -56,6 +57,7 @@ app = create_agent_app(
     on_startup=_on_startup,
     on_shutdown=_on_shutdown,
     routers=[
+        delivery_handoff_router,
         ingest_router,
         requirements_router,
         feedback_router,

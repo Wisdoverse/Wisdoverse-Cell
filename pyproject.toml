@@ -208,6 +208,17 @@ files = [
     "shared/evolution/domain/skill_release.py",
     "shared/evolution/evaluation_batch.py",
     "shared/evolution/release_contract.py",
+    # Reviewed delivery handoff and physical retention boundaries.
+    "agents/requirement_manager/core/domain/delivery_handoff.py",
+    "agents/requirement_manager/core/delivery_handoff.py",
+    "agents/requirement_manager/db/delivery_handoff.py",
+    "agents/requirement_manager/adapters/delivery_context.py",
+    "agents/requirement_manager/api/delivery_handoff.py",
+    "shared/control_plane/domain/physical_retention.py",
+    "shared/control_plane/retention_models.py",
+    "shared/control_plane/retention_store.py",
+    "shared/control_plane/retention_use_cases.py",
+    "shared/control_plane/api_routes/retention.py",
     # S4.1 candidate migration and bounded PostgreSQL rehearsal paths.
     "agents/dev_agent/migrations/contracts.py",
     "agents/dev_agent/migrations/env.py",
