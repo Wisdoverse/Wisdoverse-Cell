@@ -1,6 +1,6 @@
 # Rollback Checklist
 
-Last updated: 2026-05-18
+Last updated: 2026-10-01
 
 Status: Foundation document. Stage 5 deliverable per
 [`migration-plan.md`](./migration-plan.md) §Stage 5 item 9.
@@ -111,6 +111,21 @@ Migrations are the riskiest part of any release. The default policy
 is **additive migrations** — new columns nullable, new tables empty,
 no in-place data mutation. Stage 4 introduces per-runtime migrations;
 until then, all migrations share one directory.
+
+### 4.0 Dev S4.1 synthetic recovery evidence
+
+The [S4.1 evidence record](./evidence/dev-migration-s41.md) demonstrates a
+synthetic PostgreSQL 18.6 custom-format backup, complete generated-schema
+loss, single-transaction restore, data/schema comparison and stamp
+rollback/restamp. It validates the runner's synthetic recovery path; it does
+not replace the production-copy rehearsal, the pre-cutover production dump,
+or operator sign-off required for a physical cutover.
+
+If a rehearsal report records `schema_cleanup: failed`, read its generated
+`rehearsal_schema` identifier. Verify the `dev_rehearsal_` prefix, exactly 32
+lowercase hexadecimal suffix characters, disposable database identity, and
+that the schema is not in use. Then remove only that exact schema. Do not use
+wildcards, prefix-based drops, or cleanup against `public`.
 
 ### 4.1 Reversible Alembic Migration
 

@@ -154,6 +154,11 @@ files = [
     "services/orchestration/coordinator/core/health_ports.py",
     "services/orchestration/coordinator/core/outbox_ports.py",
     "services/orchestration/coordinator/core/state_ports.py",
+    # S4.1 candidate migration and bounded PostgreSQL rehearsal paths.
+    "agents/dev_agent/migrations/contracts.py",
+    "agents/dev_agent/migrations/env.py",
+    "agents/dev_agent/migrations/versions/20261001_dev_baseline.py",
+    "scripts/dev_migration_rehearsal.py",
 ]
 # Pure ports / protocols / value-object helpers. No SQLAlchemy, no
 # FastAPI, no async LiteLLM clients in scope yet. `follow_imports =

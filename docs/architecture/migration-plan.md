@@ -52,7 +52,7 @@ in its authorized system.
 |-----------------|-------------|------------------|------------|---------------|
 | P0 / M0 / S5.4 | Validate the task operation flow and its boundary contracts | Product maintainer + runtime maintainer + QA | Existing work-item commands, operator surfaces and execution gates | Create → assign → real run → QA/required approval → accepted artifact → close; failure/recovery and durable goal/cost/audit links |
 | P1 / M1–M3 | Reliable scheduling, policy enforcement, executor conformance and integrated evolution | Relevant runtime/product maintainer + operator | M0 evidence; M1 gates before wider execution or live experiments | [Product milestone criteria](../overview/roadmap.md#delivery-order); route/event contracts, fault cases and comparative evaluation |
-| R0 / S4.1 | Rehearse per-runtime migration cutover for Dev, or QA if its readiness evidence is stronger | Runtime maintainer + release operator | Stage 3 code boundaries; [migration pre-conditions](./per-runtime-migrations.md#3-pre-conditions) | Upgrade, downgrade and upgrade on disposable data; ownership inventory; backup/restore and rollback rehearsal |
+| R0 / S4.1 | Rehearse per-runtime migration cutover for Dev, or QA if its readiness evidence is stronger | Runtime maintainer + release operator | Stage 3 code boundaries; [physical cutover pre-conditions](./per-runtime-migrations.md#3-pre-conditions) | Dev synthetic PostgreSQL engineering scope passed: schema/ownership parity, backup-loss-restore, tracking rollback/restamp, failure guards and source-fingerprinted evidence; production-copy validation and operational cutover sign-off remain pending |
 | R0 / S4.2 | Accept one independent runtime in staging when extraction is justified | Release operator + runtime maintainer | S4.1; contracts, outbox, replay, idempotency and dashboards ready | At least two weeks of realistic staging load within declared SLOs; successful replay and rollback |
 | R0 / S4.3 | Complete the planned Sync deployment split under ADR-0009 when its gates pass | Sync maintainer + release operator | Per-side migration readiness, projection compatibility, baseline observations | Dual-write parity, per-side dispatcher verification, two-week staging observation and tested compatibility fallback |
 
@@ -195,6 +195,24 @@ waive any migration, staging or rollback gate.
    infrastructure links, raw production logs and customer data out of the
    repository. Restricted evidence stays in its authorized system; only its
    sanitized outcome belongs in public docs.
+
+### S4.1 Engineering Evidence — 2026-10-01
+
+Dev has a [rehearsal-only candidate migration surface](../../agents/dev_agent/migrations/)
+and [isolated runner](../../scripts/dev_migration_rehearsal.py). The actual
+PostgreSQL 18.6 synthetic rehearsal passed all 13 runner checks, including
+`pg_dump`, full generated-schema loss, `pg_restore`, post-restore stamp
+rollback/restamp, injected transactional failure, real drift rejection and
+verified cleanup. See the [S4.1 evidence record](./evidence/dev-migration-s41.md)
+for scope and the location/fields of the machine-readable report. The
+record includes final gate counts, source commit, input fingerprint and worktree
+state from the verified input snapshot. The legacy
+chain remains the active migration owner.
+
+The synthetic engineering scope is complete. Production-copy validation,
+physical cutover preconditions, cutover scheduling, operator backup sign-off,
+staging observation and production acceptance remain pending; these are not
+inferred from the synthetic checks. See [candidate scope and ownership](./per-runtime-migrations.md#21-dev-s41-engineering-acceptance).
 
 ## Acceptance Record
 

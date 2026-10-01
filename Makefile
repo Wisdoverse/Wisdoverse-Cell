@@ -3,10 +3,12 @@
 .PHONY: all proto proto-python setup test test-public test-unit test-unit-full test-integration test-e2e test-python-full install dev openapi-snapshots migration-test typecheck python-dependency-audit split-deploy-dev split-deploy-qa split-deploy-pjm split-deploy-requirement
 
 PYTEST ?= python -m pytest
+DEV_MIGRATION_REHEARSAL_REPORT ?= .artifacts/s41-dev-postgresql.json
 RUST_GATEWAY_LOCAL_EVIDENCE_REPORT ?= .artifacts/rust-gateway-local-shadow-check.json
 RUST_GATEWAY_PROD_EVIDENCE_REPORT ?= .artifacts/rust-gateway-prod-shadow-check.json
 
 PYTEST_PUBLIC_PATHS = \
+	tests/unit/test_dev_migration_rehearsal.py \
 	tests/unit/test_agents_catalog.py \
 	tests/unit/test_config_secrets.py \
 	tests/unit/test_docker_contracts.py \
@@ -313,6 +315,11 @@ openapi-snapshots:
 # Stage 5 item 5 per docs/architecture/migration-plan.md.
 migration-test:
 	bash scripts/migration_round_trip.sh
+
+.PHONY: migration-rehearse-dev
+# Candidate chain only; real PostgreSQL loss/restore, no runtime cutover.
+migration-rehearse-dev:
+	python -m scripts.dev_migration_rehearsal --report "$(DEV_MIGRATION_REHEARSAL_REPORT)"
 
 # Static type check — Stage 5 item 3 per
 # docs/architecture/migration-plan.md. Scope is the `files` list in

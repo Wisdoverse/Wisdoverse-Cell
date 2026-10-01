@@ -100,6 +100,8 @@ Architecture Review Checklist before merge.
 | [Architecture Principles](./architecture/architecture-principles.md) | Binding layering rules, boundary rules, and engineering constraints |
 | [Module Boundaries](./architecture/module-boundaries.md) | Bounded context catalog with responsibility, data, dependencies, and split fitness |
 | [Service Boundaries](./architecture/service-boundaries.md) | Decision matrix for runtime extraction; default modular-monolith posture |
+| [Per-Runtime Migrations](./architecture/per-runtime-migrations.md) | Migration ownership, S4.1 synthetic engineering evidence, and physical cutover prerequisites |
+| [S4.1 Dev Migration Evidence](./architecture/evidence/dev-migration-s41.md) | Sanitized PostgreSQL engineering acceptance scope and evidence location |
 | [Data Ownership](./architecture/data-ownership.md) | Per-table write owner rules, cross-boundary read patterns, migration rules |
 | [Identity Boundary](./architecture/identity-boundary.md) | Single write-owner contract for the `users` table and the identity/user boundary |
 | [API Guidelines](./architecture/api-guidelines.md) | HTTP/REST/RPC contract: versioning, DTOs, error envelope, OpenAPI, idempotency |

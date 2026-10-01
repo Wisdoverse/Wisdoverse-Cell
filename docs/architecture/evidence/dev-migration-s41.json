@@ -1,0 +1,51 @@
+{
+  "candidate_revision": "20261001_dev_baseline",
+  "checks": {
+    "backup_created": "passed",
+    "backup_restore": "passed",
+    "destructive_downgrade_rejected": "passed",
+    "drift_rejected": "passed",
+    "failure_atomicity": "passed",
+    "fresh_round_trip": "passed",
+    "inherited_schema_parity": "passed",
+    "legacy_version_preserved": "passed",
+    "other_runtime_preserved": "passed",
+    "restored_tracking_round_trip": "passed",
+    "schema_cleanup": "passed",
+    "source_stable": "passed",
+    "stamp_rollback_restamp": "passed"
+  },
+  "duration_seconds": 1.641,
+  "evidence_scope": "synthetic_engineering_acceptance",
+  "format_version": "1.0",
+  "milestone": "S4.1",
+  "owned_tables": [
+    "dev_agent_tasks",
+    "dev_agent_workflow_logs",
+    "dev_agent_event_outbox"
+  ],
+  "phase": "complete",
+  "postgres_version": "18.6 (Debian 18.6-1.pgdg13+2)",
+  "rehearsal_schema": "dev_rehearsal_c92e347e453b4bc1b26f0cbeb7df6e4c",
+  "runtime": "dev-agent",
+  "source": {
+    "base_commit": "c3878771b242b8003c1c7aace6a7767a5604cdc6",
+    "input_files": [
+      ".github/workflows/ci.yml",
+      "Makefile",
+      "agents/dev_agent/migrations/contracts.py",
+      "agents/dev_agent/migrations/env.py",
+      "agents/dev_agent/migrations/versions/20261001_dev_baseline.py",
+      "migrations/versions/20260504_runtime_tables.py",
+      "migrations/versions/20260512_dev_event_outbox.py",
+      "pyproject.toml",
+      "scripts/dev_migration_rehearsal.py",
+      "tests/integration/test_dev_migration_rehearsal.py",
+      "tests/unit/test_dev_migration_rehearsal.py"
+    ],
+    "inputs_sha256": "e5c29adad52427a86b27035707c73e0c7619880f6679ba7b8a0fc4b833a16f47",
+    "worktree_dirty": true
+  },
+  "status": "passed",
+  "verified_at": "2026-10-01T08:13:05.721613+00:00"
+}

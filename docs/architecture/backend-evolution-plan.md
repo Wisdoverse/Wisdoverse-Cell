@@ -66,6 +66,13 @@ is superseded: PRs #160 and #161 configured those gates. A shared-chain round
 trip does not prove per-runtime cutover readiness, and scoped Mypy does not
 establish repository-wide type coverage.
 
+Dev S4.1 synthetic engineering acceptance passed on PostgreSQL 18.6, including
+backup/loss/restore and failure/drift checks. The baseline remains
+rehearsal-only; the legacy chain remains active. Production-copy validation,
+physical cutover preconditions, scheduling, operator backup sign-off, staging
+observation and production acceptance remain pending. See the
+[S4.1 evidence record](./evidence/dev-migration-s41.md).
+
 ### Public Evidence
 
 Publish source/PR references, role-based responsibility and sanitized
