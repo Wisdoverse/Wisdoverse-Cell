@@ -11,7 +11,7 @@ asyncpg>=0.31.0
 sqlalchemy[asyncio]>=2.0.49
 
 # Central LLM Gateway provider boundary
-litellm==1.96.2
+litellm==1.103.2
 
 # Scheduling
 apscheduler>=3.10.0
