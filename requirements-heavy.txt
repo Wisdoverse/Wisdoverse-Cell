@@ -7,4 +7,4 @@
 # When you bump a version here, also bump it in requirements.txt.
 
 sentence-transformers>=5.4.1
-pymilvus>=2.5.0
+pymilvus>=3.0.2
