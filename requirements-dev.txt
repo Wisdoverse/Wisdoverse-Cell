@@ -10,4 +10,4 @@
 # a time) per docs/architecture/migration-plan.md §Stage 5 item 3.
 # See pyproject.toml [tool.mypy] for the active include list and
 # `make typecheck` for the local entry point.
-mypy>=1.11.0
+mypy>=2.4.0
