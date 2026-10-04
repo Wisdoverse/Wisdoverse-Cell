@@ -11,5 +11,5 @@ litellm==1.96.2
 
 # Requirement manager gRPC endpoint for the Rust gateway.
 grpcio>=1.70.0
-grpcio-reflection>=1.70.0
+grpcio-reflection>=1.84.0
 protobuf>=5.29.0
