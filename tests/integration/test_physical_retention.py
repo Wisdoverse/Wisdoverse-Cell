@@ -350,7 +350,13 @@ async def test_concurrent_purge_and_duplicate_append_preserve_one_idempotent_res
         receipt, returned = await asyncio.wait_for(
             asyncio.gather(purge(), append_duplicate()), timeout=10
         )
-        assert receipt.purged_audit_events == 1
+        # SKIP LOCKED may defer the row while the duplicate append holds its lock.
+        follow_up = await SqlAlchemyRetentionStore(session).apply(
+            RetentionCommand(company_id=company_id, dry_run=False),
+            request_id="race-follow-up", now=now, cutoff=cutoff,
+        )
+        await session.commit()
+        assert receipt.purged_audit_events + follow_up.purged_audit_events == 1
         assert returned.audit_event_id == "audit_race"
         assert await session.scalar(select(func.count()).select_from(AuditEventTable)) == 0
         assert await session.scalar(
