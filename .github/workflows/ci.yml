@@ -155,7 +155,7 @@ jobs:
         run: python -m pytest -q tests/unit/test_dev_migration_rehearsal.py tests/integration/test_dev_migration_rehearsal.py
       - name: Upload sanitized migration evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: s41-dev-migration-evidence
           path: .artifacts/s41-dev-postgresql.json
