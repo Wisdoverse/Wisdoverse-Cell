@@ -1,9 +1,19 @@
 # Agent Development Guide
 
-This guide defines the service pattern for adding or changing Wisdoverse Cell
-agents. English is the primary language for comments, docs, prompts, schemas,
-and handoff text. Keep non-English content only for locale strings, external
-platform field names, quoted source content, and multilingual fixtures.
+This guide defines the service pattern for changes to Wisdoverse Cell runtimes.
+Follow the [writing rules](./agent-writing.md) for repository text and language exceptions.
+
+## Code conventions
+
+- Use async I/O without blocking the event loop.
+- Use Pydantic v2, including `model_dump_json()` for JSON output.
+- Use the repository pattern for database access.
+- Use canonical imports, such as `shared.integrations.feishu`, `shared.messaging.outbound`, and `shared.infra.agent_client`.
+- Do not restore `shared.services.*`, root `skills.*`, or `shared.grpc.server` compatibility paths.
+- Never log secrets, credentials, or personal data.
+- Keep required human approval for finance, legal, customer, and technical actions.
+
+Follow the [architecture principles](../architecture/architecture-principles.md) for DDD, runtime ownership, and stable identifiers.
 
 ## 1. Agent Model
 
@@ -66,6 +76,13 @@ Keep `service/agent.py` thin. It should route events and requests, call core
 services, and publish results. Put real business logic in `core/`. Business
 runtime agents use an `Agent` class name. Support capabilities use a `Module`
 class name even though they still implement the `BaseAgent` runtime protocol.
+
+Keep only deployable business runtimes under `agents/`.
+Do not add compatibility aliases there.
+Put external HTTP and SDK clients in the runtime's `adapters/` directory.
+Make `core/` depend on ports or injected collaborators.
+Keep shared Feishu card builders and renderers under `shared/integrations/feishu/cards/`.
+Inject these card capabilities through service-local ports.
 
 ## 3. Runtime Protocol Contract
 
@@ -227,7 +244,8 @@ webhooks, gateway behavior, or deployment wiring.
 When adding or changing an agent:
 
 - Update `SPEC.md` only if the root service contract changes.
-- Update `AGENTS.md` if a durable repo rule changes.
+- Update the guide that owns a changed rule.
+- Update `AGENTS.md` when a core rule or reading path changes.
 - Update `docs/INDEX.md` links when adding new docs.
 - Update `docs/guides/api-reference.md` for new public or internal endpoints.
 - Update `docs/guides/event-catalog.md` for new event types.

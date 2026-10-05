@@ -84,7 +84,7 @@ Goal: understand the architecture, read the key documents, and run each agent lo
 
 | Order | Document | Why |
 |:-----:|----------|-----|
-| 1 | [`AGENTS.md`](../../AGENTS.md) | Supreme law of the repo — architecture boundaries, coding standards, workflow, and operational commands |
+| 1 | [`AGENTS.md`](../../AGENTS.md) | Core repository rules and required references by task |
 | 2 | [`docs/INDEX.md`](../INDEX.md) | Navigation hub for all documentation — ADRs, PRDs, design docs |
 | 3 | [`docs/guides/event-catalog.md`](../guides/event-catalog.md) | All 46+ event types, payload schemas, producer/consumer matrix |
 | 4 | [`docs/guides/agent-development.md`](../guides/agent-development.md) | How to build an Agent — BaseAgent, create_agent_app, plugins, tests |

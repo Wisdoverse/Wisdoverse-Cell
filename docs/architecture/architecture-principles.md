@@ -1,6 +1,6 @@
 # Architecture Principles
 
-Last updated: 2026-05-22
+Last updated: 2026-10-05
 
 Status: Foundation document. Every PR that affects architecture must reconcile
 with this file before merge.
@@ -25,7 +25,7 @@ Companion documents:
 - [Backend Architecture Analysis](./backend-architecture-analysis.md)
 - [DDD Compliance Audit](./ddd-compliance-audit.md)
 
-These principles also reconcile with `AGENTS.md` Part 3, `SPEC.md` §3, and
+These principles also reconcile with [AGENTS.md](../../AGENTS.md#boundaries), `SPEC.md` §3, and
 `docs/overview/architecture.md`. When this file changes, those three must
 be reviewed in the same PR.
 
@@ -59,7 +59,7 @@ Cross-cutting:
 
 ## 2. Boundary Rules
 
-These restate and extend `AGENTS.md` Part 3 rules. They are normative.
+These rules define the boundaries linked from [AGENTS.md](../../AGENTS.md#boundaries). They are normative.
 
 1. Agents must not directly import another independently deployed agent.
 2. Agents communicate through HTTP clients or EventBus events.
@@ -72,7 +72,53 @@ These restate and extend `AGENTS.md` Part 3 rules. They are normative.
 9. Frontend route files must stay thin (Feature-Sliced Design; out of scope here).
 10. Frontend domain data belongs to `entities` (out of scope here).
 11. All cross-boundary contracts must be documented in `SPEC.md`, the API reference, or the Event Catalog.
-12. Canonical runtime identifiers and agent IDs after the 2026-05-10 brand unification are stable (`AGENTS.md` Part 3 rule 13).
+12. Preserve the [stable identifiers](#stable-identifiers) from the 2026-05-10 brand unification.
+
+### Runtime requirements
+
+Apply these requirements to every roadmap implementation and architecture review.
+
+- Apply DDD with explicit bounded contexts, domain invariants, and data ownership.
+- Keep microservices independently deployable.
+- Use versioned HTTP contracts or events between runtimes.
+- Expose health and readiness checks.
+- Support graceful shutdown.
+- Load configuration and secrets from external sources.
+- Make failures observable.
+- Bound failure handling with explicit timeouts and retry limits.
+- Document rollout and rollback for deployment changes.
+
+### Runtime and package ownership
+
+- Keep organization roles, such as CEO and CTO, as durable `AgentRole` records and templates.
+- Keep runtime metadata and role templates in `shared/control_plane/agent_catalog.py`.
+- Put deployable business runtimes under `agents/`.
+- Put gateways and orchestration workers under `services/`.
+- Put support capabilities under `shared/capabilities/`.
+- Keep OpenProject synchronization and Feishu Bitable synchronization as separate bounded capabilities.
+- Preserve that separation when a compatibility endpoint calls both Sync capabilities.
+- Keep domain code independent of infrastructure through ports.
+- Do not model the backend as a traditional DDD monolith.
+- Keep frontend route files thin.
+- Put frontend domain data in `entities`.
+- Put frontend user actions in `features`.
+- Put composed operator surfaces in `widgets`.
+
+### Stable identifiers
+
+Do not rename these identifiers during refactoring or documentation edits.
+
+| Use | Identifier |
+|-----|------------|
+| Services, networks, Compose project, image suffixes | `wisdoverse-cell` |
+| Python distribution and fully qualified database references | `wisdoverse_cell` |
+| Display name | Wisdoverse Cell |
+| Company ID | `cmp_wisdoverse_cell` |
+| Runtime IDs | `requirement-manager`, `pjm-agent`, `qa-agent`, `dev-agent`, `chat-agent`, `sync-module`, `analysis-module`, `evolution-module` |
+
+For a new runtime ID, follow its approved architecture decision.
+Update the runtime catalog with the new ID.
+Keep existing IDs stable through the transition.
 
 ---
 
@@ -222,7 +268,7 @@ an explicit exception.
 
 When this document changes, the change must update or reconcile:
 
-- `AGENTS.md` Part 3 (architecture constitution section).
+- [AGENTS.md](../../AGENTS.md#boundaries) (repository instruction entry point).
 - `SPEC.md` §3 (architecture boundary rules).
 - `docs/overview/architecture.md` (boundary rules section).
 - All sibling docs under `docs/architecture/`.

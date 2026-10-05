@@ -9,7 +9,7 @@ under `agents/chat_agent/`. Gateway app/API paths call this runtime
 through HTTP adapters; legacy gateway core/db/model aliases have been
 removed.
 
-Canonical runtime ID: `chat-agent` (AGENTS.md Part 3 rule 13).
+Canonical runtime ID: `chat-agent`. See [stable identifiers](../../docs/architecture/architecture-principles.md#stable-identifiers).
 See [`docs/architecture/module-boundaries.md`](../../docs/architecture/module-boundaries.md)
 §2.7 for the gateway → chat-agent boundary that this runtime
 materializes.

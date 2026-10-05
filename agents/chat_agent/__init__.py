@@ -8,5 +8,5 @@ outbox dispatching, and internal HTTP APIs live here. The gateway calls
 this runtime through HTTP adapters and no longer owns chat-agent
 product core/db/model aliases.
 
-Canonical runtime ID: `chat-agent` (AGENTS.md Part 3 rule 13).
+Canonical runtime ID: `chat-agent` (docs/architecture/architecture-principles.md#stable-identifiers).
 """

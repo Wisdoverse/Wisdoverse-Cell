@@ -85,7 +85,7 @@ Code -> Push -> CI Pipeline -> Code Review -> Merge
 
 ## 4. Code Standards
 
-See [`AGENTS.md` Part 4: Coding Standards](../AGENTS.md) for the canonical rules.
+Follow the [code conventions](./guides/agent-development.md#code-conventions) and [writing rules](./guides/agent-writing.md).
 
 Core points:
 
@@ -114,6 +114,30 @@ Human contributors and AI agents follow the same engineering workflow and qualit
 - AI-generated code must pass the same CI pipeline as human-written code.
 - AI agents must not push directly to `main`; changes must go through the PR/MR workflow.
 - AI agents must treat `intern-archive` as read-only historical context, not as a development base.
+
+Plan the required design, logic, events, tests, and documentation changes before implementation.
+Before you accept a result, verify the step.
+Keep the plan proportional to the task.
+
+Use Luna (`gpt-6-luna`) for simple tasks with clear acceptance criteria when available.
+Examples include link checks, wording changes, and a bounded inventory of files.
+Before you accept delegated work, review its results.
+Keep architecture, security, and uncertain decisions with the primary reviewer.
+If Luna is unavailable, use the current model.
+Report the model substitution.
+
+Use these review roles to check the result:
+
+| Role | Review question |
+|------|-----------------|
+| CPO | Does the user have a useful fallback when the model fails? |
+| Architect | Do the runtime boundaries remain independent? |
+| Engineer | Does the change preserve async safety and Pydantic v2 contracts? |
+| Security | Can the change expose private data or accept untrusted instructions? |
+| PM | Do the code, tests, and documentation match the plan? |
+
+Include `[Analysis]`, `[Risk:H/M/L]`, and `[Fixes]` in the final audit.
+For `/audit`, use the same fields.
 
 ---
 

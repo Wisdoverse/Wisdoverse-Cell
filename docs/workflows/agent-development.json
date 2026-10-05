@@ -8,7 +8,7 @@
       "dependsOn": [],
       "config": {
         "cliTool": "codex",
-        "prompt": "Read SPEC.md, AGENTS.md, docs/guides/agent-development.md, and the reference files below, then write a detailed implementation plan to var/agent-workflows/${AGENT_NAME}-implementation-plan.md:\n\nReference files:\n- agents/pjm_agent/ (existing agent architecture reference)\n- shared/app/factory.py (create_agent_app)\n- shared/schemas/agent.py (BaseAgent)\n- shared/schemas/event.py (EventTypes)\n- .acceptance/runner.py (acceptance framework)\n- AGENTS.md (coding standards)\n\nRequirements:\n1. Break work into 5-8 independent parallelizable tasks\n2. Assign each task to the recommended AI tool (Claude Code or Gemini CLI)\n3. Define interface signatures, database tables, and event payloads\n4. List technical risks and the recommended execution order"
+        "prompt": "Read SPEC.md, AGENTS.md, docs/guides/agent-development.md, and the reference files below, then write a detailed implementation plan to var/agent-workflows/${AGENT_NAME}-implementation-plan.md:\n\nReference files:\n- agents/pjm_agent/ (existing agent architecture reference)\n- shared/app/factory.py (create_agent_app)\n- shared/schemas/agent.py (BaseAgent)\n- shared/schemas/event.py (EventTypes)\n- .acceptance/runner.py (acceptance framework)\n- docs/guides/agent-development.md (code conventions)\n\nRequirements:\n1. Break work into 5-8 independent parallelizable tasks\n2. Assign each task to the recommended AI tool (Claude Code or Gemini CLI)\n3. Define interface signatures, database tables, and event payloads\n4. List technical risks and the recommended execution order"
       }
     },
     {
@@ -17,7 +17,7 @@
       "dependsOn": ["plan"],
       "config": {
         "cliTool": "claude",
-        "prompt": "Follow Task 1 in var/agent-workflows/${AGENT_NAME}-implementation-plan.md (contracts, configuration, documentation baseline) and complete:\n\n1. Register new event payload contracts in shared/schemas/event_payloads.py\n2. Register new event constants in EventTypes in shared/schemas/event.py\n3. Add required configuration fields for the new capability or gateway in shared/config.py\n4. Register the new capability or gateway in the AGENTS.md architecture diagram\n5. Create any required shared/integrations/ adapters\n\nConstraints: follow AGENTS.md coding standards and use EventTypes constants instead of bare strings."
+        "prompt": "Follow Task 1 in var/agent-workflows/${AGENT_NAME}-implementation-plan.md (contracts, configuration, documentation baseline) and complete:\n\n1. Register new event payload contracts in shared/schemas/event_payloads.py\n2. Register new event constants in EventTypes in shared/schemas/event.py\n3. Add required configuration fields for the new capability or gateway in shared/config.py\n4. Register the new capability or gateway in the docs/overview/architecture.md diagram\n5. Create any required shared/integrations/ adapters\n\nConstraints: follow docs/guides/agent-development.md code conventions and use EventTypes constants instead of bare strings."
       }
     },
     {
@@ -35,7 +35,7 @@
       "dependsOn": ["impl-contracts"],
       "config": {
         "cliTool": "gemini",
-        "prompt": "Follow var/agent-workflows/${AGENT_NAME}-implementation-plan.md and implement the independent modules assigned to Gemini CLI.\n\nUsually includes:\n- models/ layer (ORM tables and Pydantic DTOs)\n- db/ layer (DatabaseManager and Repository)\n- api/ layer (REST endpoints and HTTP schemas)\n- tests/conftest.py fixtures\n- integration tests under tests/integration/\n\nConstraints:\n- Use async SQLAlchemy + asyncpg\n- Use ULID as the primary key\n- Prefix table names with the agent name\n- Protect API endpoints with Depends(verify_internal_key)\n- Follow AGENTS.md coding standards"
+        "prompt": "Follow var/agent-workflows/${AGENT_NAME}-implementation-plan.md and implement the independent modules assigned to Gemini CLI.\n\nUsually includes:\n- models/ layer (ORM tables and Pydantic DTOs)\n- db/ layer (DatabaseManager and Repository)\n- api/ layer (REST endpoints and HTTP schemas)\n- tests/conftest.py fixtures\n- integration tests under tests/integration/\n\nConstraints:\n- Use async SQLAlchemy + asyncpg\n- Use ULID as the primary key\n- Prefix table names with the agent name\n- Protect API endpoints with Depends(verify_internal_key)\n- Follow docs/guides/agent-development.md code conventions"
       }
     },
     {

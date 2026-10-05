@@ -26,7 +26,7 @@ item does not apply, write "n/a" with a one-line reason.
 
 ## 2. Boundary Compliance
 
-- [ ] No new cross-agent direct imports. (`AGENTS.md` Part 3 rule 1.)
+- [ ] No new cross-agent direct imports. See [boundary rules](./architecture-principles.md#2-boundary-rules).
 - [ ] No imports from retired `shared.services.*`, root `skills.*`, or `shared.grpc.server` paths.
 - [ ] Domain layer does not import from infrastructure or interfaces.
 - [ ] `controller / handler` does not contain business rules.
@@ -119,7 +119,7 @@ item does not apply, write "n/a" with a one-line reason.
 
 ## 9. Documentation Reconciliation
 
-- [ ] `AGENTS.md` is updated if architecture constitution changes.
+- [ ] Core rule changes update `AGENTS.md`; detailed rule changes update the linked owner document.
 - [ ] `SPEC.md` is updated if a contract changes.
 - [ ] `docs/overview/architecture.md` is updated if topology changes.
 - [ ] `docs/architecture/architecture-principles.md` is updated if a
