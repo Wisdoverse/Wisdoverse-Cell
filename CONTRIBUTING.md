@@ -33,7 +33,8 @@ contribution questions.
 ### Prerequisites
 
 - Python 3.11+
-- Rust 1.86+
+- Rustup, with Rust 1.99.0 selected by [rust-toolchain.toml](./rust-toolchain.toml)
+- Protocol Buffers compiler (`protoc`) for Rust gateway builds
 - Docker & Docker Compose
 - Node.js 24+ (for frontend)
 
@@ -56,6 +57,7 @@ make up-infra
 make dev
 
 # Rust gateway
+rustup install --no-self-update
 make rust-gateway-run
 ```
 

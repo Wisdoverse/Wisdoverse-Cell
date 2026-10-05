@@ -1,4 +1,4 @@
-FROM rust:1.98-alpine AS builder
+FROM rust:1.99.0-alpine AS builder
 
 ARG ALPINE_MIRROR
 
@@ -12,7 +12,7 @@ RUN if [ -n "$ALPINE_MIRROR" ]; then \
 COPY rust ./rust
 COPY agents/requirement_manager/grpc/proto ./agents/requirement_manager/grpc/proto
 
-RUN cargo build --manifest-path rust/Cargo.toml --release -p wisdoverse-cell-rust-gateway
+RUN cargo build --manifest-path rust/Cargo.toml --release --locked -p wisdoverse-cell-rust-gateway
 
 FROM alpine:3.24
 

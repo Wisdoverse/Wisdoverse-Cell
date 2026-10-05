@@ -16,7 +16,8 @@ when they apply.
 
 ### Changed
 
-- (no entries yet)
+- Select Rust 1.99.0 for local development, CI, and the gateway build image.
+- Reorganize the public README with status badges, diagrams, setup steps, and documentation links.
 
 ### Fixed
 
