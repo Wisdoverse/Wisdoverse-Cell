@@ -170,10 +170,7 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Install Rust toolchain
-        run: |
-          # Match the last passing toolchain; upgrades require an explicit compatibility review.
-          rustup toolchain install 1.98.1 --profile minimal --component clippy,rustfmt
-          rustup default 1.98.1
+        run: rustup install --no-self-update
       - name: Rust format
         run: cargo fmt --manifest-path rust/Cargo.toml --check
       - name: Rust tests
