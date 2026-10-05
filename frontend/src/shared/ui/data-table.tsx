@@ -2,9 +2,12 @@
 
 import {
   type ColumnDef,
+  columnSizingFeature,
+  columnVisibilityFeature,
   flexRender,
-  getCoreRowModel,
-  useReactTable,
+  type RowData,
+  tableFeatures,
+  useTable,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -19,9 +22,14 @@ import { Skeleton } from "@/shared/ui/skeleton";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-interface DataTableProps<T> {
+export const dataTableFeatures = tableFeatures({
+  columnSizingFeature,
+  columnVisibilityFeature,
+});
+
+interface DataTableProps<T extends RowData> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  columns: ColumnDef<T, any>[];
+  columns: ColumnDef<typeof dataTableFeatures, T, any>[];
   data: T[];
   isLoading?: boolean;
   page?: number;
@@ -31,7 +39,7 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
 }
 
-export function DataTable<T>({
+export function DataTable<T extends RowData>({
   columns,
   data,
   isLoading,
@@ -42,11 +50,10 @@ export function DataTable<T>({
   onRowClick,
 }: DataTableProps<T>) {
   const t = useTranslations("common");
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
+  const table = useTable({
+    features: dataTableFeatures,
     data,
     columns,
-    getCoreRowModel: getCoreRowModel(),
   });
 
   const totalPages = Math.ceil(total / pageSize);

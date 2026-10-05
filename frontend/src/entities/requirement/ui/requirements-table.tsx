@@ -7,7 +7,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Check, X } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { Badge } from "@/shared/ui/badge";
-import { DataTable } from "@/shared/ui/data-table";
+import { dataTableFeatures, DataTable } from "@/shared/ui/data-table";
 import { StatusBadge } from "@/entities/requirement/ui/status-badge";
 import { PriorityBadge } from "@/entities/requirement/ui/priority-badge";
 import type { Requirement } from "@/lib/api/types";
@@ -120,7 +120,7 @@ export function RequirementsTable({
     }
   };
 
-  const columns: ColumnDef<Requirement, unknown>[] = [
+  const columns: ColumnDef<typeof dataTableFeatures, Requirement, unknown>[] = [
     {
       id: "select",
       header: () => (
