@@ -328,7 +328,7 @@ addressed.
 10. **Public runtime identifiers** (`requirement-manager`, `pjm-agent`,
     `qa-agent`, `dev-agent`, `chat-agent`, `sync-module`, `analysis-module`,
     `evolution-module`, `cmp_wisdoverse_cell`) — frozen by
-    `AGENTS.md` Part 3 rule 13.
+    the [stable identifier rules](./architecture-principles.md#stable-identifiers).
 
 ---
 
@@ -370,8 +370,7 @@ distract from higher-leverage work.
 5. **`shared/control_plane` aggregate set**
    (`Goal`, `WorkItem`, `AgentRole`, `AgentRun`, `Approval`, `Budget`,
    `Artifact`, `AuditEvent`, `EvolutionProposal`).
-6. **Canonical runtime identifiers and agent IDs** (`AGENTS.md` Part 3 rule
-   13).
+6. **Canonical runtime identifiers and agent IDs** ([stable identifiers](./architecture-principles.md#stable-identifiers)).
 7. **`tests/unit/test_architecture_boundaries.py`**. Extend, do not rewrite.
 8. **Rust gateway protobuf contracts**. Anything that changes the
    `requirement.proto` boundary must coordinate with the Rust workspace.

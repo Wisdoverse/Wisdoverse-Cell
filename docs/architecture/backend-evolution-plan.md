@@ -394,7 +394,7 @@ in flight.
 2. EventBus delivery model: Redis Streams, consumer groups, `dlq.failed`,
    at-least-once semantics.
 3. Canonical runtime identifiers and agent IDs after the 2026-05-10 brand
-   unification (see `AGENTS.md` Part 3 rule 13).
+   unification (see [stable identifiers](./architecture-principles.md#stable-identifiers)).
 4. The control-plane ledger schema and aggregate set
    (`Goal`, `WorkItem`, `AgentRole`, `AgentRun`, `Approval`, `Budget`,
    `Artifact`, `AuditEvent`, `EvolutionProposal`).

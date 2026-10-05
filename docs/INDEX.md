@@ -1,6 +1,6 @@
 # Wisdoverse Cell Documentation Index
 
-> Last updated: 2026-10-01
+> Last updated: 2026-10-05
 >
 > This is the entry point for Wisdoverse Cell documentation. Documentation is English-first. Non-English text should be limited to locale values, quoted source text, external platform contracts, and multilingual fixtures.
 
@@ -13,6 +13,7 @@
 | [SPEC](../SPEC.md) | Root service specification and implementation contract |
 | [README](./README.md) | Documentation landing page, architecture, quick start, agent matrix |
 | [CONTRIBUTING](./CONTRIBUTING.md) | Branching, commits, PR workflow, AI collaboration rules |
+| [AGENTS](../AGENTS.md) | Core instructions and required references by task |
 | [CHANGELOG](./CHANGELOG.md) | Version history |
 
 ---
@@ -86,6 +87,7 @@ For contributors, operators, and deployers.
 | Document | Purpose |
 |----------|---------|
 | [Agent Development Guide](./guides/agent-development.md) | New-agent template, `create_agent_app`, plugins, tests, deployment |
+| [Agent Writing Rules](./guides/agent-writing.md) | STE-based sentence limits, terminology, language exceptions, and review procedure |
 | [API Reference](./guides/api-reference.md) | REST endpoints, authentication, errors, control-plane API, agent wakeups |
 | [Backend Boundaries](./guides/backend-boundaries.md) | Bounded contexts, table ownership, cross-boundary access rules, and known backend governance gaps |
 | [Event Catalog](./guides/event-catalog.md) | Event types, payload schemas, producer/consumer matrix, control-plane lifecycle events |

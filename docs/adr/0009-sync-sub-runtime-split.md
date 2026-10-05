@@ -20,7 +20,7 @@ both halves and combines their outcomes.
 
 Constraints documented elsewhere:
 
-- `CLAUDE.md` Part 3 / `AGENTS.md` Part 3: "The sync runtime must keep
+- [Runtime ownership](../architecture/architecture-principles.md#runtime-and-package-ownership), originally `AGENTS.md` Part 3: "The sync runtime must keep
   OpenProject synchronization and Feishu Bitable synchronization as
   separate bounded capabilities, even when a compatibility endpoint
   orchestrates both."
@@ -102,8 +102,8 @@ PRs) has migrated `core/engine.py` off string statuses.
 ## Consequences
 
 - New canonical agent IDs (`sync-openproject`, `sync-feishu-bitable`)
-  must be added to `agent_catalog.py` (`AGENTS.md` Part 3 rule 13
-  is amended to include them).
+  must be added to `agent_catalog.py` and the
+  [stable identifier list](../architecture/architecture-principles.md#stable-identifiers).
 - Two new Alembic migration directories.
 - Two new outbox tables; one frozen + removed migration for the
   legacy outbox after cutover.

@@ -28,7 +28,7 @@ Additionally, the gateway `core/chat_service.py` imported
 DDD-017 application-purity violation. The chat_service belongs in a runtime
 that owns the chat-agent domain, not in the gateway layer.
 
-`AGENTS.md` Part 3 rule 13 lists `chat-agent` as a canonical runtime
+The [stable identifier rules](../architecture/architecture-principles.md#stable-identifiers) list `chat-agent` as a canonical runtime
 identifier from the 2026-05-10 brand unification — the ID is already
 reserved.
 
@@ -99,7 +99,7 @@ Interaction Gateway to its transport + webhook-intake concerns.
 - **Boundary rule already binding**. `module-boundaries.md` §3 rule 8
   states gateways must not own product-domain records. This is the
   current single open violation.
-- **Agent ID already canonical**. `AGENTS.md` Part 3 rule 13 lists
+- **Agent ID already canonical**. The [stable identifier rules](../architecture/architecture-principles.md#stable-identifiers) list
   `chat-agent`; the extraction uses the reserved ID without
   introducing a new identifier.
 - **Unblocks DDD-017**. The conversation-engine port moves with
