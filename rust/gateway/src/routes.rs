@@ -1548,7 +1548,7 @@ mod tests {
         http::{HeaderMap, HeaderValue, Method, Request, StatusCode},
     };
     use base64::{engine::general_purpose, Engine as _};
-    use cbc::cipher::{block_padding::Pkcs7, BlockEncryptMut, KeyIvInit};
+    use cbc::cipher::{block_padding::Pkcs7, BlockModeEncrypt, KeyIvInit};
     use serde_json::Value;
     use std::{
         net::SocketAddr,
@@ -2644,7 +2644,7 @@ mod tests {
         plain.resize(msg_len + 16, 0);
         let cipher_text = Aes256CbcEnc::new_from_slices(&aes_key, &aes_key[..16])
             .unwrap()
-            .encrypt_padded_mut::<Pkcs7>(&mut plain, msg_len)
+            .encrypt_padded::<Pkcs7>(&mut plain, msg_len)
             .unwrap();
 
         general_purpose::STANDARD.encode(cipher_text)

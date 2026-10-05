@@ -1,6 +1,6 @@
 use aes::Aes256;
 use base64::{engine::general_purpose, Engine as _};
-use cbc::cipher::{block_padding::NoPadding, BlockDecryptMut, KeyIvInit};
+use cbc::cipher::{block_padding::NoPadding, BlockModeDecrypt, KeyIvInit};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{error::Error, fmt};
@@ -74,8 +74,9 @@ pub fn decrypt_message(encrypted: &str, encrypt_key: &str) -> Result<Vec<u8>, Fe
 
     let key = Sha256::digest(encrypt_key.as_bytes());
     let mut plain = payload.to_vec();
-    let plain = Aes256CbcDec::new(&key, iv.into())
-        .decrypt_padded_mut::<NoPadding>(&mut plain)
+    let plain = Aes256CbcDec::new_from_slices(&key, iv)
+        .map_err(|_| FeishuCryptoError::DecryptFailed)?
+        .decrypt_padded::<NoPadding>(&mut plain)
         .map_err(|_| FeishuCryptoError::DecryptFailed)?;
 
     let start = plain
@@ -174,7 +175,7 @@ mod tests {
     use super::{decrypt_message, parse_message_content, verify_signature, FeishuCryptoError};
     use aes::Aes256;
     use base64::{engine::general_purpose, Engine as _};
-    use cbc::cipher::{block_padding::NoPadding, BlockEncryptMut, KeyIvInit};
+    use cbc::cipher::{block_padding::NoPadding, BlockModeEncrypt, KeyIvInit};
     use sha2::{Digest, Sha256};
     use std::{
         sync::atomic::{AtomicU64, Ordering},
@@ -229,6 +230,17 @@ mod tests {
             br#"{"event":"modified"}"#,
             &signature
         ));
+    }
+
+    #[test]
+    fn decrypts_fixed_aes_cbc_ciphertext() {
+        // OpenSSL AES-256-CBC fixture with SHA-256 key and zero-padded JSON.
+        let decrypted = decrypt_message(
+            "KioqKioqKioqKioqKioqKmGxpYZzI5WN8S5YhDYl4g8=",
+            "test-encrypt-key",
+        )
+        .unwrap();
+        assert_eq!(decrypted, br#"{"test":"data"}"#);
     }
 
     #[test]
@@ -305,8 +317,9 @@ mod tests {
         padded.extend(std::iter::repeat_n(padding as u8, padding));
 
         let msg_len = padded.len();
-        let cipher_text = Aes256CbcEnc::new(&key, (&iv).into())
-            .encrypt_padded_mut::<NoPadding>(&mut padded, msg_len)
+        let cipher_text = Aes256CbcEnc::new_from_slices(&key, &iv)
+            .unwrap()
+            .encrypt_padded::<NoPadding>(&mut padded, msg_len)
             .unwrap();
 
         let mut payload = iv.to_vec();

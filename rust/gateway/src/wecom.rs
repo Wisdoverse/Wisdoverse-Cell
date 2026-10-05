@@ -6,7 +6,7 @@ use base64::{
         Engine as _,
     },
 };
-use cbc::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
+use cbc::cipher::{block_padding::Pkcs7, BlockModeDecrypt, KeyIvInit};
 use quick_xml::{events::Event, Reader};
 use serde_json::{json, Value};
 use sha1::{Digest, Sha1};
@@ -141,7 +141,7 @@ impl WecomCrypto {
         let mut plain = cipher_text;
         let plain = Aes256CbcDec::new_from_slices(&self.aes_key, &self.aes_key[..16])
             .map_err(|_| WecomCryptoError::InvalidAesKey)?
-            .decrypt_padded_mut::<Pkcs7>(&mut plain)
+            .decrypt_padded::<Pkcs7>(&mut plain)
             .map_err(|_| WecomCryptoError::DecryptFailed)?;
 
         if plain.len() < 20 {
@@ -323,7 +323,7 @@ mod tests {
     };
     use aes::Aes256;
     use base64::{engine::general_purpose, Engine as _};
-    use cbc::cipher::{block_padding::Pkcs7, BlockEncryptMut, KeyIvInit};
+    use cbc::cipher::{block_padding::Pkcs7, BlockModeEncrypt, KeyIvInit};
     use std::{
         sync::atomic::{AtomicU64, Ordering},
         time::{SystemTime, UNIX_EPOCH},
@@ -507,7 +507,7 @@ mod tests {
 
         let cipher_text = Aes256CbcEnc::new_from_slices(aes_key, &aes_key[..16])
             .unwrap()
-            .encrypt_padded_mut::<Pkcs7>(&mut plain, msg_len)
+            .encrypt_padded::<Pkcs7>(&mut plain, msg_len)
             .unwrap();
 
         general_purpose::STANDARD.encode(cipher_text)
