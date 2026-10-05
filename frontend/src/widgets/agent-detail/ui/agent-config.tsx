@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Loader2, RotateCcw, Save } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -117,18 +117,13 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
   const ta = useTranslations("agents");
   const locale = useLocale();
   const promptQuery = useAgentPromptConfig(agentMeta.id);
-  const [draftPrompt, setDraftPrompt] = useState("");
+  const [editedPrompt, setEditedPrompt] = useState<string | null>(null);
   const [savingPrompt, setSavingPrompt] = useState(false);
   const savedPrompt = promptQuery.data?.system_prompt ?? "";
+  const draftPrompt = editedPrompt ?? savedPrompt;
   const isPromptDirty = draftPrompt !== savedPrompt;
   const isPromptTooLong = draftPrompt.length > MAX_PROMPT_LENGTH;
   const updatedAt = formatUpdatedAt(promptQuery.data?.updated_at, locale);
-
-  useEffect(() => {
-    if (promptQuery.data) {
-      setDraftPrompt(promptQuery.data.system_prompt);
-    }
-  }, [promptQuery.data]);
 
   async function handlePromptSave() {
     if (!isPromptDirty || isPromptTooLong) return;
@@ -139,8 +134,8 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
         updated_by: "webui",
         metadata: { source: "agent_detail_config_tab" },
       });
-      setDraftPrompt(saved.system_prompt);
       await promptQuery.mutate(saved, { revalidate: false });
+      setEditedPrompt(null);
       toast.success(t("promptSaveSuccess"));
     } catch {
       toast.error(t("promptSaveError"));
@@ -150,7 +145,7 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
   }
 
   function handlePromptReset() {
-    setDraftPrompt(savedPrompt);
+    setEditedPrompt(null);
   }
 
   const operatorEntries: {
@@ -444,7 +439,7 @@ export function AgentConfig({ agentMeta }: AgentConfigProps) {
           <Textarea
             id={`agent-system-prompt-${agentMeta.id}`}
             value={draftPrompt}
-            onChange={(event) => setDraftPrompt(event.target.value)}
+            onChange={(event) => setEditedPrompt(event.target.value)}
             maxLength={MAX_PROMPT_LENGTH}
             disabled={promptQuery.isLoading || savingPrompt}
             className="min-h-72 resize-y font-mono text-sm leading-6"

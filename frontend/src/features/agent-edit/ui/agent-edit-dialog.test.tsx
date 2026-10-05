@@ -43,6 +43,29 @@ const agent: ControlPlaneAgentDefinition = {
 };
 
 describe("AgentEditDialog", () => {
+  it("discards edits and loads the latest definition when reopened", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<AgentEditDialog agent={agent} availableAgents={[]} />);
+
+    await user.click(screen.getByRole("button", { name: "editAgent" }));
+    await user.clear(screen.getByLabelText("capabilities"));
+    await user.type(screen.getByLabelText("capabilities"), "Unsaved capability");
+    await user.click(screen.getByRole("button", { name: "showAdvanced" }));
+    await user.click(screen.getByRole("button", { name: "cancel" }));
+
+    rerender(
+      <AgentEditDialog
+        agent={{ ...agent, capabilities: ["Updated capability"] }}
+        availableAgents={[]}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "editAgent" }));
+
+    expect(screen.getByLabelText("capabilities")).toHaveValue("Updated capability");
+    expect(screen.getByRole("button", { name: "showAdvanced" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("agentId")).not.toBeInTheDocument();
+  });
+
   it("opens with the current control-plane agent definition", async () => {
     const user = userEvent.setup();
 
