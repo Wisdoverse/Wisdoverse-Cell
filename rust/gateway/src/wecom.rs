@@ -105,7 +105,7 @@ impl WecomCrypto {
         nonce: &str,
         post_data: &[u8],
     ) -> Result<Vec<u8>, WecomCryptoError> {
-        let encrypted = extract_xml_text(post_data, b"Encrypt")?;
+        let encrypted = extract_xml_text(post_data, "Encrypt")?;
         if !self.verify_signature(msg_signature, timestamp, nonce, &encrypted) {
             return Err(WecomCryptoError::InvalidSignature);
         }
@@ -197,27 +197,19 @@ pub struct WecomTemplateAction {
 pub fn parse_received_message(xml: &[u8]) -> Result<ReceivedMessage, WecomCryptoError> {
     let mut reader = Reader::from_reader(xml);
     reader.config_mut().trim_text(true);
-    let mut current_tag = Vec::new();
+    let mut current_tag = String::new();
     let mut message = ReceivedMessage::default();
 
     loop {
         match reader.read_event() {
             Ok(Event::Start(event)) => {
-                current_tag = event.name().as_ref().to_vec();
+                current_tag = event.name().as_ref().to_string();
             }
             Ok(Event::Text(event)) => {
-                apply_received_message_text(
-                    &mut message,
-                    &current_tag,
-                    String::from_utf8_lossy(event.as_ref()).as_ref(),
-                );
+                apply_received_message_text(&mut message, &current_tag, event.as_ref());
             }
             Ok(Event::CData(event)) => {
-                apply_received_message_text(
-                    &mut message,
-                    &current_tag,
-                    String::from_utf8_lossy(event.as_ref()).as_ref(),
-                );
+                apply_received_message_text(&mut message, &current_tag, event.as_ref());
             }
             Ok(Event::End(_)) => {
                 current_tag.clear();
@@ -269,25 +261,25 @@ pub fn parse_template_action(event_key: &str) -> Option<WecomTemplateAction> {
     })
 }
 
-fn apply_received_message_text(message: &mut ReceivedMessage, tag: &[u8], text: &str) {
+fn apply_received_message_text(message: &mut ReceivedMessage, tag: &str, text: &str) {
     match tag {
-        b"FromUserName" => message.from_user_name = text.to_string(),
-        b"MsgType" => message.msg_type = text.to_string(),
-        b"MsgId" => message.msg_id = text.to_string(),
-        b"Content" => message.content = text.to_string(),
-        b"Recognition" => message.recognition = text.to_string(),
-        b"Title" => message.title = text.to_string(),
-        b"Description" => message.description = text.to_string(),
-        b"Event" => message.event = text.to_string(),
-        b"EventKey" => message.event_key = text.to_string(),
-        b"ResponseCode" => message.response_code = text.to_string(),
-        b"TaskId" => message.task_id = text.to_string(),
-        b"CardType" => message.card_type = text.to_string(),
+        "FromUserName" => message.from_user_name = text.to_string(),
+        "MsgType" => message.msg_type = text.to_string(),
+        "MsgId" => message.msg_id = text.to_string(),
+        "Content" => message.content = text.to_string(),
+        "Recognition" => message.recognition = text.to_string(),
+        "Title" => message.title = text.to_string(),
+        "Description" => message.description = text.to_string(),
+        "Event" => message.event = text.to_string(),
+        "EventKey" => message.event_key = text.to_string(),
+        "ResponseCode" => message.response_code = text.to_string(),
+        "TaskId" => message.task_id = text.to_string(),
+        "CardType" => message.card_type = text.to_string(),
         _ => {}
     }
 }
 
-fn extract_xml_text(xml: &[u8], tag: &[u8]) -> Result<String, WecomCryptoError> {
+fn extract_xml_text(xml: &[u8], tag: &str) -> Result<String, WecomCryptoError> {
     let mut reader = Reader::from_reader(xml);
     reader.config_mut().trim_text(true);
     let mut inside_tag = false;
@@ -298,10 +290,10 @@ fn extract_xml_text(xml: &[u8], tag: &[u8]) -> Result<String, WecomCryptoError> 
                 inside_tag = true;
             }
             Ok(Event::Text(event)) if inside_tag => {
-                return Ok(String::from_utf8_lossy(event.as_ref()).to_string());
+                return Ok(event.as_ref().to_string());
             }
             Ok(Event::CData(event)) if inside_tag => {
-                return Ok(String::from_utf8_lossy(event.as_ref()).to_string());
+                return Ok(event.as_ref().to_string());
             }
             Ok(Event::End(event)) if event.name().as_ref() == tag => {
                 return Err(WecomCryptoError::MissingEncrypt);
@@ -397,6 +389,15 @@ mod tests {
             .unwrap();
 
         assert_eq!(decrypted, plain.as_bytes());
+    }
+
+    #[test]
+    fn parses_unicode_text_and_cdata() {
+        for content in ["你好 Café", "<![CDATA[你好 Café]]>"] {
+            let xml = format!("<xml><MsgType>text</MsgType><Content>{content}</Content></xml>");
+            let message = parse_received_message(xml.as_bytes()).unwrap();
+            assert_eq!(parse_message_content(&message), "你好 Café");
+        }
     }
 
     #[test]
