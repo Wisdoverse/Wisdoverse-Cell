@@ -64,6 +64,15 @@ def _compose_service_block(compose: str, service: str) -> str:
     return "\n".join(lines[start:end])
 
 
+def test_unified_runtime_litellm_pins_are_consistent() -> None:
+    paths = [Path("requirements.txt"), Path("requirements-lock.txt"), *RUNTIME_REQUIREMENTS.values()]
+    pins = {
+        next(line for line in path.read_text().splitlines() if line.startswith("litellm=="))
+        for path in paths
+    }
+    assert len(pins) == 1, f"Unified runtime has conflicting LiteLLM pins: {pins}"
+
+
 def test_docker_runtime_units_that_use_llm_gateway_install_litellm() -> None:
     """Per-package requirements files must include LiteLLM when their runtime uses LLMGateway."""
     for root, requirements_path in RUNTIME_REQUIREMENTS.items():
