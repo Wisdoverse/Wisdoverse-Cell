@@ -199,7 +199,7 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
         </TabsContent>
 
         <TabsContent value="config">
-          <AgentConfig agentMeta={agentMeta} />
+          <AgentConfig key={agentMeta.id} agentMeta={agentMeta} />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useMemo, useState, type ReactNode } from "react";
 import { Loader2, Pencil, Save, Settings2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -141,12 +141,13 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [form, setForm] = useState(() => formFromAgent(agent));
 
-  useEffect(() => {
-    if (!open) {
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
       setForm(formFromAgent(agent));
       setAdvancedOpen(false);
     }
-  }, [agent, open]);
+    setOpen(nextOpen);
+  }
 
   const managerOptions = useMemo(
     () =>
@@ -204,7 +205,7 @@ export function AgentEditDialog({ agent, availableAgents, onUpdated }: AgentEdit
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button type="button" variant="outline">
           <Pencil />

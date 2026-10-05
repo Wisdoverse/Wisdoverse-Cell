@@ -121,6 +121,13 @@ Cross-slice imports must use the target slice public API, such as
 
 ## Testing and Quality Gates
 
+ESLint 10 uses the official `@eslint/compat` adapter for older Next.js plugins.
+Three package overrides use the same ESLint version for React, import, and accessibility plugins.
+Their peer declarations do not yet include ESLint 10.
+`npm run lint` checks invalid examples to confirm that seven rules report invalid code.
+Remove the adapter and overrides after all three plugins declare ESLint 10 in their peer dependencies.
+Run the full frontend checks after each change.
+
 Use the narrowest useful check while iterating, then run the broader gates before
 handing off frontend changes.
 
