@@ -17,7 +17,7 @@ litellm==1.103.2
 apscheduler>=3.10.0
 
 # Observability
-prometheus-client>=0.20.0
+prometheus-client>=0.26.0
 structlog>=25.5.0
 
 # Security scanning
