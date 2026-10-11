@@ -11,5 +11,5 @@ lark-oapi>=1.5.3
 litellm==1.103.2
 pydantic-settings>=2.14.1
 structlog>=25.5.0
-prometheus-client>=0.21.0
+prometheus-client>=0.26.0
 apscheduler>=3.11.0
