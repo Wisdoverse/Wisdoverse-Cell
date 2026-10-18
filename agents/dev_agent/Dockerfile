@@ -16,7 +16,7 @@
 # ------------------------------------------------------------------------------
 # Stage 1: Builder - Install dependencies and compile
 # ------------------------------------------------------------------------------
-FROM python:3.13-slim AS builder
+FROM python:3.14-slim AS builder
 
 ARG PIP_NO_CACHE_DIR=1
 ARG PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -36,7 +36,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ------------------------------------------------------------------------------
 # Stage 2: Runtime - Minimal production image
 # ------------------------------------------------------------------------------
-FROM python:3.13-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 # =============================================================================
 # Metadata (OCI Image Spec)
