@@ -1,4 +1,4 @@
-FROM rust:1.99.0-alpine AS builder
+FROM rust:1.99.1-alpine AS builder
 
 ARG ALPINE_MIRROR
 
